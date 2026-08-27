@@ -2,7 +2,6 @@ package com.example.myfin.ui.screens
 
 import android.widget.Toast
 import androidx.compose.animation.*
-import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -635,7 +634,7 @@ fun VaultAccountsScreen(
             )
         }
 
-        // Bottom Sheet: Success Receipt (Matching Attached Reference)
+        // Bottom Sheet: Success Receipt
         receiptPayload?.let { payload ->
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -659,7 +658,6 @@ fun VaultAccountsScreen(
                         .padding(horizontal = 24.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Circular Purple Checkmark Badge
                     Surface(
                         shape = CircleShape,
                         color = AccentPurple,
