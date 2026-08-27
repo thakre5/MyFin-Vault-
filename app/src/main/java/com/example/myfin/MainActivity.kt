@@ -47,10 +47,8 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // Initialize notification channels on startup
         ReminderScheduler.createNotificationChannels(applicationContext)
 
-        // Auto-lock vault when backgrounded for > 45 seconds
         lifecycle.addObserver(LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_STOP -> {
@@ -72,7 +70,6 @@ class MainActivity : FragmentActivity() {
                 val isUnlocked by viewModel.isAppUnlocked.collectAsState()
                 val storedPin = remember(isUnlocked) { securityManager.getStoredPin().orEmpty() }
 
-                // Dynamic FLAG_SECURE: Allow screenshots only when user explicitly toggles it ON in Settings
                 LaunchedEffect(userProfile.isScreenCaptureAllowed) {
                     if (userProfile.isScreenCaptureAllowed) {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -86,10 +83,9 @@ class MainActivity : FragmentActivity() {
 
                 val isFirstLaunch = !userProfile.isOnboardingCompleted || storedPin.isBlank()
 
-                // Runtime POST_NOTIFICATIONS permission check on Android 13+
                 val notificationPermissionLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.RequestPermission()
-                ) { /* Handled in settings */ }
+                ) { }
 
                 LaunchedEffect(Unit) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -132,7 +128,7 @@ class MainActivity : FragmentActivity() {
                                 securityManager.showBiometricPrompt(
                                     activity = this@MainActivity,
                                     onSuccess = { viewModel.unlockApp() },
-                                    onError = { /* PIN fallback */ }
+                                    onError = { }
                                 )
                             }
                         }
@@ -193,7 +189,8 @@ class MainActivity : FragmentActivity() {
                                     NavigationTarget.MONTHLY_VIEW -> {
                                         MonthlyScreen(
                                             viewModel = viewModel,
-                                            onOpenDrawer = { isDrawerOpen = true }
+                                            onOpenDrawer = { isDrawerOpen = true },
+                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER }
                                         )
                                     }
                                     NavigationTarget.DATA_SET -> {
