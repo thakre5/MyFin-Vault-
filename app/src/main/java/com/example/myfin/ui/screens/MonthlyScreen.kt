@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -116,7 +117,7 @@ fun MonthlyScreen(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
             // --- TAB 1: SUMMARY ---
@@ -163,56 +164,160 @@ fun MonthlyScreen(
                     }
                 }
 
+                // Modernized Hero Card
                 item {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .shadow(12.dp, RoundedCornerShape(24.dp)),
-                        shape = RoundedCornerShape(24.dp),
+                            .shadow(8.dp, RoundedCornerShape(26.dp)),
+                        shape = RoundedCornerShape(26.dp),
                         color = CardWhite
                     ) {
-                        Column(modifier = Modifier.background(HeroCardGradient).padding(20.dp)) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Safe to Spend Guardrail", color = TextMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                Surface(shape = RoundedCornerShape(12.dp), color = if (uiState.metrics.safeToSpend > 0) SoftGreen.copy(alpha = 0.15f) else SoftRed.copy(alpha = 0.15f)) {
-                                    Text(
-                                        text = "${uiState.metrics.safeToSpendPercentage}% left",
-                                        color = if (uiState.metrics.safeToSpend > 0) SoftGreen else SoftRed,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        Column(
+                            modifier = Modifier
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color(0xFFFFFFFF),
+                                            Color(0xFFFAF9FE),
+                                            Color(0xFFF3F1FD)
+                                        )
                                     )
+                                )
+                                .padding(22.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "SAFE TO SPEND",
+                                    color = TextMuted,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 0.8.sp
+                                )
+
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (uiState.metrics.safeToSpend > 0) SoftGreen.copy(alpha = 0.14f) else SoftRed.copy(alpha = 0.14f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(if (uiState.metrics.safeToSpend > 0) SoftGreen else SoftRed)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = "${uiState.metrics.safeToSpendPercentage}% Remaining",
+                                            color = if (uiState.metrics.safeToSpend > 0) SoftGreen else SoftRed,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
                             Text(
                                 text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
-                                fontSize = 28.sp,
+                                fontSize = 32.sp,
                                 fontWeight = FontWeight.Black,
-                                color = if (uiState.metrics.safeToSpend > 0) TextDark else SoftRed
+                                color = if (uiState.metrics.safeToSpend > 0) TextDark else SoftRed,
+                                letterSpacing = (-0.5).sp
                             )
+
                             Spacer(modifier = Modifier.height(14.dp))
-                            SpendingSparkline(points = uiState.metrics.dailyExpensePoints)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Planned Inflow: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedIncome)}", fontSize = 11.sp, color = SoftGreen, fontWeight = FontWeight.SemiBold)
-                                Text("Fixed Commitments: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}", fontSize = 11.sp, color = SoftRed, fontWeight = FontWeight.SemiBold)
+
+                            // Sparkline Visualization
+                            SpendingSparkline(
+                                points = uiState.metrics.dailyExpensePoints,
+                                lineColor = AccentPurple,
+                                gradientStartColor = AccentPurple.copy(alpha = 0.25f),
+                                gradientEndColor = AccentPurple.copy(alpha = 0.0f)
+                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Micro Financial Breakdown Chips
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = CardWhite.copy(alpha = 0.85f)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text("Inflow", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedIncome)}",
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = SoftGreen
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = CardWhite.copy(alpha = 0.85f)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text("Fixed Bills", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = SoftRed
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = CardWhite.copy(alpha = 0.85f)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text("SIP Assets", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualAssets)}",
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = SoftTeal
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
+                // Planned vs Actual Spend Cards
                 item {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Surface(modifier = Modifier.weight(1f).shadow(4.dp, RoundedCornerShape(18.dp)), shape = RoundedCornerShape(18.dp), color = CardWhite) {
+                        Surface(modifier = Modifier.weight(1f).shadow(2.dp, RoundedCornerShape(18.dp)), shape = RoundedCornerShape(18.dp), color = CardWhite) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Planned Budget", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                                Text("Budget Limit", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedExpenses)}", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
                         }
-                        Surface(modifier = Modifier.weight(1f).shadow(4.dp, RoundedCornerShape(18.dp)), shape = RoundedCornerShape(18.dp), color = CardWhite) {
+                        Surface(modifier = Modifier.weight(1f).shadow(2.dp, RoundedCornerShape(18.dp)), shape = RoundedCornerShape(18.dp), color = CardWhite) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text("Actual Spent", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -223,6 +328,7 @@ fun MonthlyScreen(
                     Spacer(modifier = Modifier.height(20.dp))
                 }
 
+                // Category Matrix Segmented Tab
                 item {
                     Text("Category Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
                     Spacer(modifier = Modifier.height(10.dp))
@@ -440,7 +546,7 @@ fun MonthlyScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = AccentPurple,
@@ -532,13 +638,23 @@ fun MonthlyScreen(
                 } else {
                     uiState.groupedTransactions.forEach { (dateHeader, txList) ->
                         item {
-                            Text(
-                                text = dateHeader,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = TextMuted,
-                                modifier = Modifier.padding(vertical = 6.dp)
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = dateHeader,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = TextMuted
+                                )
+                                Text(
+                                    text = "${txList.size} entries",
+                                    fontSize = 11.sp,
+                                    color = TextMuted.copy(alpha = 0.7f)
+                                )
+                            }
                         }
 
                         items(txList, key = { it.id }) { tx ->
@@ -671,7 +787,7 @@ fun MonthlyScreen(
             }
         }
 
-        // Quick Action Menu Modal
+        // Modals & Sheets
         if (showActionMenu) {
             Dialog(onDismissRequest = { showActionMenu = false }) {
                 Surface(
@@ -730,7 +846,6 @@ fun MonthlyScreen(
             }
         }
 
-        // Modal: Confirmation for Deleting Transaction
         transactionToDelete?.let { tx ->
             AlertDialog(
                 onDismissRequest = { transactionToDelete = null },
@@ -758,7 +873,6 @@ fun MonthlyScreen(
             )
         }
 
-        // Modal: Confirmation for Deleting Fixed Bill
         billToDelete?.let { bill ->
             AlertDialog(
                 onDismissRequest = { billToDelete = null },
@@ -782,7 +896,6 @@ fun MonthlyScreen(
             )
         }
 
-        // Modal: Confirmation for Reverting Settled Bill
         billToRevert?.let { bill ->
             AlertDialog(
                 onDismissRequest = { billToRevert = null },
@@ -806,7 +919,6 @@ fun MonthlyScreen(
             )
         }
 
-        // Modal: Settle Bill (Actual Amount vs Planned Baseline)
         settlingFixedBill?.let { bill ->
             var finalAmountText by remember { mutableStateOf(bill.amount.toString()) }
 
