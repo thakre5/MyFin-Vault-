@@ -35,7 +35,6 @@ import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
-import com.example.myfin.ui.CategoryPerformance
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
 import java.util.Locale
@@ -247,7 +246,6 @@ fun MonthlyScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // Micro Financial Breakdown Chips
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -423,7 +421,6 @@ fun MonthlyScreen(
                                             .clickable { expandedCategories[cat.category] = !isExpanded }
                                             .padding(vertical = 10.dp, horizontal = 4.dp)
                                     ) {
-                                        // Header Row: Avatar, Title, Allowance & Total
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -505,7 +502,6 @@ fun MonthlyScreen(
                                             }
                                         }
 
-                                        // Utilization Progress Bar
                                         if (cat.plannedAmount > 0) {
                                             Spacer(modifier = Modifier.height(10.dp))
                                             LinearProgressIndicator(
@@ -519,7 +515,6 @@ fun MonthlyScreen(
                                             )
                                         }
 
-                                        // Expandable Subcategories Breakdown
                                         AnimatedVisibility(
                                             visible = isExpanded,
                                             enter = expandVertically() + fadeIn(),
@@ -601,13 +596,13 @@ fun MonthlyScreen(
                 }
             }
 
-            // --- TAB 2: TRANSACTIONS ---
+            // --- TAB 2: TRANSACTIONS (Refined Ledger & Sticky Date Headers) ---
             if (activeTab == DashboardTab.TRANSACTIONS) {
                 item {
                     OutlinedTextField(
                         value = filterCriteria.query,
                         onValueChange = { viewModel.updateSearchQuery(it) },
-                        placeholder = { Text("Search transactions...") },
+                        placeholder = { Text("Search title, subcategory, merchant...") },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = TextMuted) },
                         trailingIcon = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -717,28 +712,70 @@ fun MonthlyScreen(
                     }
                 } else {
                     uiState.groupedTransactions.forEach { (dateHeader, txList) ->
+                        // Calculate Daily Totals
+                        val dailyExpenseTotal = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+                        val dailyIncomeTotal = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+
                         item {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 14.dp, bottom = 6.dp, start = 4.dp, end = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = dateHeader,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = TextMuted
-                                )
-                                Text(
-                                    text = "${txList.size} entries",
-                                    fontSize = 11.sp,
-                                    color = TextMuted.copy(alpha = 0.7f)
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = TextDark
+                                    ) {
+                                        Text(
+                                            text = dateHeader.uppercase(),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 9.5.sp,
+                                            color = Color.White,
+                                            letterSpacing = 0.6.sp,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    Text(
+                                        text = "${txList.size} ${if (txList.size == 1) "entry" else "entries"}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextMuted
+                                    )
+                                }
+
+                                // Daily Net Delta Badge
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    if (dailyIncomeTotal > 0.0) {
+                                        Text(
+                                            text = "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.5.sp,
+                                            color = SoftGreen
+                                        )
+                                    }
+                                    if (dailyExpenseTotal > 0.0) {
+                                        Text(
+                                            text = "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.5.sp,
+                                            color = TextDark
+                                        )
+                                    }
+                                }
                             }
                         }
 
                         items(txList, key = { it.id }) { tx ->
-                            Box(modifier = Modifier.padding(vertical = 3.dp)) {
+                            Box(modifier = Modifier.padding(vertical = 3.5.dp)) {
                                 SwipeableTransactionItem(
                                     transaction = tx,
                                     currencySymbol = userProfile.currencySymbol,
