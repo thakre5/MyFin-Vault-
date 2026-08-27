@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -51,7 +52,8 @@ enum class DashboardTab { SUMMARY, TRANSACTIONS, MONTHLY_PAYMENTS }
 @Composable
 fun MonthlyScreen(
     viewModel: BudgetViewModel,
-    onOpenDrawer: () -> Unit
+    onOpenDrawer: () -> Unit,
+    onNavigateToPlanner: () -> Unit
 ) {
     val context = LocalContext.current
     val uiState by viewModel.monthlyUiState.collectAsState()
@@ -95,58 +97,13 @@ fun MonthlyScreen(
     val dailySpendAllowance = (uiState.metrics.safeToSpend / daysRemaining).coerceAtLeast(0.0)
 
     Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
+        // Main Scrollable Dashboard Content
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(bottom = 115.dp)
+            contentPadding = PaddingValues(top = 100.dp, bottom = 120.dp)
         ) {
-            // Top App Bar with Notch / Status Bar Insets
-            item {
-                Spacer(modifier = Modifier.statusBarsPadding())
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onOpenDrawer,
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(CardWhite)
-                            .border(0.8.dp, BorderLight.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
-                    ) {
-                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextDark)
-                    }
-
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable { showMonthPicker = true },
-                        shape = RoundedCornerShape(20.dp),
-                        color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = TextDark
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
             // --- TAB 1: SUMMARY ---
             if (activeTab == DashboardTab.SUMMARY) {
                 if (showRollover) {
@@ -316,7 +273,7 @@ fun MonthlyScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 1. Balance Flow & Net Savings Delta Card
+                // Balance Flow & Net Savings Delta Card
                 item {
                     val actualIncome = uiState.metrics.actualIncome
                     val actualExpenses = uiState.metrics.actualExpenses
@@ -410,7 +367,7 @@ fun MonthlyScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 2. 3-Pillar Cashflow & Target Comparison System
+                // 3-Pillar Cashflow & Target Comparison System
                 item {
                     val plannedExpenses = uiState.metrics.plannedExpenses
                     val actualExpenses = uiState.metrics.actualExpenses
@@ -497,7 +454,7 @@ fun MonthlyScreen(
                     Spacer(modifier = Modifier.height(20.dp))
                 }
 
-                // 3. Category Matrix (Accordion)
+                // Category Matrix (Accordion)
                 item {
                     Text("Category Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
                     Spacer(modifier = Modifier.height(10.dp))
@@ -767,7 +724,7 @@ fun MonthlyScreen(
                 }
             }
 
-            // --- TAB 2: TRANSACTIONS (Compact Single-Line Search Bar) ---
+            // --- TAB 2: TRANSACTIONS ---
             if (activeTab == DashboardTab.TRANSACTIONS) {
                 item {
                     // Compact Slim Search Field
@@ -1035,11 +992,73 @@ fun MonthlyScreen(
             }
         }
 
-        // Bottom Navigation Dock
+        // 1 & 2. Pinned Top Bar (Header Fixed at Top with `<` Navigation Icon)
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(),
+            color = CanvasLight.copy(alpha = 0.96f)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // `<` Button replacing hamburger menu
+                    IconButton(
+                        onClick = onOpenDrawer,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CardWhite)
+                            .border(0.8.dp, BorderLight.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
+                    ) {
+                        Icon(
+                            Icons.Default.ChevronLeft,
+                            contentDescription = "Drawer / Navigation",
+                            tint = TextDark,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // Pinned Month Selector Dropdown
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable { showMonthPicker = true },
+                        shape = RoundedCornerShape(20.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = TextDark
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. 4 + 1 Floating Bottom Navigation Dock (Preserving Shape & Size)
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp, start = 20.dp, end = 20.dp)
+                .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -1055,7 +1074,7 @@ fun MonthlyScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 6.dp),
+                        .padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1066,7 +1085,7 @@ fun MonthlyScreen(
                         onClick = { activeTab = DashboardTab.SUMMARY }
                     )
                     DockPillTab(
-                        title = "Transactions",
+                        title = "Ledger",
                         icon = Icons.Default.ReceiptLong,
                         isSelected = activeTab == DashboardTab.TRANSACTIONS,
                         onClick = { activeTab = DashboardTab.TRANSACTIONS }
@@ -1077,10 +1096,16 @@ fun MonthlyScreen(
                         isSelected = activeTab == DashboardTab.MONTHLY_PAYMENTS,
                         onClick = { activeTab = DashboardTab.MONTHLY_PAYMENTS }
                     )
+                    DockPillTab(
+                        title = "Planner",
+                        icon = Icons.Default.PieChart,
+                        isSelected = false,
+                        onClick = onNavigateToPlanner
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             FloatingActionButton(
                 onClick = { showActionMenu = true },
@@ -1385,7 +1410,6 @@ fun MonthlyScreen(
             )
         }
 
-        // AutoPay Bottom Sheet Triggers
         if (showAddFixedBill) {
             AddEditFixedBillDialog(
                 accountList = accountsList,
@@ -1528,7 +1552,7 @@ private fun DockPillTab(
             .clip(CircleShape)
             .background(if (isSelected) CanvasLight else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1536,11 +1560,11 @@ private fun DockPillTab(
                 icon,
                 contentDescription = title,
                 tint = if (isSelected) AccentPurple else TextMuted,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(17.dp)
             )
             if (isSelected) {
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = AccentPurple)
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = AccentPurple)
             }
         }
     }
