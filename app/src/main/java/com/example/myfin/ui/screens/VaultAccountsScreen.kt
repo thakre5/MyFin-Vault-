@@ -105,14 +105,14 @@ fun VaultAccountsScreen(
     var selectedDetailAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
     var adjustingAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
 
-    // Fallback to 4 generic baseline accounts with ₹0.00 initial balance if empty
+    // Fallback to 4 generic baseline accounts with parameters matching AccountBalanceResult
     val displayAccounts = remember(uiState.accounts) {
         if (uiState.accounts.isEmpty()) {
             listOf(
-                AccountBalanceResult("Operating Account", 0.0),
-                AccountBalanceResult("Commitments Account", 0.0),
-                AccountBalanceResult("Fortress Account", 0.0),
-                AccountBalanceResult("Cash Wallet", 0.0)
+                AccountBalanceResult(accountName = "Operating Account", accountType = "Operating", sortOrder = 0, currentBalance = 0.0),
+                AccountBalanceResult(accountName = "Commitments Account", accountType = "Commitments", sortOrder = 1, currentBalance = 0.0),
+                AccountBalanceResult(accountName = "Fortress Account", accountType = "Fortress", sortOrder = 2, currentBalance = 0.0),
+                AccountBalanceResult(accountName = "Cash Wallet", accountType = "Cash", sortOrder = 3, currentBalance = 0.0)
             )
         } else {
             uiState.accounts
@@ -859,7 +859,7 @@ fun VaultAccountsScreen(
             }
         }
 
-        // Detailed Account Page (Matching 3rd reference image)
+        // Detailed Account Page (Matching Reference Design)
         selectedDetailAccount?.let { acc ->
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             val maskedDigits = remember(acc.accountName) {
