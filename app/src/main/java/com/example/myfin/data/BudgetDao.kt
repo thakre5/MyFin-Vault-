@@ -62,7 +62,7 @@ interface BudgetDao {
     @Query("DELETE FROM fixed_bills WHERE category = :category AND isPaid = 0 AND ((year > :currentYear) OR (year = :currentYear AND month >= :currentMonth))")
     suspend fun deleteFutureUnpaidFixedBillsByCategory(category: String, currentMonth: Int, currentYear: Int)
 
-    @Query("DELETE FROM fixed_bills WHERE parentCategory = :parentCategory AND subcategory = :subcategory AND isPaid = 0 AND ((year > :currentYear) OR (year = :currentYear AND month >= :currentMonth))")
+    @Query("DELETE FROM fixed_bills WHERE category = :parentCategory AND subcategory = :subcategory AND isPaid = 0 AND ((year > :currentYear) OR (year = :currentYear AND month >= :currentMonth))")
     suspend fun deleteFutureUnpaidFixedBillsBySubcategory(parentCategory: String, subcategory: String, currentMonth: Int, currentYear: Int)
 
     @Query("DELETE FROM fixed_bills")
