@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionEntity
@@ -104,9 +105,9 @@ fun SwipeableTransactionItem(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(18.dp))
                     .background(backgroundColor)
-                    .padding(horizontal = 22.dp),
+                    .padding(horizontal = 20.dp),
                 contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
             ) {
                 if (direction == SwipeToDismissBoxValue.StartToEnd) {
@@ -117,23 +118,23 @@ fun SwipeableTransactionItem(
                         Surface(
                             shape = CircleShape,
                             color = Color.White.copy(alpha = 0.22f),
-                            modifier = Modifier.size(34.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.Default.Edit,
                                     contentDescription = "Edit Entry",
                                     tint = Color.White,
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Edit",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp
+                            fontSize = 13.sp
                         )
                     }
                 } else if (direction == SwipeToDismissBoxValue.EndToStart) {
@@ -145,20 +146,20 @@ fun SwipeableTransactionItem(
                             text = "Delete",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp
+                            fontSize = 13.sp
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = CircleShape,
                             color = Color.White.copy(alpha = 0.22f),
-                            modifier = Modifier.size(34.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.Default.Delete,
                                     contentDescription = "Delete Entry",
                                     tint = Color.White,
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
@@ -170,21 +171,21 @@ fun SwipeableTransactionItem(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(1.dp, RoundedCornerShape(20.dp))
-                .clip(RoundedCornerShape(20.dp))
-                .border(0.8.dp, BorderLight.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                .shadow(1.dp, RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(18.dp))
+                .border(0.8.dp, BorderLight.copy(alpha = 0.6f), RoundedCornerShape(18.dp))
                 .clickable { currentOnTap(currentTx) },
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(18.dp),
             color = CardWhite
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 13.dp),
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Block: Icon + Breadcrumb Info
+                // Left Block: Icon + Category Info
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
@@ -199,8 +200,8 @@ fun SwipeableTransactionItem(
 
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(13.dp))
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(11.dp))
                             .background(iconTint.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -208,36 +209,40 @@ fun SwipeableTransactionItem(
                             imageVector = categoryIcon,
                             contentDescription = currentTx.category,
                             tint = iconTint,
-                            modifier = Modifier.size(21.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(13.dp))
+                    Spacer(modifier = Modifier.width(11.dp))
 
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = currentTx.title,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
+                            fontSize = 13.5.sp,
                             color = TextDark,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
 
-                        Spacer(modifier = Modifier.height(3.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
                                 text = "${currentTx.category} • ${currentTx.subcategory}",
-                                fontSize = 11.5.sp,
+                                fontSize = 11.sp,
                                 color = TextMuted,
-                                fontWeight = FontWeight.Normal
+                                fontWeight = FontWeight.Normal,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
 
                             Surface(
-                                shape = RoundedCornerShape(5.dp),
+                                shape = RoundedCornerShape(4.dp),
                                 color = CanvasLight,
                                 border = androidx.compose.foundation.BorderStroke(0.6.dp, BorderLight)
                             ) {
@@ -247,17 +252,19 @@ fun SwipeableTransactionItem(
                                     } else {
                                         currentTx.accountName
                                     },
-                                    fontSize = 9.5.sp,
+                                    fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (currentTx.type == TransactionType.TRANSFER) AccentPurple else TextDark.copy(alpha = 0.75f),
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                    maxLines = 1
                                 )
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                // Generous Spacer to prevent amount overlap
+                Spacer(modifier = Modifier.width(16.dp))
 
                 // Right Block: Amount & Time
                 Column(horizontalAlignment = Alignment.End) {
@@ -278,7 +285,7 @@ fun SwipeableTransactionItem(
                     Text(
                         text = "$amountPrefix$currencySymbol${String.format(Locale.US, "%,.2f", currentTx.amount)}",
                         fontWeight = FontWeight.Black,
-                        fontSize = 15.sp,
+                        fontSize = 14.5.sp,
                         color = amountColor
                     )
 
@@ -287,7 +294,7 @@ fun SwipeableTransactionItem(
                     val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.US) }
                     Text(
                         text = timeFormatter.format(Date(currentTx.date)),
-                        fontSize = 10.5.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
                         color = TextMuted.copy(alpha = 0.8f)
                     )
