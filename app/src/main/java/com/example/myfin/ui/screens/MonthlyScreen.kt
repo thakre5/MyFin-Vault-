@@ -3,6 +3,7 @@ package com.example.myfin.ui.screens
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -34,6 +35,7 @@ import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
+import com.example.myfin.ui.CategoryPerformance
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
 import java.util.Locale
@@ -82,9 +84,9 @@ fun MonthlyScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(bottom = 110.dp)
+            contentPadding = PaddingValues(bottom = 115.dp)
         ) {
-            // Header Bar
+            // Top App Bar
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
@@ -164,7 +166,7 @@ fun MonthlyScreen(
                     }
                 }
 
-                // Modernized Hero Card
+                // Hero Card: Safe to Spend & Live Sparkline
                 item {
                     Surface(
                         modifier = Modifier
@@ -236,7 +238,6 @@ fun MonthlyScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // Sparkline Visualization
                             SpendingSparkline(
                                 points = uiState.metrics.dailyExpensePoints,
                                 lineColor = AccentPurple,
@@ -328,7 +329,7 @@ fun MonthlyScreen(
                     Spacer(modifier = Modifier.height(20.dp))
                 }
 
-                // Category Matrix Segmented Tab
+                // Category Matrix Segmented Control
                 item {
                     Text("Category Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
                     Spacer(modifier = Modifier.height(10.dp))
@@ -384,21 +385,45 @@ fun MonthlyScreen(
                 } else {
                     item {
                         Surface(
-                            modifier = Modifier.fillMaxWidth().shadow(2.dp, RoundedCornerShape(20.dp)),
-                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(3.dp, RoundedCornerShape(22.dp)),
+                            shape = RoundedCornerShape(22.dp),
                             color = CardWhite
                         ) {
-                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                                 activeMatrix.forEachIndexed { index, cat ->
                                     val isExpanded = expandedCategories[cat.category] ?: false
-                                    val rotation by animateFloatAsState(if (isExpanded) 180f else 0f, label = "arrowRotation")
+                                    val rotation by animateFloatAsState(
+                                        targetValue = if (isExpanded) 180f else 0f,
+                                        animationSpec = tween(220),
+                                        label = "arrowRotation"
+                                    )
+
+                                    val progressFraction = if (cat.plannedAmount > 0) {
+                                        (cat.actualAmount / cat.plannedAmount).toFloat().coerceIn(0f, 1f)
+                                    } else 1f
+
+                                    val utilizationPercentage = if (cat.plannedAmount > 0) {
+                                        ((cat.actualAmount / cat.plannedAmount) * 100).toInt()
+                                    } else 100
+
+                                    val progressColor = when {
+                                        cat.isOverBudget -> SoftRed
+                                        cat.type == TransactionType.INCOME -> SoftGreen
+                                        cat.type == TransactionType.ASSET -> SoftTeal
+                                        utilizationPercentage >= 85 -> SoftAmber
+                                        else -> AccentPurple
+                                    }
 
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
                                             .clickable { expandedCategories[cat.category] = !isExpanded }
-                                            .padding(vertical = 10.dp)
+                                            .padding(vertical = 10.dp, horizontal = 4.dp)
                                     ) {
+                                        // Header Row: Avatar, Title, Allowance & Total
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -407,64 +432,70 @@ fun MonthlyScreen(
                                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(36.dp)
-                                                        .clip(CircleShape)
-                                                        .background(
-                                                            when (cat.type) {
-                                                                TransactionType.INCOME -> SoftGreen.copy(alpha = 0.12f)
-                                                                TransactionType.EXPENSE -> SoftRed.copy(alpha = 0.12f)
-                                                                TransactionType.ASSET -> SoftTeal.copy(alpha = 0.12f)
-                                                                else -> AccentPurple.copy(alpha = 0.12f)
-                                                            }
-                                                        ),
+                                                        .size(38.dp)
+                                                        .clip(RoundedCornerShape(10.dp))
+                                                        .background(progressColor.copy(alpha = 0.12f)),
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Text(
                                                         text = cat.category.take(1).uppercase(),
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 14.sp,
-                                                        color = when (cat.type) {
-                                                            TransactionType.INCOME -> SoftGreen
-                                                            TransactionType.EXPENSE -> SoftRed
-                                                            TransactionType.ASSET -> SoftTeal
-                                                            else -> AccentPurple
-                                                        }
+                                                        fontWeight = FontWeight.Black,
+                                                        fontSize = 15.sp,
+                                                        color = progressColor
                                                     )
                                                 }
                                                 Spacer(modifier = Modifier.width(12.dp))
                                                 Column {
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text(cat.category, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                                        Text(
+                                                            text = cat.category,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 14.sp,
+                                                            color = TextDark
+                                                        )
                                                         if (cat.isOverBudget) {
                                                             Spacer(modifier = Modifier.width(6.dp))
                                                             Surface(shape = RoundedCornerShape(4.dp), color = SoftRed.copy(alpha = 0.12f)) {
-                                                                Text("Over Budget", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = SoftRed, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                                                                Text("Over Budget", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = SoftRed, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
                                                             }
                                                         }
                                                     }
+                                                    Spacer(modifier = Modifier.height(2.dp))
                                                     Text(
-                                                        text = if (cat.plannedAmount > 0) "Plan: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.plannedAmount)}"
-                                                        else "Actual recorded",
+                                                        text = if (cat.plannedAmount > 0) {
+                                                            val remaining = cat.plannedAmount - cat.actualAmount
+                                                            if (remaining >= 0) {
+                                                                "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", remaining)} left of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.plannedAmount)}"
+                                                            } else {
+                                                                "Exceeded by ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", kotlin.math.abs(remaining))}"
+                                                            }
+                                                        } else {
+                                                            "No target limit configured"
+                                                        },
                                                         fontSize = 11.sp,
-                                                        color = TextMuted
+                                                        color = if (cat.isOverBudget) SoftRed else TextMuted
                                                     )
                                                 }
                                             }
 
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.actualAmount)}",
-                                                    fontWeight = FontWeight.Black,
-                                                    fontSize = 15.sp,
-                                                    color = when {
-                                                        cat.isOverBudget -> SoftRed
-                                                        cat.type == TransactionType.INCOME -> SoftGreen
-                                                        cat.type == TransactionType.EXPENSE -> SoftRed
-                                                        cat.type == TransactionType.ASSET -> SoftTeal
-                                                        else -> TextDark
+                                                Column(horizontalAlignment = Alignment.End) {
+                                                    Text(
+                                                        text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.actualAmount)}",
+                                                        fontWeight = FontWeight.Black,
+                                                        fontSize = 15.sp,
+                                                        color = if (cat.isOverBudget) SoftRed else TextDark
+                                                    )
+                                                    if (cat.plannedAmount > 0) {
+                                                        Text(
+                                                            text = "$utilizationPercentage%",
+                                                            fontSize = 10.5.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = progressColor
+                                                        )
                                                     }
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
                                                 Icon(
                                                     Icons.Default.ExpandMore,
                                                     contentDescription = "Expand",
@@ -474,35 +505,84 @@ fun MonthlyScreen(
                                             }
                                         }
 
-                                        AnimatedVisibility(visible = isExpanded) {
+                                        // Utilization Progress Bar
+                                        if (cat.plannedAmount > 0) {
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                            LinearProgressIndicator(
+                                                progress = { progressFraction },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(5.dp)
+                                                    .clip(RoundedCornerShape(3.dp)),
+                                                color = progressColor,
+                                                trackColor = BorderLight.copy(alpha = 0.6f)
+                                            )
+                                        }
+
+                                        // Expandable Subcategories Breakdown
+                                        AnimatedVisibility(
+                                            visible = isExpanded,
+                                            enter = expandVertically() + fadeIn(),
+                                            exit = shrinkVertically() + fadeOut()
+                                        ) {
                                             Column(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .padding(top = 10.dp, start = 48.dp)
-                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .padding(top = 12.dp)
+                                                    .clip(RoundedCornerShape(14.dp))
                                                     .background(CanvasLight)
-                                                    .padding(10.dp)
+                                                    .padding(12.dp)
                                             ) {
                                                 if (cat.activeSubcategories.isEmpty()) {
-                                                    Text("No subcategory transactions", fontSize = 11.sp, color = TextMuted)
+                                                    Text("No logged transactions in subcategories", fontSize = 11.5.sp, color = TextMuted)
                                                 } else {
+                                                    Text(
+                                                        text = "SUBCATEGORY CONTRIBUTIONS",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        color = TextMuted,
+                                                        letterSpacing = 0.5.sp,
+                                                        modifier = Modifier.padding(bottom = 6.dp)
+                                                    )
+
                                                     cat.activeSubcategories.forEach { sub ->
-                                                        Row(
-                                                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            Text(sub.name, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextDark)
-                                                            Text(
-                                                                text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", sub.amount)}",
-                                                                fontSize = 12.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = when (cat.type) {
-                                                                    TransactionType.INCOME -> SoftGreen
-                                                                    TransactionType.EXPENSE -> SoftRed
-                                                                    TransactionType.ASSET -> SoftTeal
-                                                                    else -> TextDark
+                                                        val subPercentage = if (cat.actualAmount > 0) {
+                                                            ((sub.amount / cat.actualAmount) * 100).toInt()
+                                                        } else 0
+
+                                                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                    Box(
+                                                                        modifier = Modifier
+                                                                            .size(5.dp)
+                                                                            .clip(CircleShape)
+                                                                            .background(progressColor)
+                                                                    )
+                                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                                    Text(sub.name, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextDark)
                                                                 }
+
+                                                                Text(
+                                                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", sub.amount)} ($subPercentage%)",
+                                                                    fontSize = 12.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = TextDark
+                                                                )
+                                                            }
+                                                            Spacer(modifier = Modifier.height(3.dp))
+                                                            LinearProgressIndicator(
+                                                                progress = { (subPercentage / 100f).coerceIn(0f, 1f) },
+                                                                modifier = Modifier
+                                                                    .fillMaxWidth()
+                                                                    .height(3.5.dp)
+                                                                    .clip(RoundedCornerShape(2.dp)),
+                                                                color = progressColor.copy(alpha = 0.65f),
+                                                                trackColor = BorderLight.copy(alpha = 0.5f)
                                                             )
                                                         }
                                                     }
@@ -512,7 +592,7 @@ fun MonthlyScreen(
                                     }
 
                                     if (index < activeMatrix.lastIndex) {
-                                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
+                                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
                                     }
                                 }
                             }
@@ -729,7 +809,7 @@ fun MonthlyScreen(
             }
         }
 
-        // Floating Navigation Dock
+        // Floating Bottom Navigation Dock
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -787,7 +867,7 @@ fun MonthlyScreen(
             }
         }
 
-        // Modals & Sheets
+        // Quick Actions Modal
         if (showActionMenu) {
             Dialog(onDismissRequest = { showActionMenu = false }) {
                 Surface(
