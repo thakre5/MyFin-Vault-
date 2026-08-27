@@ -52,9 +52,7 @@ import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.theme.*
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
@@ -72,13 +70,21 @@ data class SuccessReceiptPayload(
     val buttonText: String = "Done"
 )
 
-private fun getVaultTierForAccount(accountName: String): VaultTier {
-    val name = accountName.uppercase()
+private fun getVaultTier(accountType: String, accountName: String): VaultTier {
     return when {
-        name.contains("CASH") || name.contains("WALLET") -> VaultTier.CASH
-        name.contains("COMMITMENT") || name.contains("BILL") || name.contains("BOM") || name.contains("EMI") -> VaultTier.COMMITMENTS
-        name.contains("FORTRESS") || name.contains("EMERGENCY") || name.contains("FD") || name.contains("RESERVE") || name.contains("INDUSIND") -> VaultTier.FORTRESS
-        else -> VaultTier.OPERATING
+        accountType.equals("Operating", ignoreCase = true) -> VaultTier.OPERATING
+        accountType.equals("Commitments", ignoreCase = true) -> VaultTier.COMMITMENTS
+        accountType.equals("Fortress", ignoreCase = true) -> VaultTier.FORTRESS
+        accountType.equals("Cash", ignoreCase = true) -> VaultTier.CASH
+        else -> {
+            val name = accountName.uppercase()
+            when {
+                name.contains("CASH") || name.contains("WALLET") -> VaultTier.CASH
+                name.contains("COMMITMENT") || name.contains("BILL") || name.contains("BOM") || name.contains("EMI") || name.contains("AXIS") || name.contains("SBI") -> VaultTier.COMMITMENTS
+                name.contains("FORTRESS") || name.contains("EMERGENCY") || name.contains("FD") || name.contains("RESERVE") || name.contains("INDUSIND") -> VaultTier.FORTRESS
+                else -> VaultTier.OPERATING
+            }
+        }
     }
 }
 
@@ -103,10 +109,8 @@ fun VaultAccountsScreen(
     var showActionMenu by remember { mutableStateOf(false) }
     var showTransferSheet by remember { mutableStateOf(false) }
     var showAddAccountSheet by remember { mutableStateOf(false) }
-    var selectedDetailAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
     var adjustingAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
 
-    // Derive all distinct account names across entities and historical transactions
     val allDistinctAccountNames = remember(uiState.accounts, uiState.groupedTransactions) {
         val fromAccs = uiState.accounts.map { it.accountName }
         val fromTxs = uiState.groupedTransactions.values.flatten().map { it.accountName }.filter { it.isNotBlank() }
@@ -115,7 +119,7 @@ fun VaultAccountsScreen(
         }
     }
 
-    // Reactively compute live balances from starting balances + all ledger entries
+    // Reactive derivation of live balances and tier associations
     val displayAccounts = remember(uiState.accounts, uiState.groupedTransactions, allDistinctAccountNames) {
         val allTxs = uiState.groupedTransactions.values.flatten()
         allDistinctAccountNames.mapIndexed { index, name ->
@@ -123,14 +127,14 @@ fun VaultAccountsScreen(
             val txsForAcc = allTxs.filter { it.accountName.equals(name, ignoreCase = true) }
             val txBalance = txsForAcc.sumOf { if (it.type == TransactionType.INCOME) it.amount else -it.amount }
             val starting = existing?.startingBalance ?: 0.0
-            val totalBal = if (txsForAcc.isNotEmpty()) {
-                starting + txBalance
-            } else {
-                existing?.currentBalance ?: 0.0
-            }
+            val totalBal = if (txsForAcc.isNotEmpty()) starting + txBalance else (existing?.currentBalance ?: 0.0)
+
+            // Resolve stored tier from entity or infer
+            val tier = existing?.accountType?.ifBlank { null } ?: txsForAcc.firstOrNull { it.subcategory.isNotBlank() }?.subcategory ?: getVaultTier("", name).title
+
             AccountBalanceResult(
                 accountName = name,
-                accountType = existing?.accountType ?: getVaultTierForAccount(name).title,
+                accountType = tier,
                 sortOrder = existing?.sortOrder ?: index,
                 startingBalance = starting,
                 currentBalance = totalBal
@@ -147,19 +151,19 @@ fun VaultAccountsScreen(
 
     val totalLiquidBalance = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
     val opTotal = remember(displayAccounts) {
-        displayAccounts.filter { getVaultTierForAccount(it.accountName) == VaultTier.OPERATING }.sumOf { it.currentBalance }
+        displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.OPERATING }.sumOf { it.currentBalance }
     }
     val comTotal = remember(displayAccounts) {
-        displayAccounts.filter { getVaultTierForAccount(it.accountName) == VaultTier.COMMITMENTS }.sumOf { it.currentBalance }
+        displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.COMMITMENTS }.sumOf { it.currentBalance }
     }
     val fortTotal = remember(displayAccounts) {
-        displayAccounts.filter { getVaultTierForAccount(it.accountName) == VaultTier.FORTRESS }.sumOf { it.currentBalance }
+        displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.FORTRESS }.sumOf { it.currentBalance }
     }
     val cashTotal = remember(displayAccounts) {
-        displayAccounts.filter { getVaultTierForAccount(it.accountName) == VaultTier.CASH }.sumOf { it.currentBalance }
+        displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.CASH }.sumOf { it.currentBalance }
     }
 
-    // Cashflow Matrix Metrics Calculation
+    // Cashflow Matrix Metrics
     val activeAccountTxs = remember(uiState.groupedTransactions, activeAccount.accountName) {
         uiState.groupedTransactions.values.flatten().filter { it.accountName.equals(activeAccount.accountName, ignoreCase = true) }
     }
@@ -192,7 +196,7 @@ fun VaultAccountsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // 1. Centered Top Header Bar
+            // Centered Top Header Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -241,7 +245,7 @@ fun VaultAccountsScreen(
                 }
             }
 
-            // 2. Dedicated Mode Switcher Row Below Header
+            // Dedicated Mode Switcher Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -301,7 +305,7 @@ fun VaultAccountsScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 105.dp)
             ) {
-                // 3. Vault Asset Allocation Card (Top Placement)
+                // Vault Asset Allocation Card
                 item {
                     Surface(
                         modifier = Modifier
@@ -418,7 +422,7 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // 4. Connected Bank Accounts Header
+                // Connected Bank Accounts Header
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -433,7 +437,7 @@ fun VaultAccountsScreen(
                         )
 
                         Text(
-                            text = "Tap to view ledger",
+                            text = "Tap to view analytics",
                             fontSize = 11.sp,
                             color = TextMuted
                         )
@@ -441,7 +445,7 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // 5. Horizontal Scrollable Bank Cards
+                // Horizontal Scrollable Bank Cards
                 item {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -449,7 +453,7 @@ fun VaultAccountsScreen(
                     ) {
                         items(displayAccounts.size) { idx ->
                             val acc = displayAccounts[idx]
-                            val tier = getVaultTierForAccount(acc.accountName)
+                            val tier = getVaultTier(acc.accountType, acc.accountName)
                             val isSelected = activeSelectedCardIndex == idx
 
                             BankAccountPhysicalCard(
@@ -459,7 +463,7 @@ fun VaultAccountsScreen(
                                 isSelected = isSelected,
                                 showRole = isThreeVaultStrategy,
                                 onSelect = { activeSelectedCardIndex = idx },
-                                onTap = { selectedDetailAccount = acc },
+                                onEditBalance = { adjustingAccount = acc },
                                 modifier = Modifier.width(260.dp)
                             )
                         }
@@ -468,7 +472,7 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // 6. Cashflow Matrix: Liquidity Health & Strategic Routing
+                // Cashflow Matrix (Replacing raw ledger)
                 item {
                     Text(
                         text = "Account Cashflow Matrix (${activeAccount.accountName})",
@@ -478,7 +482,7 @@ fun VaultAccountsScreen(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Part A: 2x2 Liquidity Health & Runway Matrix
+                    // 2x2 Liquidity Health & Runway Matrix
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -489,7 +493,6 @@ fun VaultAccountsScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(modifier = Modifier.fillMaxWidth()) {
-                                // Daily Burn Velocity
                                 MatrixMetricCell(
                                     title = "Daily Burn Rate",
                                     value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyBurnRate)}/day",
@@ -501,13 +504,12 @@ fun VaultAccountsScreen(
 
                                 Spacer(modifier = Modifier.width(12.dp))
 
-                                // Runway Buffer
                                 MatrixMetricCell(
                                     title = "Runway Buffer",
                                     value = "$runwayDays Days",
                                     icon = Icons.Default.Timer,
                                     iconColor = if (runwayDays >= 30) SoftGreen else SoftAmber,
-                                    subtitle = "Coverage at burn rate",
+                                    subtitle = "Coverage at current burn",
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -517,7 +519,6 @@ fun VaultAccountsScreen(
                             Spacer(modifier = Modifier.height(12.dp))
 
                             Row(modifier = Modifier.fillMaxWidth()) {
-                                // Queued AutoPay
                                 MatrixMetricCell(
                                     title = "Queued AutoPay",
                                     value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPendingBillsAmount)}",
@@ -529,7 +530,6 @@ fun VaultAccountsScreen(
 
                                 Spacer(modifier = Modifier.width(12.dp))
 
-                                // Net Retained Delta
                                 val netDelta = activeIncome - activeExpenses
                                 MatrixMetricCell(
                                     title = "Net Cashflow",
@@ -545,7 +545,7 @@ fun VaultAccountsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Part B: Strategic Routing & Sweep Trigger
+                    // Strategic Routing & Sweep Trigger
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -589,7 +589,6 @@ fun VaultAccountsScreen(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Sweep Action Suggestion
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -690,7 +689,7 @@ fun VaultAccountsScreen(
             }
         }
 
-        // Anchored Floating Action Menu
+        // Floating Action Menu
         if (showActionMenu) {
             Box(
                 modifier = Modifier
@@ -963,209 +962,6 @@ fun VaultAccountsScreen(
             }
         }
 
-        // Detailed Account Page (Matching Reference Design)
-        selectedDetailAccount?.let { acc ->
-            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            val maskedDigits = remember(acc.accountName) {
-                String.format(Locale.US, "%04d", abs(acc.accountName.hashCode() % 9000 + 1000))
-            }
-            val accountTxList = remember(uiState.groupedTransactions, acc.accountName) {
-                uiState.groupedTransactions.values.flatten()
-                    .filter { it.accountName.equals(acc.accountName, ignoreCase = true) }
-                    .sortedByDescending { it.date }
-            }
-
-            ModalBottomSheet(
-                onDismissRequest = { selectedDetailAccount = null },
-                sheetState = sheetState,
-                containerColor = Color(0xFF154ECE),
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                dragHandle = {
-                    Surface(modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp), shape = CircleShape, color = Color.White.copy(alpha = 0.4f)) {}
-                }
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 22.dp, vertical = 10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color.White.copy(alpha = 0.18f)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("•••• $maskedDigits", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                }
-                            }
-
-                            IconButton(
-                                onClick = { selectedDetailAccount = null },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.18f))
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(16.dp))
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text("Your balance", fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.75f), fontWeight = FontWeight.Medium)
-                        Spacer(modifier = Modifier.height(2.dp))
-
-                        // Amount with Minimalist Inline Pencil Icon
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", acc.currentBalance)}",
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            IconButton(
-                                onClick = {
-                                    adjustingAccount = acc
-                                    selectedDetailAccount = null
-                                },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Edit,
-                                    contentDescription = "Adjust Balance",
-                                    tint = Color.White.copy(alpha = 0.85f),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        // Action Buttons: Send & Receive
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Button(
-                                onClick = {
-                                    selectedDetailAccount = null
-                                    showTransferSheet = true
-                                },
-                                modifier = Modifier.weight(1f).height(44.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White)
-                            ) {
-                                Icon(Icons.Default.NorthEast, contentDescription = null, tint = Color(0xFF154ECE), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Send", color = Color(0xFF154ECE), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            }
-
-                            Button(
-                                onClick = {
-                                    selectedDetailAccount = null
-                                    showTransferSheet = true
-                                },
-                                modifier = Modifier.weight(1f).height(44.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White)
-                            ) {
-                                Icon(Icons.Default.SouthWest, contentDescription = null, tint = Color(0xFF154ECE), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Receive", color = Color(0xFF154ECE), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Embedded Activity Ledger
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                        color = CardWhite
-                    ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Text("Account Activity Ledger", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            if (accountTxList.isEmpty()) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 32.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("No recorded transactions for this account yet", fontSize = 12.sp, color = TextMuted)
-                                }
-                            } else {
-                                LazyColumn(
-                                    modifier = Modifier.heightIn(max = 260.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    items(accountTxList) { tx ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(36.dp)
-                                                        .clip(CircleShape)
-                                                        .background(CanvasLight),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = if (tx.type == TransactionType.INCOME) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                                                        contentDescription = null,
-                                                        tint = if (tx.type == TransactionType.INCOME) SoftGreen else SoftRed,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                }
-                                                Spacer(modifier = Modifier.width(10.dp))
-                                                Column {
-                                                    Text(tx.title.ifBlank { tx.category }, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                                                    Text(
-                                                        SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(tx.date)),
-                                                        fontSize = 10.5.sp,
-                                                        color = TextMuted
-                                                    )
-                                                }
-                                            }
-
-                                            Text(
-                                                text = "${if (tx.type == TransactionType.INCOME) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", tx.amount)}",
-                                                fontSize = 13.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (tx.type == TransactionType.INCOME) SoftGreen else TextDark
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         // Adjust Account Balance Bottom Sheet
         adjustingAccount?.let { acc ->
             var newBalanceText by remember(acc) {
@@ -1219,7 +1015,7 @@ fun VaultAccountsScreen(
                                     title = "Balance Adjustment",
                                     amount = amountVal,
                                     category = "General",
-                                    subcategory = "Adjustment",
+                                    subcategory = acc.accountType,
                                     accountName = acc.accountName,
                                     type = txType,
                                     date = System.currentTimeMillis()
@@ -1239,7 +1035,7 @@ fun VaultAccountsScreen(
             }
         }
 
-        // Add Account Bottom Sheet
+        // Add Account Bottom Sheet (Stores Explicit Tier in subcategory & entity)
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
             var digitsText by remember { mutableStateOf("") }
@@ -1372,13 +1168,13 @@ fun VaultAccountsScreen(
                                     title = if (bal > 0.0) "Opening Balance" else "Account Initialized",
                                     amount = initialAmount,
                                     category = "General",
-                                    subcategory = "Opening Balance",
+                                    subcategory = selectedTier.title,
                                     accountName = name.trim().uppercase(),
                                     type = TransactionType.INCOME,
                                     date = System.currentTimeMillis()
                                 )
                                 showAddAccountSheet = false
-                                Toast.makeText(context, "Account '${name.trim().uppercase()}' registered", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Account '${name.trim().uppercase()}' registered as ${selectedTier.title}", Toast.LENGTH_SHORT).show()
                             }
                         },
                         enabled = name.isNotBlank(),
@@ -1516,7 +1312,7 @@ private fun BankAccountPhysicalCard(
     isSelected: Boolean,
     showRole: Boolean,
     onSelect: () -> Unit,
-    onTap: () -> Unit,
+    onEditBalance: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val maskedDigits = remember(account.accountName) {
@@ -1526,10 +1322,7 @@ private fun BankAccountPhysicalCard(
     Surface(
         modifier = modifier
             .shadow(if (isSelected) 4.dp else 1.5.dp, RoundedCornerShape(20.dp))
-            .clickable {
-                onSelect()
-                onTap()
-            },
+            .clickable(onClick = onSelect),
         shape = RoundedCornerShape(20.dp),
         color = CardWhite,
         border = BorderStroke(if (isSelected) 1.5.dp else 0.8.dp, if (isSelected) tier.color else BorderLight.copy(alpha = 0.7f))
@@ -1571,17 +1364,33 @@ private fun BankAccountPhysicalCard(
                     )
                 }
 
-                if (showRole) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = tier.color.copy(alpha = 0.14f)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (showRole) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = tier.color.copy(alpha = 0.14f)
+                        ) {
+                            Text(
+                                text = tier.title,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = tier.color,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    IconButton(
+                        onClick = onEditBalance,
+                        modifier = Modifier.size(24.dp)
                     ) {
-                        Text(
-                            text = tier.title,
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = tier.color,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit Balance",
+                            tint = TextMuted,
+                            modifier = Modifier.size(15.dp)
                         )
                     }
                 }
@@ -1638,6 +1447,7 @@ private fun FourWayDonutAllocationChart(
 
         var startAngle = -90f
 
+        // Operating Arc
         drawArc(
             color = Color(0xFFE57A28),
             startAngle = startAngle,
@@ -1649,6 +1459,7 @@ private fun FourWayDonutAllocationChart(
         )
         startAngle += opAngle
 
+        // Commitments Arc
         drawArc(
             color = AccentPurple,
             startAngle = startAngle,
@@ -1660,6 +1471,7 @@ private fun FourWayDonutAllocationChart(
         )
         startAngle += comAngle
 
+        // Fortress Arc
         drawArc(
             color = SoftTeal,
             startAngle = startAngle,
@@ -1671,6 +1483,7 @@ private fun FourWayDonutAllocationChart(
         )
         startAngle += fortAngle
 
+        // Cash Arc
         drawArc(
             color = SoftGreen,
             startAngle = startAngle,
