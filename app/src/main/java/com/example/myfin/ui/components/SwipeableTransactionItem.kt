@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,10 +37,17 @@ import java.util.*
 fun SwipeableTransactionItem(
     transaction: TransactionEntity,
     currencySymbol: String,
+    onTap: (TransactionEntity) -> Unit,
     onEdit: (TransactionEntity) -> Unit,
     onDelete: (TransactionEntity) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+
+    val currentTx by rememberUpdatedState(transaction)
+    val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnEdit by rememberUpdatedState(onEdit)
+    val currentOnDelete by rememberUpdatedState(onDelete)
+
     var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
 
     val dismissState = rememberSwipeToDismissBoxState(
@@ -48,12 +56,12 @@ fun SwipeableTransactionItem(
             when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onEdit(transaction)
+                    currentOnEdit(currentTx)
                     false
                 }
                 SwipeToDismissBoxValue.EndToStart -> {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onDelete(transaction)
+                    currentOnDelete(currentTx)
                     false
                 }
                 SwipeToDismissBoxValue.Settled -> false
@@ -61,7 +69,6 @@ fun SwipeableTransactionItem(
         }
     )
 
-    // Trigger subtle tactile feedback when crossing the swipe threshold
     LaunchedEffect(dismissState.targetValue) {
         if (dismissState.targetValue != lastTargetValue && dismissState.targetValue != SwipeToDismissBoxValue.Settled) {
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -166,7 +173,7 @@ fun SwipeableTransactionItem(
                 .shadow(1.dp, RoundedCornerShape(20.dp))
                 .clip(RoundedCornerShape(20.dp))
                 .border(0.8.dp, BorderLight.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
-                .clickable { onEdit(transaction) },
+                .clickable { currentOnTap(currentTx) },
             shape = RoundedCornerShape(20.dp),
             color = CardWhite
         ) {
@@ -177,13 +184,13 @@ fun SwipeableTransactionItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Block: Dynamic Icon + Hierarchy Info
+                // Left Block: Icon + Breadcrumb Info
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    val categoryIcon = getCategoryIcon(transaction.category, transaction.type)
-                    val iconTint = when (transaction.type) {
+                    val categoryIcon = getCategoryIcon(currentTx.category, currentTx.type)
+                    val iconTint = when (currentTx.type) {
                         TransactionType.INCOME -> SoftGreen
                         TransactionType.EXPENSE -> SoftRed
                         TransactionType.ASSET -> SoftTeal
@@ -199,7 +206,7 @@ fun SwipeableTransactionItem(
                     ) {
                         Icon(
                             imageVector = categoryIcon,
-                            contentDescription = transaction.category,
+                            contentDescription = currentTx.category,
                             tint = iconTint,
                             modifier = Modifier.size(21.dp)
                         )
@@ -209,7 +216,7 @@ fun SwipeableTransactionItem(
 
                     Column {
                         Text(
-                            text = transaction.title,
+                            text = currentTx.title,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             color = TextDark,
@@ -222,29 +229,27 @@ fun SwipeableTransactionItem(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
-                            // Subcategory / Category Breadcrumb
                             Text(
-                                text = "${transaction.category} • ${transaction.subcategory}",
+                                text = "${currentTx.category} • ${currentTx.subcategory}",
                                 fontSize = 11.5.sp,
                                 color = TextMuted,
                                 fontWeight = FontWeight.Normal
                             )
 
-                            // Source / Destination Account Tag
                             Surface(
                                 shape = RoundedCornerShape(5.dp),
                                 color = CanvasLight,
                                 border = androidx.compose.foundation.BorderStroke(0.6.dp, BorderLight)
                             ) {
                                 Text(
-                                    text = if (transaction.type == TransactionType.TRANSFER && transaction.toAccountName != null) {
-                                        "${transaction.accountName} ➔ ${transaction.toAccountName}"
+                                    text = if (currentTx.type == TransactionType.TRANSFER && currentTx.toAccountName != null) {
+                                        "${currentTx.accountName} ➔ ${currentTx.toAccountName}"
                                     } else {
-                                        transaction.accountName
+                                        currentTx.accountName
                                     },
                                     fontSize = 9.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (transaction.type == TransactionType.TRANSFER) AccentPurple else TextDark.copy(alpha = 0.75f),
+                                    color = if (currentTx.type == TransactionType.TRANSFER) AccentPurple else TextDark.copy(alpha = 0.75f),
                                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                                 )
                             }
@@ -254,16 +259,16 @@ fun SwipeableTransactionItem(
 
                 Spacer(modifier = Modifier.width(10.dp))
 
-                // Right Block: Formatted Signed Amount + Time Tag
+                // Right Block: Amount & Time
                 Column(horizontalAlignment = Alignment.End) {
-                    val amountPrefix = when (transaction.type) {
+                    val amountPrefix = when (currentTx.type) {
                         TransactionType.EXPENSE -> "-"
                         TransactionType.INCOME -> "+"
                         TransactionType.ASSET -> "•"
                         TransactionType.TRANSFER -> "⇄"
                     }
 
-                    val amountColor = when (transaction.type) {
+                    val amountColor = when (currentTx.type) {
                         TransactionType.INCOME -> SoftGreen
                         TransactionType.EXPENSE -> TextDark
                         TransactionType.ASSET -> SoftTeal
@@ -271,7 +276,7 @@ fun SwipeableTransactionItem(
                     }
 
                     Text(
-                        text = "$amountPrefix$currencySymbol${String.format(Locale.US, "%,.2f", transaction.amount)}",
+                        text = "$amountPrefix$currencySymbol${String.format(Locale.US, "%,.2f", currentTx.amount)}",
                         fontWeight = FontWeight.Black,
                         fontSize = 15.sp,
                         color = amountColor
@@ -281,7 +286,7 @@ fun SwipeableTransactionItem(
 
                     val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.US) }
                     Text(
-                        text = timeFormatter.format(Date(transaction.date)),
+                        text = timeFormatter.format(Date(currentTx.date)),
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Medium,
                         color = TextMuted.copy(alpha = 0.8f)
@@ -294,7 +299,7 @@ fun SwipeableTransactionItem(
 
 private fun getCategoryIcon(category: String, type: TransactionType): ImageVector {
     return when (type) {
-        TransactionType.INCOME -> Icons.Default.TrendingUp
+        TransactionType.INCOME -> Icons.AutoMirrored.Filled.TrendingUp
         TransactionType.ASSET -> Icons.Default.Savings
         TransactionType.TRANSFER -> Icons.Default.SyncAlt
         TransactionType.EXPENSE -> when (category) {
