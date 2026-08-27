@@ -202,7 +202,11 @@ class MainActivity : FragmentActivity() {
                                     NavigationTarget.BUDGET_PLANNER -> {
                                         BudgetPlannerScreen(
                                             viewModel = viewModel,
-                                            onOpenDrawer = { isDrawerOpen = true }
+                                            onOpenDrawer = { isDrawerOpen = true },
+                                            onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
+                                            onNavigateToMonthly = { currentTarget = NavigationTarget.MONTHLY_VIEW },
+                                            onNavigateToYearly = { currentTarget = NavigationTarget.YEARLY_VIEW },
+                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS }
                                         )
                                     }
                                     NavigationTarget.YEARLY_VIEW -> {
