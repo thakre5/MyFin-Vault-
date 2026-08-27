@@ -133,14 +133,13 @@ fun VaultAccountsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // 1. Centered Top Header Bar
+            // Centered Top Header Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Drawer Trigger
                 IconButton(
                     onClick = onOpenDrawer,
                     modifier = Modifier
@@ -157,7 +156,6 @@ fun VaultAccountsScreen(
                     )
                 }
 
-                // Centered Screen Title
                 Text(
                     text = if (isThreeVaultStrategy) "3-Vault Strategy" else "Vault Accounts",
                     fontWeight = FontWeight.Black,
@@ -167,7 +165,6 @@ fun VaultAccountsScreen(
                     modifier = Modifier.weight(1f)
                 )
 
-                // Right Controls: Mode Toggle & Help
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Surface(
                         modifier = Modifier
@@ -223,7 +220,7 @@ fun VaultAccountsScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 105.dp)
             ) {
-                // 2. Vault Asset Allocation Card Placed at the Top
+                // Vault Asset Allocation Card
                 item {
                     Surface(
                         modifier = Modifier
@@ -332,7 +329,7 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // 3. Bank Accounts Section Header
+                // Connected Bank Accounts Section Header
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -355,7 +352,7 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // 4. Horizontal Scrollable Bank Cards (Tap Action Only)
+                // Horizontal Scrollable Bank Cards
                 item {
                     if (accountsList.isEmpty()) {
                         Surface(
@@ -603,7 +600,7 @@ fun VaultAccountsScreen(
             )
         }
 
-        // Instant Vault Transfer Bottom Sheet (Replacing centered pop-up)
+        // Instant Vault Transfer Bottom Sheet
         if (showTransferSheet) {
             var fromAccount by remember { mutableStateOf(accountNames.firstOrNull().orEmpty()) }
             var toAccount by remember { mutableStateOf(accountNames.getOrNull(1) ?: accountNames.firstOrNull().orEmpty()) }
@@ -739,7 +736,7 @@ fun VaultAccountsScreen(
             }
         }
 
-        // Detailed Account Page (Matching 3rd reference image)
+        // Detailed Account Page
         selectedDetailAccount?.let { acc ->
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             val maskedDigits = remember(acc.accountName) {
@@ -747,7 +744,7 @@ fun VaultAccountsScreen(
             }
             val accountTxList = remember(uiState.groupedTransactions, acc.accountName) {
                 uiState.groupedTransactions.values.flatten()
-                    .filter { it.account.equals(acc.accountName, ignoreCase = true) }
+                    .filter { it.accountName.equals(acc.accountName, ignoreCase = true) }
                     .sortedByDescending { it.date }
             }
 
@@ -765,7 +762,6 @@ fun VaultAccountsScreen(
                         .fillMaxWidth()
                         .navigationBarsPadding()
                 ) {
-                    // Top Hero Banner
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -814,7 +810,6 @@ fun VaultAccountsScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Action Buttons: Send, Receive, Adjust
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -865,7 +860,6 @@ fun VaultAccountsScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Embedded Activity Ledger
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
