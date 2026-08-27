@@ -12,21 +12,21 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
-import com.example.myfin.ui.theme.AccentPurple
 
 @Composable
 fun SpendingSparkline(
     points: List<Float>,
     modifier: Modifier = Modifier,
-    lineColor: Color = AccentPurple,
-    fillColor: Color = AccentPurple.copy(alpha = 0.12f)
+    lineColor: Color = Color(0xFF6C5CE7),
+    gradientStartColor: Color = Color(0xFF6C5CE7).copy(alpha = 0.30f),
+    gradientEndColor: Color = Color(0xFF6C5CE7).copy(alpha = 0.0f)
 ) {
     if (points.isEmpty()) return
 
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(54.dp)
+            .height(58.dp)
     ) {
         val maxVal = points.maxOrNull()?.takeIf { it > 0f } ?: 1f
         val minVal = 0f
@@ -36,10 +36,12 @@ fun SpendingSparkline(
         val strokePath = Path()
         val fillPath = Path()
 
+        var lastPoint = Offset(0f, size.height)
+
         points.forEachIndexed { i, value ->
             val x = i * stepX
             val normalizedY = 1f - ((value - minVal) / range)
-            val y = normalizedY * (size.height - 8.dp.toPx()) + 4.dp.toPx()
+            val y = normalizedY * (size.height - 12.dp.toPx()) + 6.dp.toPx()
 
             if (i == 0) {
                 strokePath.moveTo(x, y)
@@ -48,32 +50,62 @@ fun SpendingSparkline(
             } else {
                 val prevX = (i - 1) * stepX
                 val prevNormY = 1f - ((points[i - 1] - minVal) / range)
-                val prevY = prevNormY * (size.height - 8.dp.toPx()) + 4.dp.toPx()
+                val prevY = prevNormY * (size.height - 12.dp.toPx()) + 6.dp.toPx()
 
-                val cx = (prevX + x) / 2
-                strokePath.cubicTo(cx, prevY, cx, y, x, y)
-                fillPath.cubicTo(cx, prevY, cx, y, x, y)
+                val controlPoint1 = Offset(prevX + (x - prevX) / 2f, prevY)
+                val controlPoint2 = Offset(prevX + (x - prevX) / 2f, y)
+
+                strokePath.cubicTo(
+                    controlPoint1.x, controlPoint1.y,
+                    controlPoint2.x, controlPoint2.y,
+                    x, y
+                )
+                fillPath.cubicTo(
+                    controlPoint1.x, controlPoint1.y,
+                    controlPoint2.x, controlPoint2.y,
+                    x, y
+                )
             }
 
             if (i == points.lastIndex) {
+                lastPoint = Offset(x, y)
                 fillPath.lineTo(x, size.height)
                 fillPath.close()
             }
         }
 
+        // Gradient Fill
         drawPath(
             path = fillPath,
             brush = Brush.verticalGradient(
-                colors = listOf(fillColor, Color.Transparent),
+                colors = listOf(gradientStartColor, gradientEndColor),
                 startY = 0f,
                 endY = size.height
             )
         )
 
+        // Line Stroke
         drawPath(
             path = strokePath,
             color = lineColor,
-            style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+            style = Stroke(width = 2.8.dp.toPx(), cap = StrokeCap.Round)
+        )
+
+        // Pulsing Endpoint Indicator
+        drawCircle(
+            color = lineColor.copy(alpha = 0.25f),
+            radius = 6.dp.toPx(),
+            center = lastPoint
+        )
+        drawCircle(
+            color = lineColor,
+            radius = 3.5.dp.toPx(),
+            center = lastPoint
+        )
+        drawCircle(
+            color = Color.White,
+            radius = 1.5.dp.toPx(),
+            center = lastPoint
         )
     }
 }
