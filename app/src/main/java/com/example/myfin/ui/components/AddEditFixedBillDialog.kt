@@ -1,33 +1,38 @@
 package com.example.myfin.ui.components
 
+import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.example.myfin.data.CategoryEntity
 import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.SubcategoryEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditFixedBillDialog(
     initialBill: FixedBillEntity? = null,
@@ -37,294 +42,453 @@ fun AddEditFixedBillDialog(
     onAddNewCategory: (String, TransactionType) -> Unit,
     onAddNewSubcategory: (String, String, TransactionType) -> Unit,
     onDismiss: () -> Unit,
-    onSave: (title: String, amount: Double, category: String, subcategory: String, account: String, toAccount: String?, type: TransactionType, dueDay: Int?) -> Unit
+    onSave: (
+        title: String,
+        amount: Double,
+        category: String,
+        subcategory: String,
+        accountName: String,
+        toAccountName: String?,
+        type: TransactionType,
+        dueDay: Int?
+    ) -> Unit
 ) {
-    val isEditing = initialBill != null
-    var selectedType by remember { mutableStateOf(initialBill?.type ?: TransactionType.EXPENSE) }
-    var title by remember { mutableStateOf(initialBill?.title.orEmpty()) }
-    var amountText by remember { mutableStateOf(initialBill?.amount?.toString().orEmpty()) }
-    var dueDayText by remember { mutableStateOf(initialBill?.dueDay?.toString().orEmpty()) }
-    var selectedAccount by remember {
-        mutableStateOf(initialBill?.accountName ?: accountList.firstOrNull().orEmpty())
-    }
-    var selectedToAccount by remember { mutableStateOf(initialBill?.toAccountName) }
+    val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val availableCategories = remember(masterCategories, selectedType) {
-        masterCategories.filter { it.type == selectedType }.map { it.name }
+    var selectedType by remember { mutableStateOf(initialBill?.type ?: TransactionType.EXPENSE) }
+    var noteText by remember { mutableStateOf(initialBill?.title?.takeIf { it != initialBill.subcategory } ?: "") }
+    var amountText by remember { mutableStateOf(initialBill?.amount?.let { if (it > 0) it.toString() else "" } ?: "") }
+    var dueDayText by remember { mutableStateOf(initialBill?.dueDay?.toString() ?: "") }
+
+    val filteredCategories = remember(masterCategories, selectedType) {
+        masterCategories.filter { it.type == selectedType }
     }
-    var selectedCategory by remember(availableCategories) {
-        mutableStateOf(initialBill?.category ?: availableCategories.firstOrNull().orEmpty())
+
+    var selectedCategory by remember {
+        mutableStateOf(
+            initialBill?.category ?: filteredCategories.firstOrNull()?.name ?: "General"
+        )
+    }
+
+    LaunchedEffect(selectedType) {
+        if (filteredCategories.none { it.name == selectedCategory }) {
+            selectedCategory = filteredCategories.firstOrNull()?.name ?: "General"
+        }
     }
 
     val availableSubcategories = remember(masterSubcategories, selectedCategory) {
         masterSubcategories.filter { it.parentCategory == selectedCategory }.map { it.name }
     }
-    var selectedSubcategory by remember(availableSubcategories) {
-        mutableStateOf(initialBill?.subcategory ?: availableSubcategories.firstOrNull().orEmpty())
+
+    var selectedSubcategory by remember {
+        mutableStateOf(
+            initialBill?.subcategory ?: availableSubcategories.firstOrNull() ?: "General"
+        )
     }
 
-    var showNewCatDialog by remember { mutableStateOf(false) }
-    var newCatName by remember { mutableStateOf("") }
-    var showNewSubDialog by remember { mutableStateOf(false) }
-    var newSubName by remember { mutableStateOf("") }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = CardWhite,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(20.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = if (isEditing) "Edit AutoPay Template" else "Add Recurring AutoPay",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 17.sp,
-                    color = TextDark
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Type Toggle
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(BorderLight.copy(alpha = 0.5f))
-                        .padding(3.dp)
-                ) {
-                    listOf(
-                        TransactionType.EXPENSE to "Expense",
-                        TransactionType.INCOME to "Income",
-                        TransactionType.ASSET to "Asset / SIP"
-                    ).forEach { (type, label) ->
-                        val isSelected = selectedType == type
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) CardWhite else Color.Transparent)
-                                .clickable {
-                                    selectedType = type
-                                    val cats = masterCategories.filter { it.type == type }.map { it.name }
-                                    selectedCategory = cats.firstOrNull().orEmpty()
-                                }
-                                .padding(vertical = 6.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = label,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 11.sp,
-                                color = if (isSelected) AccentPurple else TextMuted
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Commitment Name (e.g. Rent, SIP)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = amountText,
-                        onValueChange = { amountText = it },
-                        label = { Text("Amount") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    OutlinedTextField(
-                        value = dueDayText,
-                        onValueChange = { dueDayText = it },
-                        label = { Text("Due Day (1-31)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Category selection
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    TextButton(
-                        onClick = { showNewCatDialog = true },
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text("New", fontSize = 11.sp)
-                    }
-                }
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(availableCategories) { cat ->
-                        FilterChip(
-                            selected = selectedCategory == cat,
-                            onClick = { selectedCategory = cat },
-                            label = { Text(cat, fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Subcategory selection
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    if (selectedCategory.isNotBlank()) {
-                        TextButton(
-                            onClick = { showNewSubDialog = true },
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text("New", fontSize = 11.sp)
-                        }
-                    }
-                }
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(availableSubcategories) { sub ->
-                        FilterChip(
-                            selected = selectedSubcategory == sub,
-                            onClick = { selectedSubcategory = sub },
-                            label = { Text(sub, fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Account Selection
-                Text("Deduction Vault", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                Spacer(modifier = Modifier.height(4.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(accountList) { acc ->
-                        FilterChip(
-                            selected = selectedAccount == acc,
-                            onClick = { selectedAccount = acc },
-                            label = { Text(acc, fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = TextDark)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val amt = amountText.toDoubleOrNull() ?: 0.0
-                            val due = dueDayText.toIntOrNull()?.coerceIn(1, 31)
-                            if (title.isNotBlank() && amt > 0.0) {
-                                onSave(
-                                    title.trim(),
-                                    amt,
-                                    selectedCategory.ifBlank { "General" },
-                                    selectedSubcategory.ifBlank { "General" },
-                                    selectedAccount.ifBlank { accountList.firstOrNull().orEmpty() },
-                                    selectedToAccount,
-                                    selectedType,
-                                    due
-                                )
-                                onDismiss()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Save AutoPay", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
+    LaunchedEffect(availableSubcategories) {
+        if (selectedSubcategory !in availableSubcategories) {
+            selectedSubcategory = availableSubcategories.firstOrNull() ?: "General"
         }
     }
 
-    if (showNewCatDialog) {
-        AlertDialog(
-            onDismissRequest = { showNewCatDialog = false },
-            title = { Text("Add Category", fontWeight = FontWeight.Bold) },
-            text = {
-                OutlinedTextField(
-                    value = newCatName,
-                    onValueChange = { newCatName = it },
-                    label = { Text("Category Name") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                Button(onClick = {
-                    if (newCatName.isNotBlank()) {
-                        onAddNewCategory(newCatName.trim(), selectedType)
-                        selectedCategory = newCatName.trim()
-                        newCatName = ""
-                        showNewCatDialog = false
-                    }
-                }) { Text("Add") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showNewCatDialog = false }) { Text("Cancel") }
-            }
-        )
+    var selectedAccount by remember {
+        mutableStateOf(initialBill?.accountName ?: accountList.firstOrNull() ?: "BOM")
+    }
+    var selectedToAccount by remember {
+        mutableStateOf(initialBill?.toAccountName ?: accountList.getOrNull(1) ?: "HDFC")
     }
 
-    if (showNewSubDialog) {
-        AlertDialog(
-            onDismissRequest = { showNewSubDialog = false },
-            title = { Text("Add Subcategory to $selectedCategory", fontWeight = FontWeight.Bold) },
-            text = {
-                OutlinedTextField(
-                    value = newSubName,
-                    onValueChange = { newSubName = it },
-                    label = { Text("Subcategory Name") },
-                    singleLine = true
+    var showNewCategoryDialog by remember { mutableStateOf(false) }
+    var newCategoryName by remember { mutableStateOf("") }
+    var showNewSubcategoryDialog by remember { mutableStateOf(false) }
+    var newSubcategoryName by remember { mutableStateOf("") }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = CardWhite,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        dragHandle = {
+            Surface(
+                modifier = Modifier
+                    .padding(vertical = 10.dp)
+                    .width(40.dp)
+                    .height(4.dp),
+                shape = CircleShape,
+                color = BorderLight
+            ) {}
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (initialBill == null) "Add AutoPay Commitment" else "Edit AutoPay Template",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 18.sp,
+                    color = TextDark
                 )
-            },
-            confirmButton = {
-                Button(onClick = {
-                    if (newSubName.isNotBlank()) {
-                        onAddNewSubcategory(selectedCategory, newSubName.trim(), selectedType)
-                        selectedSubcategory = newSubName.trim()
-                        newSubName = ""
-                        showNewSubDialog = false
-                    }
-                }) { Text("Add") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showNewSubDialog = false }) { Text("Cancel") }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(CanvasLight)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(16.dp))
+                }
             }
-        )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Segmented Type Selector
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(BorderLight.copy(alpha = 0.5f))
+                    .padding(3.dp)
+            ) {
+                listOf(
+                    TransactionType.EXPENSE to "Expense",
+                    TransactionType.INCOME to "Income",
+                    TransactionType.ASSET to "Asset / SIP",
+                    TransactionType.TRANSFER to "Transfer"
+                ).forEach { (type, label) ->
+                    val isSelected = selectedType == type
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(if (isSelected) CardWhite else Color.Transparent)
+                            .clickable { selectedType = type }
+                            .padding(vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 11.5.sp,
+                            color = if (isSelected) {
+                                when (type) {
+                                    TransactionType.EXPENSE -> SoftRed
+                                    TransactionType.INCOME -> SoftGreen
+                                    TransactionType.ASSET -> SoftTeal
+                                    TransactionType.TRANSFER -> AccentPurple
+                                }
+                            } else TextMuted
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Amount & Due Day Side-by-Side
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it },
+                    label = { Text("Amount (₹)", fontSize = 12.sp) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1.2f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentPurple,
+                        unfocusedBorderColor = BorderLight
+                    )
+                )
+
+                OutlinedTextField(
+                    value = dueDayText,
+                    onValueChange = { if (it.length <= 2) dueDayText = it },
+                    label = { Text("Due Day (1-31)", fontSize = 12.sp) },
+                    placeholder = { Text("Opt", fontSize = 12.sp) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentPurple,
+                        unfocusedBorderColor = BorderLight
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Optional Note / Description Field
+            OutlinedTextField(
+                value = noteText,
+                onValueChange = { noteText = it },
+                label = { Text("Note / Description (Optional)", fontSize = 12.sp) },
+                placeholder = { Text("e.g., Flat 402 rent, HDFC credit card", fontSize = 12.sp) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AccentPurple,
+                    unfocusedBorderColor = BorderLight
+                )
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Category Chips
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Category", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                TextButton(
+                    onClick = { showNewCategoryDialog = true },
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = AccentPurple)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text("New", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                }
+            }
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(filteredCategories) { cat ->
+                    val isSelected = selectedCategory == cat.name
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedCategory = cat.name },
+                        label = { Text(cat.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentPurpleLight,
+                            selectedLabelColor = AccentPurple
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Subcategory Chips (Acts as Primary Title)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Subcategory", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("(Acts as Title)", fontSize = 10.sp, color = TextMuted)
+                }
+                TextButton(
+                    onClick = { showNewSubcategoryDialog = true },
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = AccentPurple)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text("New", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                }
+            }
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(availableSubcategories) { sub ->
+                    val isSelected = selectedSubcategory == sub
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedSubcategory = sub },
+                        label = { Text(sub, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentPurpleLight,
+                            selectedLabelColor = AccentPurple
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Vault Selector Row
+            Text(
+                text = if (selectedType == TransactionType.TRANSFER) "Source Vault" else "Deduction Vault",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextDark
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(accountList) { acc ->
+                    val isSelected = selectedAccount == acc
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedAccount = acc },
+                        label = { Text(acc, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentPurpleLight,
+                            selectedLabelColor = AccentPurple
+                        )
+                    )
+                }
+            }
+
+            if (selectedType == TransactionType.TRANSFER) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Destination Vault", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Spacer(modifier = Modifier.height(4.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(accountList.filter { it != selectedAccount }) { acc ->
+                        val isSelected = selectedToAccount == acc
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedToAccount = acc },
+                            label = { Text(acc, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SoftTeal.copy(alpha = 0.15f),
+                                selectedLabelColor = SoftTeal
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Bottom Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextDark)
+                ) {
+                    Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                Button(
+                    onClick = {
+                        val amt = amountText.toDoubleOrNull() ?: 0.0
+                        if (amt <= 0.0) {
+                            Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        val parsedDueDay = dueDayText.toIntOrNull()?.coerceIn(1, 31)
+                        val finalTitle = if (noteText.isNotBlank()) noteText.trim() else selectedSubcategory.ifBlank { selectedCategory }
+
+                        onSave(
+                            finalTitle,
+                            amt,
+                            selectedCategory,
+                            selectedSubcategory,
+                            selectedAccount,
+                            if (selectedType == TransactionType.TRANSFER) selectedToAccount else null,
+                            selectedType,
+                            parsedDueDay
+                        )
+                        onDismiss()
+                    },
+                    modifier = Modifier.weight(1.3f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                ) {
+                    Text(
+                        text = if (initialBill == null) "Save AutoPay" else "Update AutoPay",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        // Add New Category Dialog
+        if (showNewCategoryDialog) {
+            AlertDialog(
+                onDismissRequest = { showNewCategoryDialog = false },
+                title = { Text("New Category", fontWeight = FontWeight.Bold) },
+                text = {
+                    OutlinedTextField(
+                        value = newCategoryName,
+                        onValueChange = { newCategoryName = it },
+                        label = { Text("Category Name") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (newCategoryName.isNotBlank()) {
+                            onAddNewCategory(newCategoryName.trim(), selectedType)
+                            selectedCategory = newCategoryName.trim()
+                            newCategoryName = ""
+                            showNewCategoryDialog = false
+                        }
+                    }) {
+                        Text("Add", fontWeight = FontWeight.Bold, color = AccentPurple)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNewCategoryDialog = false }) {
+                        Text("Cancel", color = TextDark)
+                    }
+                }
+            )
+        }
+
+        // Add New Subcategory Dialog
+        if (showNewSubcategoryDialog) {
+            AlertDialog(
+                onDismissRequest = { showNewSubcategoryDialog = false },
+                title = { Text("New Subcategory for $selectedCategory", fontWeight = FontWeight.Bold) },
+                text = {
+                    OutlinedTextField(
+                        value = newSubcategoryName,
+                        onValueChange = { newSubcategoryName = it },
+                        label = { Text("Subcategory Name") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (newSubcategoryName.isNotBlank()) {
+                            onAddNewSubcategory(selectedCategory, newSubcategoryName.trim(), selectedType)
+                            selectedSubcategory = newSubcategoryName.trim()
+                            newSubcategoryName = ""
+                            showNewSubcategoryDialog = false
+                        }
+                    }) {
+                        Text("Add", fontWeight = FontWeight.Bold, color = AccentPurple)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNewSubcategoryDialog = false }) {
+                        Text("Cancel", color = TextDark)
+                    }
+                }
+            )
+        }
     }
 }
