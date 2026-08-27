@@ -2,7 +2,6 @@ package com.example.myfin.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -16,9 +15,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionEntity
@@ -163,7 +162,7 @@ fun TransactionDetailBottomSheet(
                 color = CardWhite,
                 border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
             ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                     DetailInfoRow(
                         icon = Icons.Default.Category,
                         label = "Category",
@@ -259,7 +258,10 @@ private fun DetailInfoRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f, fill = false)
+        ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
@@ -275,11 +277,15 @@ private fun DetailInfoRow(
             )
         }
 
+        Spacer(modifier = Modifier.width(14.dp))
+
         Text(
             text = value,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
-            color = TextDark
+            color = TextDark,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1.3f)
         )
     }
 }
