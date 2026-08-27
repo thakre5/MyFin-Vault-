@@ -24,7 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -95,7 +94,7 @@ fun MasterDataSetScreen(
         }
     }
 
-    // Taxonomy Metrics
+    // Cleaned Taxonomy Metrics
     val totalCats = segmentCategories.size
     val totalSubs = segmentSubcategories.size
     val protectedCount = segmentCategories.count { viewModel.protectedCategories.contains(it.name) }
@@ -166,12 +165,12 @@ fun MasterDataSetScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Taxonomy Metrics Summary Card
+                // Cleaned 3-Pillar Taxonomy Metric Card
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(2.5.dp, RoundedCornerShape(18.dp)),
-                    shape = RoundedCornerShape(18.dp),
+                        .shadow(2.dp, RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
                     color = CardWhite,
                     border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                 ) {
@@ -182,92 +181,77 @@ fun MasterDataSetScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Text(
                                 text = "CATEGORIES",
-                                fontSize = 9.5.sp,
+                                fontSize = 9.sp,
                                 fontWeight = FontWeight.Black,
                                 color = TextMuted,
                                 letterSpacing = 0.5.sp
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = "$totalCats Active",
-                                fontSize = 14.sp,
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Black,
                                 color = segmentColor
                             )
-                            Text(
-                                text = "$protectedCount Core System",
-                                fontSize = 10.sp,
-                                color = TextMuted
-                            )
                         }
 
                         Box(
                             modifier = Modifier
-                                .height(30.dp)
+                                .height(24.dp)
                                 .width(1.dp)
                                 .background(BorderLight.copy(alpha = 0.7f))
                         )
 
                         Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 14.dp)
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
                                 text = "SUBCATEGORIES",
-                                fontSize = 9.5.sp,
+                                fontSize = 9.sp,
                                 fontWeight = FontWeight.Black,
                                 color = TextMuted,
                                 letterSpacing = 0.5.sp
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = "$totalSubs Mapped",
-                                fontSize = 14.sp,
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Black,
                                 color = TextDark
-                            )
-                            Text(
-                                text = "Nested Tag Depth",
-                                fontSize = 10.sp,
-                                color = TextMuted
                             )
                         }
 
                         Box(
                             modifier = Modifier
-                                .height(30.dp)
+                                .height(24.dp)
                                 .width(1.dp)
                                 .background(BorderLight.copy(alpha = 0.7f))
                         )
 
                         Column(
-                            modifier = Modifier
-                                .weight(1.1f)
-                                .padding(start = 14.dp),
-                            horizontalAlignment = Alignment.End
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
                                 text = "CUSTOM TAGS",
-                                fontSize = 9.5.sp,
+                                fontSize = 9.sp,
                                 fontWeight = FontWeight.Black,
                                 color = TextMuted,
                                 letterSpacing = 0.5.sp
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(3.dp))
                             Text(
-                                text = "$customCount User Created",
-                                fontSize = 14.sp,
+                                text = "$customCount Custom",
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Black,
                                 color = AccentPurple
-                            )
-                            Text(
-                                text = "Editable & Deletable",
-                                fontSize = 10.sp,
-                                color = TextMuted
                             )
                         }
                     }
@@ -353,7 +337,7 @@ fun MasterDataSetScreen(
                 }
             }
 
-            // Scrollable Category & Subcategory List
+            // Scrollable Integrated Category & Subcategory Tree
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -379,57 +363,25 @@ fun MasterDataSetScreen(
                         val subList = segmentSubcategories.filter { it.parentCategory == cat.name }
                         val isExpanded = expandedCategories[cat.name] ?: false
 
-                        SwipeableCategoryCard(
+                        IntegratedCategoryTreeCard(
                             category = cat,
-                            subcategoriesCount = subList.size,
+                            subcategories = subList,
                             isProtected = isProtected,
                             isExpanded = isExpanded,
                             onToggleExpand = { expandedCategories[cat.name] = !isExpanded },
-                            onSwipeEdit = { categoryToEdit = cat },
-                            onSwipeDelete = {
+                            onSwipeEditCategory = { categoryToEdit = cat },
+                            onSwipeDeleteCategory = {
                                 if (isProtected) {
                                     alertNoticeMessage = "'${cat.name}' is a core protected category and cannot be deleted."
                                 } else {
                                     categoryToDelete = cat
                                 }
-                            }
+                            },
+                            onSwipeEditSubcategory = { sub -> subcategoryToEdit = sub },
+                            onSwipeDeleteSubcategory = { sub -> subcategoryToDelete = sub }
                         )
 
-                        // Nested Subcategories
-                        AnimatedVisibility(
-                            visible = isExpanded,
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut()
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 18.dp, end = 2.dp, top = 4.dp, bottom = 8.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(BorderLight.copy(alpha = 0.35f))
-                                    .padding(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                if (subList.isEmpty()) {
-                                    Text(
-                                        text = "No subcategories. Tap '+' below to add one.",
-                                        fontSize = 11.sp,
-                                        color = TextMuted,
-                                        modifier = Modifier.padding(8.dp)
-                                    )
-                                } else {
-                                    subList.forEach { sub ->
-                                        SwipeableSubcategoryItem(
-                                            subcategory = sub,
-                                            onSwipeEdit = { subcategoryToEdit = sub },
-                                            onSwipeDelete = { subcategoryToDelete = sub }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(7.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             }
@@ -947,18 +899,20 @@ fun MasterDataSetScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeableCategoryCard(
+private fun IntegratedCategoryTreeCard(
     category: CategoryEntity,
-    subcategoriesCount: Int,
+    subcategories: List<SubcategoryEntity>,
     isProtected: Boolean,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
-    onSwipeEdit: () -> Unit,
-    onSwipeDelete: () -> Unit
+    onSwipeEditCategory: () -> Unit,
+    onSwipeDeleteCategory: () -> Unit,
+    onSwipeEditSubcategory: (SubcategoryEntity) -> Unit,
+    onSwipeDeleteSubcategory: (SubcategoryEntity) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    val currentOnEdit by rememberUpdatedState(onSwipeEdit)
-    val currentOnDelete by rememberUpdatedState(onSwipeDelete)
+    val currentOnEditCat by rememberUpdatedState(onSwipeEditCategory)
+    val currentOnDeleteCat by rememberUpdatedState(onSwipeDeleteCategory)
 
     var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
 
@@ -968,12 +922,12 @@ private fun SwipeableCategoryCard(
             when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    currentOnEdit()
+                    currentOnEditCat()
                     false
                 }
                 SwipeToDismissBoxValue.EndToStart -> {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    currentOnDelete()
+                    currentOnDeleteCat()
                     false
                 }
                 SwipeToDismissBoxValue.Settled -> false
@@ -1001,120 +955,168 @@ private fun SwipeableCategoryCard(
         TransactionType.TRANSFER -> AccentPurple
     }
 
-    SwipeToDismissBox(
-        state = dismissState,
-        enableDismissFromStartToEnd = true,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            val direction = dismissState.dismissDirection
-            val backgroundColor by animateColorAsState(
-                targetValue = when (dismissState.targetValue) {
-                    SwipeToDismissBoxValue.StartToEnd -> AccentPurple
-                    SwipeToDismissBoxValue.EndToStart -> SoftRed
-                    SwipeToDismissBoxValue.Settled -> Color.Transparent
-                },
-                animationSpec = tween(200),
-                label = "swipeBgColor"
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(backgroundColor)
-                    .padding(horizontal = 20.dp),
-                contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-            ) {
-                if (direction == SwipeToDismissBoxValue.StartToEnd) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Rename", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
-                } else if (direction == SwipeToDismissBoxValue.EndToStart) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(18.dp))
-                    }
-                }
-            }
-        }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(1.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        color = CardWhite,
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(1.dp, RoundedCornerShape(16.dp))
-                .clickable(onClick = onToggleExpand),
-            shape = RoundedCornerShape(16.dp),
-            color = CardWhite,
-            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 13.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
+        Column {
+            // Parent Category Header (Swipeable)
+            SwipeToDismissBox(
+                state = dismissState,
+                enableDismissFromStartToEnd = true,
+                enableDismissFromEndToStart = true,
+                backgroundContent = {
+                    val direction = dismissState.dismissDirection
+                    val backgroundColor by animateColorAsState(
+                        targetValue = when (dismissState.targetValue) {
+                            SwipeToDismissBoxValue.StartToEnd -> AccentPurple
+                            SwipeToDismissBoxValue.EndToStart -> SoftRed
+                            SwipeToDismissBoxValue.Settled -> Color.Transparent
+                        },
+                        animationSpec = tween(200),
+                        label = "catSwipeBgColor"
+                    )
+
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(typeColor.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxSize()
+                            .background(backgroundColor)
+                            .padding(horizontal = 20.dp),
+                        contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
                     ) {
-                        Text(
-                            text = category.name.take(1).uppercase(),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 14.sp,
-                            color = typeColor
-                        )
+                        if (direction == SwipeToDismissBoxValue.StartToEnd) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Rename", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        } else if (direction == SwipeToDismissBoxValue.EndToStart) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(18.dp))
+                            }
+                        }
                     }
+                }
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onToggleExpand),
+                    color = CardWhite
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 13.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(typeColor.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = category.name.take(1).uppercase(),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 14.sp,
+                                    color = typeColor
+                                )
+                            }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = category.name,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp,
-                                color = TextDark,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (isProtected) {
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Icon(
-                                    Icons.Default.Lock,
-                                    contentDescription = "System Core",
-                                    tint = TextMuted.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(12.dp)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = category.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        color = TextDark,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (isProtected) {
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Icon(
+                                            Icons.Default.Lock,
+                                            contentDescription = "System Core",
+                                            tint = TextMuted.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                Text(
+                                    text = "${subcategories.size} subcategories mapped",
+                                    fontSize = 11.sp,
+                                    color = TextMuted
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(2.dp))
-
-                        Text(
-                            text = "$subcategoriesCount subcategories mapped",
-                            fontSize = 11.sp,
-                            color = TextMuted
+                        Icon(
+                            Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(18.dp).rotate(arrowRotation)
                         )
                     }
                 }
+            }
 
-                Icon(
-                    Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    tint = TextMuted,
-                    modifier = Modifier.size(18.dp).rotate(arrowRotation)
-                )
+            // Nested Integrated Subcategories Tree
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CanvasLight.copy(alpha = 0.6f))
+                ) {
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
+
+                    if (subcategories.isEmpty()) {
+                        Text(
+                            text = "No subcategories configured",
+                            fontSize = 11.sp,
+                            color = TextMuted,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+                        )
+                    } else {
+                        subcategories.forEachIndexed { index, sub ->
+                            IntegratedSubcategoryRow(
+                                subcategory = sub,
+                                onSwipeEdit = { onSwipeEditSubcategory(sub) },
+                                onSwipeDelete = { onSwipeDeleteSubcategory(sub) }
+                            )
+
+                            if (index < subcategories.lastIndex) {
+                                HorizontalDivider(
+                                    color = BorderLight.copy(alpha = 0.4f),
+                                    thickness = 0.6.dp,
+                                    modifier = Modifier.padding(start = 48.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1122,7 +1124,7 @@ private fun SwipeableCategoryCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeableSubcategoryItem(
+private fun IntegratedSubcategoryRow(
     subcategory: SubcategoryEntity,
     onSwipeEdit: () -> Unit,
     onSwipeDelete: () -> Unit
@@ -1178,9 +1180,8 @@ private fun SwipeableSubcategoryItem(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(10.dp))
                     .background(backgroundColor)
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 20.dp),
                 contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
             ) {
                 if (direction == SwipeToDismissBoxValue.StartToEnd) {
@@ -1191,41 +1192,27 @@ private fun SwipeableSubcategoryItem(
             }
         }
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(10.dp),
-            color = CardWhite,
-            border = BorderStroke(0.6.dp, BorderLight)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(CardWhite)
+                .padding(horizontal = 20.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 9.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(5.dp)
-                            .clip(CircleShape)
-                            .background(TextMuted)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = subcategory.name,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextDark
-                    )
-                }
-
-                Text(
-                    text = "Swipe to edit",
-                    fontSize = 9.5.sp,
-                    color = TextMuted.copy(alpha = 0.6f)
-                )
-            }
+                    .size(4.dp)
+                    .clip(CircleShape)
+                    .background(TextMuted)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = subcategory.name,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextDark,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
