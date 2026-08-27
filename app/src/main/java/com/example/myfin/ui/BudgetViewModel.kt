@@ -505,12 +505,28 @@ class BudgetViewModel(
         }
     }
 
-    fun saveBudgetPlan(category: String, amount: Double, type: TransactionType) {
+    fun updateCategoryBudget(category: String, amount: Double, type: TransactionType) {
         viewModelScope.launch(Dispatchers.IO) {
-            dao.insertBudgetPlan(
-                BudgetPlanEntity(category = category, plannedAmount = amount, type = type, month = currentMonth.value, year = currentYear.value)
-            )
+            val currentPlans = dao.getBudgetPlansForMonth(currentMonth.value, currentYear.value).first()
+            val existing = currentPlans.find { it.category == category && it.type == type }
+            if (existing != null) {
+                dao.insertBudgetPlan(existing.copy(plannedAmount = amount))
+            } else {
+                dao.insertBudgetPlan(
+                    BudgetPlanEntity(
+                        category = category,
+                        plannedAmount = amount,
+                        type = type,
+                        month = currentMonth.value,
+                        year = currentYear.value
+                    )
+                )
+            }
         }
+    }
+
+    fun saveBudgetPlan(category: String, amount: Double, type: TransactionType) {
+        updateCategoryBudget(category, amount, type)
     }
 
     fun saveBudgetPlan(plan: BudgetPlanEntity) {
