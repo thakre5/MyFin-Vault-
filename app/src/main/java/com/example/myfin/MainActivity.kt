@@ -196,7 +196,10 @@ class MainActivity : FragmentActivity() {
                                     NavigationTarget.DATA_SET -> {
                                         MasterDataSetScreen(
                                             viewModel = viewModel,
-                                            onOpenDrawer = { isDrawerOpen = true }
+                                            onOpenDrawer = { isDrawerOpen = true },
+                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
+                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
+                                            onNavigateToMonthly = { currentTarget = NavigationTarget.MONTHLY_VIEW }
                                         )
                                     }
                                     NavigationTarget.BUDGET_PLANNER -> {
