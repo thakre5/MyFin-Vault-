@@ -60,7 +60,8 @@ import kotlin.math.abs
 enum class VaultTier(val title: String, val description: String, val color: Color, val bgTint: Color) {
     OPERATING("Operating", "Daily living & spending", Color(0xFFE57A28), Color(0xFFFFF0D4)),
     COMMITMENTS("Commitments", "AutoPay & fixed bills", AccentPurple, Color(0xFFF3E5F5)),
-    FORTRESS("Fortress", "Liquid emergency safety net", SoftTeal, Color(0xFFE0F7FA))
+    FORTRESS("Fortress", "Liquid emergency safety net", SoftTeal, Color(0xFFE0F7FA)),
+    CASH("Cash", "Physical wallet & micro-spend", SoftGreen, Color(0xFFE6F8EF))
 }
 
 data class SuccessReceiptPayload(
@@ -71,17 +72,11 @@ data class SuccessReceiptPayload(
 )
 
 private fun getVaultTierForAccount(accountName: String): VaultTier {
+    val name = accountName.uppercase()
     return when {
-        accountName.contains("BOM", ignoreCase = true) ||
-        accountName.contains("AXIS", ignoreCase = true) ||
-        accountName.contains("SBI", ignoreCase = true) ||
-        accountName.contains("BILL", ignoreCase = true) -> VaultTier.COMMITMENTS
-
-        accountName.contains("INDUSIND", ignoreCase = true) ||
-        accountName.contains("FORTRESS", ignoreCase = true) ||
-        accountName.contains("FD", ignoreCase = true) ||
-        accountName.contains("RESERVE", ignoreCase = true) -> VaultTier.FORTRESS
-
+        name.contains("CASH") || name.contains("WALLET") -> VaultTier.CASH
+        name.contains("COMMITMENT") || name.contains("BILL") || name.contains("BOM") || name.contains("EMI") -> VaultTier.COMMITMENTS
+        name.contains("FORTRESS") || name.contains("EMERGENCY") || name.contains("FD") || name.contains("RESERVE") || name.contains("INDUSIND") -> VaultTier.FORTRESS
         else -> VaultTier.OPERATING
     }
 }
@@ -110,21 +105,38 @@ fun VaultAccountsScreen(
     var selectedDetailAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
     var adjustingAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
 
-    val accountsList = remember(uiState.accounts) { uiState.accounts }
-    val accountNames = remember(accountsList) {
-        if (accountsList.isEmpty()) listOf("BOM", "CASH", "HDFC", "INDUSIND")
-        else accountsList.map { it.accountName }
+    // Fallback to 4 generic baseline accounts with ₹0.00 initial balance if empty
+    val displayAccounts = remember(uiState.accounts) {
+        if (uiState.accounts.isEmpty()) {
+            listOf(
+                AccountBalanceResult("Operating Account", 0.0),
+                AccountBalanceResult("Commitments Account", 0.0),
+                AccountBalanceResult("Fortress Account", 0.0),
+                AccountBalanceResult("Cash Wallet", 0.0)
+            )
+        } else {
+            uiState.accounts
+        }
     }
 
-    val totalLiquidBalance = remember(accountsList) { accountsList.sumOf { it.currentBalance } }
-    val opTotal = remember(accountsList) {
-        accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.OPERATING }.sumOf { it.currentBalance }
+    val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
+
+    val totalLiquidBalance = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
+    val opTotal = remember(displayAccounts) {
+        displayAccounts.filter { getVaultTierForAccount(it.accountName) == VaultTier.OPERATING }.sumOf { it.currentBalance }
     }
-    val comTotal = remember(accountsList) {
-        accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.COMMITMENTS }.sumOf { it.currentBalance }
+    val comTotal = remember(displayAccounts) {
+        displayAccounts.filter { getVaultTierForAccount(it.accountName) == VaultTier.COMMITMENTS }.sumOf { it.currentBalance }
     }
-    val fortTotal = remember(accountsList) {
-        accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.FORTRESS }.sumOf { it.currentBalance }
+    val fortTotal = remember(displayAccounts) {
+        displayAccounts.filter { getVaultTierForAccount(it.accountName) == VaultTier.FORTRESS }.sumOf { it.currentBalance }
+    }
+    val cashTotal = remember(displayAccounts) {
+        displayAccounts.filter { getVaultTierForAccount(it.accountName) == VaultTier.CASH }.sumOf { it.currentBalance }
+    }
+
+    val allTransactions = remember(uiState.groupedTransactions) {
+        uiState.groupedTransactions.values.flatten().sortedByDescending { it.date }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
@@ -133,13 +145,14 @@ fun VaultAccountsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // Centered Top Header Bar
+            // 1. Centered Top Header Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Left Drawer Trigger
                 IconButton(
                     onClick = onOpenDrawer,
                     modifier = Modifier
@@ -156,59 +169,83 @@ fun VaultAccountsScreen(
                     )
                 }
 
+                // Centered Screen Title
                 Text(
                     text = if (isThreeVaultStrategy) "3-Vault Strategy" else "Vault Accounts",
                     fontWeight = FontWeight.Black,
-                    fontSize = 16.5.sp,
+                    fontSize = 17.sp,
                     color = TextDark,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f)
                 )
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { pendingModeTarget = !isThreeVaultStrategy },
-                        shape = RoundedCornerShape(10.dp),
-                        color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.SwapHoriz,
-                                contentDescription = "Switch",
-                                tint = AccentPurple,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = if (isThreeVaultStrategy) "3-Vault" else "Simple",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextDark
-                            )
-                        }
-                    }
+                // Right Help Guide Button
+                IconButton(
+                    onClick = { showHelpDialog = true },
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(CardWhite)
+                        .border(0.8.dp, BorderLight.copy(alpha = 0.7f), CircleShape)
+                ) {
+                    Icon(
+                        Icons.Default.HelpOutline,
+                        contentDescription = "Help Guide",
+                        tint = TextMuted,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            }
 
-                    IconButton(
-                        onClick = { showHelpDialog = true },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(CardWhite)
-                            .border(0.8.dp, BorderLight.copy(alpha = 0.7f), CircleShape)
-                    ) {
-                        Icon(
-                            Icons.Default.HelpOutline,
-                            contentDescription = "Help Guide",
-                            tint = TextMuted,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+            // 2. Dedicated Mode Switcher Row Below Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(BorderLight.copy(alpha = 0.45f))
+                    .padding(2.5.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(if (isThreeVaultStrategy) CardWhite else Color.Transparent)
+                        .clickable {
+                            if (!isThreeVaultStrategy) {
+                                pendingModeTarget = true
+                            }
+                        }
+                        .padding(vertical = 6.5.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "3-Vault Strategy",
+                        fontWeight = if (isThreeVaultStrategy) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = 11.5.sp,
+                        color = if (isThreeVaultStrategy) AccentPurple else TextMuted
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(if (!isThreeVaultStrategy) CardWhite else Color.Transparent)
+                        .clickable {
+                            if (isThreeVaultStrategy) {
+                                pendingModeTarget = false
+                            }
+                        }
+                        .padding(vertical = 6.5.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Simple Mode",
+                        fontWeight = if (!isThreeVaultStrategy) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = 11.5.sp,
+                        color = if (!isThreeVaultStrategy) TextDark else TextMuted
+                    )
                 }
             }
 
@@ -220,7 +257,7 @@ fun VaultAccountsScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 105.dp)
             ) {
-                // Vault Asset Allocation Card
+                // 3. Vault Asset Allocation Card (Top Placement)
                 item {
                     Surface(
                         modifier = Modifier
@@ -272,18 +309,20 @@ fun VaultAccountsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val opFraction = if (totalLiquidBalance > 0) (opTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0.33f
-                                val comFraction = if (totalLiquidBalance > 0) (comTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0.33f
-                                val fortFraction = if (totalLiquidBalance > 0) (fortTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0.34f
+                                val opFraction = if (totalLiquidBalance > 0) (opTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0.25f
+                                val comFraction = if (totalLiquidBalance > 0) (comTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0.25f
+                                val fortFraction = if (totalLiquidBalance > 0) (fortTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0.25f
+                                val cashFraction = if (totalLiquidBalance > 0) (cashTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0.25f
 
                                 Box(
                                     modifier = Modifier.size(110.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    DonutAllocationChart(
+                                    FourWayDonutAllocationChart(
                                         opFraction = opFraction,
                                         comFraction = comFraction,
                                         fortFraction = fortFraction,
+                                        cashFraction = cashFraction,
                                         modifier = Modifier.fillMaxSize()
                                     )
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -301,7 +340,7 @@ fun VaultAccountsScreen(
 
                                 Column(
                                     modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     AllocationStatPill(
                                         title = "Operating",
@@ -321,6 +360,12 @@ fun VaultAccountsScreen(
                                         color = SoftTeal,
                                         amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortTotal)}"
                                     )
+                                    AllocationStatPill(
+                                        title = "Cash",
+                                        percentage = if (totalLiquidBalance > 0) ((cashTotal / totalLiquidBalance) * 100).toInt() else 0,
+                                        color = SoftGreen,
+                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cashTotal)}"
+                                    )
                                 }
                             }
                         }
@@ -329,7 +374,7 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // Connected Bank Accounts Section Header
+                // 4. Connected Bank Accounts Header
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -352,38 +397,115 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // Horizontal Scrollable Bank Cards
+                // 5. Horizontal Scrollable Bank Cards (Tap Action Only)
                 item {
-                    if (accountsList.isEmpty()) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = CardWhite
-                        ) {
-                            Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                                Text("No accounts detected. Tap '+' to create one.", fontSize = 12.sp, color = TextMuted)
-                            }
-                        }
-                    } else {
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            contentPadding = PaddingValues(horizontal = 2.dp)
-                        ) {
-                            items(accountsList, key = { it.accountName }) { acc ->
-                                val tier = getVaultTierForAccount(acc.accountName)
-                                BankAccountPhysicalCard(
-                                    account = acc,
-                                    currencySymbol = userProfile.currencySymbol,
-                                    tier = tier,
-                                    showRole = isThreeVaultStrategy,
-                                    onTap = { selectedDetailAccount = acc },
-                                    modifier = Modifier.width(260.dp)
-                                )
-                            }
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp)
+                    ) {
+                        items(displayAccounts, key = { it.accountName }) { acc ->
+                            val tier = getVaultTierForAccount(acc.accountName)
+                            BankAccountPhysicalCard(
+                                account = acc,
+                                currencySymbol = userProfile.currencySymbol,
+                                tier = tier,
+                                showRole = isThreeVaultStrategy,
+                                onTap = { selectedDetailAccount = acc },
+                                modifier = Modifier.width(260.dp)
+                            )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
+                }
+
+                // 6. Main Screen Embedded Transaction Ledger
+                item {
+                    Text(
+                        text = "Recent Account Activity",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.5.sp,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                if (allTransactions.isEmpty()) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = CardWhite,
+                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+                        ) {
+                            Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+                                Text("No recorded transactions yet", fontSize = 12.sp, color = TextMuted)
+                            }
+                        }
+                    }
+                } else {
+                    items(allTransactions.take(8), key = { it.id }) { tx ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            color = CardWhite,
+                            border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (tx.type == TransactionType.INCOME) SoftGreen.copy(alpha = 0.12f)
+                                                else SoftRed.copy(alpha = 0.12f)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (tx.type == TransactionType.INCOME) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                            contentDescription = null,
+                                            tint = if (tx.type == TransactionType.INCOME) SoftGreen else SoftRed,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = tx.title.ifBlank { tx.category },
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDark,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${tx.accountName} • ${SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(tx.date))}",
+                                            fontSize = 10.5.sp,
+                                            color = TextMuted
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = "${if (tx.type == TransactionType.INCOME) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", tx.amount)}",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (tx.type == TransactionType.INCOME) SoftGreen else TextDark
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
                 }
             }
         }
@@ -458,7 +580,7 @@ fun VaultAccountsScreen(
             }
         }
 
-        // Anchored Action Menu
+        // Anchored Floating Action Menu
         if (showActionMenu) {
             Box(
                 modifier = Modifier
@@ -542,7 +664,7 @@ fun VaultAccountsScreen(
                 text = {
                     Text(
                         text = if (targetMode) {
-                            "This organizes your accounts into Operating (daily spend), Commitments (AutoPay bills), and Emergency Fortress tiers. Your balances remain completely intact."
+                            "This organizes your accounts into Operating (daily spend), Commitments (AutoPay bills), Emergency Fortress, and Cash tiers. Your balances remain completely intact."
                         } else {
                             "This will display your accounts in a unified flat list without role compartmentalization."
                         },
@@ -559,7 +681,7 @@ fun VaultAccountsScreen(
                                 subtitle = "Preference Updated",
                                 headline = if (targetMode) "3-Vault Strategy Active" else "Simple Mode Active",
                                 description = if (targetMode) {
-                                    "Accounts structured into Operating, Commitments, and Fortress tiers."
+                                    "Accounts structured into Operating, Commitments, Fortress, and Cash tiers."
                                 } else {
                                     "Accounts structured into a flexible, flat liquidity list."
                                 },
@@ -590,6 +712,7 @@ fun VaultAccountsScreen(
                         Text("• Operating: Variable daily life and groceries. Never touch for fixed bills.")
                         Text("• Commitments: Dedicated for AutoPay, loan EMIs, and monthly fixed commitments.")
                         Text("• Fortress: Liquid emergency backup protecting against unforeseen surprises.")
+                        Text("• Cash: Physical cash on hand and petty expenses.")
                     }
                 },
                 confirmButton = {
@@ -736,7 +859,7 @@ fun VaultAccountsScreen(
             }
         }
 
-        // Detailed Account Page
+        // Detailed Account Page (Matching 3rd reference image)
         selectedDetailAccount?.let { acc ->
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             val maskedDigits = remember(acc.accountName) {
@@ -762,6 +885,7 @@ fun VaultAccountsScreen(
                         .fillMaxWidth()
                         .navigationBarsPadding()
                 ) {
+                    // Top Hero Banner
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -801,15 +925,35 @@ fun VaultAccountsScreen(
 
                         Text("Your balance", fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.75f), fontWeight = FontWeight.Medium)
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", acc.currentBalance)}",
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
+
+                        // Amount with Minimalist Inline Pencil Icon
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", acc.currentBalance)}",
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(
+                                onClick = {
+                                    adjustingAccount = acc
+                                    selectedDetailAccount = null
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = "Adjust Balance",
+                                    tint = Color.White.copy(alpha = 0.85f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(20.dp))
 
+                        // Action Buttons: Send & Receive
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -842,24 +986,12 @@ fun VaultAccountsScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("Receive", color = Color(0xFF154ECE), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
-
-                            IconButton(
-                                onClick = {
-                                    adjustingAccount = acc
-                                    selectedDetailAccount = null
-                                },
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF63B3ED))
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = "Adjust", tint = Color.White, modifier = Modifier.size(22.dp))
-                            }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
+                    // Embedded Activity Ledger
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
@@ -1004,6 +1136,160 @@ fun VaultAccountsScreen(
             }
         }
 
+        // Add Account Bottom Sheet (With Type Selector, Tier Mapping & Masked Digits)
+        if (showAddAccountSheet) {
+            var name by remember { mutableStateOf("") }
+            var digitsText by remember { mutableStateOf("") }
+            var balanceText by remember { mutableStateOf("") }
+            var selectedType by remember { mutableStateOf("Savings") }
+            var selectedTier by remember { mutableStateOf(VaultTier.OPERATING) }
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+            ModalBottomSheet(
+                onDismissRequest = { showAddAccountSheet = false },
+                sheetState = sheetState,
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                dragHandle = {
+                    Surface(modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp), shape = CircleShape, color = BorderLight) {}
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 22.dp, vertical = 6.dp)
+                ) {
+                    Text("Add Vault Account", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("Configure account details, type, and strategic role tier", fontSize = 11.5.sp, color = TextMuted)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Account Name (e.g., Primary Salary, Bills Account)", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = digitsText,
+                        onValueChange = { if (it.length <= 4) digitsText = it },
+                        label = { Text("Last 4 Digits (Optional)", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text("Account Type", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(listOf("Savings", "Salary", "Current", "Credit Card", "Cash Wallet", "Fixed Deposit")) { type ->
+                            val isSel = selectedType == type
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { selectedType = type },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSel) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
+                                border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
+                            ) {
+                                Text(
+                                    text = type,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSel) AccentPurple else TextDark,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text("Strategic Vault Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        VaultTier.values().forEach { tier ->
+                            val isSel = selectedTier == tier
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .clickable { selectedTier = tier },
+                                shape = RoundedCornerShape(9.dp),
+                                color = if (isSel) tier.color.copy(alpha = 0.14f) else CanvasLight,
+                                border = BorderStroke(0.7.dp, if (isSel) tier.color else BorderLight)
+                            ) {
+                                Text(
+                                    text = tier.title,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSel) tier.color else TextDark,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 7.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = balanceText,
+                        onValueChange = { balanceText = it },
+                        label = { Text("Initial Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Button(
+                        onClick = {
+                            if (name.isNotBlank()) {
+                                val bal = balanceText.toDoubleOrNull() ?: 0.0
+                                val initialAmount = if (bal > 0.0) bal else 0.0
+                                viewModel.saveTransaction(
+                                    id = 0L,
+                                    title = if (bal > 0.0) "Opening Balance" else "Account Initialized",
+                                    amount = initialAmount,
+                                    category = "General",
+                                    subcategory = "Opening Balance",
+                                    accountName = name.trim().uppercase(),
+                                    type = TransactionType.INCOME,
+                                    date = System.currentTimeMillis()
+                                )
+                                showAddAccountSheet = false
+                                Toast.makeText(context, "Account '${name.trim().uppercase()}' registered", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        enabled = name.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    ) {
+                        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+        }
+
         // Success Receipt Bottom Sheet
         receiptPayload?.let { payload ->
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -1094,117 +1380,6 @@ fun VaultAccountsScreen(
                 }
             }
         }
-
-        // Add Account Bottom Sheet
-        if (showAddAccountSheet) {
-            var name by remember { mutableStateOf("") }
-            var balanceText by remember { mutableStateOf("") }
-            var selectedType by remember { mutableStateOf("Savings") }
-            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-            ModalBottomSheet(
-                onDismissRequest = { showAddAccountSheet = false },
-                sheetState = sheetState,
-                containerColor = CardWhite,
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                dragHandle = {
-                    Surface(modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp), shape = CircleShape, color = BorderLight) {}
-                }
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 22.dp, vertical = 6.dp)
-                ) {
-                    Text("Add Vault Account", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text("Add bank account, wallet, or liquid fortress", fontSize = 11.5.sp, color = TextMuted)
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Account Name (e.g., HDFC, ICICI, Cash)", fontSize = 12.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text("Account Type", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(listOf("Savings", "Salary", "Current", "Credit Card", "Cash Wallet", "Fixed Deposit")) { type ->
-                            val isSel = selectedType == type
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { selectedType = type },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSel) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                                border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
-                            ) {
-                                Text(
-                                    text = type,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSel) AccentPurple else TextDark,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    OutlinedTextField(
-                        value = balanceText,
-                        onValueChange = { balanceText = it },
-                        label = { Text("Initial Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
-                    )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    Button(
-                        onClick = {
-                            if (name.isNotBlank()) {
-                                val bal = balanceText.toDoubleOrNull() ?: 0.0
-                                val initialAmount = if (bal > 0.0) bal else 0.0
-                                viewModel.saveTransaction(
-                                    id = 0L,
-                                    title = if (bal > 0.0) "Opening Balance" else "Account Initialized",
-                                    amount = initialAmount,
-                                    category = "General",
-                                    subcategory = "Opening Balance",
-                                    accountName = name.trim().uppercase(),
-                                    type = TransactionType.INCOME,
-                                    date = System.currentTimeMillis()
-                                )
-                                showAddAccountSheet = false
-                                Toast.makeText(context, "Account '${name.trim().uppercase()}' initialized", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        enabled = name.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
-                    ) {
-                        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-            }
-        }
     }
 }
 
@@ -1254,9 +1429,11 @@ private fun BankAccountPhysicalCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = when {
-                            account.accountName.contains("CASH", true) -> Icons.Default.Payments
-                            else -> Icons.Default.AccountBalance
+                        imageVector = when (tier) {
+                            VaultTier.CASH -> Icons.Default.Payments
+                            VaultTier.FORTRESS -> Icons.Default.Security
+                            VaultTier.COMMITMENTS -> Icons.Default.CreditCard
+                            VaultTier.OPERATING -> Icons.Default.AccountBalance
                         },
                         contentDescription = null,
                         tint = tier.color,
@@ -1310,10 +1487,11 @@ private fun BankAccountPhysicalCard(
 }
 
 @Composable
-private fun DonutAllocationChart(
+private fun FourWayDonutAllocationChart(
     opFraction: Float,
     comFraction: Float,
     fortFraction: Float,
+    cashFraction: Float,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
@@ -1322,13 +1500,15 @@ private fun DonutAllocationChart(
         val arcSize = Size(diameter, diameter)
         val topLeft = Offset((size.width - diameter) / 2, (size.height - diameter) / 2)
 
-        val total = (opFraction + comFraction + fortFraction).coerceAtLeast(0.001f)
+        val total = (opFraction + comFraction + fortFraction + cashFraction).coerceAtLeast(0.001f)
         val opAngle = (opFraction / total) * 360f
         val comAngle = (comFraction / total) * 360f
         val fortAngle = (fortFraction / total) * 360f
+        val cashAngle = (cashFraction / total) * 360f
 
         var startAngle = -90f
 
+        // Operating Arc
         drawArc(
             color = Color(0xFFE57A28),
             startAngle = startAngle,
@@ -1340,6 +1520,7 @@ private fun DonutAllocationChart(
         )
         startAngle += opAngle
 
+        // Commitments Arc
         drawArc(
             color = AccentPurple,
             startAngle = startAngle,
@@ -1351,10 +1532,23 @@ private fun DonutAllocationChart(
         )
         startAngle += comAngle
 
+        // Fortress Arc
         drawArc(
             color = SoftTeal,
             startAngle = startAngle,
             sweepAngle = (fortAngle - 4f).coerceAtLeast(2f),
+            useCenter = false,
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        )
+        startAngle += fortAngle
+
+        // Cash Arc
+        drawArc(
+            color = SoftGreen,
+            startAngle = startAngle,
+            sweepAngle = (cashAngle - 4f).coerceAtLeast(2f),
             useCenter = false,
             topLeft = topLeft,
             size = arcSize,
@@ -1379,7 +1573,7 @@ private fun AllocationStatPill(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 10.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
