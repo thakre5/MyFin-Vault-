@@ -1,25 +1,42 @@
 package com.example.myfin.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.CategoryEntity
@@ -28,360 +45,1217 @@ import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MasterDataSetScreen(
     viewModel: BudgetViewModel,
-    onOpenDrawer: () -> Unit
+    onOpenDrawer: () -> Unit,
+    onNavigateToPlanner: () -> Unit = {},
+    onNavigateToVaults: () -> Unit = {},
+    onNavigateToMonthly: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val uiState by viewModel.monthlyUiState.collectAsState()
 
-    var selectedType by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var selectedSegment by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showActionMenu by remember { mutableStateOf(false) }
+
+    // Bottom Sheets & Dialog States
+    var showAddCategorySheet by remember { mutableStateOf(false) }
+    var showAddSubcategorySheet by remember { mutableStateOf(false) }
     var categoryToEdit by remember { mutableStateOf<CategoryEntity?>(null) }
-    var categoryToDelete by remember { mutableStateOf<CategoryEntity?>(null) }
     var subcategoryToEdit by remember { mutableStateOf<SubcategoryEntity?>(null) }
+    var categoryToDelete by remember { mutableStateOf<CategoryEntity?>(null) }
     var subcategoryToDelete by remember { mutableStateOf<SubcategoryEntity?>(null) }
+    var alertNoticeMessage by remember { mutableStateOf<String?>(null) }
 
-    var showAddCategoryDialog by remember { mutableStateOf(false) }
-    var showAddSubDialogForParent by remember { mutableStateOf<String?>(null) }
+    val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
 
-    val categories = uiState.masterCategories.filter { it.type == selectedType }
-    val subcategories = uiState.masterSubcategories.filter { it.type == selectedType }
+    val segmentCategories = remember(uiState.masterCategories, selectedSegment) {
+        uiState.masterCategories.filter { it.type == selectedSegment }
+    }
 
-    val bottomNavPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val segmentSubcategories = remember(uiState.masterSubcategories, selectedSegment) {
+        uiState.masterSubcategories.filter { it.type == selectedSegment }
+    }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CanvasLight)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Header Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onOpenDrawer,
-                    modifier = Modifier.size(38.dp).clip(CircleShape).background(CardWhite)
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Menu", tint = TextDark)
-                }
+    val filteredCategories = remember(segmentCategories, segmentSubcategories, searchQuery) {
+        if (searchQuery.isBlank()) {
+            segmentCategories
+        } else {
+            val matchingSubParents = segmentSubcategories
+                .filter { it.name.contains(searchQuery, ignoreCase = true) }
+                .map { it.parentCategory }
+                .toSet()
 
-                Text("Taxonomy Manager", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-
-                IconButton(
-                    onClick = { showAddCategoryDialog = true },
-                    modifier = Modifier.size(38.dp).clip(CircleShape).background(CardWhite)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Category", tint = AccentPurple)
-                }
+            segmentCategories.filter {
+                it.name.contains(searchQuery, ignoreCase = true) || matchingSubParents.contains(it.name)
             }
+        }
+    }
 
-            // Type Segment Selector
-            Row(
+    // Taxonomy Metrics
+    val totalCats = segmentCategories.size
+    val totalSubs = segmentSubcategories.size
+    val protectedCount = segmentCategories.count { viewModel.protectedCategories.contains(it.name) }
+    val customCount = (totalCats - protectedCount).coerceAtLeast(0)
+
+    val segmentColor = when (selectedSegment) {
+        TransactionType.EXPENSE -> SoftRed
+        TransactionType.INCOME -> SoftGreen
+        TransactionType.ASSET -> SoftTeal
+        TransactionType.TRANSFER -> AccentPurple
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            // Pinned Top Header Container
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(BorderLight.copy(alpha = 0.5f))
-                    .padding(4.dp)
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
             ) {
-                listOf(
-                    TransactionType.EXPENSE to "Expense",
-                    TransactionType.INCOME to "Income",
-                    TransactionType.ASSET to "Asset / SIP"
-                ).forEach { (type, label) ->
-                    val isSelected = selectedType == type
-                    Box(
+                // Top App Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onOpenDrawer,
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(if (isSelected) CardWhite else Color.Transparent)
-                            .clickable { selectedType = type }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(CardWhite)
+                            .border(0.8.dp, BorderLight.copy(alpha = 0.7f), RoundedCornerShape(11.dp))
+                    ) {
+                        Icon(
+                            Icons.Default.ChevronLeft,
+                            contentDescription = "Drawer",
+                            tint = TextDark,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Text(
+                        text = "Master Taxonomy",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 16.sp,
+                        color = TextDark
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(11.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                     ) {
                         Text(
-                            text = label,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 12.sp,
-                            color = if (isSelected) AccentPurple else TextMuted
+                            text = "$totalCats Groups",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
                 }
-            }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 40.dp + bottomNavPadding),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                items(categories, key = { it.name }) { cat ->
-                    val childSubs = subcategories.filter { it.parentCategory == cat.name }
+                Spacer(modifier = Modifier.height(8.dp))
 
-                    Surface(
+                // Taxonomy Metrics Summary Card
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(2.5.dp, RoundedCornerShape(18.dp)),
+                    shape = RoundedCornerShape(18.dp),
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                ) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .shadow(2.dp, RoundedCornerShape(16.dp)),
-                        shape = RoundedCornerShape(16.dp),
-                        color = CardWhite
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "CATEGORIES",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextMuted,
+                                letterSpacing = 0.5.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "$totalCats Active",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                color = segmentColor
+                            )
+                            Text(
+                                text = "$protectedCount Core System",
+                                fontSize = 10.sp,
+                                color = TextMuted
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .height(30.dp)
+                                .width(1.dp)
+                                .background(BorderLight.copy(alpha = 0.7f))
+                        )
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 14.dp)
+                        ) {
+                            Text(
+                                text = "SUBCATEGORIES",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextMuted,
+                                letterSpacing = 0.5.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "$totalSubs Mapped",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextDark
+                            )
+                            Text(
+                                text = "Nested Tag Depth",
+                                fontSize = 10.sp,
+                                color = TextMuted
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .height(30.dp)
+                                .width(1.dp)
+                                .background(BorderLight.copy(alpha = 0.7f))
+                        )
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1.1f)
+                                .padding(start = 14.dp),
+                            horizontalAlignment = Alignment.End
+                        ) {
+                            Text(
+                                text = "CUSTOM TAGS",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextMuted,
+                                letterSpacing = 0.5.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "$customCount User Created",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                color = AccentPurple
+                            )
+                            Text(
+                                text = "Editable & Deletable",
+                                fontSize = 10.sp,
+                                color = TextMuted
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Single-Line Flow Segment Switcher
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(BorderLight.copy(alpha = 0.5f))
+                        .padding(2.5.dp)
+                ) {
+                    listOf(
+                        Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
+                        Triple(TransactionType.INCOME, "Income", SoftGreen),
+                        Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal)
+                    ).forEach { (type, label, color) ->
+                        val isSelected = selectedSegment == type
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) CardWhite else Color.Transparent)
+                                .clickable { selectedSegment = type }
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 11.sp,
+                                color = if (isSelected) color else TextMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Compact Search Input
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    shape = RoundedCornerShape(13.dp),
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted, modifier = Modifier.size(17.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (searchQuery.isEmpty()) {
+                                Text("Filter categories & subcategories...", color = TextMuted, fontSize = 12.5.sp, maxLines = 1)
+                            }
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                singleLine = true,
+                                textStyle = TextStyle(fontSize = 12.5.sp, color = TextDark, fontWeight = FontWeight.Medium),
+                                cursorBrush = SolidColor(AccentPurple),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextMuted, modifier = Modifier.size(15.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Scrollable Category & Subcategory List
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                contentPadding = PaddingValues(top = 4.dp, bottom = 105.dp)
+            ) {
+                if (filteredCategories.isEmpty()) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = CardWhite
+                        ) {
+                            Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+                                Text("No matching taxonomy groups found", fontSize = 12.sp, color = TextMuted)
+                            }
+                        }
+                    }
+                } else {
+                    items(filteredCategories, key = { "${it.type}_${it.name}" }) { cat ->
+                        val isProtected = viewModel.protectedCategories.contains(cat.name)
+                        val subList = segmentSubcategories.filter { it.parentCategory == cat.name }
+                        val isExpanded = expandedCategories[cat.name] ?: false
+
+                        SwipeableCategoryCard(
+                            category = cat,
+                            subcategoriesCount = subList.size,
+                            isProtected = isProtected,
+                            isExpanded = isExpanded,
+                            onToggleExpand = { expandedCategories[cat.name] = !isExpanded },
+                            onSwipeEdit = { categoryToEdit = cat },
+                            onSwipeDelete = {
+                                if (isProtected) {
+                                    alertNoticeMessage = "'${cat.name}' is a core protected category and cannot be deleted."
+                                } else {
+                                    categoryToDelete = cat
+                                }
+                            }
+                        )
+
+                        // Nested Subcategories
+                        AnimatedVisibility(
+                            visible = isExpanded,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 18.dp, end = 2.dp, top = 4.dp, bottom = 8.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(BorderLight.copy(alpha = 0.35f))
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (subList.isEmpty()) {
                                     Text(
-                                        text = cat.name,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp,
-                                        color = TextDark
+                                        text = "No subcategories. Tap '+' below to add one.",
+                                        fontSize = 11.sp,
+                                        color = TextMuted,
+                                        modifier = Modifier.padding(8.dp)
                                     )
-                                    if (viewModel.protectedCategories.contains(cat.name)) {
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = CanvasLight
-                                        ) {
-                                            Text(
-                                                text = "System",
-                                                fontSize = 9.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = TextMuted,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Row {
-                                    IconButton(
-                                        onClick = { showAddSubDialogForParent = cat.name },
-                                        modifier = Modifier.size(30.dp)
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = "Add Subcategory", tint = AccentPurple, modifier = Modifier.size(16.dp))
-                                    }
-                                    IconButton(
-                                        onClick = { categoryToEdit = cat },
-                                        modifier = Modifier.size(30.dp)
-                                    ) {
-                                        Icon(Icons.Default.Edit, contentDescription = "Rename", tint = TextMuted, modifier = Modifier.size(16.dp))
-                                    }
-                                    if (!viewModel.protectedCategories.contains(cat.name)) {
-                                        IconButton(
-                                            onClick = { categoryToDelete = cat },
-                                            modifier = Modifier.size(30.dp)
-                                        ) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = SoftRed, modifier = Modifier.size(16.dp))
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (childSubs.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(10.dp))
-                                childSubs.forEach { sub ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp, horizontal = 6.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "• ${sub.name}",
-                                            fontSize = 12.5.sp,
-                                            color = TextDark,
-                                            modifier = Modifier.weight(1f)
+                                } else {
+                                    subList.forEach { sub ->
+                                        SwipeableSubcategoryItem(
+                                            subcategory = sub,
+                                            onSwipeEdit = { subcategoryToEdit = sub },
+                                            onSwipeDelete = { subcategoryToDelete = sub }
                                         )
-                                        Row {
-                                            IconButton(
-                                                onClick = { subcategoryToEdit = sub },
-                                                modifier = Modifier.size(24.dp)
-                                            ) {
-                                                Icon(Icons.Default.Edit, contentDescription = "Edit Subcategory", tint = TextMuted, modifier = Modifier.size(14.dp))
-                                            }
-                                            if (sub.name != "General") {
-                                                IconButton(
-                                                    onClick = { subcategoryToDelete = sub },
-                                                    modifier = Modifier.size(24.dp)
-                                                ) {
-                                                    Icon(Icons.Default.Close, contentDescription = "Delete Subcategory", tint = SoftRed, modifier = Modifier.size(14.dp))
-                                                }
-                                            }
-                                        }
                                     }
                                 }
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(7.dp))
+                    }
+                }
+            }
+        }
+
+        // 4 + 1 Floating Bottom Navigation Dock
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(60.dp)
+                    .shadow(16.dp, CircleShape),
+                shape = CircleShape,
+                color = CardWhite
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    DockPillTab(
+                        title = "Taxonomy",
+                        icon = Icons.Default.Category,
+                        isSelected = true,
+                        onClick = { }
+                    )
+                    DockPillTab(
+                        title = "Planner",
+                        icon = Icons.Default.PieChart,
+                        isSelected = false,
+                        onClick = onNavigateToPlanner
+                    )
+                    DockPillTab(
+                        title = "Vaults",
+                        icon = Icons.Default.AccountBalanceWallet,
+                        isSelected = false,
+                        onClick = onNavigateToVaults
+                    )
+                    DockPillTab(
+                        title = "Monthly",
+                        icon = Icons.Default.Assessment,
+                        isSelected = false,
+                        onClick = onNavigateToMonthly
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            FloatingActionButton(
+                onClick = { showActionMenu = !showActionMenu },
+                containerColor = TextDark,
+                contentColor = Color.White,
+                shape = CircleShape,
+                modifier = Modifier.size(60.dp).shadow(16.dp, CircleShape)
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Create",
+                    modifier = Modifier
+                        .size(28.dp)
+                        .rotate(if (showActionMenu) 45f else 0f)
+                )
+            }
+        }
+
+        // Anchored Action Menu
+        if (showActionMenu) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showActionMenu = false }
+                    )
+            )
+
+            AnimatedVisibility(
+                visible = showActionMenu,
+                enter = scaleIn(
+                    transformOrigin = TransformOrigin(1f, 1f),
+                    animationSpec = tween(180)
+                ) + fadeIn(animationSpec = tween(180)),
+                exit = scaleOut(
+                    transformOrigin = TransformOrigin(1f, 1f),
+                    animationSpec = tween(150)
+                ) + fadeOut(animationSpec = tween(150)),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 94.dp, end = 20.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = CardWhite,
+                    shadowElevation = 10.dp,
+                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                    modifier = Modifier.width(190.dp)
+                ) {
+                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showActionMenu = false
+                                    showAddCategorySheet = true
+                                }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Category, contentDescription = null, tint = TextDark, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Add Category", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                        }
+
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showActionMenu = false
+                                    showAddSubcategorySheet = true
+                                }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.SubdirectoryArrowRight, contentDescription = null, tint = TextDark, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Add Subcategory", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
                         }
                     }
                 }
             }
         }
 
-        // Add Category Dialog
-        if (showAddCategoryDialog) {
-            var newName by remember { mutableStateOf("") }
+        // Alert: Protected Category Notice
+        alertNoticeMessage?.let { msg ->
             AlertDialog(
-                onDismissRequest = { showAddCategoryDialog = false },
-                title = { Text("Add ${selectedType.name} Category", fontWeight = FontWeight.Bold) },
-                text = {
-                    OutlinedTextField(
-                        value = newName,
-                        onValueChange = { newName = it },
-                        label = { Text("Category Name") },
-                        singleLine = true
-                    )
-                },
+                onDismissRequest = { alertNoticeMessage = null },
+                title = { Text("Protected Category", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                text = { Text(msg, fontSize = 13.sp, color = TextDark) },
                 confirmButton = {
-                    Button(onClick = {
-                        if (newName.isNotBlank()) {
-                            viewModel.addCategory(newName.trim(), selectedType)
-                            showAddCategoryDialog = false
-                        }
-                    }) { Text("Create") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showAddCategoryDialog = false }) { Text("Cancel") }
+                    TextButton(onClick = { alertNoticeMessage = null }) {
+                        Text("Understood", color = AccentPurple, fontWeight = FontWeight.Bold)
+                    }
                 }
             )
         }
 
-        // Add Subcategory Dialog
-        showAddSubDialogForParent?.let { parentName ->
-            var subName by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { showAddSubDialogForParent = null },
-                title = { Text("Add Subcategory to $parentName", fontWeight = FontWeight.Bold) },
-                text = {
-                    OutlinedTextField(
-                        value = subName,
-                        onValueChange = { subName = it },
-                        label = { Text("Subcategory Name") },
-                        singleLine = true
-                    )
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        if (subName.isNotBlank()) {
-                            viewModel.addSubcategory(parentName, subName.trim(), selectedType)
-                            showAddSubDialogForParent = null
-                        }
-                    }) { Text("Add") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showAddSubDialogForParent = null }) { Text("Cancel") }
-                }
-            )
-        }
-
-        // Edit Category Dialog
-        categoryToEdit?.let { cat ->
-            var updatedName by remember { mutableStateOf(cat.name) }
-            AlertDialog(
-                onDismissRequest = { categoryToEdit = null },
-                title = { Text("Rename Category", fontWeight = FontWeight.Bold) },
-                text = {
-                    OutlinedTextField(
-                        value = updatedName,
-                        onValueChange = { updatedName = it },
-                        label = { Text("New Name") },
-                        singleLine = true
-                    )
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        if (updatedName.isNotBlank() && updatedName != cat.name) {
-                            viewModel.updateCategory(cat, updatedName.trim())
-                            categoryToEdit = null
-                        }
-                    }) { Text("Save") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { categoryToEdit = null }) { Text("Cancel") }
-                }
-            )
-        }
-
-        // Delete Category Confirmation
+        // Alert: Delete Category Confirmation
         categoryToDelete?.let { cat ->
             AlertDialog(
                 onDismissRequest = { categoryToDelete = null },
-                title = { Text("Delete '${cat.name}'?", fontWeight = FontWeight.Bold) },
+                title = { Text("Delete Category '${cat.name}'?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                 text = {
-                    Text("Deleting this category will safely reassign historical transactions to 'General'. Future unpaid AutoPay commitments for this category will be removed.")
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            viewModel.deleteCategory(cat) { success, message ->
-                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                            }
-                            categoryToDelete = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SoftRed)
-                    ) { Text("Delete") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { categoryToDelete = null }) { Text("Cancel") }
-                }
-            )
-        }
-
-        // Edit Subcategory Dialog
-        subcategoryToEdit?.let { sub ->
-            var updatedSubName by remember { mutableStateOf(sub.name) }
-            AlertDialog(
-                onDismissRequest = { subcategoryToEdit = null },
-                title = { Text("Rename Subcategory", fontWeight = FontWeight.Bold) },
-                text = {
-                    OutlinedTextField(
-                        value = updatedSubName,
-                        onValueChange = { updatedSubName = it },
-                        label = { Text("New Name") },
-                        singleLine = true
+                    Text(
+                        "Deleting this category will remove its subcategories. Historical transactions will be reassigned to 'General' to protect your balances, and future unpaid AutoPay bills will be removed.",
+                        fontSize = 13.sp,
+                        color = TextDark
                     )
                 },
                 confirmButton = {
-                    Button(onClick = {
-                        if (updatedSubName.isNotBlank() && updatedSubName != sub.name) {
-                            viewModel.updateSubcategory(sub, updatedSubName.trim())
-                            subcategoryToEdit = null
+                    TextButton(
+                        onClick = {
+                            viewModel.deleteCategory(cat) { success, msg ->
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            }
+                            categoryToDelete = null
                         }
-                    }) { Text("Save") }
+                    ) {
+                        Text("Delete", color = SoftRed, fontWeight = FontWeight.Bold)
+                    }
                 },
                 dismissButton = {
-                    TextButton(onClick = { subcategoryToEdit = null }) { Text("Cancel") }
+                    TextButton(onClick = { categoryToDelete = null }) {
+                        Text("Cancel", color = TextDark)
+                    }
                 }
             )
         }
 
-        // Delete Subcategory Dialog
+        // Alert: Delete Subcategory Confirmation
         subcategoryToDelete?.let { sub ->
             AlertDialog(
                 onDismissRequest = { subcategoryToDelete = null },
-                title = { Text("Delete Subcategory '${sub.name}'?", fontWeight = FontWeight.Bold) },
-                text = { Text("Historical transactions under this subcategory will remain intact.") },
+                title = { Text("Delete Subcategory '${sub.name}'?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                text = {
+                    Text(
+                        "Are you sure you want to remove '${sub.name}' from ${sub.parentCategory}? Future unpaid AutoPay commitments linked to it will be cleared.",
+                        fontSize = 13.sp,
+                        color = TextDark
+                    )
+                },
                 confirmButton = {
-                    Button(
+                    TextButton(
                         onClick = {
                             viewModel.deleteSubcategory(sub)
                             subcategoryToDelete = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SoftRed)
-                    ) { Text("Delete") }
+                        }
+                    ) {
+                        Text("Delete", color = SoftRed, fontWeight = FontWeight.Bold)
+                    }
                 },
                 dismissButton = {
-                    TextButton(onClick = { subcategoryToDelete = null }) { Text("Cancel") }
+                    TextButton(onClick = { subcategoryToDelete = null }) {
+                        Text("Cancel", color = TextDark)
+                    }
                 }
             )
+        }
+
+        // Sheet: Add Category
+        if (showAddCategorySheet) {
+            var newCategoryName by remember { mutableStateOf("") }
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+            ModalBottomSheet(
+                onDismissRequest = { showAddCategorySheet = false },
+                sheetState = sheetState,
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                dragHandle = {
+                    Surface(
+                        modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp),
+                        shape = CircleShape,
+                        color = BorderLight
+                    ) {}
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 22.dp, vertical = 6.dp)
+                ) {
+                    Text("Add Master Category", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("Category will be created under ${selectedSegment.name}", fontSize = 11.5.sp, color = TextMuted)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedTextField(
+                        value = newCategoryName,
+                        onValueChange = { newCategoryName = it },
+                        label = { Text("Category Name", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentPurple,
+                            unfocusedBorderColor = BorderLight
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = {
+                            if (newCategoryName.isNotBlank()) {
+                                viewModel.addCategory(newCategoryName.trim(), selectedSegment)
+                                showAddCategorySheet = false
+                            }
+                        },
+                        enabled = newCategoryName.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    ) {
+                        Text("Create Category", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+        }
+
+        // Sheet: Add Subcategory
+        if (showAddSubcategorySheet) {
+            var selectedParent by remember { mutableStateOf(segmentCategories.firstOrNull()?.name.orEmpty()) }
+            var newSubName by remember { mutableStateOf("") }
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+            ModalBottomSheet(
+                onDismissRequest = { showAddSubcategorySheet = false },
+                sheetState = sheetState,
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                dragHandle = {
+                    Surface(
+                        modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp),
+                        shape = CircleShape,
+                        color = BorderLight
+                    ) {}
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 22.dp, vertical = 6.dp)
+                ) {
+                    Text("Add Subcategory Tag", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("Attach subcategory to parent classification", fontSize = 11.5.sp, color = TextMuted)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text("Select Parent Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    LazyColumn(modifier = Modifier.heightIn(max = 140.dp)) {
+                        items(segmentCategories) { cat ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp)
+                                    .clickable { selectedParent = cat.name },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (selectedParent == cat.name) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
+                                border = BorderStroke(0.6.dp, if (selectedParent == cat.name) AccentPurple else BorderLight)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = cat.name,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = if (selectedParent == cat.name) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (selectedParent == cat.name) AccentPurple else TextDark
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = newSubName,
+                        onValueChange = { newSubName = it },
+                        label = { Text("Subcategory Tag Name", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentPurple,
+                            unfocusedBorderColor = BorderLight
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = {
+                            if (newSubName.isNotBlank() && selectedParent.isNotBlank()) {
+                                viewModel.addSubcategory(selectedParent, newSubName.trim(), selectedSegment)
+                                showAddSubcategorySheet = false
+                            }
+                        },
+                        enabled = newSubName.isNotBlank() && selectedParent.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    ) {
+                        Text("Save Subcategory", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+        }
+
+        // Sheet: Rename Category
+        categoryToEdit?.let { cat ->
+            var renameText by remember { mutableStateOf(cat.name) }
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+            ModalBottomSheet(
+                onDismissRequest = { categoryToEdit = null },
+                sheetState = sheetState,
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                dragHandle = {
+                    Surface(
+                        modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp),
+                        shape = CircleShape,
+                        color = BorderLight
+                    ) {}
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 22.dp, vertical = 6.dp)
+                ) {
+                    Text("Rename Category", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("All historical transactions, plans, and bills will cascade automatically.", fontSize = 11.5.sp, color = TextMuted)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedTextField(
+                        value = renameText,
+                        onValueChange = { renameText = it },
+                        label = { Text("Category Name", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentPurple,
+                            unfocusedBorderColor = BorderLight
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = {
+                            if (renameText.isNotBlank() && renameText.trim() != cat.name) {
+                                viewModel.updateCategory(cat, renameText.trim())
+                            }
+                            categoryToEdit = null
+                        },
+                        enabled = renameText.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    ) {
+                        Text("Apply Cascade Rename", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+        }
+
+        // Sheet: Rename Subcategory
+        subcategoryToEdit?.let { sub ->
+            var renameText by remember { mutableStateOf(sub.name) }
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+            ModalBottomSheet(
+                onDismissRequest = { subcategoryToEdit = null },
+                sheetState = sheetState,
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                dragHandle = {
+                    Surface(
+                        modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp),
+                        shape = CircleShape,
+                        color = BorderLight
+                    ) {}
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 22.dp, vertical = 6.dp)
+                ) {
+                    Text("Rename Subcategory", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("Subcategory under '${sub.parentCategory}'", fontSize = 11.5.sp, color = TextMuted)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedTextField(
+                        value = renameText,
+                        onValueChange = { renameText = it },
+                        label = { Text("Subcategory Tag Name", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentPurple,
+                            unfocusedBorderColor = BorderLight
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = {
+                            if (renameText.isNotBlank() && renameText.trim() != sub.name) {
+                                viewModel.updateSubcategory(sub, renameText.trim())
+                            }
+                            subcategoryToEdit = null
+                        },
+                        enabled = renameText.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    ) {
+                        Text("Save Subcategory", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableCategoryCard(
+    category: CategoryEntity,
+    subcategoriesCount: Int,
+    isProtected: Boolean,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onSwipeEdit: () -> Unit,
+    onSwipeDelete: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val currentOnEdit by rememberUpdatedState(onSwipeEdit)
+    val currentOnDelete by rememberUpdatedState(onSwipeDelete)
+
+    var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
+
+    val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { totalDistance -> totalDistance * 0.35f },
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    currentOnEdit()
+                    false
+                }
+                SwipeToDismissBoxValue.EndToStart -> {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    currentOnDelete()
+                    false
+                }
+                SwipeToDismissBoxValue.Settled -> false
+            }
+        }
+    )
+
+    LaunchedEffect(dismissState.targetValue) {
+        if (dismissState.targetValue != lastTargetValue && dismissState.targetValue != SwipeToDismissBoxValue.Settled) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        lastTargetValue = dismissState.targetValue
+    }
+
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = tween(200),
+        label = "arrowRotation"
+    )
+
+    val typeColor = when (category.type) {
+        TransactionType.INCOME -> SoftGreen
+        TransactionType.EXPENSE -> SoftRed
+        TransactionType.ASSET -> SoftTeal
+        TransactionType.TRANSFER -> AccentPurple
+    }
+
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val backgroundColor by animateColorAsState(
+                targetValue = when (dismissState.targetValue) {
+                    SwipeToDismissBoxValue.StartToEnd -> AccentPurple
+                    SwipeToDismissBoxValue.EndToStart -> SoftRed
+                    SwipeToDismissBoxValue.Settled -> Color.Transparent
+                },
+                animationSpec = tween(200),
+                label = "swipeBgColor"
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(backgroundColor)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+            ) {
+                if (direction == SwipeToDismissBoxValue.StartToEnd) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Rename", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                } else if (direction == SwipeToDismissBoxValue.EndToStart) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(1.dp, RoundedCornerShape(16.dp))
+                .clickable(onClick = onToggleExpand),
+            shape = RoundedCornerShape(16.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(typeColor.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = category.name.take(1).uppercase(),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 14.sp,
+                            color = typeColor
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = category.name,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = TextDark,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (isProtected) {
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Icon(
+                                    Icons.Default.Lock,
+                                    contentDescription = "System Core",
+                                    tint = TextMuted.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Text(
+                            text = "$subcategoriesCount subcategories mapped",
+                            fontSize = 11.sp,
+                            color = TextMuted
+                        )
+                    }
+                }
+
+                Icon(
+                    Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = TextMuted,
+                    modifier = Modifier.size(18.dp).rotate(arrowRotation)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableSubcategoryItem(
+    subcategory: SubcategoryEntity,
+    onSwipeEdit: () -> Unit,
+    onSwipeDelete: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val currentOnEdit by rememberUpdatedState(onSwipeEdit)
+    val currentOnDelete by rememberUpdatedState(onSwipeDelete)
+
+    var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
+
+    val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { totalDistance -> totalDistance * 0.35f },
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    currentOnEdit()
+                    false
+                }
+                SwipeToDismissBoxValue.EndToStart -> {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    currentOnDelete()
+                    false
+                }
+                SwipeToDismissBoxValue.Settled -> false
+            }
+        }
+    )
+
+    LaunchedEffect(dismissState.targetValue) {
+        if (dismissState.targetValue != lastTargetValue && dismissState.targetValue != SwipeToDismissBoxValue.Settled) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        lastTargetValue = dismissState.targetValue
+    }
+
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val backgroundColor by animateColorAsState(
+                targetValue = when (dismissState.targetValue) {
+                    SwipeToDismissBoxValue.StartToEnd -> AccentPurple
+                    SwipeToDismissBoxValue.EndToStart -> SoftRed
+                    SwipeToDismissBoxValue.Settled -> Color.Transparent
+                },
+                animationSpec = tween(200),
+                label = "subSwipeBgColor"
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(backgroundColor)
+                    .padding(horizontal = 14.dp),
+                contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+            ) {
+                if (direction == SwipeToDismissBoxValue.StartToEnd) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(15.dp))
+                } else if (direction == SwipeToDismissBoxValue.EndToStart) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(15.dp))
+                }
+            }
+        }
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            color = CardWhite,
+            border = BorderStroke(0.6.dp, BorderLight)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(5.dp)
+                            .clip(CircleShape)
+                            .background(TextMuted)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = subcategory.name,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextDark
+                    )
+                }
+
+                Text(
+                    text = "Swipe to edit",
+                    fontSize = 9.5.sp,
+                    color = TextMuted.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DockPillTab(
+    title: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(if (isSelected) CanvasLight else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                icon,
+                contentDescription = title,
+                tint = if (isSelected) AccentPurple else TextMuted,
+                modifier = Modifier.size(17.dp)
+            )
+            if (isSelected) {
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = AccentPurple)
+            }
         }
     }
 }
