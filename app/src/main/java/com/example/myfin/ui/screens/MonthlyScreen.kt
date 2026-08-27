@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -26,8 +27,10 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -82,7 +85,6 @@ fun MonthlyScreen(
         else uiState.accounts.map { it.accountName }
     }
 
-    // Days remaining in month calculation
     val daysInMonth = remember(uiState.selectedMonth, uiState.selectedYear) {
         Calendar.getInstance().apply {
             set(uiState.selectedYear, uiState.selectedMonth - 1, 1)
@@ -99,9 +101,10 @@ fun MonthlyScreen(
                 .padding(horizontal = 20.dp),
             contentPadding = PaddingValues(bottom = 115.dp)
         ) {
-            // Top App Bar
+            // Top App Bar with Notch / Status Bar Insets
             item {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.statusBarsPadding())
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -313,7 +316,7 @@ fun MonthlyScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 1. Balance Flow & Net Savings Delta Card (Positioned Above 3-Pillar Gauges)
+                // 1. Balance Flow & Net Savings Delta Card
                 item {
                     val actualIncome = uiState.metrics.actualIncome
                     val actualExpenses = uiState.metrics.actualExpenses
@@ -339,7 +342,6 @@ fun MonthlyScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Start Balance
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("START BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
                                 Spacer(modifier = Modifier.height(3.dp))
@@ -359,7 +361,6 @@ fun MonthlyScreen(
                                     .background(BorderLight.copy(alpha = 0.6f))
                             )
 
-                            // End / Current Liquid Balance
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
@@ -383,7 +384,6 @@ fun MonthlyScreen(
                                     .background(BorderLight.copy(alpha = 0.6f))
                             )
 
-                            // Net Savings & Rate Delta
                             Column(
                                 modifier = Modifier
                                     .weight(1.1f)
@@ -410,7 +410,7 @@ fun MonthlyScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 2. 3-Pillar Cashflow & Target Comparison System (Replaces Budget Limit / Spent Cards)
+                // 2. 3-Pillar Cashflow & Target Comparison System
                 item {
                     val plannedExpenses = uiState.metrics.plannedExpenses
                     val actualExpenses = uiState.metrics.actualExpenses
@@ -447,7 +447,6 @@ fun MonthlyScreen(
                                 letterSpacing = 0.6.sp
                             )
 
-                            // Pillar 1: Expenses
                             PillarDualBarRow(
                                 title = "Expenses",
                                 planned = plannedExpenses,
@@ -464,7 +463,6 @@ fun MonthlyScreen(
 
                             HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
 
-                            // Pillar 2: Income
                             PillarDualBarRow(
                                 title = "Income",
                                 planned = plannedIncome,
@@ -481,7 +479,6 @@ fun MonthlyScreen(
 
                             HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
 
-                            // Pillar 3: Assets / SIP
                             PillarDualBarRow(
                                 title = "Assets / SIP",
                                 planned = plannedAssets,
@@ -770,38 +767,58 @@ fun MonthlyScreen(
                 }
             }
 
-            // --- TAB 2: TRANSACTIONS ---
+            // --- TAB 2: TRANSACTIONS (Compact Single-Line Search Bar) ---
             if (activeTab == DashboardTab.TRANSACTIONS) {
                 item {
-                    OutlinedTextField(
-                        value = filterCriteria.query,
-                        onValueChange = { viewModel.updateSearchQuery(it) },
-                        placeholder = { Text("Search title, subcategory, merchant...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = TextMuted) },
-                        trailingIcon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (filterCriteria.query.isNotBlank()) {
-                                    IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextMuted)
-                                    }
+                    // Compact Slim Search Field
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Search, contentDescription = "Search", tint = TextMuted, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (filterCriteria.query.isEmpty()) {
+                                    Text("Search ledger...", color = TextMuted, fontSize = 13.sp, maxLines = 1)
                                 }
-                                IconButton(onClick = { showFilterSheet = true }) {
-                                    Icon(
-                                        Icons.Default.Tune,
-                                        contentDescription = "Filter",
-                                        tint = if (filterCriteria.type != null || filterCriteria.account != "ALL" || filterCriteria.startDate != null) AccentPurple else TextMuted
-                                    )
-                                }
+                                BasicTextField(
+                                    value = filterCriteria.query,
+                                    onValueChange = { viewModel.updateSearchQuery(it) },
+                                    singleLine = true,
+                                    textStyle = TextStyle(fontSize = 13.sp, color = TextDark, fontWeight = FontWeight.Medium),
+                                    cursorBrush = SolidColor(AccentPurple),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AccentPurple,
-                            unfocusedBorderColor = BorderLight
-                        )
-                    )
+
+                            if (filterCriteria.query.isNotBlank()) {
+                                IconButton(onClick = { viewModel.updateSearchQuery("") }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextMuted, modifier = Modifier.size(16.dp))
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+
+                            IconButton(onClick = { showFilterSheet = true }, modifier = Modifier.size(28.dp)) {
+                                Icon(
+                                    Icons.Default.Tune,
+                                    contentDescription = "Filter",
+                                    tint = if (filterCriteria.type != null || filterCriteria.account != "ALL" || filterCriteria.startDate != null) AccentPurple else TextMuted,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
@@ -1076,7 +1093,7 @@ fun MonthlyScreen(
             }
         }
 
-        // Quick Action Modal
+        // Action Modal
         if (showActionMenu) {
             Dialog(onDismissRequest = { showActionMenu = false }) {
                 Surface(
@@ -1368,6 +1385,7 @@ fun MonthlyScreen(
             )
         }
 
+        // AutoPay Bottom Sheet Triggers
         if (showAddFixedBill) {
             AddEditFixedBillDialog(
                 accountList = accountsList,
