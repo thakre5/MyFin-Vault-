@@ -1,6 +1,8 @@
 package com.example.myfin.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,8 +18,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,15 +40,28 @@ fun SwipeableFixedBillItem(
     onEdit: (FixedBillEntity) -> Unit,
     onDelete: (FixedBillEntity) -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+
+    // Retain latest state references to prevent stale lambda closures on rapid status toggles
+    val currentBill by rememberUpdatedState(bill)
+    val currentOnEdit by rememberUpdatedState(onEdit)
+    val currentOnDelete by rememberUpdatedState(onDelete)
+    val currentOnTap by rememberUpdatedState(onTap)
+
+    var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
+
     val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { totalDistance -> totalDistance * 0.35f },
         confirmValueChange = { value ->
             when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> {
-                    onEdit(bill)
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    currentOnEdit(currentBill)
                     false
                 }
                 SwipeToDismissBoxValue.EndToStart -> {
-                    onDelete(bill)
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    currentOnDelete(currentBill)
                     false
                 }
                 SwipeToDismissBoxValue.Settled -> false
@@ -51,40 +69,99 @@ fun SwipeableFixedBillItem(
         }
     )
 
+    LaunchedEffect(dismissState.targetValue) {
+        if (dismissState.targetValue != lastTargetValue && dismissState.targetValue != SwipeToDismissBoxValue.Settled) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        lastTargetValue = dismissState.targetValue
+    }
+
     SwipeToDismissBox(
         state = dismissState,
         enableDismissFromStartToEnd = true,
         enableDismissFromEndToStart = true,
         backgroundContent = {
             val direction = dismissState.dismissDirection
-            val color by animateColorAsState(
+            val isSwipingStart = dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd
+            val isSwipingEnd = dismissState.targetValue == SwipeToDismissBoxValue.EndToStart
+
+            val backgroundColor by animateColorAsState(
                 targetValue = when (dismissState.targetValue) {
                     SwipeToDismissBoxValue.StartToEnd -> AccentPurple
                     SwipeToDismissBoxValue.EndToStart -> SoftRed
                     SwipeToDismissBoxValue.Settled -> Color.Transparent
                 },
+                animationSpec = tween(200),
                 label = "billSwipeBg"
+            )
+
+            val iconScale by animateFloatAsState(
+                targetValue = if (isSwipingStart || isSwipingEnd) 1.15f else 0.85f,
+                animationSpec = tween(150),
+                label = "billIconScale"
             )
 
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(color)
-                    .padding(horizontal = 20.dp),
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(backgroundColor)
+                    .padding(horizontal = 22.dp),
                 contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
             ) {
                 if (direction == SwipeToDismissBoxValue.StartToEnd) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Edit", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.scale(iconScale)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.22f),
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = "Edit Commitment",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Edit",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp
+                        )
                     }
                 } else if (direction == SwipeToDismissBoxValue.EndToStart) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.scale(iconScale)
+                    ) {
+                        Text(
+                            text = "Delete",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.22f),
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Delete Commitment",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -93,9 +170,9 @@ fun SwipeableFixedBillItem(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(2.dp, RoundedCornerShape(16.dp))
-                .clickable { onTap(bill) },
-            shape = RoundedCornerShape(16.dp),
+                .shadow(1.5.dp, RoundedCornerShape(18.dp))
+                .clickable { currentOnTap(currentBill) },
+            shape = RoundedCornerShape(18.dp),
             color = CardWhite
         ) {
             Row(
@@ -107,13 +184,13 @@ fun SwipeableFixedBillItem(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     IconButton(
-                        onClick = { onTap(bill) },
+                        onClick = { currentOnTap(currentBill) },
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            imageVector = if (bill.isPaid) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                            contentDescription = if (bill.isPaid) "Settled" else "Pending",
-                            tint = if (bill.isPaid) SoftGreen else TextMuted
+                            imageVector = if (currentBill.isPaid) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            contentDescription = if (currentBill.isPaid) "Settled" else "Pending",
+                            tint = if (currentBill.isPaid) SoftGreen else TextMuted
                         )
                     }
 
@@ -122,19 +199,19 @@ fun SwipeableFixedBillItem(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = bill.title,
+                                text = currentBill.title,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = TextDark
                             )
-                            if (bill.dueDay != null) {
+                            if (currentBill.dueDay != null) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
                                     color = CanvasLight
                                 ) {
                                     Text(
-                                        text = "Due Day ${bill.dueDay}",
+                                        text = "Due Day ${currentBill.dueDay}",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = TextMuted,
@@ -145,7 +222,7 @@ fun SwipeableFixedBillItem(
                         }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "${bill.category} • ${bill.accountName}${if (bill.toAccountName != null) " ➔ " + bill.toAccountName else ""}",
+                            text = "${currentBill.category} • ${currentBill.accountName}${if (currentBill.toAccountName != null) " ➔ " + currentBill.toAccountName else ""}",
                             fontSize = 11.sp,
                             color = TextMuted
                         )
@@ -154,10 +231,10 @@ fun SwipeableFixedBillItem(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "${currencySymbol}${String.format(Locale.US, "%,.0f", bill.amount)}",
+                        text = "$currencySymbol${String.format(Locale.US, "%,.0f", currentBill.amount)}",
                         fontWeight = FontWeight.Black,
                         fontSize = 15.sp,
-                        color = when (bill.type) {
+                        color = when (currentBill.type) {
                             TransactionType.INCOME -> SoftGreen
                             TransactionType.EXPENSE -> SoftRed
                             TransactionType.ASSET -> SoftTeal
@@ -166,10 +243,10 @@ fun SwipeableFixedBillItem(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (bill.isPaid) "Settled" else "Pending",
+                        text = if (currentBill.isPaid) "Settled" else "Pending",
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.5.sp,
-                        color = if (bill.isPaid) SoftGreen else SoftAmber
+                        color = if (currentBill.isPaid) SoftGreen else SoftAmber
                     )
                 }
             }
