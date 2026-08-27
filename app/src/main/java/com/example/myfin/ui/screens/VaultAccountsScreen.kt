@@ -105,14 +105,14 @@ fun VaultAccountsScreen(
     var selectedDetailAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
     var adjustingAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
 
-    // Fallback to 4 generic baseline accounts with parameters matching AccountBalanceResult
+    // Fallback to 4 generic baseline accounts with required startingBalance and currentBalance
     val displayAccounts = remember(uiState.accounts) {
         if (uiState.accounts.isEmpty()) {
             listOf(
-                AccountBalanceResult(accountName = "Operating Account", accountType = "Operating", sortOrder = 0, currentBalance = 0.0),
-                AccountBalanceResult(accountName = "Commitments Account", accountType = "Commitments", sortOrder = 1, currentBalance = 0.0),
-                AccountBalanceResult(accountName = "Fortress Account", accountType = "Fortress", sortOrder = 2, currentBalance = 0.0),
-                AccountBalanceResult(accountName = "Cash Wallet", accountType = "Cash", sortOrder = 3, currentBalance = 0.0)
+                AccountBalanceResult(accountName = "Operating Account", accountType = "Operating", sortOrder = 0, startingBalance = 0.0, currentBalance = 0.0),
+                AccountBalanceResult(accountName = "Commitments Account", accountType = "Commitments", sortOrder = 1, startingBalance = 0.0, currentBalance = 0.0),
+                AccountBalanceResult(accountName = "Fortress Account", accountType = "Fortress", sortOrder = 2, startingBalance = 0.0, currentBalance = 0.0),
+                AccountBalanceResult(accountName = "Cash Wallet", accountType = "Cash", sortOrder = 3, startingBalance = 0.0, currentBalance = 0.0)
             )
         } else {
             uiState.accounts
