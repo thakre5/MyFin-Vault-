@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,6 +56,7 @@ fun MasterDataSetScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.monthlyUiState.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
 
     var selectedSegment by remember { mutableStateOf(TransactionType.EXPENSE) }
     var searchQuery by remember { mutableStateOf("") }
@@ -63,6 +65,8 @@ fun MasterDataSetScreen(
     // Bottom Sheets & Dialog States
     var showAddCategorySheet by remember { mutableStateOf(false) }
     var showAddSubcategorySheet by remember { mutableStateOf(false) }
+    var preselectedParentCategory by remember { mutableStateOf<String?>(null) }
+
     var categoryToEdit by remember { mutableStateOf<CategoryEntity?>(null) }
     var subcategoryToEdit by remember { mutableStateOf<SubcategoryEntity?>(null) }
     var categoryToDelete by remember { mutableStateOf<CategoryEntity?>(null) }
@@ -77,6 +81,12 @@ fun MasterDataSetScreen(
 
     val segmentSubcategories = remember(uiState.masterSubcategories, selectedSegment) {
         uiState.masterSubcategories.filter { it.type == selectedSegment }
+    }
+
+    // Transaction counts map
+    val transactionCountsByCategory = remember(uiState.groupedTransactions) {
+        val allTx = uiState.groupedTransactions.values.flatten()
+        allTx.groupingBy { it.category }.eachCount()
     }
 
     val filteredCategories = remember(segmentCategories, segmentSubcategories, searchQuery) {
@@ -94,178 +104,73 @@ fun MasterDataSetScreen(
         }
     }
 
-    // Cleaned Taxonomy Metrics
-    val totalCats = segmentCategories.size
-    val totalSubs = segmentSubcategories.size
-    val protectedCount = segmentCategories.count { viewModel.protectedCategories.contains(it.name) }
-    val customCount = (totalCats - protectedCount).coerceAtLeast(0)
-
-    val segmentColor = when (selectedSegment) {
-        TransactionType.EXPENSE -> SoftRed
-        TransactionType.INCOME -> SoftGreen
-        TransactionType.ASSET -> SoftTeal
-        TransactionType.TRANSFER -> AccentPurple
-    }
-
     Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // Pinned Top Header Container
+            // Top App Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onOpenDrawer,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(CardWhite)
+                        .border(0.8.dp, BorderLight.copy(alpha = 0.7f), RoundedCornerShape(11.dp))
+                ) {
+                    Icon(
+                        Icons.Default.ChevronLeft,
+                        contentDescription = "Drawer",
+                        tint = TextDark,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Text(
+                    text = "Categories",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 17.sp,
+                    color = TextDark
+                )
+
+                // User Avatar
+                Surface(
+                    shape = CircleShape,
+                    color = AccentPurple,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = userProfile.displayName.take(1).uppercase().ifBlank { "S" },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+
+            // Pinned Search & Switcher Controls
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .padding(horizontal = 20.dp)
             ) {
-                // Top App Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onOpenDrawer,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(CardWhite)
-                            .border(0.8.dp, BorderLight.copy(alpha = 0.7f), RoundedCornerShape(11.dp))
-                    ) {
-                        Icon(
-                            Icons.Default.ChevronLeft,
-                            contentDescription = "Drawer",
-                            tint = TextDark,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-
-                    Text(
-                        text = "Master Taxonomy",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 16.sp,
-                        color = TextDark
-                    )
-
-                    Surface(
-                        shape = RoundedCornerShape(11.dp),
-                        color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
-                    ) {
-                        Text(
-                            text = "$totalCats Groups",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Cleaned 3-Pillar Taxonomy Metric Card
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(2.dp, RoundedCornerShape(16.dp)),
-                    shape = RoundedCornerShape(16.dp),
-                    color = CardWhite,
-                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "CATEGORIES",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextMuted,
-                                letterSpacing = 0.5.sp
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                text = "$totalCats Active",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Black,
-                                color = segmentColor
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .height(24.dp)
-                                .width(1.dp)
-                                .background(BorderLight.copy(alpha = 0.7f))
-                        )
-
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "SUBCATEGORIES",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextMuted,
-                                letterSpacing = 0.5.sp
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                text = "$totalSubs Mapped",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextDark
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .height(24.dp)
-                                .width(1.dp)
-                                .background(BorderLight.copy(alpha = 0.7f))
-                        )
-
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "CUSTOM TAGS",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextMuted,
-                                letterSpacing = 0.5.sp
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                text = "$customCount Custom",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Black,
-                                color = AccentPurple
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 // Single-Line Flow Segment Switcher
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(11.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .background(BorderLight.copy(alpha = 0.5f))
-                        .padding(2.5.dp)
+                        .padding(3.dp)
                 ) {
                     listOf(
                         Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
@@ -276,16 +181,16 @@ fun MasterDataSetScreen(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(9.dp))
                                 .background(if (isSelected) CardWhite else Color.Transparent)
                                 .clickable { selectedSegment = type }
-                                .padding(vertical = 6.dp),
+                                .padding(vertical = 7.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = label,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 11.sp,
+                                fontSize = 11.5.sp,
                                 color = if (isSelected) color else TextMuted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -294,14 +199,14 @@ fun MasterDataSetScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Compact Search Input
+                // Compact Search Bar
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp),
-                    shape = RoundedCornerShape(13.dp),
+                    shape = RoundedCornerShape(14.dp),
                     color = CardWhite,
                     border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
                 ) {
@@ -337,23 +242,25 @@ fun MasterDataSetScreen(
                 }
             }
 
-            // Scrollable Integrated Category & Subcategory Tree
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Scrollable Category & Subcategory List
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                contentPadding = PaddingValues(top = 4.dp, bottom = 105.dp)
+                contentPadding = PaddingValues(top = 2.dp, bottom = 105.dp)
             ) {
                 if (filteredCategories.isEmpty()) {
                     item {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(18.dp),
                             color = CardWhite
                         ) {
-                            Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                                Text("No matching taxonomy groups found", fontSize = 12.sp, color = TextMuted)
+                            Box(modifier = Modifier.padding(28.dp), contentAlignment = Alignment.Center) {
+                                Text("No matching categories found", fontSize = 12.sp, color = TextMuted)
                             }
                         }
                     }
@@ -362,17 +269,23 @@ fun MasterDataSetScreen(
                         val isProtected = viewModel.protectedCategories.contains(cat.name)
                         val subList = segmentSubcategories.filter { it.parentCategory == cat.name }
                         val isExpanded = expandedCategories[cat.name] ?: false
+                        val txCount = transactionCountsByCategory[cat.name] ?: 0
 
-                        IntegratedCategoryTreeCard(
+                        StyledCategoryCard(
                             category = cat,
                             subcategories = subList,
+                            transactionCount = txCount,
                             isProtected = isProtected,
                             isExpanded = isExpanded,
                             onToggleExpand = { expandedCategories[cat.name] = !isExpanded },
+                            onAddSubcategory = {
+                                preselectedParentCategory = cat.name
+                                showAddSubcategorySheet = true
+                            },
                             onSwipeEditCategory = { categoryToEdit = cat },
                             onSwipeDeleteCategory = {
                                 if (isProtected) {
-                                    alertNoticeMessage = "'${cat.name}' is a core protected category and cannot be deleted."
+                                    alertNoticeMessage = "'${cat.name}' is a core system category and cannot be deleted."
                                 } else {
                                     categoryToDelete = cat
                                 }
@@ -381,7 +294,7 @@ fun MasterDataSetScreen(
                             onSwipeDeleteSubcategory = { sub -> subcategoryToDelete = sub }
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                     }
                 }
             }
@@ -513,6 +426,7 @@ fun MasterDataSetScreen(
                                 .fillMaxWidth()
                                 .clickable {
                                     showActionMenu = false
+                                    preselectedParentCategory = segmentCategories.firstOrNull()?.name.orEmpty()
                                     showAddSubcategorySheet = true
                                 }
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -670,7 +584,7 @@ fun MasterDataSetScreen(
 
         // Sheet: Add Subcategory
         if (showAddSubcategorySheet) {
-            var selectedParent by remember { mutableStateOf(segmentCategories.firstOrNull()?.name.orEmpty()) }
+            var selectedParent by remember { mutableStateOf(preselectedParentCategory ?: segmentCategories.firstOrNull()?.name.orEmpty()) }
             var newSubName by remember { mutableStateOf("") }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -699,34 +613,7 @@ fun MasterDataSetScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    Text("Select Parent Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    LazyColumn(modifier = Modifier.heightIn(max = 140.dp)) {
-                        items(segmentCategories) { cat ->
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp)
-                                    .clickable { selectedParent = cat.name },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (selectedParent == cat.name) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                                border = BorderStroke(0.6.dp, if (selectedParent == cat.name) AccentPurple else BorderLight)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = cat.name,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = if (selectedParent == cat.name) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (selectedParent == cat.name) AccentPurple else TextDark
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    Text("Parent Category: $selectedParent", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
 
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -899,12 +786,14 @@ fun MasterDataSetScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun IntegratedCategoryTreeCard(
+private fun StyledCategoryCard(
     category: CategoryEntity,
     subcategories: List<SubcategoryEntity>,
+    transactionCount: Int,
     isProtected: Boolean,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
+    onAddSubcategory: () -> Unit,
     onSwipeEditCategory: () -> Unit,
     onSwipeDeleteCategory: () -> Unit,
     onSwipeEditSubcategory: (SubcategoryEntity) -> Unit,
@@ -948,23 +837,18 @@ private fun IntegratedCategoryTreeCard(
         label = "arrowRotation"
     )
 
-    val typeColor = when (category.type) {
-        TransactionType.INCOME -> SoftGreen
-        TransactionType.EXPENSE -> SoftRed
-        TransactionType.ASSET -> SoftTeal
-        TransactionType.TRANSFER -> AccentPurple
-    }
+    val (iconBg, iconColor, categoryIcon) = getThematicCategoryIcon(category.name, category.type)
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(1.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
+            .shadow(1.dp, RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp),
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
     ) {
         Column {
-            // Parent Category Header (Swipeable)
+            // Parent Category Swipe Header
             SwipeToDismissBox(
                 state = dismissState,
                 enableDismissFromStartToEnd = true,
@@ -1013,7 +897,7 @@ private fun IntegratedCategoryTreeCard(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 13.dp),
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1021,65 +905,109 @@ private fun IntegratedCategoryTreeCard(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
                         ) {
+                            // Circular Pastel Thematic Icon
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(44.dp)
                                     .clip(CircleShape)
-                                    .background(typeColor.copy(alpha = 0.12f)),
+                                    .background(iconBg),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = category.name.take(1).uppercase(),
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 14.sp,
-                                    color = typeColor
+                                Icon(
+                                    imageVector = categoryIcon,
+                                    contentDescription = null,
+                                    tint = iconColor,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
 
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(13.dp))
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = category.name,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.5.sp,
+                                        fontSize = 14.5.sp,
                                         color = TextDark,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     if (isProtected) {
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Icon(
-                                            Icons.Default.Lock,
-                                            contentDescription = "System Core",
-                                            tint = TextMuted.copy(alpha = 0.7f),
-                                            modifier = Modifier.size(12.dp)
-                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = CanvasLight,
+                                            border = BorderStroke(0.6.dp, BorderLight)
+                                        ) {
+                                            Text(
+                                                text = "System",
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextMuted,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                            )
+                                        }
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(2.dp))
 
                                 Text(
-                                    text = "${subcategories.size} subcategories mapped",
-                                    fontSize = 11.sp,
-                                    color = TextMuted
+                                    text = "${subcategories.size} items • $transactionCount Transactions",
+                                    fontSize = 11.5.sp,
+                                    color = TextMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
 
-                        Icon(
-                            Icons.Default.ExpandMore,
-                            contentDescription = null,
-                            tint = TextMuted,
-                            modifier = Modifier.size(18.dp).rotate(arrowRotation)
-                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Right Pill Button + Chevron
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable(onClick = onAddSubcategory),
+                                shape = RoundedCornerShape(12.dp),
+                                color = AccentPurple.copy(alpha = 0.08f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = null,
+                                        tint = AccentPurple,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Add Sub",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AccentPurple
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            Icon(
+                                Icons.Default.ExpandMore,
+                                contentDescription = null,
+                                tint = TextMuted,
+                                modifier = Modifier.size(20.dp).rotate(arrowRotation)
+                            )
+                        }
                     }
                 }
             }
 
-            // Nested Integrated Subcategories Tree
+            // Expanded Subcategory Nested Pill List
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = expandVertically() + fadeIn(),
@@ -1088,32 +1016,23 @@ private fun IntegratedCategoryTreeCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(CanvasLight.copy(alpha = 0.6f))
+                        .padding(start = 16.dp, end = 16.dp, bottom = 14.dp, top = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
-
                     if (subcategories.isEmpty()) {
                         Text(
-                            text = "No subcategories configured",
-                            fontSize = 11.sp,
+                            text = "No subcategories yet. Tap '+ Add Sub' to create one.",
+                            fontSize = 11.5.sp,
                             color = TextMuted,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+                            modifier = Modifier.padding(vertical = 4.dp)
                         )
                     } else {
-                        subcategories.forEachIndexed { index, sub ->
-                            IntegratedSubcategoryRow(
+                        subcategories.forEach { sub ->
+                            StyledSubcategoryPill(
                                 subcategory = sub,
                                 onSwipeEdit = { onSwipeEditSubcategory(sub) },
                                 onSwipeDelete = { onSwipeDeleteSubcategory(sub) }
                             )
-
-                            if (index < subcategories.lastIndex) {
-                                HorizontalDivider(
-                                    color = BorderLight.copy(alpha = 0.4f),
-                                    thickness = 0.6.dp,
-                                    modifier = Modifier.padding(start = 48.dp)
-                                )
-                            }
                         }
                     }
                 }
@@ -1124,7 +1043,7 @@ private fun IntegratedCategoryTreeCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun IntegratedSubcategoryRow(
+private fun StyledSubcategoryPill(
     subcategory: SubcategoryEntity,
     onSwipeEdit: () -> Unit,
     onSwipeDelete: () -> Unit
@@ -1180,40 +1099,55 @@ private fun IntegratedSubcategoryRow(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .clip(RoundedCornerShape(12.dp))
                     .background(backgroundColor)
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = 14.dp),
                 contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
             ) {
                 if (direction == SwipeToDismissBoxValue.StartToEnd) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(15.dp))
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(16.dp))
                 } else if (direction == SwipeToDismissBoxValue.EndToStart) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(15.dp))
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(16.dp))
                 }
             }
         }
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(CardWhite)
-                .padding(horizontal = 20.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = Color(0xFFF7F8FA),
+            border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.5f))
         ) {
-            Box(
+            Row(
                 modifier = Modifier
-                    .size(4.dp)
-                    .clip(CircleShape)
-                    .background(TextMuted)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = subcategory.name,
-                fontSize = 12.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = TextDark,
-                modifier = Modifier.weight(1f)
-            )
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = subcategory.name,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextDark,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
+    }
+}
+
+private fun getThematicCategoryIcon(categoryName: String, type: TransactionType): Triple<Color, Color, ImageVector> {
+    return when {
+        categoryName.contains("Debt", ignoreCase = true) -> Triple(Color(0xFFFFEEDB), Color(0xFFE57A28), Icons.Default.CreditCard)
+        categoryName.contains("Utilities", ignoreCase = true) -> Triple(Color(0xFFFFF7D6), Color(0xFFD49E00), Icons.Default.Lightbulb)
+        categoryName.contains("Everyday", ignoreCase = true) || categoryName.contains("Living", ignoreCase = true) -> Triple(Color(0xFFFFF0D4), Color(0xFFE07E10), Icons.Default.ShoppingBag)
+        categoryName.contains("Health", ignoreCase = true) || categoryName.contains("Medical", ignoreCase = true) -> Triple(Color(0xFFFFE4EC), Color(0xFFE0407B), Icons.Default.FitnessCenter)
+        categoryName.contains("Family", ignoreCase = true) || categoryName.contains("Home", ignoreCase = true) -> Triple(Color(0xFFFFE8E8), Color(0xFFE04848), Icons.Default.Home)
+        categoryName.contains("Work", ignoreCase = true) || categoryName.contains("Professional", ignoreCase = true) || categoryName.contains("Company", ignoreCase = true) -> Triple(Color(0xFFE3F5FF), Color(0xFF0288D1), Icons.Default.Work)
+        categoryName.contains("Leisure", ignoreCase = true) || categoryName.contains("Trips", ignoreCase = true) -> Triple(Color(0xFFF0EBFF), Color(0xFF7C4DFF), Icons.Default.FlightTakeoff)
+        type == TransactionType.INCOME -> Triple(Color(0xFFE6F8EF), Color(0xFF00A86B), Icons.AutoMirrored.Filled.TrendingUp)
+        type == TransactionType.ASSET -> Triple(Color(0xFFE0F7FA), Color(0xFF00897B), Icons.Default.Savings)
+        else -> Triple(Color(0xFFECEFF1), Color(0xFF607D8B), Icons.Default.Category)
     }
 }
 
