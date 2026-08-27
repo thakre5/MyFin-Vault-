@@ -32,6 +32,7 @@ import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.CategoryPerformance
 import com.example.myfin.ui.theme.*
+import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
 
@@ -73,9 +74,18 @@ fun BudgetPlannerScreen(
     val userProfile by viewModel.userProfile.collectAsState()
 
     var selectedSegment by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var categoryToConfirm by remember { mutableStateOf<CategoryPerformance?>(null) }
+    var lockedCategoryAlert by remember { mutableStateOf<CategoryPerformance?>(null) }
     var editingCategory by remember { mutableStateOf<CategoryPerformance?>(null) }
 
     val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+    // Date calculations for 5th-of-the-month edit restriction
+    val todayCal = remember { Calendar.getInstance() }
+    val isCurrentMonthAndYear = (uiState.selectedMonth == todayCal.get(Calendar.MONTH) + 1) &&
+            (uiState.selectedYear == todayCal.get(Calendar.YEAR))
+    val currentDayOfMonth = todayCal.get(Calendar.DAY_OF_MONTH)
+    val isPastFifth = isCurrentMonthAndYear && (currentDayOfMonth > 5)
 
     // Financial Allocation Metrics
     val totalPlannedIncome = uiState.metrics.plannedIncome
@@ -120,52 +130,16 @@ fun BudgetPlannerScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
-        // Scrollable Category Limits List with adjusted clearance
-        LazyColumn(
+        // Pure Column Structure eliminates clipping & overlapping
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(top = 270.dp, bottom = 115.dp)
+                .statusBarsPadding()
         ) {
-            if (displayedCategories.isEmpty()) {
-                item {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        color = CardWhite
-                    ) {
-                        Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                            Text("No categories in this segment", fontSize = 12.sp, color = TextMuted)
-                        }
-                    }
-                }
-            } else {
-                items(displayedCategories, key = { it.category }) { cat ->
-                    BudgetCategoryItemCard(
-                        category = cat,
-                        currencySymbol = userProfile.currencySymbol,
-                        onIncrement = { increment ->
-                            val updatedAmount = (cat.plannedAmount + increment).coerceAtLeast(0.0)
-                            viewModel.updateCategoryBudget(cat.category, updatedAmount, cat.type)
-                        },
-                        onManualEdit = { editingCategory = cat }
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                }
-            }
-        }
-
-        // Pinned Header & Inflow Hero Block
-        Surface(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth(),
-            color = CanvasLight
-        ) {
+            // Pinned Top Header Section
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding()
                     .padding(horizontal = 20.dp, vertical = 6.dp)
             ) {
                 // Top App Bar
@@ -214,7 +188,7 @@ fun BudgetPlannerScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Compact Hero Allocation Card
+                // Inflow Baseline Hero Card
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -286,7 +260,7 @@ fun BudgetPlannerScreen(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Dual Segment Progress Bar
+                        // Dual Segment Allocation Progress Bar
                         val expenseFraction = if (totalPlannedIncome > 0) (totalPlannedExpenses / totalPlannedIncome).toFloat().coerceIn(0f, 1f) else 0f
                         val assetFraction = if (totalPlannedIncome > 0) (totalPlannedAssets / totalPlannedIncome).toFloat().coerceIn(0f, 1f) else 0f
 
@@ -348,7 +322,7 @@ fun BudgetPlannerScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Single-Line Type Switcher
+                // Single-Line Segment Switcher
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -380,6 +354,50 @@ fun BudgetPlannerScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                    }
+                }
+            }
+
+            // Scrollable Category Limits List (weight(1f) avoids any card clipping)
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                contentPadding = PaddingValues(top = 4.dp, bottom = 105.dp)
+            ) {
+                if (displayedCategories.isEmpty()) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = CardWhite
+                        ) {
+                            Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+                                Text("No categories in this segment", fontSize = 12.sp, color = TextMuted)
+                            }
+                        }
+                    }
+                } else {
+                    items(displayedCategories, key = { it.category }) { cat ->
+                        val committedAmount = remember(uiState.fixedBills, cat) {
+                            uiState.fixedBills.filter { it.category == cat.category && it.type == cat.type }.sumOf { it.amount }
+                        }
+
+                        BudgetCategoryCleanCard(
+                            category = cat,
+                            committedAutoPay = committedAmount,
+                            currencySymbol = userProfile.currencySymbol,
+                            onClick = {
+                                val isLocked = isPastFifth && (cat.plannedAmount > 0.0)
+                                if (isLocked) {
+                                    lockedCategoryAlert = cat
+                                } else {
+                                    categoryToConfirm = cat
+                                }
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(7.dp))
                     }
                 }
             }
@@ -447,6 +465,52 @@ fun BudgetPlannerScreen(
             ) {
                 Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Vaults", modifier = Modifier.size(26.dp))
             }
+        }
+
+        // Alert 1: Locked After 5th Notice
+        lockedCategoryAlert?.let { cat ->
+            AlertDialog(
+                onDismissRequest = { lockedCategoryAlert = null },
+                title = { Text("Budget Ceiling Frozen", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                text = {
+                    Text(
+                        "Budget limits cannot be altered after the 5th of the month. Your existing ceiling of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.plannedAmount)} for '${cat.category}' is locked to maintain spending discipline."
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { lockedCategoryAlert = null }) {
+                        Text("Understood", fontWeight = FontWeight.Bold, color = AccentPurple)
+                    }
+                }
+            )
+        }
+
+        // Alert 2: Edit Confirmation Dialog
+        categoryToConfirm?.let { cat ->
+            AlertDialog(
+                onDismissRequest = { categoryToConfirm = null },
+                title = { Text("Modify Budget Target?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                text = {
+                    Text("Do you want to adjust the monthly baseline ceiling for '${cat.category}'?")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            editingCategory = cat
+                            categoryToConfirm = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Proceed", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { categoryToConfirm = null }) {
+                        Text("Cancel", color = TextDark)
+                    }
+                }
+            )
         }
 
         // Modal Bottom Sheet: Set Budget
@@ -594,11 +658,11 @@ fun BudgetPlannerScreen(
 }
 
 @Composable
-private fun BudgetCategoryItemCard(
+private fun BudgetCategoryCleanCard(
     category: CategoryPerformance,
+    committedAutoPay: Double,
     currencySymbol: String,
-    onIncrement: (Double) -> Unit,
-    onManualEdit: () -> Unit
+    onClick: () -> Unit
 ) {
     val typeColor = when (category.type) {
         TransactionType.INCOME -> SoftGreen
@@ -607,120 +671,81 @@ private fun BudgetCategoryItemCard(
         TransactionType.TRANSFER -> AccentPurple
     }
 
+    val subtitleText = when {
+        committedAutoPay > 0.0 -> "AutoPay committed: $currencySymbol${String.format(Locale.US, "%,.0f", committedAutoPay)}"
+        category.plannedAmount > 0.0 -> "Actual spend: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}"
+        else -> "Tap to set budget target"
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(1.dp, RoundedCornerShape(15.dp)),
-        shape = RoundedCornerShape(15.dp),
+            .shadow(1.dp, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
     ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            // Category Header Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .size(30.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(typeColor.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = category.category.take(1).uppercase(),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 12.5.sp,
-                            color = typeColor
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = category.category,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
-                            color = TextDark,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "Actual spend: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}",
-                            fontSize = 10.sp,
-                            color = TextMuted
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Clickable Target Badge
-                Surface(
-                    modifier = Modifier.clickable(onClick = onManualEdit),
-                    shape = RoundedCornerShape(8.dp),
-                    color = CanvasLight,
-                    border = BorderStroke(0.7.dp, BorderLight)
+                // Colored Avatar Initial Badge
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(typeColor.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "$currencySymbol${String.format(Locale.US, "%,.0f", category.plannedAmount)}",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 12.sp,
-                            color = if (category.plannedAmount > 0) TextDark else TextMuted
-                        )
-                        Spacer(modifier = Modifier.width(3.5.dp))
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = TextMuted, modifier = Modifier.size(10.dp))
-                    }
+                    Text(
+                        text = category.category.take(1).uppercase(),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp,
+                        color = typeColor
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = category.category,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = TextDark,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitleText,
+                        fontSize = 11.sp,
+                        color = if (committedAutoPay > 0.0) AccentPurple else TextMuted,
+                        fontWeight = if (committedAutoPay > 0.0) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Quick Increment Chips
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                QuickIncrementPill(label = "+500", onClick = { onIncrement(500.0) }, modifier = Modifier.weight(1f))
-                QuickIncrementPill(label = "+1K", onClick = { onIncrement(1000.0) }, modifier = Modifier.weight(1f))
-                QuickIncrementPill(label = "+5K", onClick = { onIncrement(5000.0) }, modifier = Modifier.weight(1f))
-                QuickIncrementPill(label = "-1K", onClick = { onIncrement(-1000.0) }, modifier = Modifier.weight(1f), isNegative = true)
-            }
+            // Right-aligned Planned Target
+            Text(
+                text = "$currencySymbol${String.format(Locale.US, "%,.0f", category.plannedAmount)}",
+                fontWeight = FontWeight.Black,
+                fontSize = 14.5.sp,
+                color = if (category.plannedAmount > 0) TextDark else TextMuted
+            )
         }
-    }
-}
-
-@Composable
-private fun QuickIncrementPill(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isNegative: Boolean = false
-) {
-    Surface(
-        modifier = modifier
-            .clip(RoundedCornerShape(7.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(7.dp),
-        color = if (isNegative) SoftRed.copy(alpha = 0.08f) else CanvasLight,
-        border = BorderStroke(0.5.dp, if (isNegative) SoftRed.copy(alpha = 0.3f) else BorderLight)
-    ) {
-        Text(
-            text = label,
-            fontSize = 9.5.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isNegative) SoftRed else TextDark,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(vertical = 3.5.dp)
-        )
     }
 }
 
