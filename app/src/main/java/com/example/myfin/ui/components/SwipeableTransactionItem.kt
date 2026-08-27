@@ -7,15 +7,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,22 +67,22 @@ fun SwipeableTransactionItem(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(18.dp))
                     .background(color)
                     .padding(horizontal = 20.dp),
                 contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
             ) {
                 if (direction == SwipeToDismissBoxValue.StartToEnd) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White)
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text("Edit", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 } else if (direction == SwipeToDismissBoxValue.EndToStart) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -90,43 +91,40 @@ fun SwipeableTransactionItem(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(1.5.dp, RoundedCornerShape(16.dp))
+                .shadow(1.dp, RoundedCornerShape(18.dp))
                 .clickable { onEdit(transaction) },
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(18.dp),
             color = CardWhite
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
+                    .padding(horizontal = 16.dp, vertical = 13.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    // Category Icon Avatar
+                    val categoryIcon = getCategoryIcon(transaction.category, transaction.type)
+                    val iconTint = when (transaction.type) {
+                        TransactionType.INCOME -> SoftGreen
+                        TransactionType.EXPENSE -> SoftRed
+                        TransactionType.ASSET -> SoftTeal
+                        TransactionType.TRANSFER -> AccentPurple
+                    }
+
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(
-                                when (transaction.type) {
-                                    TransactionType.INCOME -> SoftGreen.copy(alpha = 0.12f)
-                                    TransactionType.EXPENSE -> SoftRed.copy(alpha = 0.12f)
-                                    TransactionType.ASSET -> SoftTeal.copy(alpha = 0.12f)
-                                    TransactionType.TRANSFER -> AccentPurple.copy(alpha = 0.12f)
-                                }
-                            ),
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(iconTint.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = transaction.category.take(1).uppercase(),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = when (transaction.type) {
-                                TransactionType.INCOME -> SoftGreen
-                                TransactionType.EXPENSE -> SoftRed
-                                TransactionType.ASSET -> SoftTeal
-                                TransactionType.TRANSFER -> AccentPurple
-                            }
+                        Icon(
+                            imageVector = categoryIcon,
+                            contentDescription = transaction.category,
+                            tint = iconTint,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
@@ -135,47 +133,86 @@ fun SwipeableTransactionItem(
                     Column {
                         Text(
                             text = transaction.title,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            color = TextDark
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            color = TextDark,
+                            maxLines = 1
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "${transaction.category} • ${transaction.subcategory}",
+                                text = transaction.subcategory,
+                                fontSize = 11.5.sp,
+                                color = TextMuted,
+                                fontWeight = FontWeight.Normal
+                            )
+                            Text(
+                                text = " • ",
                                 fontSize = 11.sp,
                                 color = TextMuted
                             )
-                            if (transaction.type == TransactionType.TRANSFER && transaction.toAccountName != null) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = CanvasLight
+                            ) {
                                 Text(
-                                    text = " (${transaction.accountName} ➔ ${transaction.toAccountName})",
-                                    fontSize = 10.5.sp,
-                                    color = AccentPurple,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            } else {
-                                Text(
-                                    text = " [${transaction.accountName}]",
-                                    fontSize = 10.5.sp,
-                                    color = TextMuted
+                                    text = if (transaction.type == TransactionType.TRANSFER && transaction.toAccountName != null) {
+                                        "${transaction.accountName} ➔ ${transaction.toAccountName}"
+                                    } else {
+                                        transaction.accountName
+                                    },
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextMuted,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                                 )
                             }
                         }
                     }
                 }
 
+                Spacer(modifier = Modifier.width(10.dp))
+
+                // Signed Amount Display
+                val amountPrefix = when (transaction.type) {
+                    TransactionType.EXPENSE -> "-"
+                    TransactionType.INCOME -> "+"
+                    TransactionType.ASSET -> "•"
+                    TransactionType.TRANSFER -> "⇄"
+                }
+
+                val amountColor = when (transaction.type) {
+                    TransactionType.INCOME -> SoftGreen
+                    TransactionType.EXPENSE -> TextDark
+                    TransactionType.ASSET -> SoftTeal
+                    TransactionType.TRANSFER -> AccentPurple
+                }
+
                 Text(
-                    text = "${if (transaction.type == TransactionType.EXPENSE) "-" else if (transaction.type == TransactionType.INCOME) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.2f", transaction.amount)}",
+                    text = "$amountPrefix$currencySymbol${String.format(Locale.US, "%,.2f", transaction.amount)}",
                     fontWeight = FontWeight.Black,
                     fontSize = 14.5.sp,
-                    color = when (transaction.type) {
-                        TransactionType.INCOME -> SoftGreen
-                        TransactionType.EXPENSE -> SoftRed
-                        TransactionType.ASSET -> SoftTeal
-                        TransactionType.TRANSFER -> AccentPurple
-                    }
+                    color = amountColor
                 )
             }
+        }
+    }
+}
+
+private fun getCategoryIcon(category: String, type: TransactionType): ImageVector {
+    return when (type) {
+        TransactionType.INCOME -> Icons.Default.TrendingUp
+        TransactionType.ASSET -> Icons.Default.Savings
+        TransactionType.TRANSFER -> Icons.Default.SyncAlt
+        TransactionType.EXPENSE -> when (category) {
+            "Utilities & Living Bills" -> Icons.Default.Bolt
+            "Everyday Living" -> Icons.Default.ShoppingCart
+            "Leisure, Trips & Media" -> Icons.Default.FlightTakeoff
+            "Health & Medical" -> Icons.Default.LocalHospital
+            "Family & Home Support" -> Icons.Default.Favorite
+            "Debt & Financial Obligations" -> Icons.Default.CreditCard
+            "Work & Professional" -> Icons.Default.Work
+            else -> Icons.Default.Receipt
         }
     }
 }
