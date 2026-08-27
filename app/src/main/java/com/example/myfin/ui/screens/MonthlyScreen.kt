@@ -8,6 +8,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -28,6 +29,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -994,7 +996,7 @@ fun MonthlyScreen(
             }
         }
 
-        // Pinned Top Bar (Fixed Header with `<` Button)
+        // Pinned Top Bar
         Surface(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -1108,17 +1110,121 @@ fun MonthlyScreen(
             Spacer(modifier = Modifier.width(10.dp))
 
             FloatingActionButton(
-                onClick = { showActionMenu = true },
+                onClick = { showActionMenu = !showActionMenu },
                 containerColor = TextDark,
                 contentColor = Color.White,
                 shape = CircleShape,
                 modifier = Modifier.size(60.dp).shadow(16.dp, CircleShape)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Actions", modifier = Modifier.size(28.dp))
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Actions",
+                    modifier = Modifier
+                        .size(28.dp)
+                        .rotate(if (showActionMenu) 45f else 0f)
+                )
             }
         }
 
-        // --- BOTTOM SHEETS & MODALS ---
+        // Anchored Action Menu (Replacing Center Popup with Refined Floating Menu)
+        if (showActionMenu) {
+            // Dismiss Backdrop
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showActionMenu = false }
+                    )
+            )
+
+            // Anchored Floating Card
+            AnimatedVisibility(
+                visible = showActionMenu,
+                enter = scaleIn(
+                    transformOrigin = TransformOrigin(1f, 1f),
+                    animationSpec = tween(180)
+                ) + fadeIn(animationSpec = tween(180)),
+                exit = scaleOut(
+                    transformOrigin = TransformOrigin(1f, 1f),
+                    animationSpec = tween(150)
+                ) + fadeOut(animationSpec = tween(150)),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 94.dp, end = 20.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = CardWhite,
+                    shadowElevation = 10.dp,
+                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                    modifier = Modifier.width(190.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        // Action 1: Add Entry
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showActionMenu = false
+                                    editingTx = null
+                                    showAddSheet = true
+                                }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = null,
+                                tint = TextDark,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Add Entry",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = TextDark
+                            )
+                        }
+
+                        HorizontalDivider(
+                            color = BorderLight.copy(alpha = 0.6f),
+                            thickness = 0.8.dp
+                        )
+
+                        // Action 2: Instant Vault Transfer
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showActionMenu = false
+                                    showTransferDialog = true
+                                }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.SyncAlt,
+                                contentDescription = null,
+                                tint = TextDark,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Transfer",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = TextDark
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         // Transaction Detail Bottom Sheet (Read-Only Matrix with Edit/Delete Triggers)
         viewingTx?.let { tx ->
@@ -1136,65 +1242,6 @@ fun MonthlyScreen(
                     transactionToDelete = it
                 }
             )
-        }
-
-        // Action Modal
-        if (showActionMenu) {
-            Dialog(onDismissRequest = { showActionMenu = false }) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = CardWhite,
-                    modifier = Modifier.fillMaxWidth().padding(16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Text("Create Financial Movement", fontWeight = FontWeight.Black, fontSize = 17.sp, color = TextDark)
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showActionMenu = false
-                                    editingTx = null
-                                    showAddSheet = true
-                                },
-                            shape = RoundedCornerShape(14.dp),
-                            color = CanvasLight
-                        ) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.ReceiptLong, contentDescription = "Tx", tint = AccentPurple)
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text("Add Entry", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                    Text("Log Expense, Income or SIP Asset", fontSize = 11.sp, color = TextMuted)
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showActionMenu = false
-                                    showTransferDialog = true
-                                },
-                            shape = RoundedCornerShape(14.dp),
-                            color = CanvasLight
-                        ) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.SyncAlt, contentDescription = "Transfer", tint = SoftTeal)
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text("Instant Vault Transfer", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                    Text("Move funds between Bank & Cash vaults", fontSize = 11.sp, color = TextMuted)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         transactionToDelete?.let { tx ->
