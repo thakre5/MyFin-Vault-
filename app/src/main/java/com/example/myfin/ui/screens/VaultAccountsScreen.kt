@@ -45,7 +45,6 @@ import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AccountTransferDialog
 import com.example.myfin.ui.theme.*
 import java.util.Locale
-import kotlin.math.abs
 
 enum class VaultTier(val title: String, val description: String, val color: Color) {
     OPERATING("Operating Vault", "Daily living & spending cashflow", SoftRed),
@@ -104,7 +103,7 @@ fun VaultAccountsScreen(
         else accountsList.map { it.accountName }
     }
 
-    val totalLiquidBalance = remember(accountsList) { accountsList.sumOf { it.balance } }
+    val totalLiquidBalance = remember(accountsList) { accountsList.sumOf { it.currentBalance } }
     val totalAutoPayLiabilities = remember(uiState.fixedBills) {
         uiState.fixedBills.filter { !it.isPaid && it.type == TransactionType.EXPENSE }.sumOf { it.amount }
     }
@@ -298,9 +297,9 @@ fun VaultAccountsScreen(
                                 HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                val opTotal = accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.OPERATING }.sumOf { it.balance }
-                                val comTotal = accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.COMMITMENTS }.sumOf { it.balance }
-                                val fortTotal = accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.FORTRESS }.sumOf { it.balance }
+                                val opTotal = accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.OPERATING }.sumOf { it.currentBalance }
+                                val comTotal = accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.COMMITMENTS }.sumOf { it.currentBalance }
+                                val fortTotal = accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.FORTRESS }.sumOf { it.currentBalance }
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -785,18 +784,17 @@ fun VaultAccountsScreen(
                         onClick = {
                             if (name.isNotBlank()) {
                                 val bal = balanceText.toDoubleOrNull() ?: 0.0
-                                if (bal > 0) {
-                                    viewModel.saveTransaction(
-                                        id = null,
-                                        title = "Opening Balance",
-                                        amount = bal,
-                                        category = "General",
-                                        subcategory = "Opening Balance",
-                                        account = name.trim().uppercase(),
-                                        type = TransactionType.INCOME,
-                                        date = System.currentTimeMillis()
-                                    )
-                                }
+                                val initialAmount = if (bal > 0.0) bal else 0.0
+                                viewModel.saveTransaction(
+                                    id = 0L,
+                                    title = if (bal > 0.0) "Opening Balance" else "Account Initialized",
+                                    amount = initialAmount,
+                                    category = "General",
+                                    subcategory = "Opening Balance",
+                                    accountName = name.trim().uppercase(),
+                                    type = TransactionType.INCOME,
+                                    date = System.currentTimeMillis()
+                                )
                                 showAddAccountSheet = false
                                 Toast.makeText(context, "Account '${name.trim().uppercase()}' initialized", Toast.LENGTH_SHORT).show()
                             }
@@ -815,7 +813,9 @@ fun VaultAccountsScreen(
 
         // Adjust Account Balance Sheet
         editingAccount?.let { acc ->
-            var newBalanceText by remember { mutableStateOf(acc.balance.toInt().toString()) }
+            var newBalanceText by remember(acc) {
+                mutableStateOf(String.format(Locale.US, "%.0f", acc.currentBalance))
+            }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -854,17 +854,18 @@ fun VaultAccountsScreen(
 
                     Button(
                         onClick = {
-                            val targetBal = newBalanceText.toDoubleOrNull() ?: acc.balance
-                            val diff = targetBal - acc.balance
+                            val targetBal = newBalanceText.toDoubleOrNull() ?: acc.currentBalance
+                            val diff = targetBal - acc.currentBalance
                             if (diff != 0.0) {
-                                val txType = if (diff > 0) TransactionType.INCOME else TransactionType.EXPENSE
+                                val txType = if (diff > 0.0) TransactionType.INCOME else TransactionType.EXPENSE
+                                val amountVal = if (diff < 0.0) -diff else diff
                                 viewModel.saveTransaction(
-                                    id = null,
+                                    id = 0L,
                                     title = "Balance Adjustment",
-                                    amount = abs(diff),
+                                    amount = amountVal,
                                     category = "General",
                                     subcategory = "Adjustment",
-                                    account = acc.accountName,
+                                    accountName = acc.accountName,
                                     type = txType,
                                     date = System.currentTimeMillis()
                                 )
@@ -1070,10 +1071,10 @@ private fun SwipeableAccountItem(
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Text(
-                    text = "$currencySymbol${String.format(Locale.US, "%,.2f", account.balance)}",
+                    text = "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
                     fontWeight = FontWeight.Black,
                     fontSize = 14.5.sp,
-                    color = if (account.balance >= 0) TextDark else SoftRed
+                    color = if (account.currentBalance >= 0) TextDark else SoftRed
                 )
             }
         }
