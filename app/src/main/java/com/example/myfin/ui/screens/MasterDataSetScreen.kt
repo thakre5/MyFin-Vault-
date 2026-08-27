@@ -49,6 +49,7 @@ fun MasterDataSetScreen(
     viewModel: BudgetViewModel,
     onOpenDrawer: () -> Unit,
     onNavigateToDashboard: () -> Unit = {},
+    onNavigateToMonthly: () -> Unit = onNavigateToDashboard,
     onNavigateToPlanner: () -> Unit = {},
     onNavigateToTaxonomy: () -> Unit = {},
     onNavigateToVaults: () -> Unit = {}
@@ -309,7 +310,8 @@ fun MasterDataSetScreen(
                             items(listOf(
                                 TransactionType.EXPENSE to "Expenses",
                                 TransactionType.INCOME to "Income",
-                                TransactionType.TRANSFER to "Transfers"
+                                TransactionType.TRANSFER to "Transfers",
+                                TransactionType.ASSET to "Assets"
                             )) { (type, label) ->
                                 FilterSelectChip(
                                     title = label,
@@ -385,6 +387,8 @@ fun MasterDataSetScreen(
                                                     TransactionType.INCOME -> SoftGreen.copy(alpha = 0.12f)
                                                     TransactionType.EXPENSE -> SoftRed.copy(alpha = 0.12f)
                                                     TransactionType.TRANSFER -> AccentPurple.copy(alpha = 0.12f)
+                                                    TransactionType.ASSET -> SoftTeal.copy(alpha = 0.12f)
+                                                    else -> AccentPurple.copy(alpha = 0.12f)
                                                 }
                                             ),
                                         contentAlignment = Alignment.Center
@@ -394,12 +398,16 @@ fun MasterDataSetScreen(
                                                 TransactionType.INCOME -> Icons.AutoMirrored.Filled.TrendingUp
                                                 TransactionType.EXPENSE -> Icons.AutoMirrored.Filled.TrendingDown
                                                 TransactionType.TRANSFER -> Icons.Default.SyncAlt
+                                                TransactionType.ASSET -> Icons.Default.AccountBalance
+                                                else -> Icons.Default.Receipt
                                             },
                                             contentDescription = null,
                                             tint = when (tx.type) {
                                                 TransactionType.INCOME -> SoftGreen
                                                 TransactionType.EXPENSE -> SoftRed
                                                 TransactionType.TRANSFER -> AccentPurple
+                                                TransactionType.ASSET -> SoftTeal
+                                                else -> AccentPurple
                                             },
                                             modifier = Modifier.size(17.dp)
                                         )
@@ -429,14 +437,22 @@ fun MasterDataSetScreen(
 
                                 Spacer(modifier = Modifier.width(8.dp))
 
+                                val prefix = when (tx.type) {
+                                    TransactionType.INCOME -> "+"
+                                    TransactionType.EXPENSE -> "-"
+                                    else -> ""
+                                }
+
                                 Text(
-                                    text = "${if (tx.type == TransactionType.INCOME) "+" else if (tx.type == TransactionType.EXPENSE) "-" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", tx.amount)}",
+                                    text = "$prefix${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", tx.amount)}",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Black,
                                     color = when (tx.type) {
                                         TransactionType.INCOME -> SoftGreen
                                         TransactionType.EXPENSE -> TextDark
                                         TransactionType.TRANSFER -> AccentPurple
+                                        TransactionType.ASSET -> SoftTeal
+                                        else -> TextDark
                                     }
                                 )
                             }
@@ -631,7 +647,7 @@ fun MasterDataSetScreen(
                         title = "Monthly",
                         icon = Icons.Default.Assessment,
                         isSelected = false,
-                        onClick = onNavigateToDashboard
+                        onClick = onNavigateToMonthly
                     )
                 }
             }
