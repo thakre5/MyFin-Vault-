@@ -138,6 +138,9 @@ interface BudgetDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategories(categories: List<CategoryEntity>)
 
+    @Update
+    suspend fun updateCategory(category: CategoryEntity)
+
     @Delete
     suspend fun deleteCategory(category: CategoryEntity)
 
@@ -153,6 +156,9 @@ interface BudgetDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSubcategories(subcategories: List<SubcategoryEntity>)
+
+    @Update
+    suspend fun updateSubcategory(subcategory: SubcategoryEntity)
 
     @Delete
     suspend fun deleteSubcategory(subcategory: SubcategoryEntity)
