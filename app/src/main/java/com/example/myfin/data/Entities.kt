@@ -57,19 +57,6 @@ data class AccountEntity(
     val sortOrder: Int = 0
 )
 
-@Entity(tableName = "categories", primaryKeys = ["name", "type"])
-data class CategoryEntity(
-    val name: String,
-    val type: TransactionType
-)
-
-@Entity(tableName = "subcategories", primaryKeys = ["parentCategory", "name", "type"])
-data class SubcategoryEntity(
-    val parentCategory: String,
-    val name: String,
-    val type: TransactionType
-)
-
 @Entity(tableName = "user_profile")
 data class UserProfile(
     @PrimaryKey
