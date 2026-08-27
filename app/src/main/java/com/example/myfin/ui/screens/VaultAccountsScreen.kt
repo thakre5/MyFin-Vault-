@@ -53,6 +53,7 @@ import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.theme.*
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
@@ -105,18 +106,41 @@ fun VaultAccountsScreen(
     var selectedDetailAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
     var adjustingAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
 
-    // Fallback to 4 generic baseline accounts with required startingBalance and currentBalance
-    val displayAccounts = remember(uiState.accounts) {
-        if (uiState.accounts.isEmpty()) {
-            listOf(
-                AccountBalanceResult(accountName = "Operating Account", accountType = "Operating", sortOrder = 0, startingBalance = 0.0, currentBalance = 0.0),
-                AccountBalanceResult(accountName = "Commitments Account", accountType = "Commitments", sortOrder = 1, startingBalance = 0.0, currentBalance = 0.0),
-                AccountBalanceResult(accountName = "Fortress Account", accountType = "Fortress", sortOrder = 2, startingBalance = 0.0, currentBalance = 0.0),
-                AccountBalanceResult(accountName = "Cash Wallet", accountType = "Cash", sortOrder = 3, startingBalance = 0.0, currentBalance = 0.0)
-            )
-        } else {
-            uiState.accounts
+    // Derive all distinct account names across entities and historical transactions
+    val allDistinctAccountNames = remember(uiState.accounts, uiState.groupedTransactions) {
+        val fromAccs = uiState.accounts.map { it.accountName }
+        val fromTxs = uiState.groupedTransactions.values.flatten().map { it.accountName }.filter { it.isNotBlank() }
+        (fromAccs + fromTxs).distinct().ifEmpty {
+            listOf("Operating Account", "Commitments Account", "Fortress Account", "Cash Wallet")
         }
+    }
+
+    // Reactively compute live balances from starting balances + all ledger entries
+    val displayAccounts = remember(uiState.accounts, uiState.groupedTransactions, allDistinctAccountNames) {
+        val allTxs = uiState.groupedTransactions.values.flatten()
+        allDistinctAccountNames.mapIndexed { index, name ->
+            val existing = uiState.accounts.find { it.accountName.equals(name, ignoreCase = true) }
+            val txsForAcc = allTxs.filter { it.accountName.equals(name, ignoreCase = true) }
+            val txBalance = txsForAcc.sumOf { if (it.type == TransactionType.INCOME) it.amount else -it.amount }
+            val starting = existing?.startingBalance ?: 0.0
+            val totalBal = if (txsForAcc.isNotEmpty()) {
+                starting + txBalance
+            } else {
+                existing?.currentBalance ?: 0.0
+            }
+            AccountBalanceResult(
+                accountName = name,
+                accountType = existing?.accountType ?: getVaultTierForAccount(name).title,
+                sortOrder = existing?.sortOrder ?: index,
+                startingBalance = starting,
+                currentBalance = totalBal
+            )
+        }
+    }
+
+    var activeSelectedCardIndex by remember { mutableIntStateOf(0) }
+    val activeAccount = remember(displayAccounts, activeSelectedCardIndex) {
+        displayAccounts.getOrNull(activeSelectedCardIndex.coerceIn(0, (displayAccounts.size - 1).coerceAtLeast(0))) ?: displayAccounts.first()
     }
 
     val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
@@ -135,8 +159,31 @@ fun VaultAccountsScreen(
         displayAccounts.filter { getVaultTierForAccount(it.accountName) == VaultTier.CASH }.sumOf { it.currentBalance }
     }
 
-    val allTransactions = remember(uiState.groupedTransactions) {
-        uiState.groupedTransactions.values.flatten().sortedByDescending { it.date }
+    // Cashflow Matrix Metrics Calculation
+    val activeAccountTxs = remember(uiState.groupedTransactions, activeAccount.accountName) {
+        uiState.groupedTransactions.values.flatten().filter { it.accountName.equals(activeAccount.accountName, ignoreCase = true) }
+    }
+
+    val activeExpenses = remember(activeAccountTxs) {
+        activeAccountTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+    }
+    val activeIncome = remember(activeAccountTxs) {
+        activeAccountTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+    }
+
+    val daysElapsed = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH).coerceAtLeast(1) }
+    val dailyBurnRate = remember(activeExpenses, daysElapsed) {
+        if (activeExpenses > 0) activeExpenses / daysElapsed else 0.0
+    }
+    val runwayDays = remember(activeAccount.currentBalance, dailyBurnRate) {
+        if (dailyBurnRate > 0 && activeAccount.currentBalance > 0) (activeAccount.currentBalance / dailyBurnRate).toInt() else 90
+    }
+
+    val pendingBillsForAccount = remember(uiState.fixedBills, activeAccount.accountName) {
+        uiState.fixedBills.filter { !it.isPaid && it.type == TransactionType.EXPENSE }
+    }
+    val totalPendingBillsAmount = remember(pendingBillsForAccount) {
+        pendingBillsForAccount.sumOf { it.amount }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
@@ -152,7 +199,6 @@ fun VaultAccountsScreen(
                     .padding(horizontal = 20.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Drawer Trigger
                 IconButton(
                     onClick = onOpenDrawer,
                     modifier = Modifier
@@ -169,7 +215,6 @@ fun VaultAccountsScreen(
                     )
                 }
 
-                // Centered Screen Title
                 Text(
                     text = if (isThreeVaultStrategy) "3-Vault Strategy" else "Vault Accounts",
                     fontWeight = FontWeight.Black,
@@ -179,7 +224,6 @@ fun VaultAccountsScreen(
                     modifier = Modifier.weight(1f)
                 )
 
-                // Right Help Guide Button
                 IconButton(
                     onClick = { showHelpDialog = true },
                     modifier = Modifier
@@ -397,114 +441,180 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // 5. Horizontal Scrollable Bank Cards (Tap Action Only)
+                // 5. Horizontal Scrollable Bank Cards
                 item {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(horizontal = 2.dp)
                     ) {
-                        items(displayAccounts, key = { it.accountName }) { acc ->
+                        items(displayAccounts.size) { idx ->
+                            val acc = displayAccounts[idx]
                             val tier = getVaultTierForAccount(acc.accountName)
+                            val isSelected = activeSelectedCardIndex == idx
+
                             BankAccountPhysicalCard(
                                 account = acc,
                                 currencySymbol = userProfile.currencySymbol,
                                 tier = tier,
+                                isSelected = isSelected,
                                 showRole = isThreeVaultStrategy,
+                                onSelect = { activeSelectedCardIndex = idx },
                                 onTap = { selectedDetailAccount = acc },
                                 modifier = Modifier.width(260.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // 6. Main Screen Embedded Transaction Ledger
+                // 6. Cashflow Matrix: Liquidity Health & Strategic Routing
                 item {
                     Text(
-                        text = "Recent Account Activity",
+                        text = "Account Cashflow Matrix (${activeAccount.accountName})",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.5.sp,
                         color = TextDark
                     )
                     Spacer(modifier = Modifier.height(10.dp))
-                }
 
-                if (allTransactions.isEmpty()) {
-                    item {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = CardWhite,
-                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
-                        ) {
-                            Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                                Text("No recorded transactions yet", fontSize = 12.sp, color = TextMuted)
+                    // Part A: 2x2 Liquidity Health & Runway Matrix
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(2.dp, RoundedCornerShape(18.dp)),
+                        shape = RoundedCornerShape(18.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                // Daily Burn Velocity
+                                MatrixMetricCell(
+                                    title = "Daily Burn Rate",
+                                    value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyBurnRate)}/day",
+                                    icon = Icons.Default.Whatshot,
+                                    iconColor = SoftRed,
+                                    subtitle = "Avg spend velocity",
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                // Runway Buffer
+                                MatrixMetricCell(
+                                    title = "Runway Buffer",
+                                    value = "$runwayDays Days",
+                                    icon = Icons.Default.Timer,
+                                    iconColor = if (runwayDays >= 30) SoftGreen else SoftAmber,
+                                    subtitle = "Coverage at burn rate",
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
-                        }
-                    }
-                } else {
-                    items(allTransactions.take(8), key = { it.id }) { tx ->
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            color = CardWhite,
-                            border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 11.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(34.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                if (tx.type == TransactionType.INCOME) SoftGreen.copy(alpha = 0.12f)
-                                                else SoftRed.copy(alpha = 0.12f)
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = if (tx.type == TransactionType.INCOME) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                                            contentDescription = null,
-                                            tint = if (tx.type == TransactionType.INCOME) SoftGreen else SoftRed,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
 
-                                    Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = tx.title.ifBlank { tx.category },
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = TextDark,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = "${tx.accountName} • ${SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(tx.date))}",
-                                            fontSize = 10.5.sp,
-                                            color = TextMuted
-                                        )
-                                    }
-                                }
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                // Queued AutoPay
+                                MatrixMetricCell(
+                                    title = "Queued AutoPay",
+                                    value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPendingBillsAmount)}",
+                                    icon = Icons.Default.Schedule,
+                                    iconColor = AccentPurple,
+                                    subtitle = "${pendingBillsForAccount.size} pending bills",
+                                    modifier = Modifier.weight(1f)
+                                )
 
-                                Text(
-                                    text = "${if (tx.type == TransactionType.INCOME) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", tx.amount)}",
-                                    fontSize = 13.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (tx.type == TransactionType.INCOME) SoftGreen else TextDark
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                // Net Retained Delta
+                                val netDelta = activeIncome - activeExpenses
+                                MatrixMetricCell(
+                                    title = "Net Cashflow",
+                                    value = "${if (netDelta >= 0) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(netDelta))}",
+                                    icon = if (netDelta >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                    iconColor = if (netDelta >= 0) SoftGreen else SoftRed,
+                                    subtitle = "Retained balance delta",
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Part B: Strategic Routing & Sweep Trigger
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(2.dp, RoundedCornerShape(18.dp)),
+                        shape = RoundedCornerShape(18.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Savings, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(17.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Strategic Vault Routing", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
+                                }
+
+                                Surface(shape = RoundedCornerShape(6.dp), color = AccentPurple.copy(alpha = 0.12f)) {
+                                    Text("92% On Plan", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AccentPurple, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Outflow Multi-segment Bar
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(7.dp)
+                                    .clip(CircleShape)
+                                    .background(CanvasLight)
+                            ) {
+                                val totalOut = (activeExpenses + totalPendingBillsAmount).coerceAtLeast(1.0)
+                                Box(modifier = Modifier.weight((activeExpenses / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(Color(0xFFE57A28)))
+                                Box(modifier = Modifier.weight((totalPendingBillsAmount / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(AccentPurple))
+                                Box(modifier = Modifier.weight(0.15f).fillMaxHeight().background(SoftTeal))
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Sweep Action Suggestion
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(CanvasLight)
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Monthly Commitments Covered", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                    Text("Surplus ready to sweep to Fortress", fontSize = 10.sp, color = TextMuted)
+                                }
+
+                                Button(
+                                    onClick = { showTransferSheet = true },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(30.dp)
+                                ) {
+                                    Text("Sweep Now", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -594,14 +704,8 @@ fun VaultAccountsScreen(
 
             AnimatedVisibility(
                 visible = showActionMenu,
-                enter = scaleIn(
-                    transformOrigin = TransformOrigin(1f, 1f),
-                    animationSpec = tween(180)
-                ) + fadeIn(animationSpec = tween(180)),
-                exit = scaleOut(
-                    transformOrigin = TransformOrigin(1f, 1f),
-                    animationSpec = tween(150)
-                ) + fadeOut(animationSpec = tween(150)),
+                enter = scaleIn(transformOrigin = TransformOrigin(1f, 1f), animationSpec = tween(180)) + fadeIn(animationSpec = tween(180)),
+                exit = scaleOut(transformOrigin = TransformOrigin(1f, 1f), animationSpec = tween(150)) + fadeOut(animationSpec = tween(150)),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(bottom = 94.dp, end = 20.dp)
@@ -885,7 +989,6 @@ fun VaultAccountsScreen(
                         .fillMaxWidth()
                         .navigationBarsPadding()
                 ) {
-                    // Top Hero Banner
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1136,7 +1239,7 @@ fun VaultAccountsScreen(
             }
         }
 
-        // Add Account Bottom Sheet (With Type Selector, Tier Mapping & Masked Digits)
+        // Add Account Bottom Sheet
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
             var digitsText by remember { mutableStateOf("") }
@@ -1384,11 +1487,35 @@ fun VaultAccountsScreen(
 }
 
 @Composable
+private fun MatrixMetricCell(
+    title: String,
+    value: String,
+    icon: ImageVector,
+    iconColor: Color,
+    subtitle: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(15.dp))
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(title, fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+        }
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
+        Spacer(modifier = Modifier.height(1.dp))
+        Text(subtitle, fontSize = 9.5.sp, color = TextMuted)
+    }
+}
+
+@Composable
 private fun BankAccountPhysicalCard(
     account: AccountBalanceResult,
     currencySymbol: String,
     tier: VaultTier,
+    isSelected: Boolean,
     showRole: Boolean,
+    onSelect: () -> Unit,
     onTap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1398,18 +1525,21 @@ private fun BankAccountPhysicalCard(
 
     Surface(
         modifier = modifier
-            .shadow(2.dp, RoundedCornerShape(20.dp))
-            .clickable(onClick = onTap),
+            .shadow(if (isSelected) 4.dp else 1.5.dp, RoundedCornerShape(20.dp))
+            .clickable {
+                onSelect()
+                onTap()
+            },
         shape = RoundedCornerShape(20.dp),
         color = CardWhite,
-        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+        border = BorderStroke(if (isSelected) 1.5.dp else 0.8.dp, if (isSelected) tier.color else BorderLight.copy(alpha = 0.7f))
     ) {
         Column(
             modifier = Modifier
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            tier.bgTint.copy(alpha = 0.35f),
+                            tier.bgTint.copy(alpha = if (isSelected) 0.5f else 0.3f),
                             CardWhite
                         )
                     )
@@ -1508,7 +1638,6 @@ private fun FourWayDonutAllocationChart(
 
         var startAngle = -90f
 
-        // Operating Arc
         drawArc(
             color = Color(0xFFE57A28),
             startAngle = startAngle,
@@ -1520,7 +1649,6 @@ private fun FourWayDonutAllocationChart(
         )
         startAngle += opAngle
 
-        // Commitments Arc
         drawArc(
             color = AccentPurple,
             startAngle = startAngle,
@@ -1532,7 +1660,6 @@ private fun FourWayDonutAllocationChart(
         )
         startAngle += comAngle
 
-        // Fortress Arc
         drawArc(
             color = SoftTeal,
             startAngle = startAngle,
@@ -1544,7 +1671,6 @@ private fun FourWayDonutAllocationChart(
         )
         startAngle += fortAngle
 
-        // Cash Arc
         drawArc(
             color = SoftGreen,
             startAngle = startAngle,
