@@ -2,6 +2,7 @@ package com.example.myfin.ui.screens
 
 import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -38,15 +39,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myfin.data.AccountEntity
+import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AccountTransferDialog
 import com.example.myfin.ui.theme.*
 import java.util.Locale
+import kotlin.math.abs
 
 enum class VaultTier(val title: String, val description: String, val color: Color) {
-    OPERATING("Operating Vault", "Daily expenses & living cashflow", SoftRed),
+    OPERATING("Operating Vault", "Daily living & spending cashflow", SoftRed),
     COMMITMENTS("Commitments Vault", "AutoPay, EMIs & fixed bills", AccentPurple),
     FORTRESS("Emergency Fortress", "Untouchable safety net & liquid reserves", SoftTeal)
 }
@@ -57,6 +59,22 @@ data class SuccessReceiptPayload(
     val description: String,
     val buttonText: String = "Done"
 )
+
+private fun getVaultTierForAccount(accountName: String): VaultTier {
+    return when {
+        accountName.contains("BOM", ignoreCase = true) ||
+        accountName.contains("AXIS", ignoreCase = true) ||
+        accountName.contains("SBI", ignoreCase = true) ||
+        accountName.contains("BILL", ignoreCase = true) -> VaultTier.COMMITMENTS
+
+        accountName.contains("INDUSIND", ignoreCase = true) ||
+        accountName.contains("FORTRESS", ignoreCase = true) ||
+        accountName.contains("FD", ignoreCase = true) ||
+        accountName.contains("RESERVE", ignoreCase = true) -> VaultTier.FORTRESS
+
+        else -> VaultTier.OPERATING
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,13 +96,15 @@ fun VaultAccountsScreen(
     var showActionMenu by remember { mutableStateOf(false) }
     var showTransferDialog by remember { mutableStateOf(false) }
     var showAddAccountSheet by remember { mutableStateOf(false) }
-    var editingAccount by remember { mutableStateOf<AccountEntity?>(null) }
-    var accountToDelete by remember { mutableStateOf<AccountEntity?>(null) }
+    var editingAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
 
     val accountsList = remember(uiState.accounts) { uiState.accounts }
-    val accountNames = remember(accountsList) { accountsList.map { it.accountName } }
+    val accountNames = remember(accountsList) {
+        if (accountsList.isEmpty()) listOf("BOM", "CASH", "HDFC", "INDUSIND")
+        else accountsList.map { it.accountName }
+    }
 
-    val totalLiquidBalance = remember(accountsList) { accountsList.sumOf { it.currentBalance } }
+    val totalLiquidBalance = remember(accountsList) { accountsList.sumOf { it.balance } }
     val totalAutoPayLiabilities = remember(uiState.fixedBills) {
         uiState.fixedBills.filter { !it.isPaid && it.type == TransactionType.EXPENSE }.sumOf { it.amount }
     }
@@ -278,23 +298,27 @@ fun VaultAccountsScreen(
                                 HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
                                 Spacer(modifier = Modifier.height(10.dp))
 
+                                val opTotal = accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.OPERATING }.sumOf { it.balance }
+                                val comTotal = accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.COMMITMENTS }.sumOf { it.balance }
+                                val fortTotal = accountsList.filter { getVaultTierForAccount(it.accountName) == VaultTier.FORTRESS }.sumOf { it.balance }
+
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     VaultTierStat(
                                         tier = "Operating",
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", accountsList.filter { it.accountType.equals("Operating", ignoreCase = true) || it.accountName.contains("HDFC", true) }.sumOf { it.currentBalance })}",
+                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", opTotal)}",
                                         color = SoftRed
                                     )
                                     VaultTierStat(
                                         tier = "Commitments",
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", accountsList.filter { it.accountType.equals("Commitments", ignoreCase = true) || it.accountName.contains("BOM", true) }.sumOf { it.currentBalance })}",
+                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", comTotal)}",
                                         color = AccentPurple
                                     )
                                     VaultTierStat(
                                         tier = "Fortress",
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", accountsList.filter { it.accountType.equals("Fortress", ignoreCase = true) || it.accountName.contains("INDUSIND", true) }.sumOf { it.currentBalance })}",
+                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortTotal)}",
                                         color = SoftTeal
                                     )
                                 }
@@ -305,7 +329,7 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(14.dp))
                 }
 
-                // Account Cards Section
+                // Account Cards
                 if (accountsList.isEmpty()) {
                     item {
                         Surface(
@@ -314,32 +338,26 @@ fun VaultAccountsScreen(
                             color = CardWhite
                         ) {
                             Box(modifier = Modifier.padding(28.dp), contentAlignment = Alignment.Center) {
-                                Text("No vault accounts configured. Tap '+' to create one.", fontSize = 12.sp, color = TextMuted)
+                                Text("No accounts detected. Tap '+' below to initialize an account.", fontSize = 12.sp, color = TextMuted)
                             }
                         }
                     }
                 } else if (!isThreeVaultStrategy) {
-                    // Simple Mode: Flat List
-                    items(accountsList, key = { it.id }) { acc ->
+                    // Simple Mode
+                    items(accountsList, key = { it.accountName }) { acc ->
                         SwipeableAccountItem(
                             account = acc,
                             currencySymbol = userProfile.currencySymbol,
                             showRoleBadge = false,
                             onEdit = { editingAccount = acc },
-                            onDelete = { accountToDelete = acc }
+                            onTransfer = { showTransferDialog = true }
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                 } else {
-                    // 3-Vault Strategy Mode: Grouped Sections
+                    // 3-Vault Strategy Mode
                     VaultTier.values().forEach { tier ->
-                        val tierAccounts = accountsList.filter { acc ->
-                            when (tier) {
-                                VaultTier.OPERATING -> acc.accountType.equals("Operating", ignoreCase = true) || acc.accountName.contains("HDFC", true) || acc.accountName.contains("CASH", true)
-                                VaultTier.COMMITMENTS -> acc.accountType.equals("Commitments", ignoreCase = true) || acc.accountName.contains("BOM", true)
-                                VaultTier.FORTRESS -> acc.accountType.equals("Fortress", ignoreCase = true) || acc.accountName.contains("INDUSIND", true) || (!acc.accountType.equals("Operating", true) && !acc.accountType.equals("Commitments", true) && !acc.accountName.contains("HDFC", true) && !acc.accountName.contains("BOM", true) && !acc.accountName.contains("CASH", true))
-                            }
-                        }
+                        val tierAccounts = accountsList.filter { acc -> getVaultTierForAccount(acc.accountName) == tier }
 
                         item {
                             Row(
@@ -391,14 +409,15 @@ fun VaultAccountsScreen(
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
                         } else {
-                            items(tierAccounts, key = { it.id }) { acc ->
+                            items(tierAccounts, key = { it.accountName }) { acc ->
                                 SwipeableAccountItem(
                                     account = acc,
                                     currencySymbol = userProfile.currencySymbol,
                                     showRoleBadge = true,
+                                    roleTitle = tier.name.lowercase().replaceFirstChar { it.uppercase() },
                                     roleColor = tier.color,
                                     onEdit = { editingAccount = acc },
-                                    onDelete = { accountToDelete = acc }
+                                    onTransfer = { showTransferDialog = true }
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
@@ -548,7 +567,7 @@ fun VaultAccountsScreen(
             }
         }
 
-        // Mode Switch Confirmation Dialog
+        // Mode Switch Confirmation Alert
         pendingModeTarget?.let { targetMode ->
             AlertDialog(
                 onDismissRequest = { pendingModeTarget = null },
@@ -603,7 +622,7 @@ fun VaultAccountsScreen(
         // Instant Transfer Dialog
         if (showTransferDialog) {
             AccountTransferDialog(
-                accounts = accountNames.ifEmpty { listOf("BOM", "CASH", "HDFC", "INDUSIND") },
+                accounts = accountNames,
                 onDismiss = { showTransferDialog = false },
                 onTransfer = { from, to, amount, note ->
                     viewModel.executeInstantTransfer(from, to, amount, note)
@@ -617,7 +636,7 @@ fun VaultAccountsScreen(
             )
         }
 
-        // Bottom Sheet: Success Receipt (Matching Attached Reference 38177)
+        // Bottom Sheet: Success Receipt (Matching Attached Reference)
         receiptPayload?.let { payload ->
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -670,7 +689,7 @@ fun VaultAccountsScreen(
 
                     Text(
                         text = payload.headline,
-                        fontSize = 26.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Black,
                         color = TextDark,
                         textAlign = TextAlign.Center
@@ -680,7 +699,7 @@ fun VaultAccountsScreen(
 
                     Text(
                         text = payload.description,
-                        fontSize = 12.5.sp,
+                        fontSize = 12.sp,
                         color = TextMuted,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 16.dp)
@@ -713,7 +732,6 @@ fun VaultAccountsScreen(
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
             var balanceText by remember { mutableStateOf("") }
-            var selectedRole by remember { mutableStateOf("Operating") }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -740,7 +758,7 @@ fun VaultAccountsScreen(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Account Name (e.g., HDFC, Cash, ICICI)", fontSize = 12.sp) },
+                        label = { Text("Account Name (e.g., HDFC, ICICI, Cash)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -761,43 +779,26 @@ fun VaultAccountsScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text("Strategic Vault Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Operating", "Commitments", "Fortress").forEach { role ->
-                            val isSel = selectedRole == role
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(9.dp))
-                                    .clickable { selectedRole = role },
-                                shape = RoundedCornerShape(9.dp),
-                                color = if (isSel) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                                border = BorderStroke(0.7.dp, if (isSel) AccentPurple else BorderLight)
-                            ) {
-                                Text(
-                                    text = role,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSel) AccentPurple else TextDark,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = {
                             if (name.isNotBlank()) {
                                 val bal = balanceText.toDoubleOrNull() ?: 0.0
-                                viewModel.addAccount(name.trim(), bal, selectedRole)
+                                if (bal > 0) {
+                                    viewModel.saveTransaction(
+                                        id = null,
+                                        title = "Opening Balance",
+                                        amount = bal,
+                                        category = "General",
+                                        subcategory = "Opening Balance",
+                                        account = name.trim().uppercase(),
+                                        type = TransactionType.INCOME,
+                                        date = System.currentTimeMillis()
+                                    )
+                                }
                                 showAddAccountSheet = false
+                                Toast.makeText(context, "Account '${name.trim().uppercase()}' initialized", Toast.LENGTH_SHORT).show()
                             }
                         },
                         enabled = name.isNotBlank(),
@@ -812,10 +813,9 @@ fun VaultAccountsScreen(
             }
         }
 
-        // Edit Account Balance Sheet
+        // Adjust Account Balance Sheet
         editingAccount?.let { acc ->
-            var newBalanceText by remember { mutableStateOf(acc.currentBalance.toInt().toString()) }
-            var selectedRole by remember { mutableStateOf(acc.accountType.ifBlank { "Operating" }) }
+            var newBalanceText by remember { mutableStateOf(acc.balance.toInt().toString()) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -835,7 +835,7 @@ fun VaultAccountsScreen(
                 ) {
                     Text("Adjust: ${acc.accountName}", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("Update actual liquid balance or reassign strategic role", fontSize = 11.5.sp, color = TextMuted)
+                    Text("Set updated balance. A ledger adjustment will be recorded.", fontSize = 11.5.sp, color = TextMuted)
 
                     Spacer(modifier = Modifier.height(14.dp))
 
@@ -850,80 +850,37 @@ fun VaultAccountsScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text("Vault Tier Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Operating", "Commitments", "Fortress").forEach { role ->
-                            val isSel = selectedRole.equals(role, ignoreCase = true)
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(9.dp))
-                                    .clickable { selectedRole = role },
-                                shape = RoundedCornerShape(9.dp),
-                                color = if (isSel) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                                border = BorderStroke(0.7.dp, if (isSel) AccentPurple else BorderLight)
-                            ) {
-                                Text(
-                                    text = role,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSel) AccentPurple else TextDark,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = {
-                            val bal = newBalanceText.toDoubleOrNull() ?: acc.currentBalance
-                            viewModel.updateAccount(acc.id, acc.accountName, bal, selectedRole)
+                            val targetBal = newBalanceText.toDoubleOrNull() ?: acc.balance
+                            val diff = targetBal - acc.balance
+                            if (diff != 0.0) {
+                                val txType = if (diff > 0) TransactionType.INCOME else TransactionType.EXPENSE
+                                viewModel.saveTransaction(
+                                    id = null,
+                                    title = "Balance Adjustment",
+                                    amount = abs(diff),
+                                    category = "General",
+                                    subcategory = "Adjustment",
+                                    account = acc.accountName,
+                                    type = txType,
+                                    date = System.currentTimeMillis()
+                                )
+                            }
                             editingAccount = null
+                            Toast.makeText(context, "Balance adjusted for ${acc.accountName}", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Save Balance", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
             }
-        }
-
-        // Delete Account Alert
-        accountToDelete?.let { acc ->
-            AlertDialog(
-                onDismissRequest = { accountToDelete = null },
-                title = { Text("Delete '${acc.accountName}'?", fontWeight = FontWeight.Bold) },
-                text = {
-                    Text("Are you sure you want to remove this account? Historical transactions referencing this account will retain their record, but new entries will no longer list it.")
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            viewModel.deleteAccount(acc) { success, msg ->
-                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                            }
-                            accountToDelete = null
-                        }
-                    ) {
-                        Text("Delete", color = SoftRed, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { accountToDelete = null }) {
-                        Text("Cancel", color = TextDark)
-                    }
-                }
-            )
         }
     }
 }
@@ -944,16 +901,17 @@ private fun VaultTierStat(tier: String, amount: String, color: Color) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeableAccountItem(
-    account: AccountEntity,
+    account: AccountBalanceResult,
     currencySymbol: String,
     showRoleBadge: Boolean = false,
+    roleTitle: String = "Operating",
     roleColor: Color = AccentPurple,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onTransfer: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val currentOnEdit by rememberUpdatedState(onEdit)
-    val currentOnDelete by rememberUpdatedState(onDelete)
+    val currentOnTransfer by rememberUpdatedState(onTransfer)
 
     var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
 
@@ -968,7 +926,7 @@ private fun SwipeableAccountItem(
                 }
                 SwipeToDismissBoxValue.EndToStart -> {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    currentOnDelete()
+                    currentOnTransfer()
                     false
                 }
                 SwipeToDismissBoxValue.Settled -> false
@@ -992,7 +950,7 @@ private fun SwipeableAccountItem(
             val backgroundColor by animateColorAsState(
                 targetValue = when (dismissState.targetValue) {
                     SwipeToDismissBoxValue.StartToEnd -> AccentPurple
-                    SwipeToDismissBoxValue.EndToStart -> SoftRed
+                    SwipeToDismissBoxValue.EndToStart -> SoftTeal
                     SwipeToDismissBoxValue.Settled -> Color.Transparent
                 },
                 animationSpec = tween(200),
@@ -1009,15 +967,15 @@ private fun SwipeableAccountItem(
             ) {
                 if (direction == SwipeToDismissBoxValue.StartToEnd) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(17.dp))
+                        Icon(Icons.Default.Edit, contentDescription = "Adjust", tint = Color.White, modifier = Modifier.size(17.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Adjust", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                     }
                 } else if (direction == SwipeToDismissBoxValue.EndToStart) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                        Text("Transfer", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(17.dp))
+                        Icon(Icons.Default.SyncAlt, contentDescription = "Transfer", tint = Color.White, modifier = Modifier.size(17.dp))
                     }
                 }
             }
@@ -1084,14 +1042,14 @@ private fun SwipeableAccountItem(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            if (showRoleBadge && account.accountType.isNotBlank()) {
+                            if (showRoleBadge) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Surface(
                                     shape = RoundedCornerShape(5.dp),
                                     color = roleColor.copy(alpha = 0.12f)
                                 ) {
                                     Text(
-                                        text = account.accountType,
+                                        text = roleTitle,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = roleColor,
@@ -1102,7 +1060,7 @@ private fun SwipeableAccountItem(
                         }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Tap to adjust balance • Swipe to delete",
+                            text = "Swipe to adjust or transfer",
                             fontSize = 10.5.sp,
                             color = TextMuted
                         )
@@ -1112,10 +1070,10 @@ private fun SwipeableAccountItem(
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Text(
-                    text = "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
+                    text = "$currencySymbol${String.format(Locale.US, "%,.2f", account.balance)}",
                     fontWeight = FontWeight.Black,
                     fontSize = 14.5.sp,
-                    color = if (account.currentBalance >= 0) TextDark else SoftRed
+                    color = if (account.balance >= 0) TextDark else SoftRed
                 )
             }
         }
