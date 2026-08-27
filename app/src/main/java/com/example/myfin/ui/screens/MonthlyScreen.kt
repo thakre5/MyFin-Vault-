@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -71,6 +70,8 @@ fun MonthlyScreen(
     var showFilterSheet by remember { mutableStateOf(false) }
     var showMonthPicker by remember { mutableStateOf(false) }
 
+    // Transaction Details & Editing States
+    var viewingTx by remember { mutableStateOf<TransactionEntity?>(null) }
     var editingTx by remember { mutableStateOf<TransactionEntity?>(null) }
     var showAddFixedBill by remember { mutableStateOf(false) }
     var editingFixedBill by remember { mutableStateOf<FixedBillEntity?>(null) }
@@ -925,6 +926,7 @@ fun MonthlyScreen(
                                 SwipeableTransactionItem(
                                     transaction = tx,
                                     currencySymbol = userProfile.currencySymbol,
+                                    onTap = { viewingTx = it },
                                     onEdit = { editingTx = it; showAddSheet = true },
                                     onDelete = { transactionToDelete = it }
                                 )
@@ -992,7 +994,7 @@ fun MonthlyScreen(
             }
         }
 
-        // 1 & 2. Pinned Top Bar (Header Fixed at Top with `<` Navigation Icon)
+        // Pinned Top Bar (Fixed Header with `<` Button)
         Surface(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -1010,7 +1012,6 @@ fun MonthlyScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // `<` Button replacing hamburger menu
                     IconButton(
                         onClick = onOpenDrawer,
                         modifier = Modifier
@@ -1027,7 +1028,6 @@ fun MonthlyScreen(
                         )
                     }
 
-                    // Pinned Month Selector Dropdown
                     Surface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
@@ -1054,7 +1054,7 @@ fun MonthlyScreen(
             }
         }
 
-        // 3. 4 + 1 Floating Bottom Navigation Dock (Preserving Shape & Size)
+        // 4 + 1 Floating Bottom Navigation Dock
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1116,6 +1116,26 @@ fun MonthlyScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Actions", modifier = Modifier.size(28.dp))
             }
+        }
+
+        // --- BOTTOM SHEETS & MODALS ---
+
+        // Transaction Detail Bottom Sheet (Read-Only Matrix with Edit/Delete Triggers)
+        viewingTx?.let { tx ->
+            TransactionDetailBottomSheet(
+                transaction = tx,
+                currencySymbol = userProfile.currencySymbol,
+                onDismiss = { viewingTx = null },
+                onEdit = {
+                    viewingTx = null
+                    editingTx = it
+                    showAddSheet = true
+                },
+                onDelete = {
+                    viewingTx = null
+                    transactionToDelete = it
+                }
+            )
         }
 
         // Action Modal
