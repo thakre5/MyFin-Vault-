@@ -148,7 +148,7 @@ fun SimpleAccountsScreen(
                                 modifier = Modifier.size(34.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.Insights,
+                                    imageVector = Icons.Default.Insights,
                                     contentDescription = "Reports & Analytics",
                                     tint = TextDark,
                                     modifier = Modifier.size(17.dp)
@@ -167,7 +167,7 @@ fun SimpleAccountsScreen(
                                 modifier = Modifier.size(34.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.Settings,
+                                    imageVector = Icons.Default.Settings,
                                     contentDescription = "Settings",
                                     tint = AccentPurple,
                                     modifier = Modifier.size(17.dp)
@@ -256,7 +256,7 @@ fun SimpleAccountsScreen(
                                 ) {
                                     Icon(Icons.Default.SyncAlt, contentDescription = null, modifier = Modifier.size(15.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Transfer", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text(text = "Transfer", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
 
                                 OutlinedButton(
@@ -269,7 +269,7 @@ fun SimpleAccountsScreen(
                                 ) {
                                     Icon(Icons.Default.Add, contentDescription = null, tint = TextDark, modifier = Modifier.size(15.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Add Account", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                    Text(text = "Add Account", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                 }
                             }
                         }
@@ -310,12 +310,12 @@ fun SimpleAccountsScreen(
                             border = BorderStroke(0.8.dp, BorderLight)
                         ) {
                             Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                                Text("No accounts registered yet.", fontSize = 12.sp, color = TextMuted)
+                                Text(text = "No accounts registered yet.", fontSize = 12.sp, color = TextMuted)
                             }
                         }
                     }
                 } else {
-                    items(displayAccounts) { acc ->
+                    items(displayAccounts, key = { it.accountName }) { acc ->
                         val maskedDigits = remember(acc.accountName) {
                             String.format(Locale.US, "%04d", abs(acc.accountName.hashCode() % 9000 + 1000))
                         }
@@ -336,7 +336,10 @@ fun SimpleAccountsScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
                                     Box(
                                         modifier = Modifier
                                             .size(42.dp)
@@ -345,7 +348,7 @@ fun SimpleAccountsScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            Icons.Default.AccountBalance,
+                                            imageVector = Icons.Default.AccountBalance,
                                             contentDescription = null,
                                             tint = AccentPurple,
                                             modifier = Modifier.size(20.dp)
@@ -354,7 +357,7 @@ fun SimpleAccountsScreen(
 
                                     Spacer(modifier = Modifier.width(12.dp))
 
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = acc.accountName,
                                             fontWeight = FontWeight.Bold,
@@ -387,7 +390,7 @@ fun SimpleAccountsScreen(
                                         modifier = Modifier.size(30.dp)
                                     ) {
                                         Icon(
-                                            Icons.Default.Edit,
+                                            imageVector = Icons.Default.Edit,
                                             contentDescription = "Edit Account",
                                             tint = TextMuted,
                                             modifier = Modifier.size(16.dp)
@@ -429,8 +432,8 @@ fun SimpleAccountsScreen(
             onSelectTarget = { target ->
                 when (target) {
                     NavigationTarget.MONTHLY_VIEW -> onNavigateToDashboard()
-                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
+                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.REPORTS_ANALYTICS -> onNavigateToVaultAnalytics()
                     NavigationTarget.VAULT_ACCOUNTS -> { /* Active */ }
                     else -> {}
@@ -455,7 +458,11 @@ fun SimpleAccountsScreen(
                 containerColor = CardWhite,
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                 dragHandle = {
-                    Surface(modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp), shape = CircleShape, color = BorderLight) {}
+                    Surface(
+                        modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp),
+                        shape = CircleShape,
+                        color = BorderLight
+                    ) {}
                 }
             ) {
                 Column(
@@ -469,7 +476,7 @@ fun SimpleAccountsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Edit: ${acc.accountName}", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                        Text(text = "Edit: ${acc.accountName}", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
 
                         IconButton(
                             onClick = {
@@ -481,7 +488,7 @@ fun SimpleAccountsScreen(
                                 )
                             }
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete Account", tint = SoftRed, modifier = Modifier.size(20.dp))
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Account", tint = SoftRed, modifier = Modifier.size(20.dp))
                         }
                     }
 
@@ -490,7 +497,7 @@ fun SimpleAccountsScreen(
                     OutlinedTextField(
                         value = nameText,
                         onValueChange = { nameText = it },
-                        label = { Text("Account Name", fontSize = 12.sp) },
+                        label = { Text(text = "Account Name", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -503,7 +510,7 @@ fun SimpleAccountsScreen(
                     OutlinedTextField(
                         value = balanceText,
                         onValueChange = { balanceText = it },
-                        label = { Text("Current Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        label = { Text(text = "Current Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -538,7 +545,7 @@ fun SimpleAccountsScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text(text = "Save Changes", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -549,8 +556,8 @@ fun SimpleAccountsScreen(
         accountToDelete?.let { acc ->
             AlertDialog(
                 onDismissRequest = { accountToDelete = null },
-                title = { Text("Delete Account?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-                text = { Text("Are you sure you want to remove '${acc.accountName}'?", fontSize = 13.sp) },
+                title = { Text(text = "Delete Account?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                text = { Text(text = "Are you sure you want to remove '${acc.accountName}'?", fontSize = 13.sp) },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -563,12 +570,12 @@ fun SimpleAccountsScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = SoftRed),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Delete", fontWeight = FontWeight.Bold)
+                        Text(text = "Delete", fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { accountToDelete = null }) {
-                        Text("Cancel", color = TextDark)
+                        Text(text = "Cancel", color = TextDark)
                     }
                 }
             )
@@ -586,7 +593,11 @@ fun SimpleAccountsScreen(
                 containerColor = CardWhite,
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                 dragHandle = {
-                    Surface(modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp), shape = CircleShape, color = BorderLight) {}
+                    Surface(
+                        modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp),
+                        shape = CircleShape,
+                        color = BorderLight
+                    ) {}
                 }
             ) {
                 Column(
@@ -595,16 +606,16 @@ fun SimpleAccountsScreen(
                         .navigationBarsPadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
-                    Text("Add Account", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                    Text(text = "Add Account", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("Enter bank or wallet name and starting balance", fontSize = 11.5.sp, color = TextMuted)
+                    Text(text = "Enter bank or wallet name and starting balance", fontSize = 11.5.sp, color = TextMuted)
 
                     Spacer(modifier = Modifier.height(14.dp))
 
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Account Name (e.g., Primary Salary, Cash)", fontSize = 12.sp) },
+                        label = { Text(text = "Account Name (e.g., Primary Salary, Cash)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -617,7 +628,7 @@ fun SimpleAccountsScreen(
                     OutlinedTextField(
                         value = balanceText,
                         onValueChange = { balanceText = it },
-                        label = { Text("Initial Starting Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        label = { Text(text = "Initial Starting Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -645,7 +656,7 @@ fun SimpleAccountsScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(text = "Create Account", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -666,7 +677,11 @@ fun SimpleAccountsScreen(
                 containerColor = CardWhite,
                 shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
                 dragHandle = {
-                    Surface(modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp), shape = CircleShape, color = BorderLight) {}
+                    Surface(
+                        modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp),
+                        shape = CircleShape,
+                        color = BorderLight
+                    ) {}
                 }
             ) {
                 Column(
@@ -675,13 +690,13 @@ fun SimpleAccountsScreen(
                         .navigationBarsPadding()
                         .padding(horizontal = 22.dp, vertical = 8.dp)
                 ) {
-                    Text("Transfer Funds", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                    Text(text = "Transfer Funds", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("Move money between your accounts", fontSize = 11.5.sp, color = TextMuted)
+                    Text(text = "Move money between your accounts", fontSize = 11.5.sp, color = TextMuted)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Text("From", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "From", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(accountNames) { acc ->
@@ -707,7 +722,7 @@ fun SimpleAccountsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("To", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "To", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(accountNames) { acc ->
@@ -736,7 +751,7 @@ fun SimpleAccountsScreen(
                     OutlinedTextField(
                         value = amountText,
                         onValueChange = { amountText = it },
-                        label = { Text("Transfer Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        label = { Text(text = "Transfer Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -749,7 +764,7 @@ fun SimpleAccountsScreen(
                     OutlinedTextField(
                         value = noteText,
                         onValueChange = { noteText = it },
-                        label = { Text("Note (Optional)", fontSize = 12.sp) },
+                        label = { Text(text = "Note (Optional)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -776,7 +791,7 @@ fun SimpleAccountsScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text("Confirm Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text(text = "Confirm Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
