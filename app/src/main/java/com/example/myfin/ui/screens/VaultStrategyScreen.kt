@@ -1,18 +1,11 @@
 package com.example.myfin.ui.screens
 
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -29,16 +22,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -52,6 +44,10 @@ import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
+import com.example.myfin.ui.components.AppBottomDock
+import com.example.myfin.ui.components.DockFabAction
+import com.example.myfin.ui.components.NavigationTarget
+import com.example.myfin.ui.components.rememberAutoScrollVisibilityConnection
 import com.example.myfin.ui.theme.*
 import java.util.Calendar
 import java.util.Locale
@@ -115,7 +111,6 @@ fun VaultStrategyScreen(
     var showHelpDialog by remember { mutableStateOf(false) }
     var receiptPayload by remember { mutableStateOf<SuccessReceiptPayload?>(null) }
 
-    var showActionMenu by remember { mutableStateOf(false) }
     var showTransferSheet by remember { mutableStateOf(false) }
     var showAddAccountSheet by remember { mutableStateOf(false) }
     var showRoutingDetailsSheet by remember { mutableStateOf(false) }
@@ -123,6 +118,8 @@ fun VaultStrategyScreen(
     var editingAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
     var pendingEditConfirmation by remember { mutableStateOf<PendingEditConfirmation?>(null) }
     var accountToDelete by remember { mutableStateOf<AccountEntity?>(null) }
+
+    val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
 
     val displayAccounts = uiState.accounts
     var activeSelectedCardIndex by remember { mutableIntStateOf(0) }
@@ -185,97 +182,141 @@ fun VaultStrategyScreen(
         (bal - totalPendingBillsAmount - safetyBuffer).coerceAtLeast(0.0)
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-        ) {
-            // Header Bar with Centered Title & Clean Navigation Buttons
-            Box(
+    val fabActions = remember {
+        listOf(
+            DockFabAction(
+                icon = Icons.Default.AddCard,
+                label = "Add Account",
+                onClick = { showAddAccountSheet = true }
+            ),
+            DockFabAction(
+                icon = Icons.Default.SyncAlt,
+                label = "Transfer",
+                onClick = { showTransferSheet = true }
+            )
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CanvasLight)
+            .nestedScroll(scrollConnection)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // =========================================================
+            // 1. PINNED TOP HEADER WITH SHELF DISSOLVE
+            // =========================================================
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .zIndex(2f)
             ) {
-                IconButton(
-                    onClick = onOpenDrawer,
+                Box(
                     modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .size(38.dp)
-                        .clip(CircleShape)
+                        .fillMaxWidth()
+                        .background(CanvasLight)
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 6.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ChevronLeft,
-                        contentDescription = "Drawer",
-                        tint = TextDark,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                Text(
-                    text = "3-Vault Strategy",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 17.sp,
-                    color = TextDark,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .height(38.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = CardWhite,
-                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
-                    shadowElevation = 2.dp
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 2.dp)
+                    IconButton(
+                        onClick = onOpenDrawer,
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .size(38.dp)
+                            .clip(CircleShape)
                     ) {
-                        IconButton(
-                            onClick = onNavigateToVaultAnalytics,
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Insights,
-                                contentDescription = "Reports & Analytics",
-                                tint = TextDark,
-                                modifier = Modifier.size(17.dp)
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .width(0.8.dp)
-                                .height(16.dp)
-                                .background(BorderLight.copy(alpha = 0.8f))
+                        Icon(
+                            imageVector = Icons.Default.ChevronLeft,
+                            contentDescription = "Drawer",
+                            tint = TextDark,
+                            modifier = Modifier.size(24.dp)
                         )
+                    }
 
-                        IconButton(
-                            onClick = onNavigateToVaultSettings,
-                            modifier = Modifier.size(34.dp)
+                    Text(
+                        text = "3-Vault Strategy",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 17.sp,
+                        color = TextDark,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .height(38.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                        shadowElevation = 2.dp
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 2.dp)
                         ) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = "Vault Settings",
-                                tint = AccentPurple,
-                                modifier = Modifier.size(17.dp)
+                            IconButton(
+                                onClick = onNavigateToVaultAnalytics,
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Insights,
+                                    contentDescription = "Reports & Analytics",
+                                    tint = TextDark,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .width(0.8.dp)
+                                    .height(16.dp)
+                                    .background(BorderLight.copy(alpha = 0.8f))
                             )
+
+                            IconButton(
+                                onClick = onNavigateToVaultSettings,
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Settings,
+                                    contentDescription = "Vault Settings",
+                                    tint = AccentPurple,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
                         }
                     }
                 }
+
+                // Smooth Dissolve Shelf Placed Below Top Header
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(14.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    CanvasLight,
+                                    CanvasLight.copy(alpha = 0f)
+                                )
+                            )
+                        )
+                )
             }
 
+            // =========================================================
+            // 2. SCROLLABLE VAULT CONTENT
+            // =========================================================
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 105.dp)
+                contentPadding = PaddingValues(top = 4.dp, bottom = 125.dp)
             ) {
-                // Vault Asset Allocation Card with AccentPurple ambient touches
+                // Vault Asset Allocation Card
                 item {
                     Surface(
                         modifier = Modifier
@@ -616,140 +657,69 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Floating Bottom Navigation Dock
-        Row(
+        // =========================================================
+        // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
+        // =========================================================
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
                 .fillMaxWidth()
-                .zIndex(4f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(60.dp)
-                    .shadow(16.dp, CircleShape),
-                shape = CircleShape,
-                color = CardWhite
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    DockPillTab(
-                        title = "Taxonomy",
-                        icon = Icons.Default.Category,
-                        isSelected = false,
-                        onClick = onNavigateToTaxonomy
+                .height(115.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            CanvasLight.copy(alpha = 0.85f),
+                            CanvasLight
+                        )
                     )
-                    DockPillTab(
-                        title = "Planner",
-                        icon = Icons.Default.PieChart,
-                        isSelected = false,
-                        onClick = onNavigateToPlanner
-                    )
-                    DockPillTab(
-                        title = "Vaults",
-                        icon = Icons.Default.AccountBalanceWallet,
-                        isSelected = true,
-                        onClick = { }
-                    )
-                    DockPillTab(
-                        title = "Monthly",
-                        icon = Icons.Default.Assessment,
-                        isSelected = false,
-                        onClick = onNavigateToDashboard
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            FloatingActionButton(
-                onClick = { showActionMenu = !showActionMenu },
-                containerColor = AccentPurple,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.size(60.dp).shadow(16.dp, CircleShape)
-            ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = "Actions",
-                    modifier = Modifier
-                        .size(28.dp)
-                        .rotate(if (showActionMenu) 45f else 0f)
                 )
-            }
-        }
+                .zIndex(2.5f)
+        )
 
-        if (showActionMenu) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(5f)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { showActionMenu = false }
+        // =========================================================
+        // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH CONTEXTUAL FAB
+        // =========================================================
+        AppBottomDock(
+            currentSelection = NavigationTarget.VAULT_ACCOUNTS,
+            onSelectTarget = { target ->
+                when (target) {
+                    NavigationTarget.MONTHLY_VIEW -> onNavigateToDashboard()
+                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
+                    NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
+                    NavigationTarget.REPORTS_ANALYTICS -> onNavigateToVaultAnalytics()
+                    NavigationTarget.VAULT_ACCOUNTS -> { /* Active */ }
+                    else -> {}
+                }
+            },
+            fabActions = fabActions,
+            isVisible = isDockVisible.value,
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(4f)
+        )
+
+        // Help Guide Dialog
+        if (showHelpDialog) {
+            AlertDialog(
+                onDismissRequest = { showHelpDialog = false },
+                title = { Text("3-Vault Financial Strategy", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                text = {
+                    Text(
+                        "• Operating Vault: Daily living expenses, dining, and immediate cash needs.\n\n" +
+                                "• Commitments Vault: Dedicated buffer for rent, EMIs, and AutoPay bills.\n\n" +
+                                "• Fortress Vault: Untouchable liquid emergency fund and investment sweeps.",
+                        fontSize = 12.5.sp,
+                        color = TextDark,
+                        lineHeight = 18.sp
                     )
-            )
-
-            AnimatedVisibility(
-                visible = showActionMenu,
-                enter = scaleIn(transformOrigin = TransformOrigin(1f, 1f), animationSpec = tween(180)) + fadeIn(animationSpec = tween(180)),
-                exit = scaleOut(transformOrigin = TransformOrigin(1f, 1f), animationSpec = tween(150)) + fadeOut(animationSpec = tween(150)),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 94.dp, end = 20.dp)
-                    .zIndex(6f)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = CardWhite,
-                    shadowElevation = 10.dp,
-                    border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.2f)),
-                    modifier = Modifier.width(190.dp)
-                ) {
-                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showActionMenu = false
-                                    showAddAccountSheet = true
-                                }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.AddCard, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Add Account", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                        }
-
-                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showActionMenu = false
-                                    showTransferSheet = true
-                                }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.SyncAlt, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                        }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showHelpDialog = false }) {
+                        Text("Understood", fontWeight = FontWeight.Bold, color = AccentPurple)
                     }
                 }
-            }
+            )
         }
 
         // Full Account Modifier Bottom Sheet
@@ -1245,7 +1215,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Add Account Bottom Sheet (With Fix)
+        // Add Account Bottom Sheet
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
             var balanceText by remember { mutableStateOf("") }
@@ -1645,36 +1615,6 @@ private fun AllocationStatPill(
                 Text("$percentage%", fontSize = 10.sp, color = TextMuted)
             }
             Text(amount, fontSize = 11.sp, fontWeight = FontWeight.Black, color = TextDark)
-        }
-    }
-}
-
-@Composable
-private fun DockPillTab(
-    title: String,
-    icon: ImageVector,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                icon,
-                contentDescription = title,
-                tint = if (isSelected) AccentPurple else TextMuted,
-                modifier = Modifier.size(17.dp)
-            )
-            if (isSelected) {
-                Spacer(modifier = Modifier.width(5.dp))
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = AccentPurple)
-            }
         }
     }
 }
