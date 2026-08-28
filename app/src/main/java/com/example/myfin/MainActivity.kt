@@ -197,16 +197,6 @@ class MainActivity : FragmentActivity() {
                                             onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
                                         )
                                     }
-                                    NavigationTarget.DATA_SET -> {
-                                        MasterDataSetScreen(
-                                            viewModel = viewModel,
-                                            onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
-                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
-                                            onNavigateToMonthly = { currentTarget = NavigationTarget.MONTHLY_VIEW },
-                                            onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
-                                        )
-                                    }
                                     NavigationTarget.BUDGET_PLANNER -> {
                                         BudgetPlannerScreen(
                                             viewModel = viewModel,
@@ -215,6 +205,16 @@ class MainActivity : FragmentActivity() {
                                             onNavigateToMonthly = { currentTarget = NavigationTarget.MONTHLY_VIEW },
                                             onNavigateToYearly = { currentTarget = NavigationTarget.YEARLY_VIEW },
                                             onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
+                                            onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
+                                        )
+                                    }
+                                    NavigationTarget.DATA_SET -> {
+                                        MasterDataSetScreen(
+                                            viewModel = viewModel,
+                                            onOpenDrawer = { isDrawerOpen = true },
+                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
+                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
+                                            onNavigateToMonthly = { currentTarget = NavigationTarget.MONTHLY_VIEW },
                                             onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
                                         )
                                     }
@@ -255,8 +255,8 @@ class MainActivity : FragmentActivity() {
                                             viewModel = viewModel,
                                             onOpenDrawer = { isDrawerOpen = true },
                                             onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
-                                            onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
                                             onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
+                                            onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
                                             onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
                                             onNavigateToSettings = { currentTarget = NavigationTarget.SETTINGS }
                                         )
