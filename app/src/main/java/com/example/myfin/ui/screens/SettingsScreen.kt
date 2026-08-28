@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.HelpOutline
@@ -33,7 +32,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -41,17 +39,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.myfin.data.ExcelExportManager
-import com.example.myfin.data.UserProfile
 import com.example.myfin.ui.BudgetViewModel
+import com.example.myfin.ui.components.AppBrandingFooter
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -157,7 +152,7 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // 1. Minimalist Top Header Bar (Matching Image 1)
+            // 1. Top Header Bar (Matching Reference Image 1)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -210,14 +205,13 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                // 2. Profile & Identity Header (Matching Image 1 Layout)
+                // 2. Profile & Identity Header (Matching Reference Image 1)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Profile Avatar with Blue Camera Icon
                     Box(
                         modifier = Modifier.size(86.dp),
                         contentAlignment = Alignment.Center
@@ -241,7 +235,6 @@ fun SettingsScreen(
                             }
                         }
 
-                        // Blue Camera Badge
                         Surface(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
@@ -307,7 +300,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // 3. Continuous White Card Container (Matching Image 1 Structure)
+                // 3. Continuous White Card Container
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -473,44 +466,14 @@ fun SettingsScreen(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                        // 8. Branding Footnote & Offline Status Note
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = BrandCharcoal,
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Shield,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "MyFin Vault v1.0.0",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextDark
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "100% Offline Local SQLite Storage • Zero Cloud Telemetry",
-                                fontSize = 10.5.sp,
-                                color = TextMuted,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                        // Reusable Shared Branding Footer Component
+                        AppBrandingFooter(
+                            modifier = Modifier.fillMaxWidth(),
+                            version = "v1.0.0",
+                            showIcon = true
+                        )
                     }
                 }
             }
@@ -521,7 +484,7 @@ fun SettingsScreen(
     // BOTTOM SHEETS & CONFIRMATION MODALS
     // ==========================================
 
-    // 1. Biometric Confirmation Sheet (Matching Image 2)
+    // 1. Biometric Confirmation Sheet (Matching Reference Image 2)
     if (activeSheet == SettingsActiveSheet.SECURITY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -535,7 +498,6 @@ fun SettingsScreen(
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Custom Fingerprint & Padlock Canvas (Image 2)
                 Box(
                     modifier = Modifier
                         .size(150.dp)
@@ -568,7 +530,6 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Action Button (Image 2 pill style)
                 Button(
                     onClick = {
                         val newBiometricState = !userProfile.isBiometricEnabled
@@ -595,7 +556,7 @@ fun SettingsScreen(
         }
     }
 
-    // 2. Strategy Mode Guidance & Confirmation Sheet (Matching Image 3)
+    // 2. Strategy Mode Guidance Sheet (Matching Reference Image 3)
     if (activeSheet == SettingsActiveSheet.STRATEGY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -609,7 +570,6 @@ fun SettingsScreen(
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Neoclassical Bank Illustration (Image 3)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -647,7 +607,6 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Strategy Preview Card with Green Checkmark (Image 3)
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -703,7 +662,6 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(22.dp))
 
-                // Green Next / Action Button (Image 3 style)
                 Button(
                     onClick = {
                         val targetMode = if (is3VaultActive) "SIMPLE" else "3_VAULT"
@@ -1010,7 +968,7 @@ fun SettingsScreen(
 }
 
 // ==========================================
-// CUSTOM VECTOR ILLUSTRATION CANVASES
+// CUSTOM VECTOR ILLUSTRATIONS
 // ==========================================
 
 @Composable
@@ -1019,7 +977,6 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
         val w = size.width
         val h = size.height
 
-        // 1. Organic Warm Beige Backdrop Blob (Image 2)
         val blobPath = Path().apply {
             moveTo(w * 0.25f, h * 0.15f)
             cubicTo(w * 0.70f, h * 0.05f, w * 0.95f, h * 0.35f, w * 0.85f, h * 0.70f)
@@ -1029,7 +986,6 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
         }
         drawPath(blobPath, color = Color(0xFFF2EFE9))
 
-        // 2. Stylized Fingerprint Oval (Image 2)
         val fpCenter = Offset(w * 0.42f, h * 0.48f)
         for (i in 1..6) {
             val rX = (i * 7.5f).dp.toPx()
@@ -1045,13 +1001,11 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
             )
         }
 
-        // 3. Green Security Padlock (Image 2)
         val lockLeft = w * 0.52f
         val lockTop = h * 0.34f
         val lockW = 32.dp.toPx()
         val lockH = 36.dp.toPx()
 
-        // Shackle
         drawArc(
             color = Color(0xFF52A447),
             startAngle = 180f,
@@ -1062,7 +1016,6 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
             style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
         )
 
-        // Body
         drawRoundRect(
             color = Color(0xFF67B044),
             topLeft = Offset(lockLeft, lockTop),
@@ -1070,7 +1023,6 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
         )
 
-        // Keyhole Silhouette
         drawCircle(
             color = Color(0xFF1E3F18),
             radius = 3.dp.toPx(),
@@ -1086,7 +1038,6 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
         val h = size.height
         val cX = w / 2f
 
-        // 1. Layered Background Banknotes / Cards (Image 3)
         drawRoundRect(
             color = Color(0xFFC7EBC9),
             topLeft = Offset(w * 0.15f, h * 0.50f),
@@ -1100,11 +1051,9 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
         )
 
-        // 2. Neoclassical Bank Building Facade (Image 3)
         val bankW = 120.dp.toPx()
         val bankLeft = cX - (bankW / 2f)
 
-        // Roof Pediment (Triangle)
         val triangle = Path().apply {
             moveTo(cX, h * 0.15f)
             lineTo(bankLeft + bankW, h * 0.35f)
@@ -1113,21 +1062,18 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
         }
         drawPath(triangle, color = Color(0xFF437A47))
 
-        // Center Emblem inside Pediment
         drawCircle(
             color = Color(0xFFBCE7BE),
             radius = 5.dp.toPx(),
             center = Offset(cX, h * 0.27f)
         )
 
-        // Architrave (Beam below roof)
         drawRect(
             color = Color(0xFF386641),
             topLeft = Offset(bankLeft, h * 0.35f),
             size = Size(bankW, 7.dp.toPx())
         )
 
-        // 4 Green Structural Columns
         val columnW = 10.dp.toPx()
         val columnH = 45.dp.toPx()
         val columnTop = h * 0.35f + 7.dp.toPx()
@@ -1143,7 +1089,6 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
             )
         }
 
-        // Center Doorway Arch
         drawRoundRect(
             color = Color(0xFF1C3A1D),
             topLeft = Offset(cX - 10.dp.toPx(), columnTop + 14.dp.toPx()),
@@ -1151,7 +1096,6 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
             cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
         )
 
-        // Base Steps
         drawRect(
             color = Color(0xFF386641),
             topLeft = Offset(bankLeft - 8.dp.toPx(), columnTop + columnH),
