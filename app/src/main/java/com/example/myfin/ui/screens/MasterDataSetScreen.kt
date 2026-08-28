@@ -36,6 +36,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.myfin.data.CategoryEntity
 import com.example.myfin.data.SubcategoryEntity
 import com.example.myfin.data.TransactionType
@@ -132,250 +133,275 @@ fun MasterDataSetScreen(
             .background(CanvasLight)
             .nestedScroll(scrollConnection)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-        ) {
-            // Pinned Top Header Container
-            Column(
+        Column(modifier = Modifier.fillMaxSize()) {
+            // =========================================================
+            // 1. PINNED TOP HEADER CONTAINER (WITH SHELF GRADIENT SHADOW)
+            // =========================================================
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .zIndex(2f)
             ) {
-                // Top App Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onOpenDrawer,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ChevronLeft,
-                            contentDescription = "Drawer",
-                            tint = TextDark,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    Text(
-                        text = "Master Taxonomy",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 16.sp,
-                        color = TextDark
-                    )
-
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
-                        shadowElevation = 2.dp
-                    ) {
-                        Text(
-                            text = "$totalCats Groups",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Cleaned 3-Pillar Taxonomy Metric Card with AccentPurple ambient touch
-                Surface(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(2.dp, RoundedCornerShape(16.dp)),
-                    shape = RoundedCornerShape(16.dp),
-                    color = CardWhite,
-                    border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
+                        .background(CanvasLight)
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = 6.dp, bottom = 10.dp)
                 ) {
+                    // Top App Bar
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color(0xFFFFFFFF),
-                                        Color(0xFFFCFAFF),
-                                        AccentPurple.copy(alpha = 0.04f)
-                                    )
-                                )
-                            )
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        IconButton(
+                            onClick = onOpenDrawer,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
                         ) {
-                            Text(
-                                text = "CATEGORIES",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextMuted,
-                                letterSpacing = 0.5.sp
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                text = "$totalCats Active",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Black,
-                                color = segmentColor
+                            Icon(
+                                imageVector = Icons.Default.ChevronLeft,
+                                contentDescription = "Drawer",
+                                tint = TextDark,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .height(24.dp)
-                                .width(1.dp)
-                                .background(BorderLight.copy(alpha = 0.7f))
+                        Text(
+                            text = "Master Taxonomy",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 16.sp,
+                            color = TextDark
                         )
 
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = CardWhite,
+                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                            shadowElevation = 2.dp
                         ) {
                             Text(
-                                text = "SUBCATEGORIES",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextMuted,
-                                letterSpacing = 0.5.sp
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                text = "$totalSubs Mapped",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextDark
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .height(24.dp)
-                                .width(1.dp)
-                                .background(BorderLight.copy(alpha = 0.7f))
-                        )
-
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "CUSTOM TAGS",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextMuted,
-                                letterSpacing = 0.5.sp
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                text = "$customCount Custom",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Black,
-                                color = AccentPurple
+                                text = "$totalCats Groups",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                // Single-Line Flow Segment Switcher
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(BorderLight.copy(alpha = 0.5f))
-                        .padding(2.5.dp)
-                ) {
-                    listOf(
-                        Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
-                        Triple(TransactionType.INCOME, "Income", SoftGreen),
-                        Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal)
-                    ).forEach { (type, label, color) ->
-                        val isSelected = selectedSegment == type
-                        Box(
+                    // 3-Pillar Taxonomy Metric Card
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(2.dp, RoundedCornerShape(16.dp)),
+                        shape = RoundedCornerShape(16.dp),
+                        color = CardWhite,
+                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
+                    ) {
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) CardWhite else Color.Transparent)
-                                .clickable { selectedSegment = type }
-                                .padding(vertical = 6.dp),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color(0xFFFFFFFF),
+                                            Color(0xFFFCFAFF),
+                                            AccentPurple.copy(alpha = 0.04f)
+                                        )
+                                    )
+                                )
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = label,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 11.sp,
-                                color = if (isSelected) color else TextMuted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "CATEGORIES",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextMuted,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "$totalCats Active",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = segmentColor
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .height(24.dp)
+                                    .width(1.dp)
+                                    .background(BorderLight.copy(alpha = 0.7f))
                             )
+
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "SUBCATEGORIES",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextMuted,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "$totalSubs Mapped",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextDark
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .height(24.dp)
+                                    .width(1.dp)
+                                    .background(BorderLight.copy(alpha = 0.7f))
+                            )
+
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "CUSTOM TAGS",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextMuted,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "$customCount Custom",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = AccentPurple
+                                )
+                            }
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                // Compact Search Input with subtle AccentPurple cursor & focus
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp),
-                    shape = RoundedCornerShape(13.dp),
-                    color = CardWhite,
-                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
-                ) {
+                    // Flow Segment Switcher
                     Row(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(BorderLight.copy(alpha = 0.5f))
+                            .padding(2.5.dp)
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted, modifier = Modifier.size(17.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Box(modifier = Modifier.weight(1f)) {
-                            if (searchQuery.isEmpty()) {
-                                Text("Filter categories & subcategories...", color = TextMuted, fontSize = 12.5.sp, maxLines = 1)
+                        listOf(
+                            Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
+                            Triple(TransactionType.INCOME, "Income", SoftGreen),
+                            Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal)
+                        ).forEach { (type, label, color) ->
+                            val isSelected = selectedSegment == type
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) CardWhite else Color.Transparent)
+                                    .clickable { selectedSegment = type }
+                                    .padding(vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 11.sp,
+                                    color = if (isSelected) color else TextMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
-                            BasicTextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                singleLine = true,
-                                textStyle = TextStyle(fontSize = 12.5.sp, color = TextDark, fontWeight = FontWeight.Medium),
-                                cursorBrush = SolidColor(AccentPurple),
-                                modifier = Modifier.fillMaxWidth()
-                            )
                         }
+                    }
 
-                        if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextMuted, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Search Input
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
+                        shape = RoundedCornerShape(13.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted, modifier = Modifier.size(17.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (searchQuery.isEmpty()) {
+                                    Text("Filter categories & subcategories...", color = TextMuted, fontSize = 12.5.sp, maxLines = 1)
+                                }
+                                BasicTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    singleLine = true,
+                                    textStyle = TextStyle(fontSize = 12.5.sp, color = TextDark, fontWeight = FontWeight.Medium),
+                                    cursorBrush = SolidColor(AccentPurple),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            if (searchQuery.isNotBlank()) {
+                                IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextMuted, modifier = Modifier.size(15.dp))
+                                }
                             }
                         }
                     }
                 }
+
+                // Top Shadow Shelf Dissolve Overlay
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(16.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    CanvasLight,
+                                    CanvasLight.copy(alpha = 0f)
+                                )
+                            )
+                        )
+                )
             }
 
-            // Scrollable Integrated Category & Subcategory Tree
+            // =========================================================
+            // 2. SCROLLABLE CATEGORY & SUBCATEGORY TREE
+            // =========================================================
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                contentPadding = PaddingValues(top = 4.dp, bottom = 110.dp)
+                contentPadding = PaddingValues(top = 4.dp, bottom = 125.dp)
             ) {
                 if (filteredCategories.isEmpty()) {
                     item {
@@ -419,7 +445,29 @@ fun MasterDataSetScreen(
             }
         }
 
-        // Standardized Floating Bottom Navigation Dock with Contextual FAB Menu
+        // =========================================================
+        // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
+        // =========================================================
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(115.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            CanvasLight.copy(alpha = 0.85f),
+                            CanvasLight
+                        )
+                    )
+                )
+                .zIndex(3f)
+        )
+
+        // =========================================================
+        // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH CONTEXTUAL FAB
+        // =========================================================
         AppBottomDock(
             currentSelection = NavigationTarget.DATA_SET,
             onSelectTarget = { target ->
@@ -428,13 +476,15 @@ fun MasterDataSetScreen(
                     NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
                     NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
                     NavigationTarget.REPORTS_ANALYTICS -> onNavigateToAnalytics()
-                    NavigationTarget.DATA_SET -> { /* Already on this screen */ }
+                    NavigationTarget.DATA_SET -> { /* Already active */ }
                     else -> {}
                 }
             },
             fabActions = fabActions,
             isVisible = isDockVisible.value,
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(4f)
         )
 
         // Alert: Protected Category Notice
@@ -991,7 +1041,7 @@ private fun IntegratedCategoryTreeCard(
                 }
             }
 
-            // Nested Integrated Subcategories Tree
+            // Nested Subcategories
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = expandVertically() + fadeIn(),
