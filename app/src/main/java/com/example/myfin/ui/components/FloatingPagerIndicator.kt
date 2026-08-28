@@ -35,8 +35,7 @@ import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.launch
 
 /**
- * Floating segmented indicator pill linked to a horizontal PagerState.
- * Renders an animated title and interactive dash segments above the bottom navigation dock.
+ * Floating segmented indicator pill aligned with the bottom dock's active tab.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -71,14 +70,14 @@ fun FloatingPagerIndicator(
                     alpha = animAlpha
                     translationY = animTranslationY
                 }
-                .shadow(elevation = 10.dp, shape = RoundedCornerShape(18.dp), ambientColor = Color.Black.copy(alpha = 0.12f))
-                .clip(RoundedCornerShape(18.dp)),
-            shape = RoundedCornerShape(18.dp),
+                .shadow(elevation = 8.dp, shape = RoundedCornerShape(20.dp), ambientColor = Color.Black.copy(alpha = 0.12f), spotColor = Color.Black.copy(alpha = 0.16f))
+                .clip(RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
             color = containerColor,
             border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -97,21 +96,21 @@ fun FloatingPagerIndicator(
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = activeColor,
-                        letterSpacing = 0.3.sp
+                        letterSpacing = 0.2.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(3.dp))
 
                 // Interactive Segmented Indicator Dashes
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     repeat(pagerState.pageCount) { pageIndex ->
                         val isSelected = pagerState.currentPage == pageIndex
                         val dashWidth by animateDpAsState(
-                            targetValue = if (isSelected) 24.dp else 10.dp,
+                            targetValue = if (isSelected) 18.dp else 7.dp,
                             animationSpec = spring(dampingRatio = 0.78f, stiffness = 500f),
                             label = "dashWidth"
                         )
@@ -119,7 +118,7 @@ fun FloatingPagerIndicator(
                         Box(
                             modifier = Modifier
                                 .width(dashWidth)
-                                .height(3.5.dp)
+                                .height(3.dp)
                                 .clip(CircleShape)
                                 .background(if (isSelected) activeColor else inactiveColor)
                                 .clickable(
@@ -141,10 +140,6 @@ fun FloatingPagerIndicator(
     }
 }
 
-/**
- * Reusable NestedScrollConnection helper that drives the auto-hide/show behavior
- * of the floating indicator based on scroll direction deltas.
- */
 @Composable
 fun rememberAutoScrollVisibilityConnection(): Pair<MutableState<Boolean>, NestedScrollConnection> {
     val isVisible = remember { mutableStateOf(true) }
