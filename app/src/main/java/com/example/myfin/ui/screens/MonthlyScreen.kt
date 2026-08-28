@@ -481,7 +481,7 @@ fun MonthlyScreen(
                                 Spacer(modifier = Modifier.height(16.dp))
                             }
 
-                            // 3-Pillar Cashflow & Target Comparison
+                            // 3-Pillar Target & Cashflow Execution
                             item {
                                 val plannedExpenses = uiState.metrics.plannedExpenses
                                 val actualExpenses = uiState.metrics.actualExpenses
@@ -1168,16 +1168,16 @@ fun MonthlyScreen(
         )
 
         // =========================================================
-        // 4. FLOATING PAGER INDICATOR PILL (ABOVE BOTTOM DOCK)
+        // 4. FLOATING PAGER INDICATOR PILL (ANCHORED LEFT ABOVE ACTIVE TAB)
         // =========================================================
         FloatingPagerIndicator(
             pagerState = pagerState,
             pageTitles = pageTitles,
             isVisible = isDockVisible.value,
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.BottomStart)
                 .navigationBarsPadding()
-                .padding(bottom = 82.dp)
+                .padding(start = 22.dp, bottom = 78.dp)
                 .zIndex(3.5f)
         )
 
