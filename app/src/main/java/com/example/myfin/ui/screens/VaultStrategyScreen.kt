@@ -26,7 +26,6 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -99,7 +98,7 @@ private fun getVaultTier(accountType: String, accountName: String): VaultTier {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VaultAccountsScreen(
+fun VaultStrategyScreen(
     viewModel: BudgetViewModel,
     onOpenDrawer: () -> Unit,
     onNavigateToDashboard: () -> Unit = {},
@@ -112,8 +111,6 @@ fun VaultAccountsScreen(
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
-    var isThreeVaultStrategy by rememberSaveable { mutableStateOf(true) }
-    var pendingModeTarget by remember { mutableStateOf<Boolean?>(null) }
     var showHelpDialog by remember { mutableStateOf(false) }
     var receiptPayload by remember { mutableStateOf<SuccessReceiptPayload?>(null) }
 
@@ -193,13 +190,12 @@ fun VaultAccountsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // 1. Fully Centered Top Header Bar with Unified Right Capsule
+            // Header Bar with Centered Title & Unified Action Capsule
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 6.dp)
             ) {
-                // Left Drawer Trigger
                 IconButton(
                     onClick = onOpenDrawer,
                     modifier = Modifier
@@ -217,9 +213,8 @@ fun VaultAccountsScreen(
                     )
                 }
 
-                // Centered Screen Title
                 Text(
-                    text = if (isThreeVaultStrategy) "3-Vault Strategy" else "Vault Accounts",
+                    text = "3-Vault Strategy",
                     fontWeight = FontWeight.Black,
                     fontSize = 17.sp,
                     color = TextDark,
@@ -227,7 +222,6 @@ fun VaultAccountsScreen(
                     modifier = Modifier.align(Alignment.Center)
                 )
 
-                // Right Unified Action Capsule (Insights + Settings)
                 Surface(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
@@ -240,7 +234,6 @@ fun VaultAccountsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 2.dp)
                     ) {
-                        // Button 1: Reports & Analytics
                         IconButton(
                             onClick = onNavigateToVaultAnalytics,
                             modifier = Modifier.size(34.dp)
@@ -253,7 +246,6 @@ fun VaultAccountsScreen(
                             )
                         }
 
-                        // Vertical Divider
                         Box(
                             modifier = Modifier
                                 .width(0.8.dp)
@@ -261,7 +253,6 @@ fun VaultAccountsScreen(
                                 .background(BorderLight.copy(alpha = 0.8f))
                         )
 
-                        // Button 2: Vault Settings / Preferences
                         IconButton(
                             onClick = onNavigateToVaultSettings,
                             modifier = Modifier.size(34.dp)
@@ -277,7 +268,6 @@ fun VaultAccountsScreen(
                 }
             }
 
-            // Scrollable Content
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -285,7 +275,7 @@ fun VaultAccountsScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 105.dp)
             ) {
-                // 2. Vault Asset Allocation Card
+                // Vault Asset Allocation Card
                 item {
                     Surface(
                         modifier = Modifier
@@ -402,7 +392,7 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // 3. Connected Bank Accounts Header
+                // Connected Bank Accounts Header
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -425,7 +415,7 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // 4. Horizontal Bank Cards Carousel
+                // Horizontal Bank Cards Carousel
                 if (displayAccounts.isEmpty()) {
                     item {
                         Surface(
@@ -455,7 +445,7 @@ fun VaultAccountsScreen(
                                     currencySymbol = userProfile.currencySymbol,
                                     tier = tier,
                                     isSelected = isSelected,
-                                    showRole = isThreeVaultStrategy,
+                                    showRole = true,
                                     onSelect = { activeSelectedCardIndex = idx },
                                     onEdit = { editingAccount = acc },
                                     modifier = Modifier.width(260.dp)
@@ -466,7 +456,7 @@ fun VaultAccountsScreen(
                     }
                 }
 
-                // 5. Account Cashflow Matrix
+                // Account Cashflow Matrix
                 activeAccount?.let { acc ->
                     item {
                         Text(
@@ -477,7 +467,6 @@ fun VaultAccountsScreen(
                         )
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // 2x2 Metric Grid
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -540,7 +529,7 @@ fun VaultAccountsScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // 6. Strategic Vault Routing Card
+                        // Strategic Vault Routing Card
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -615,7 +604,7 @@ fun VaultAccountsScreen(
             }
         }
 
-        // 4 + 1 Floating Bottom Navigation Dock
+        // Floating Bottom Navigation Dock
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -685,7 +674,6 @@ fun VaultAccountsScreen(
             }
         }
 
-        // Floating Action Menu
         if (showActionMenu) {
             Box(
                 modifier = Modifier
@@ -1347,79 +1335,6 @@ fun VaultAccountsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
             }
-        }
-
-        // Mode Switch Confirmation Alert
-        pendingModeTarget?.let { targetMode ->
-            AlertDialog(
-                onDismissRequest = { pendingModeTarget = null },
-                title = {
-                    Text(
-                        text = if (targetMode) "Enable 3-Vault Strategy?" else "Switch to Simple Mode?",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                },
-                text = {
-                    Text(
-                        text = if (targetMode) {
-                            "This organizes your accounts into Operating (daily spend), Commitments (AutoPay bills), Emergency Fortress, and Cash tiers. Your balances remain completely intact."
-                        } else {
-                            "This will display your accounts in a unified flat list without role compartmentalization."
-                        },
-                        fontSize = 13.sp,
-                        color = TextDark
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            isThreeVaultStrategy = targetMode
-                            pendingModeTarget = null
-                            receiptPayload = SuccessReceiptPayload(
-                                subtitle = "Preference Updated",
-                                headline = if (targetMode) "3-Vault Strategy Active" else "Simple Mode Active",
-                                description = if (targetMode) {
-                                    "Accounts structured into Operating, Commitments, Fortress, and Cash tiers."
-                                } else {
-                                    "Accounts structured into a flexible, flat liquidity list."
-                                },
-                                buttonText = "Done"
-                            )
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Confirm Switch", fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { pendingModeTarget = null }) {
-                        Text("Cancel", color = TextDark)
-                    }
-                }
-            )
-        }
-
-        // Help Guide Dialog
-        if (showHelpDialog) {
-            AlertDialog(
-                onDismissRequest = { showHelpDialog = false },
-                title = { Text("3-Vault Strategy Guide", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("• Operating: Variable daily life and groceries. Never touch for fixed bills.")
-                        Text("• Commitments: Dedicated for AutoPay, loan EMIs, and monthly fixed commitments.")
-                        Text("• Fortress: Liquid emergency backup protecting against unforeseen surprises.")
-                        Text("• Cash: Physical cash on hand and petty expenses.")
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showHelpDialog = false }) {
-                        Text("Understood", fontWeight = FontWeight.Bold, color = AccentPurple)
-                    }
-                }
-            )
         }
 
         // Success Receipt Bottom Sheet
