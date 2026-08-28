@@ -131,8 +131,8 @@ class BudgetViewModel(
     )
 
     val userProfile: StateFlow<UserProfile> = dao.getUserProfile()
-        .map { it ?: UserProfile() }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, UserProfile())
+        .map { it ?: UserProfile(id = 1) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, UserProfile(id = 1))
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -356,14 +356,14 @@ class BudgetViewModel(
 
     fun saveUserProfile(profile: UserProfile) {
         viewModelScope.launch(Dispatchers.IO) {
-            dao.saveUserProfile(profile)
+            dao.saveUserProfile(profile.copy(id = 1))
         }
     }
 
     fun updateVaultMode(mode: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
-            dao.saveUserProfile(current.copy(vaultMode = mode))
+            dao.saveUserProfile(current.copy(id = 1, vaultMode = mode))
         }
     }
 
@@ -372,52 +372,56 @@ class BudgetViewModel(
         securityManager.setRecoveryDob(recoveryDob)
     }
 
+    fun savePin(pin: String) {
+        securityManager.setPin(pin)
+    }
+
     fun updateProfileImageUri(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
-            dao.saveUserProfile(current.copy(profileImageUri = uriString))
+            dao.saveUserProfile(current.copy(id = 1, profileImageUri = uriString))
         }
     }
 
     fun updateCoverImageUri(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
-            dao.saveUserProfile(current.copy(coverImageUri = uriString))
+            dao.saveUserProfile(current.copy(id = 1, coverImageUri = uriString))
         }
     }
 
     fun updateDisplayName(name: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
-            dao.saveUserProfile(current.copy(displayName = name))
+            dao.saveUserProfile(current.copy(id = 1, displayName = name))
         }
     }
 
     fun updateCurrencySymbol(symbol: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
-            dao.saveUserProfile(current.copy(currencySymbol = symbol))
+            dao.saveUserProfile(current.copy(id = 1, currencySymbol = symbol))
         }
     }
 
     fun updateFortressThreshold(newThreshold: Double) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
-            dao.saveUserProfile(current.copy(fortressThreshold = newThreshold))
+            dao.saveUserProfile(current.copy(id = 1, fortressThreshold = newThreshold))
         }
     }
 
     fun updateBiometricEnabled(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
-            dao.saveUserProfile(current.copy(isBiometricEnabled = enabled))
+            dao.saveUserProfile(current.copy(id = 1, isBiometricEnabled = enabled))
         }
     }
 
     fun updateScreenCaptureAllowed(allowed: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
-            dao.saveUserProfile(current.copy(isScreenCaptureAllowed = allowed))
+            dao.saveUserProfile(current.copy(id = 1, isScreenCaptureAllowed = allowed))
         }
     }
 
@@ -426,6 +430,7 @@ class BudgetViewModel(
             val current = userProfile.value
             dao.saveUserProfile(
                 current.copy(
+                    id = 1,
                     isAutoPayReminderEnabled = enabled,
                     reminderEnabled = enabled,
                     reminderHour = hour,
@@ -1190,13 +1195,14 @@ class BudgetViewModel(
                 }
             }
 
-            var updatedProfile = userProfile.value.copy(isOnboardingCompleted = true)
+            var updatedProfile = userProfile.value.copy(id = 1, isOnboardingCompleted = true)
             if (root.has("userProfile")) {
                 val p = root.getJSONObject("userProfile")
                 val parsedProfileImg = if (p.isNull("profileImageUri")) null else p.optString("profileImageUri").takeIf { it.isNotBlank() }
                 val parsedCoverImg = if (p.isNull("coverImageUri")) null else p.optString("coverImageUri").takeIf { it.isNotBlank() }
 
                 updatedProfile = updatedProfile.copy(
+                    id = 1,
                     displayName = p.optString("displayName", updatedProfile.displayName),
                     email = p.optString("email", updatedProfile.email),
                     dateOfBirth = p.optString("dateOfBirth", updatedProfile.dateOfBirth),
