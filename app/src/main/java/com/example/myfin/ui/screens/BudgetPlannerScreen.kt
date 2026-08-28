@@ -73,6 +73,7 @@ fun BudgetPlannerScreen(
     onOpenDrawer: () -> Unit,
     onNavigateToTaxonomy: () -> Unit = {},
     onNavigateToMonthly: () -> Unit = {},
+    onNavigateToYearly: () -> Unit = {},
     onNavigateToVaults: () -> Unit = {},
     onNavigateToAnalytics: () -> Unit = {}
 ) {
@@ -162,7 +163,7 @@ fun BudgetPlannerScreen(
                     icon = Icons.Default.Autorenew,
                     label = "Add Fixed Bill",
                     onClick = {
-                        Toast.makeText(context, "Manage recurring AutoPay in Vaults or Settings.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Manage recurring AutoPay in Vaults.", Toast.LENGTH_SHORT).show()
                     }
                 ),
                 DockFabAction(
@@ -577,7 +578,10 @@ fun BudgetPlannerScreen(
                     NavigationTarget.MONTHLY_VIEW -> onNavigateToMonthly()
                     NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
-                    NavigationTarget.REPORTS_ANALYTICS -> onNavigateToAnalytics()
+                    NavigationTarget.REPORTS_ANALYTICS -> {
+                        onNavigateToAnalytics()
+                        onNavigateToYearly()
+                    }
                     NavigationTarget.BUDGET_PLANNER -> { /* Active */ }
                     else -> {}
                 }
@@ -642,7 +646,7 @@ fun BudgetPlannerScreen(
                 title = { Text("Copy Last Month's Plan?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                 text = {
                     Text(
-                        "This will sync planned ceilings and baseline goals from the previous month into ${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}. Any custom limits already set will be updated.",
+                        "This will sync planned ceilings and baseline goals from the previous month into ${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}.",
                         fontSize = 13.sp,
                         color = TextDark
                     )
@@ -650,8 +654,7 @@ fun BudgetPlannerScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.syncNextMonthPlan()
-                            Toast.makeText(context, "Previous month's plan applied successfully!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Previous month's plan synced successfully!", Toast.LENGTH_SHORT).show()
                             showCopyPlanDialog = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
