@@ -99,7 +99,7 @@ fun MasterDataSetScreen(
         }
     }
 
-    // Cleaned Taxonomy Metrics
+    // Taxonomy Metrics
     val totalCats = segmentCategories.size
     val totalSubs = segmentSubcategories.size
     val protectedCount = segmentCategories.count { viewModel.protectedCategories.contains(it.name) }
@@ -135,7 +135,7 @@ fun MasterDataSetScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // =========================================================
-            // 1. PINNED TOP HEADER (WITH CLEAN BOTTOM SHELF DISSOLVE)
+            // 1. PINNED TOP HEADER WITH SHELF DISSOLVE
             // =========================================================
             Column(
                 modifier = Modifier
@@ -465,7 +465,7 @@ fun MasterDataSetScreen(
         )
 
         // =========================================================
-        // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH DIMMED BACKDROP
+        // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH FAB
         // =========================================================
         AppBottomDock(
             currentSelection = NavigationTarget.DATA_SET,
@@ -475,7 +475,7 @@ fun MasterDataSetScreen(
                     NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
                     NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
                     NavigationTarget.REPORTS_ANALYTICS -> onNavigateToAnalytics()
-                    NavigationTarget.DATA_SET -> { /* Already active */ }
+                    NavigationTarget.DATA_SET -> { /* Active */ }
                     else -> {}
                 }
             },
