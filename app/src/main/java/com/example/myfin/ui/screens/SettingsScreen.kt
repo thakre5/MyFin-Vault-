@@ -59,6 +59,8 @@ import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AppBrandingFooter
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -157,10 +159,24 @@ fun SettingsScreen(
         }
     }
 
+    // Copy selected image permanently to internal storage to avoid permission expiration
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { viewModel.updateProfileImageUri(it.toString()) }
+        uri?.let { sourceUri ->
+            try {
+                val inputStream = context.contentResolver.openInputStream(sourceUri)
+                val file = File(context.filesDir, "profile_avatar.jpg")
+                val outputStream = FileOutputStream(file)
+                inputStream?.copyTo(outputStream)
+                inputStream?.close()
+                outputStream.close()
+                viewModel.updateProfileImageUri(file.absolutePath)
+                Toast.makeText(context, "Profile picture updated", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                viewModel.updateProfileImageUri(sourceUri.toString())
+            }
+        }
     }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -267,9 +283,14 @@ fun SettingsScreen(
                                 val profileBitmap = remember(profileUri) {
                                     if (!profileUri.isNullOrBlank()) {
                                         try {
-                                            val uri = Uri.parse(profileUri)
-                                            val inputStream = context.contentResolver.openInputStream(uri)
-                                            BitmapFactory.decodeStream(inputStream)
+                                            val file = File(profileUri)
+                                            if (file.exists()) {
+                                                BitmapFactory.decodeFile(file.absolutePath)
+                                            } else {
+                                                val uri = Uri.parse(profileUri)
+                                                val inputStream = context.contentResolver.openInputStream(uri)
+                                                BitmapFactory.decodeStream(inputStream)
+                                            }
                                         } catch (e: Exception) {
                                             null
                                         }
@@ -317,7 +338,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    // User Identity Block (Generic Dummy Fallbacks)
+                    // User Identity Block
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -499,7 +520,7 @@ fun SettingsScreen(
                     )
                 }
 
-                // Card 5: Data Backup & Recovery (Separated Section)
+                // Card 5: Data Backup & Recovery
                 ExpandableSettingsCard(
                     icon = Icons.Default.Backup,
                     title = "Data Backup & Recovery",
@@ -529,7 +550,7 @@ fun SettingsScreen(
                     )
                 }
 
-                // Card 6: Accounting Statements & Reports (Separated Section)
+                // Card 6: Financial Statements & Reports
                 ExpandableSettingsCard(
                     icon = Icons.Default.TableChart,
                     title = "Financial Statements & Reports",
@@ -560,7 +581,7 @@ fun SettingsScreen(
                     )
                 }
 
-                // Card 7: User Guide & Support (Single-Row Card)
+                // Card 7: User Guide & Documentation
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -661,7 +682,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // 3. Bottom Hero Lock Button
+                // Bottom Hero Lock Button
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -697,7 +718,7 @@ fun SettingsScreen(
                     }
                 }
 
-                // 4. Shared Minimalist Branding Footer
+                // Shared Minimalist Branding Footer
                 AppBrandingFooter(
                     modifier = Modifier.fillMaxWidth(),
                     version = "v1.0.0",
@@ -713,7 +734,7 @@ fun SettingsScreen(
     // DEDICATED BOTTOM SHEETS & MODALS
     // ==========================================
 
-    // 1. Edit Personal Info Sheet (Syncs Directly with id = 1 & Generic Defaults)
+    // 1. Edit Personal Info Sheet
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
         var nameInput by remember(userProfile.displayName) { mutableStateOf(userProfile.displayName.ifBlank { "Alex Doe" }) }
         var emailInput by remember(userProfile.email) { mutableStateOf(userProfile.email.ifBlank { "alex.doe@example.com" }) }
@@ -813,7 +834,7 @@ fun SettingsScreen(
         }
     }
 
-    // 2. Strategy Mode Guidance Sheet (Neoclassical Bank Illustration)
+    // 2. Strategy Mode Guidance Sheet
     if (activeSheet == SettingsActiveSheet.VAULT_STRATEGY || activeSheet == SettingsActiveSheet.STRATEGY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -1024,7 +1045,7 @@ fun SettingsScreen(
         }
     }
 
-    // 4. Biometric Confirmation Sheet (Fingerprint Illustration)
+    // 4. Biometric Confirmation Sheet
     if (activeSheet == SettingsActiveSheet.BIOMETRIC_CONFIRM || activeSheet == SettingsActiveSheet.SECURITY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
