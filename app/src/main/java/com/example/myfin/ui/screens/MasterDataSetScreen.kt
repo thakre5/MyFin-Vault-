@@ -135,9 +135,9 @@ fun MasterDataSetScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // =========================================================
-            // 1. PINNED TOP HEADER CONTAINER (WITH SHELF GRADIENT SHADOW)
+            // 1. PINNED TOP HEADER (WITH CLEAN BOTTOM SHELF DISSOLVE)
             // =========================================================
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .zIndex(2f)
@@ -148,7 +148,7 @@ fun MasterDataSetScreen(
                         .background(CanvasLight)
                         .statusBarsPadding()
                         .padding(horizontal = 20.dp)
-                        .padding(top = 6.dp, bottom = 10.dp)
+                        .padding(top = 6.dp, bottom = 8.dp)
                 ) {
                     // Top App Bar
                     Row(
@@ -376,12 +376,11 @@ fun MasterDataSetScreen(
                     }
                 }
 
-                // Top Shadow Shelf Dissolve Overlay
+                // Smooth Dissolve Shelf Placed Below Search Bar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(16.dp)
-                        .align(Alignment.BottomCenter)
+                        .height(14.dp)
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
@@ -462,11 +461,11 @@ fun MasterDataSetScreen(
                         )
                     )
                 )
-                .zIndex(3f)
+                .zIndex(2.5f)
         )
 
         // =========================================================
-        // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH CONTEXTUAL FAB
+        // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH DIMMED BACKDROP
         // =========================================================
         AppBottomDock(
             currentSelection = NavigationTarget.DATA_SET,
@@ -483,7 +482,7 @@ fun MasterDataSetScreen(
             fabActions = fabActions,
             isVisible = isDockVisible.value,
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .fillMaxSize()
                 .zIndex(4f)
         )
 
