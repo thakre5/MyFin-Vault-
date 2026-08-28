@@ -48,6 +48,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import com.example.myfin.data.ExcelExportManager
 import com.example.myfin.ui.BudgetViewModel
@@ -171,143 +172,174 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(CanvasLight)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-        ) {
-            // 1. Top Purple Gradient Banner with 50:50 Overlapping Avatar
+        Column(modifier = Modifier.fillMaxSize()) {
+            // ==========================================
+            // 1. PINNED PROFILE HEADER SECTION (STATIC)
+            // ==========================================
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
+                    .zIndex(2f)
             ) {
-                // Top Gradient Background
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CanvasLight)
+                ) {
+                    // Purple Gradient Top Horizon Banner
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(170.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(125.dp)
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            AccentPurple,
+                                            AccentPurple.copy(alpha = 0.88f),
+                                            Color(0xFF6C5CE7).copy(alpha = 0.24f)
+                                        )
+                                    )
+                                )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .statusBarsPadding()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = onOpenDrawer,
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.22f))
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronLeft,
+                                        contentDescription = "Back / Menu",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+
+                                Text(
+                                    text = "Edit Profile",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { activeSheet = SettingsActiveSheet.PERSONAL_INFO }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+
+                        // 50:50 Overlapping Avatar on the Horizon
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(start = 24.dp)
+                                .size(80.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Surface(
+                                modifier = Modifier
+                                    .size(76.dp)
+                                    .clip(CircleShape)
+                                    .clickable { imagePickerLauncher.launch("image/*") },
+                                shape = CircleShape,
+                                color = AccentPurple.copy(alpha = 0.15f),
+                                border = BorderStroke(3.dp, CardWhite)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = userProfile.displayName.take(1).uppercase().ifBlank { "S" },
+                                        fontSize = 30.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = AccentPurple
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .clickable { imagePickerLauncher.launch("image/*") },
+                                shape = CircleShape,
+                                color = AccentPurple,
+                                border = BorderStroke(1.5.dp, CardWhite)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.PhotoCamera,
+                                        contentDescription = "Change photo",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // User Identity Block
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .padding(top = 4.dp, bottom = 12.dp)
+                    ) {
+                        Text(
+                            text = userProfile.displayName.ifBlank { "Sushant Thakre" },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = TextDark
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = userProfile.email.ifBlank { "sushantthakre5@gmail.com" },
+                            fontSize = 13.sp,
+                            color = TextMuted
+                        )
+                    }
+                }
+
+                // Smooth Dissolve Fade Overlay at Bottom of Pinned Header
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(130.dp)
+                        .height(18.dp)
+                        .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
-                                    AccentPurple,
-                                    AccentPurple.copy(alpha = 0.88f),
-                                    Color(0xFF6C5CE7).copy(alpha = 0.22f)
+                                    CanvasLight,
+                                    CanvasLight.copy(alpha = 0f)
                                 )
                             )
                         )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onOpenDrawer,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.22f))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ChevronLeft,
-                                contentDescription = "Back / Menu",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-
-                        Text(
-                            text = "Edit Profile",
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { activeSheet = SettingsActiveSheet.PERSONAL_INFO }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-
-                // Profile Avatar positioned 50% on top banner & 50% on canvas
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 24.dp)
-                        .size(80.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        modifier = Modifier
-                            .size(76.dp)
-                            .clip(CircleShape)
-                            .clickable { imagePickerLauncher.launch("image/*") },
-                        shape = CircleShape,
-                        color = AccentPurple.copy(alpha = 0.15f),
-                        border = BorderStroke(3.dp, CardWhite)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = userProfile.displayName.take(1).uppercase().ifBlank { "S" },
-                                fontSize = 30.sp,
-                                fontWeight = FontWeight.Black,
-                                color = AccentPurple
-                            )
-                        }
-                    }
-
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { imagePickerLauncher.launch("image/*") },
-                        shape = CircleShape,
-                        color = AccentPurple,
-                        border = BorderStroke(1.5.dp, CardWhite)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.PhotoCamera,
-                                contentDescription = "Change photo",
-                                tint = Color.White,
-                                modifier = Modifier.size(12.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 2. Left-Aligned Name & Handle Section
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(top = 4.dp, bottom = 18.dp)
-            ) {
-                Text(
-                    text = userProfile.displayName.ifBlank { "Sushant Thakre" },
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                    color = TextDark
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = userProfile.email.ifBlank { "sushantthakre5@gmail.com" },
-                    fontSize = 13.sp,
-                    color = TextMuted
                 )
             }
 
-            // 3. Expandable Parent-Child Accordion Cards (Auto Single-Open)
+            // ==========================================
+            // 2. SCROLLABLE ACCORDION CARDS CONTAINER
+            // ==========================================
             Column(
                 modifier = Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 6.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // Card 1: Profile & Regional Configuration
@@ -601,9 +633,9 @@ fun SettingsScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                // 4. Bottom Hero Lock Button
+                // 3. Bottom Hero Lock Button
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -639,7 +671,7 @@ fun SettingsScreen(
                     }
                 }
 
-                // 5. Shared Branding Footer
+                // 4. Shared Minimalist Branding Footer
                 AppBrandingFooter(
                     modifier = Modifier.fillMaxWidth(),
                     version = "v1.0.0",
