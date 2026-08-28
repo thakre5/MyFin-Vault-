@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
+import coil.compose.AsyncImage
 import com.example.myfin.data.ExcelExportManager
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AppBrandingFooter
@@ -260,12 +262,21 @@ fun SettingsScreen(
                                 border = BorderStroke(3.dp, CardWhite)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = userProfile.displayName.take(1).uppercase().ifBlank { "A" },
-                                        fontSize = 30.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = AccentPurple
-                                    )
+                                    if (userProfile.profileImageUri.isNotBlank()) {
+                                        AsyncImage(
+                                            model = userProfile.profileImageUri,
+                                            contentDescription = "Profile Picture",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Text(
+                                            text = userProfile.displayName.take(1).uppercase().ifBlank { "A" },
+                                            fontSize = 30.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = AccentPurple
+                                        )
+                                    }
                                 }
                             }
 
