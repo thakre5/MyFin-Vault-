@@ -62,7 +62,7 @@ enum class SettingsActiveSheet {
     DAILY_REMINDER,
     CURRENCY_PICKER,
     RESET_CONFIRM,
-    // Aliases for compatibility
+    // Legacy / Navigation Aliases
     STRATEGY,
     SECURITY,
     NOTIFICATIONS,
@@ -224,7 +224,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 2. Pinned Clean Horizontal Profile Header (Exact Reference Match)
+            // 2. Pinned Horizontal Profile Header (Matching Reference Layout)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -232,7 +232,6 @@ fun SettingsScreen(
                     .padding(top = 6.dp, bottom = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left: Avatar with Camera Badge
                 Box(
                     modifier = Modifier.size(70.dp),
                     contentAlignment = Alignment.Center
@@ -279,7 +278,6 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.width(16.dp))
 
-                // Right: Vertically Stacked Clean Info + Pill Button
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.Center
@@ -501,10 +499,6 @@ fun SettingsScreen(
         }
     }
 
-    // ==========================================
-    // DEDICATED BOTTOM SHEETS & MODALS
-    // ==========================================
-
     // 1. Edit Personal Info Sheet
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
         var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
@@ -603,7 +597,7 @@ fun SettingsScreen(
         }
     }
 
-    // 2. Strategy Mode Guidance Sheet (Bank Illustration - Image 3)
+    // 2. Strategy Mode Guidance Sheet (Neoclassical Bank Illustration)
     if (activeSheet == SettingsActiveSheet.VAULT_STRATEGY || activeSheet == SettingsActiveSheet.STRATEGY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -735,7 +729,7 @@ fun SettingsScreen(
         }
     }
 
-    // 3. Fortress Emergency Threshold Sheet (Auto-Sweep FD Target)
+    // 3. Fortress Emergency Threshold Sheet
     if (activeSheet == SettingsActiveSheet.FORTRESS_THRESHOLD) {
         var thresholdInput by remember(userProfile) {
             mutableStateOf(String.format(Locale.US, "%.0f", userProfile.fortressThreshold))
@@ -814,7 +808,7 @@ fun SettingsScreen(
         }
     }
 
-    // 4. Biometric Confirmation Sheet (Fingerprint - Image 2)
+    // 4. Biometric Confirmation Sheet (Fingerprint Illustration)
     if (activeSheet == SettingsActiveSheet.BIOMETRIC_CONFIRM || activeSheet == SettingsActiveSheet.SECURITY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -886,7 +880,7 @@ fun SettingsScreen(
         }
     }
 
-    // 5. Change Master PIN Sheet (With DOB Verification)
+    // 5. Change Master PIN Sheet (Using viewModel.savePin)
     if (activeSheet == SettingsActiveSheet.CHANGE_PIN) {
         var verifyDob by remember { mutableStateOf("") }
         var newPin by remember { mutableStateOf("") }
@@ -962,7 +956,7 @@ fun SettingsScreen(
                         } else if (newPin != confirmPin) {
                             errorMessage = "PIN confirmation does not match."
                         } else {
-                            viewModel.updateMasterPin(newPin)
+                            viewModel.savePin(newPin)
                             activeSheet = SettingsActiveSheet.NONE
                             Toast.makeText(context, "Master PIN updated successfully", Toast.LENGTH_SHORT).show()
                         }
@@ -1169,10 +1163,7 @@ fun SettingsScreen(
     }
 }
 
-// ==========================================
-// VECTOR ILLUSTRATION CANVASES
-// ==========================================
-
+// Vector Illustration Canvases
 @Composable
 private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
@@ -1306,10 +1297,7 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
     }
 }
 
-// ==========================================
-// REUSABLE SETTINGS ROW COMPONENTS
-// ==========================================
-
+// Reusable Settings Row Components
 @Composable
 private fun SettingsSectionGroup(
     title: String,
