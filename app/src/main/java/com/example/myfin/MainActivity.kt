@@ -25,6 +25,7 @@ import com.example.myfin.data.SecurityManager
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.screens.*
+import com.example.myfin.ui.screens.SettingsActiveSheet
 import com.example.myfin.ui.theme.MyfinTheme
 
 class MainActivity : FragmentActivity() {
@@ -102,7 +103,7 @@ class MainActivity : FragmentActivity() {
 
                 var isDrawerOpen by rememberSaveable { mutableStateOf(false) }
                 var currentTarget by rememberSaveable { mutableStateOf(NavigationTarget.MONTHLY_VIEW) }
-                var settingsInitialSheet by rememberSaveable { mutableStateOf<SettingsActiveSheet>(SettingsActiveSheet.NONE) }
+                var settingsInitialSheet by rememberSaveable { mutableStateOf(SettingsActiveSheet.NONE) }
 
                 when {
                     isFirstLaunch -> {
