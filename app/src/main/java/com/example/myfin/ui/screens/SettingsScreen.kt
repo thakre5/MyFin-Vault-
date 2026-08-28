@@ -10,7 +10,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -36,7 +35,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -65,6 +63,7 @@ enum class SettingsActiveSheet {
 private val BrandGreen = Color(0xFF5BB336)
 private val BrandBlue = Color(0xFF1E88E5)
 private val BrandCharcoal = Color(0xFF1C1D21)
+private val CoralAccent = Color(0xFFFF6B6B)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -152,7 +151,7 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // 1. Top Header Bar (Matching Reference Image 1)
+            // Header Bar
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -198,14 +197,14 @@ fun SettingsScreen(
                 }
             }
 
-            // Scrollable Content
+            // Scrollable Settings Content
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                // 2. Profile & Identity Header (Matching Reference Image 1)
+                // Profile & Identity Header
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -300,7 +299,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // 3. Continuous White Card Container
+                // Continuous White Card Container
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -415,7 +414,7 @@ fun SettingsScreen(
                             )
                         }
 
-                        // Section: Full Backup Snapshot
+                        // Section: Full Data Backup & Recovery
                         SettingsSectionGroup(title = "Full Data Backup & Recovery") {
                             SettingsNavigationRow(
                                 title = "Create Full Vault Snapshot (.json)",
@@ -435,7 +434,7 @@ fun SettingsScreen(
                             )
                         }
 
-                        // Section: Accounting Statements & Exports
+                        // Section: Accounting Statements & Reports
                         SettingsSectionGroup(title = "Accounting Statements & Reports") {
                             SettingsNavigationRow(
                                 title = "Export Excel Statement (.xlsx)",
@@ -468,7 +467,7 @@ fun SettingsScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // Reusable Shared Branding Footer Component
+                        // Branding Footer
                         AppBrandingFooter(
                             modifier = Modifier.fillMaxWidth(),
                             version = "v1.0.0",
@@ -480,11 +479,7 @@ fun SettingsScreen(
         }
     }
 
-    // ==========================================
-    // BOTTOM SHEETS & CONFIRMATION MODALS
-    // ==========================================
-
-    // 1. Biometric Confirmation Sheet (Matching Reference Image 2)
+    // Biometric Confirmation Sheet (Matching Image 2)
     if (activeSheet == SettingsActiveSheet.SECURITY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -556,7 +551,7 @@ fun SettingsScreen(
         }
     }
 
-    // 2. Strategy Mode Guidance Sheet (Matching Reference Image 3)
+    // Strategy Guidance Sheet (Matching Image 3)
     if (activeSheet == SettingsActiveSheet.STRATEGY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -688,7 +683,7 @@ fun SettingsScreen(
         }
     }
 
-    // 3. Edit Personal Info Bottom Sheet
+    // Edit Personal Info Sheet
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
         var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
         var emailInput by remember(userProfile) { mutableStateOf(userProfile.email) }
@@ -786,7 +781,7 @@ fun SettingsScreen(
         }
     }
 
-    // 4. Notification Settings Bottom Sheet
+    // Notification Reminder Time Sheet
     if (activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
         var hourInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderHour) }
         var minInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderMinute) }
@@ -875,7 +870,7 @@ fun SettingsScreen(
         }
     }
 
-    // 5. Currency Selector Bottom Sheet
+    // Currency Selector Sheet
     if (activeSheet == SettingsActiveSheet.CURRENCY) {
         val currencies = listOf("₹" to "Indian Rupee (INR)", "$" to "US Dollar (USD)", "€" to "Euro (EUR)", "£" to "British Pound (GBP)", "¥" to "Japanese Yen (JPY)", "AED " to "UAE Dirham (AED)")
 
@@ -931,7 +926,7 @@ fun SettingsScreen(
         }
     }
 
-    // 6. Danger Zone Reset Confirmation Dialog
+    // Danger Zone Confirmation Dialog
     if (activeSheet == SettingsActiveSheet.DATA_MANAGEMENT) {
         AlertDialog(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -967,10 +962,7 @@ fun SettingsScreen(
     }
 }
 
-// ==========================================
-// CUSTOM VECTOR ILLUSTRATIONS
-// ==========================================
-
+// Vector Illustration Canvases
 @Composable
 private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
@@ -1104,10 +1096,7 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
     }
 }
 
-// ==========================================
-// REUSABLE SETTINGS ROW COMPONENTS (Image 1)
-// ==========================================
-
+// Reusable Row Components
 @Composable
 private fun SettingsSectionGroup(
     title: String,
