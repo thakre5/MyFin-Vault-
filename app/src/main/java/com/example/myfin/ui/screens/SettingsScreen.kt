@@ -15,6 +15,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -341,27 +342,36 @@ fun SettingsScreen(
                         }
                     }
 
-                    // User Identity Block (Directly clickable to edit profile)
+                    // User Identity Block (Scaped strictly to text bounds without grey indicator box)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp)
                             .padding(top = 4.dp, bottom = 12.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { activeSheet = SettingsActiveSheet.PERSONAL_INFO }
                     ) {
-                        Text(
-                            text = userProfile.displayName.ifBlank { "Alex Doe" },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = TextDark
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = userProfile.email.ifBlank { "alex.doe@example.com" },
-                            fontSize = 13.sp,
-                            color = TextMuted
-                        )
+                        Column(
+                            modifier = Modifier
+                                .wrapContentWidth()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    activeSheet = SettingsActiveSheet.PERSONAL_INFO
+                                }
+                        ) {
+                            Text(
+                                text = userProfile.displayName.ifBlank { "Alex Doe" },
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp,
+                                color = TextDark
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = userProfile.email.ifBlank { "alex.doe@example.com" },
+                                fontSize = 13.sp,
+                                color = TextMuted
+                            )
+                        }
                     }
                 }
 
