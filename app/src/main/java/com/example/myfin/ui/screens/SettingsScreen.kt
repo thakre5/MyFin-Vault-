@@ -261,7 +261,7 @@ fun SettingsScreen(
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
-                                        text = userProfile.displayName.take(1).uppercase().ifBlank { "S" },
+                                        text = userProfile.displayName.take(1).uppercase().ifBlank { "A" },
                                         fontSize = 30.sp,
                                         fontWeight = FontWeight.Black,
                                         color = AccentPurple
@@ -291,7 +291,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    // User Identity Block
+                    // User Identity Block (Generic Dummy Fallbacks)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -299,14 +299,14 @@ fun SettingsScreen(
                             .padding(top = 4.dp, bottom = 12.dp)
                     ) {
                         Text(
-                            text = userProfile.displayName.ifBlank { "Sushant Thakre" },
+                            text = userProfile.displayName.ifBlank { "Alex Doe" },
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp,
                             color = TextDark
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = userProfile.email.ifBlank { "sushantthakre5@gmail.com" },
+                            text = userProfile.email.ifBlank { "alex.doe@example.com" },
                             fontSize = 13.sp,
                             color = TextMuted
                         )
@@ -687,11 +687,11 @@ fun SettingsScreen(
     // DEDICATED BOTTOM SHEETS & MODALS
     // ==========================================
 
-    // 1. Edit Personal Info Sheet (Syncs Directly with id = 1)
+    // 1. Edit Personal Info Sheet (Syncs Directly with id = 1 & Generic Defaults)
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
-        var nameInput by remember(userProfile.displayName) { mutableStateOf(userProfile.displayName) }
-        var emailInput by remember(userProfile.email) { mutableStateOf(userProfile.email) }
-        var dobInput by remember(userProfile.dateOfBirth) { mutableStateOf(userProfile.dateOfBirth) }
+        var nameInput by remember(userProfile.displayName) { mutableStateOf(userProfile.displayName.ifBlank { "Alex Doe" }) }
+        var emailInput by remember(userProfile.email) { mutableStateOf(userProfile.email.ifBlank { "alex.doe@example.com" }) }
+        var dobInput by remember(userProfile.dateOfBirth) { mutableStateOf(userProfile.dateOfBirth.ifBlank { "1995-01-01" }) }
         var incomeInput by remember(userProfile.baseMonthlyIncome) {
             mutableStateOf(String.format(Locale.US, "%.0f", userProfile.baseMonthlyIncome))
         }
