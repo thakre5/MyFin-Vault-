@@ -236,9 +236,9 @@ fun MonthlyScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column(modifier = Modifier.weight(1f)) {
-                                                Text("Prepare for Next Month", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                                Text(text = "Prepare for Next Month", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
                                                 Spacer(modifier = Modifier.height(2.dp))
-                                                Text("Carry forward your AutoPay commitments and budget templates.", fontSize = 11.sp, color = TextMuted)
+                                                Text(text = "Carry forward your AutoPay commitments and budget templates.", fontSize = 11.sp, color = TextMuted)
                                             }
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Column(horizontalAlignment = Alignment.End) {
@@ -248,13 +248,13 @@ fun MonthlyScreen(
                                                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
                                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                                 ) {
-                                                    Text("Sync Now", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    Text(text = "Sync Now", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                                 }
                                                 TextButton(
                                                     onClick = { viewModel.dismissRolloverPrompt() },
                                                     contentPadding = PaddingValues(0.dp)
                                                 ) {
-                                                    Text("Dismiss", fontSize = 10.sp, color = TextMuted)
+                                                    Text(text = "Dismiss", fontSize = 10.sp, color = TextMuted)
                                                 }
                                             }
                                         }
@@ -415,7 +415,7 @@ fun MonthlyScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text("START BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
+                                            Text(text = "START BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(
                                                 text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBalance)}",
@@ -423,7 +423,7 @@ fun MonthlyScreen(
                                                 fontSize = 15.sp,
                                                 color = TextDark
                                             )
-                                            Text("Opening Vault", fontSize = 10.sp, color = TextMuted)
+                                            Text(text = "Opening Vault", fontSize = 10.sp, color = TextMuted)
                                         }
 
                                         Box(
@@ -438,7 +438,7 @@ fun MonthlyScreen(
                                                 .weight(1f)
                                                 .padding(start = 12.dp)
                                         ) {
-                                            Text("END BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
+                                            Text(text = "END BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(
                                                 text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentEndBalance)}",
@@ -446,7 +446,7 @@ fun MonthlyScreen(
                                                 fontSize = 15.sp,
                                                 color = if (currentEndBalance >= 0) TextDark else SoftRed
                                             )
-                                            Text("Current Liquid", fontSize = 10.sp, color = TextMuted)
+                                            Text(text = "Current Liquid", fontSize = 10.sp, color = TextMuted)
                                         }
 
                                         Box(
@@ -462,7 +462,7 @@ fun MonthlyScreen(
                                                 .padding(start = 12.dp),
                                             horizontalAlignment = Alignment.End
                                         ) {
-                                            Text("NET SAVINGS", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
+                                            Text(text = "NET SAVINGS", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(
                                                 text = "${if (netSavings >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", netSavings)}",
@@ -571,7 +571,7 @@ fun MonthlyScreen(
 
                             // Category Matrix Section Header & Segment Switcher
                             item {
-                                Text("Category Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = "Category Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                 Spacer(modifier = Modifier.height(10.dp))
 
                                 Row(
@@ -618,7 +618,7 @@ fun MonthlyScreen(
                                         color = CardWhite
                                     ) {
                                         Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                                            Text("No active entries in this segment", fontSize = 12.sp, color = TextMuted)
+                                            Text(text = "No active entries in this segment", fontSize = 12.sp, color = TextMuted)
                                         }
                                     }
                                 }
@@ -696,7 +696,7 @@ fun MonthlyScreen(
                                                                     if (cat.isOverBudget) {
                                                                         Spacer(modifier = Modifier.width(6.dp))
                                                                         Surface(shape = RoundedCornerShape(4.dp), color = SoftRed.copy(alpha = 0.12f)) {
-                                                                            Text("Over Budget", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = SoftRed, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                                                                            Text(text = "Over Budget", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = SoftRed, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
                                                                         }
                                                                     }
                                                                 }
@@ -772,7 +772,7 @@ fun MonthlyScreen(
                                                                 .padding(12.dp)
                                                         ) {
                                                             if (cat.activeSubcategories.isEmpty()) {
-                                                                Text("No logged transactions in subcategories", fontSize = 11.5.sp, color = TextMuted)
+                                                                Text(text = "No logged transactions in subcategories", fontSize = 11.5.sp, color = TextMuted)
                                                             } else {
                                                                 Text(
                                                                     text = "SUBCATEGORY CONTRIBUTIONS",
@@ -802,7 +802,7 @@ fun MonthlyScreen(
                                                                                         .background(progressColor)
                                                                                 )
                                                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                                                Text(sub.name, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextDark)
+                                                                                Text(text = sub.name, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextDark)
                                                                             }
 
                                                                             Text(
@@ -869,7 +869,7 @@ fun MonthlyScreen(
 
                                         Box(modifier = Modifier.weight(1f)) {
                                             if (filterCriteria.query.isEmpty()) {
-                                                Text("Search ledger...", color = TextMuted, fontSize = 13.sp, maxLines = 1)
+                                                Text(text = "Search ledger...", color = TextMuted, fontSize = 13.sp, maxLines = 1)
                                             }
                                             BasicTextField(
                                                 value = filterCriteria.query,
@@ -955,7 +955,7 @@ fun MonthlyScreen(
                                         FilterChip(
                                             selected = filterCriteria.account == "ALL",
                                             onClick = { viewModel.updateFilter(filterCriteria.type, "ALL", filterCriteria.startDate, filterCriteria.endDate) },
-                                            label = { Text("All Vaults", fontSize = 11.sp) },
+                                            label = { Text(text = "All Vaults", fontSize = 11.sp) },
                                             shape = RoundedCornerShape(8.dp),
                                             colors = FilterChipDefaults.filterChipColors(
                                                 selectedContainerColor = AccentPurple.copy(alpha = 0.12f),
@@ -974,7 +974,7 @@ fun MonthlyScreen(
                                         FilterChip(
                                             selected = isSelected,
                                             onClick = { viewModel.updateFilter(filterCriteria.type, acc, filterCriteria.startDate, filterCriteria.endDate) },
-                                            label = { Text(acc, fontSize = 11.sp) },
+                                            label = { Text(text = acc, fontSize = 11.sp) },
                                             shape = RoundedCornerShape(8.dp),
                                             colors = FilterChipDefaults.filterChipColors(
                                                 selectedContainerColor = AccentPurple.copy(alpha = 0.12f),
@@ -997,9 +997,9 @@ fun MonthlyScreen(
                                 item {
                                     Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text("No transactions recorded", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                            Text(text = "No transactions recorded", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
                                             Spacer(modifier = Modifier.height(4.dp))
-                                            Text("Try clearing filters or log a new entry", fontSize = 12.sp, color = TextMuted)
+                                            Text(text = "Try clearing filters or log a new entry", fontSize = 12.sp, color = TextMuted)
                                         }
                                     }
                                 }
@@ -1095,11 +1095,11 @@ fun MonthlyScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Fixed SIPs & Bills", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                    Text(text = "Fixed SIPs & Bills", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                     TextButton(onClick = { showAddFixedBill = true }) {
                                         Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(16.dp), tint = AccentPurple)
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Add AutoPay", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = AccentPurple)
+                                        Text(text = "Add AutoPay", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = AccentPurple)
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -1113,7 +1113,7 @@ fun MonthlyScreen(
                                         color = CardWhite
                                     ) {
                                         Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                                            Text("No recurring AutoPay commitments for this month", fontSize = 12.sp, color = TextMuted)
+                                            Text(text = "No recurring AutoPay commitments for this month", fontSize = 12.sp, color = TextMuted)
                                         }
                                     }
                                 }
@@ -1189,10 +1189,10 @@ fun MonthlyScreen(
             currentSelection = NavigationTarget.MONTHLY_VIEW,
             onSelectTarget = { target ->
                 when (target) {
-                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
                     NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
                     NavigationTarget.REPORTS_ANALYTICS -> onNavigateToAnalytics()
+                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.MONTHLY_VIEW -> { /* Active */ }
                     else -> {}
                 }
@@ -1230,10 +1230,10 @@ fun MonthlyScreen(
         transactionToDelete?.let { tx ->
             AlertDialog(
                 onDismissRequest = { transactionToDelete = null },
-                title = { Text("Delete Transaction?", fontWeight = FontWeight.Bold) },
+                title = { Text(text = "Delete Transaction?", fontWeight = FontWeight.Bold) },
                 text = {
                     Text(
-                        if (tx.linkedFixedBillId != null)
+                        text = if (tx.linkedFixedBillId != null)
                             "This entry is linked to an AutoPay bill. Deleting it will restore your vault balance and revert the parent commitment back to Unpaid."
                         else "Are you sure you want to delete '${tx.title}' (${userProfile.currencySymbol}${tx.amount})? This will permanently remove it from your vault ledger."
                     )
@@ -1243,12 +1243,12 @@ fun MonthlyScreen(
                         viewModel.deleteTransaction(tx)
                         transactionToDelete = null
                     }) {
-                        Text("Delete", color = SoftRed, fontWeight = FontWeight.Bold)
+                        Text(text = "Delete", color = SoftRed, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { transactionToDelete = null }) {
-                        Text("Cancel", color = TextDark)
+                        Text(text = "Cancel", color = TextDark)
                     }
                 }
             )
@@ -1258,21 +1258,21 @@ fun MonthlyScreen(
         billToDelete?.let { bill ->
             AlertDialog(
                 onDismissRequest = { billToDelete = null },
-                title = { Text("Delete AutoPay Commitment?", fontWeight = FontWeight.Bold) },
+                title = { Text(text = "Delete AutoPay Commitment?", fontWeight = FontWeight.Bold) },
                 text = {
-                    Text("Deleting '${bill.title}' will remove this recurring template. Any linked payment already recorded in your ledger for this month will also be deleted and restored to your vault.")
+                    Text(text = "Deleting '${bill.title}' will remove this recurring template. Any linked payment already recorded in your ledger for this month will also be deleted and restored to your vault.")
                 },
                 confirmButton = {
                     TextButton(onClick = {
                         viewModel.deleteFixedBill(bill)
                         billToDelete = null
                     }) {
-                        Text("Delete Commitment", color = SoftRed, fontWeight = FontWeight.Bold)
+                        Text(text = "Delete Commitment", color = SoftRed, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { billToDelete = null }) {
-                        Text("Cancel", color = TextDark)
+                        Text(text = "Cancel", color = TextDark)
                     }
                 }
             )
@@ -1282,21 +1282,21 @@ fun MonthlyScreen(
         billToRevert?.let { bill ->
             AlertDialog(
                 onDismissRequest = { billToRevert = null },
-                title = { Text("Revert to Unsettled?", fontWeight = FontWeight.Bold) },
+                title = { Text(text = "Revert to Unsettled?", fontWeight = FontWeight.Bold) },
                 text = {
-                    Text("Reverting '${bill.title}' will delete the logged payment from your transaction ledger and restore the balance to ${bill.accountName}.")
+                    Text(text = "Reverting '${bill.title}' will delete the logged payment from your transaction ledger and restore the balance to ${bill.accountName}.")
                 },
                 confirmButton = {
                     TextButton(onClick = {
                         viewModel.toggleFixedBillPaid(bill)
                         billToRevert = null
                     }) {
-                        Text("Revert Status", color = SoftRed, fontWeight = FontWeight.Bold)
+                        Text(text = "Revert Status", color = SoftRed, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { billToRevert = null }) {
-                        Text("Cancel", color = TextDark)
+                        Text(text = "Cancel", color = TextDark)
                     }
                 }
             )
@@ -1323,15 +1323,15 @@ fun MonthlyScreen(
             Dialog(onDismissRequest = { settlingFixedBill = null }) {
                 Surface(shape = RoundedCornerShape(20.dp), color = CardWhite, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(20.dp)) {
-                        Text(actionPrompt, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                        Text(text = actionPrompt, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(descPrompt, fontSize = 12.sp, color = TextMuted)
+                        Text(text = descPrompt, fontSize = 12.sp, color = TextMuted)
 
                         Spacer(modifier = Modifier.height(14.dp))
                         OutlinedTextField(
                             value = finalAmountText,
                             onValueChange = { finalAmountText = it },
-                            label = { Text("Actual Amount (${userProfile.currencySymbol})") },
+                            label = { Text(text = "Actual Amount (${userProfile.currencySymbol})") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
@@ -1342,7 +1342,7 @@ fun MonthlyScreen(
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { settlingFixedBill = null }) {
-                                Text("Cancel", color = TextDark)
+                                Text(text = "Cancel", color = TextDark)
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(
@@ -1361,7 +1361,7 @@ fun MonthlyScreen(
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
-                                Text("Confirm & Settle", fontWeight = FontWeight.Bold)
+                                Text(text = "Confirm & Settle", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1399,13 +1399,13 @@ fun MonthlyScreen(
                         .navigationBarsPadding()
                         .padding(horizontal = 22.dp, vertical = 8.dp)
                 ) {
-                    Text("Transfer Funds", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                    Text(text = "Transfer Funds", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("Move money between your bank accounts & vaults", fontSize = 11.5.sp, color = TextMuted)
+                    Text(text = "Move money between your bank accounts & vaults", fontSize = 11.5.sp, color = TextMuted)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Text("From (Source)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "From (Source)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(accountsList) { acc ->
@@ -1431,7 +1431,7 @@ fun MonthlyScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("To (Destination)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "To (Destination)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(accountsList) { acc ->
@@ -1460,7 +1460,7 @@ fun MonthlyScreen(
                     OutlinedTextField(
                         value = amountText,
                         onValueChange = { amountText = it },
-                        label = { Text("Transfer Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        label = { Text(text = "Transfer Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1476,7 +1476,7 @@ fun MonthlyScreen(
                     OutlinedTextField(
                         value = noteText,
                         onValueChange = { noteText = it },
-                        label = { Text("Note / Purpose (Optional)", fontSize = 12.sp) },
+                        label = { Text(text = "Note / Purpose (Optional)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1506,7 +1506,7 @@ fun MonthlyScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text("Confirm Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text(text = "Confirm Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -1518,14 +1518,14 @@ fun MonthlyScreen(
             Dialog(onDismissRequest = { showMonthPicker = false }) {
                 Surface(shape = RoundedCornerShape(20.dp), color = CardWhite, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(20.dp)) {
-                        Text("Select Timeframe", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                        Text(text = "Select Timeframe", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
                         Spacer(modifier = Modifier.height(14.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { viewModel.selectYear(uiState.selectedYear - 1) }) {
                                 Icon(Icons.Default.ChevronLeft, contentDescription = "Prev Year")
                             }
-                            Text("${uiState.selectedYear}", fontWeight = FontWeight.Black, fontSize = 16.sp)
+                            Text(text = "${uiState.selectedYear}", fontWeight = FontWeight.Black, fontSize = 16.sp)
                             IconButton(onClick = { viewModel.selectYear(uiState.selectedYear + 1) }) {
                                 Icon(Icons.Default.ChevronRight, contentDescription = "Next Year")
                             }
@@ -1655,7 +1655,7 @@ private fun PillarMetricCard(
                         .background(tintColor)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(title, fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                Text(text = title, fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
             }
             Spacer(modifier = Modifier.height(3.dp))
             Text(
@@ -1686,7 +1686,7 @@ private fun PillarDualBarRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
                 Spacer(modifier = Modifier.width(8.dp))
                 Surface(
                     shape = RoundedCornerShape(6.dp),
