@@ -923,7 +923,6 @@ private fun IntegratedCategoryTreeCard(
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
     ) {
         Column {
-            // Parent Category Header (Swipeable)
             SwipeToDismissBox(
                 state = dismissState,
                 enableDismissFromStartToEnd = true,
@@ -1040,7 +1039,6 @@ private fun IntegratedCategoryTreeCard(
                 }
             }
 
-            // Nested Subcategories
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = expandVertically() + fadeIn(),
