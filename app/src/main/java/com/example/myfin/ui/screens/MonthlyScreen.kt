@@ -34,6 +34,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,7 +74,7 @@ fun MonthlyScreen(
     var selectedTxFilterType by remember { mutableStateOf<TransactionType?>(null) }
 
     var showAddSheet by remember { mutableStateOf(false) }
-    var showTransferDialog by remember { mutableStateOf(false) }
+    var showTransferSheet by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
     var showMonthPicker by remember { mutableStateOf(false) }
 
@@ -117,7 +118,7 @@ fun MonthlyScreen(
             DockFabAction(
                 icon = Icons.Default.SyncAlt,
                 label = "Transfer",
-                onClick = { showTransferDialog = true }
+                onClick = { showTransferSheet = true }
             )
         )
     }
@@ -130,7 +131,7 @@ fun MonthlyScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // =========================================================
-            // 1. PINNED TOP BAR (WITH CLEAN DOWNWARD DISSOLVE SHELF)
+            // 1. PINNED TOP BAR (WITH DOWNWARD DISSOLVE SHELF)
             // =========================================================
             Column(
                 modifier = Modifier
@@ -1204,7 +1205,7 @@ fun MonthlyScreen(
         )
 
         // =========================================================
-        // 6. MODALS, SHEETS & CONFIRMATION DIALOGS
+        // 6. MODALS, BOTTOM SHEETS & CONFIRMATION DIALOGS
         // =========================================================
 
         // Transaction Detail Bottom Sheet
@@ -1368,15 +1369,148 @@ fun MonthlyScreen(
             }
         }
 
-        // Instant Transfer Dialog
-        if (showTransferDialog) {
-            AccountTransferDialog(
-                accounts = accountsList,
-                onDismiss = { showTransferDialog = false },
-                onTransfer = { from, to, amount, note ->
-                    viewModel.executeInstantTransfer(from, to, amount, note)
+        // Transfer Bottom Sheet
+        if (showTransferSheet) {
+            var fromAccount by remember { mutableStateOf(accountsList.firstOrNull().orEmpty()) }
+            var toAccount by remember { mutableStateOf(accountsList.getOrNull(1) ?: accountsList.firstOrNull().orEmpty()) }
+            var amountText by remember { mutableStateOf("") }
+            var noteText by remember { mutableStateOf("") }
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+            ModalBottomSheet(
+                onDismissRequest = { showTransferSheet = false },
+                sheetState = sheetState,
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+                dragHandle = {
+                    Surface(
+                        modifier = Modifier
+                            .padding(vertical = 10.dp)
+                            .width(40.dp)
+                            .height(4.dp),
+                        shape = CircleShape,
+                        color = BorderLight
+                    ) {}
                 }
-            )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 22.dp, vertical = 8.dp)
+                ) {
+                    Text("Transfer Funds", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("Move money between your bank accounts & vaults", fontSize = 11.5.sp, color = TextMuted)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text("From (Source)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(accountsList) { acc ->
+                            val isSel = fromAccount == acc
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { fromAccount = acc },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
+                                border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
+                            ) {
+                                Text(
+                                    text = acc,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSel) AccentPurple else TextDark,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text("To (Destination)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(accountsList) { acc ->
+                            val isSel = toAccount == acc
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { toAccount = acc },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
+                                border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
+                            ) {
+                                Text(
+                                    text = acc,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSel) AccentPurple else TextDark,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedTextField(
+                        value = amountText,
+                        onValueChange = { amountText = it },
+                        label = { Text("Transfer Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentPurple,
+                            unfocusedBorderColor = BorderLight
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = noteText,
+                        onValueChange = { noteText = it },
+                        label = { Text("Note / Purpose (Optional)", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentPurple,
+                            unfocusedBorderColor = BorderLight
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = {
+                            val amt = amountText.toDoubleOrNull() ?: 0.0
+                            if (amt > 0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount != toAccount) {
+                                viewModel.executeInstantTransfer(fromAccount, toAccount, amt, noteText)
+                                showTransferSheet = false
+                                Toast.makeText(context, "Transferred ${userProfile.currencySymbol}$amt", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Enter a valid amount and distinct accounts", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    ) {
+                        Text("Confirm Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
         }
 
         // Month / Year Picker Dialog
