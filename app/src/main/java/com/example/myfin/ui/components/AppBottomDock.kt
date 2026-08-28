@@ -22,14 +22,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -206,7 +203,7 @@ fun AppBottomDock(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Navigation Capsule Island (Expanded Full-Height Touch Hit Targets)
+            // Navigation Capsule Island
             Surface(
                 modifier = Modifier
                     .height(58.dp)
@@ -222,59 +219,49 @@ fun AppBottomDock(
                 border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.5f))
             ) {
                 Row(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     navItems.forEach { item ->
                         val isSelected = currentSelection == item.target
-
-                        // Full Cell Hit Target Container
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    isFabMenuExpanded = false
                                     if (!isSelected) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        isFabMenuExpanded = false
                                         onSelectTarget(item.target)
                                     }
-                                },
+                                }
+                                .padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
-                                    .padding(
-                                        horizontal = if (isSelected) 12.dp else 8.dp,
-                                        vertical = 7.dp
-                                    ),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = item.icon,
-                                        contentDescription = item.label,
-                                        tint = if (isSelected) AccentPurple else TextMuted,
-                                        modifier = Modifier.size(19.dp)
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.label,
+                                    tint = if (isSelected) AccentPurple else TextMuted,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                                if (isSelected) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = item.label,
+                                        color = AccentPurple,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
                                     )
-                                    if (isSelected) {
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Text(
-                                            text = item.label,
-                                            color = AccentPurple,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.5.sp,
-                                            maxLines = 1
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -284,7 +271,7 @@ fun AppBottomDock(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Contextual Action FAB Button (Full 58dp Hit Target)
+            // Contextual Action FAB Button
             Surface(
                 modifier = Modifier
                     .size(58.dp)
@@ -295,10 +282,7 @@ fun AppBottomDock(
                         spotColor = AccentPurple.copy(alpha = 0.45f)
                     )
                     .clip(CircleShape)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
+                    .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         if (fabActions.isNotEmpty()) {
                             isFabMenuExpanded = !isFabMenuExpanded
@@ -309,10 +293,7 @@ fun AppBottomDock(
                 shape = CircleShape,
                 color = AccentPurple
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Contextual Action",
@@ -325,28 +306,4 @@ fun AppBottomDock(
             }
         }
     }
-}
-
-/**
- * Scroll connection helper with debounce threshold to eliminate touch cancellation jitter.
- */
-@Composable
-fun rememberAutoScrollVisibilityConnection(): Pair<MutableState<Boolean>, NestedScrollConnection> {
-    val isVisible = remember { mutableStateOf(true) }
-
-    val connection = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                val delta = available.y
-                if (delta < -14f && isVisible.value) {
-                    isVisible.value = false
-                } else if (delta > 14f && !isVisible.value) {
-                    isVisible.value = true
-                }
-                return Offset.Zero
-            }
-        }
-    }
-
-    return Pair(isVisible, connection)
 }
