@@ -1,6 +1,10 @@
 package com.example.myfin.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -50,63 +55,97 @@ fun PinLockScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(CanvasLight)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(24.dp)
     ) {
+        // Subtle Top Purple Ambient Glow
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            AccentPurple.copy(alpha = 0.12f),
+                            AccentPurple.copy(alpha = 0.03f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
+            // Hero Lock Section
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 40.dp)
+                modifier = Modifier.padding(top = 36.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(AccentPurpleLight),
-                    contentAlignment = Alignment.Center
+                Surface(
+                    modifier = Modifier.size(70.dp),
+                    shape = CircleShape,
+                    color = AccentPurple.copy(alpha = 0.12f),
+                    border = BorderStroke(1.5.dp, AccentPurple.copy(alpha = 0.25f)),
+                    shadowElevation = 2.dp
                 ) {
-                    Icon(
-                        Icons.Default.Lock,
-                        contentDescription = "Vault Locked",
-                        tint = AccentPurple,
-                        modifier = Modifier.size(30.dp)
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Vault Locked",
+                            tint = AccentPurple,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Text(
                     text = "MyFin Vault Locked",
                     fontWeight = FontWeight.Black,
-                    fontSize = 20.sp,
-                    color = TextDark
+                    fontSize = 21.sp,
+                    color = TextDark,
+                    letterSpacing = (-0.3).sp
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+
+                Spacer(modifier = Modifier.height(5.dp))
+
                 Text(
                     text = "Enter your Master PIN to decrypt ledger",
-                    fontSize = 12.sp,
+                    fontSize = 12.5.sp,
                     color = TextMuted
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(28.dp))
 
-                // PIN Dot Indicators
+                // Animated PIN Dot Indicators
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     repeat(4) { index ->
                         val isFilled = index < enteredPin.length
+                        val dotSize by animateDpAsState(
+                            targetValue = if (isFilled) 15.dp else 13.dp,
+                            animationSpec = tween(150),
+                            label = "dotSize"
+                        )
+                        val dotColor by animateColorAsState(
+                            targetValue = if (isFilled) AccentPurple else BorderLight.copy(alpha = 0.9f),
+                            animationSpec = tween(150),
+                            label = "dotColor"
+                        )
+
                         Box(
                             modifier = Modifier
-                                .size(14.dp)
+                                .size(dotSize)
                                 .clip(CircleShape)
-                                .background(if (isFilled) AccentPurple else BorderLight)
+                                .background(dotColor)
                         )
                     }
                 }
@@ -127,16 +166,26 @@ fun PinLockScreen(
                 keys.forEach { row ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         row.forEach { key ->
                             when (key) {
                                 "DEL" -> {
                                     IconButton(
-                                        onClick = { if (enteredPin.isNotEmpty()) enteredPin = enteredPin.dropLast(1) },
-                                        modifier = Modifier.size(64.dp)
+                                        onClick = {
+                                            if (enteredPin.isNotEmpty()) enteredPin = enteredPin.dropLast(1)
+                                        },
+                                        modifier = Modifier
+                                            .size(64.dp)
+                                            .clip(CircleShape)
                                     ) {
-                                        Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "Delete", tint = TextDark)
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Backspace,
+                                            contentDescription = "Delete",
+                                            tint = TextDark,
+                                            modifier = Modifier.size(22.dp)
+                                        )
                                     }
                                 }
                                 "RESET" -> {
@@ -145,7 +194,12 @@ fun PinLockScreen(
                                         modifier = Modifier.size(64.dp),
                                         contentPadding = PaddingValues(0.dp)
                                     ) {
-                                        Text("Forgot", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            text = "Forgot",
+                                            fontSize = 11.5.sp,
+                                            color = AccentPurple,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
                                 }
                                 else -> {
@@ -162,7 +216,8 @@ fun PinLockScreen(
                                                 }
                                             },
                                         shape = CircleShape,
-                                        color = CardWhite
+                                        color = CardWhite,
+                                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Text(
@@ -180,20 +235,21 @@ fun PinLockScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
         // Emergency Reset Dialog via DOB Verification
         if (showEmergencyResetDialog) {
             AlertDialog(
                 onDismissRequest = { showEmergencyResetDialog = false },
-                title = { Text("Emergency Vault Recovery", fontWeight = FontWeight.Bold) },
+                title = { Text("Emergency Vault Recovery", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark) },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            "Enter your Date of Birth configured during onboarding to verify identity and reset your Master PIN.",
+                            text = "Enter your Date of Birth configured during onboarding to verify identity and reset your Master PIN.",
                             fontSize = 12.sp,
-                            color = TextMuted
+                            color = TextMuted,
+                            lineHeight = 16.sp
                         )
                         OutlinedTextField(
                             value = recoveryDobInput,
@@ -201,7 +257,11 @@ fun PinLockScreen(
                             label = { Text("DOB (YYYY-MM-DD)") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = AccentPurple,
+                                unfocusedBorderColor = BorderLight
+                            )
                         )
                     }
                 },
@@ -216,9 +276,10 @@ fun PinLockScreen(
                                 Toast.makeText(context, "Date of Birth verification failed", Toast.LENGTH_SHORT).show()
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = SoftRed)
+                        colors = ButtonDefaults.buttonColors(containerColor = SoftRed),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Verify & Reset")
+                        Text("Verify & Reset", fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
