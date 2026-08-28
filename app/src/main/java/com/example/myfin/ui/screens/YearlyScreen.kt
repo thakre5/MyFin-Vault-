@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -38,7 +37,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -299,7 +297,7 @@ fun YearlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            // Dark Topography / 3D Spline Wave Hero Card
+                            // Dark Topography Spline Wave Hero Card
                             item {
                                 Surface(
                                     modifier = Modifier
@@ -365,7 +363,6 @@ fun YearlyScreen(
 
                                         Spacer(modifier = Modifier.height(18.dp))
 
-                                        // 3D-Isometric Ribbon Multi-Wave Topography Canvas
                                         AnnualTopographyWaveCanvas(
                                             yearlyData = yearlyMonthsData,
                                             modifier = Modifier
@@ -382,17 +379,17 @@ fun YearlyScreen(
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(TealPrimary))
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Inflow ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualIncome)}", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
+                                                Text(text = "Inflow ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualIncome)}", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
                                             }
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(CyanPrimary))
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Assets ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualAssets)}", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
+                                                Text(text = "Assets ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualAssets)}", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
                                             }
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(PurplePrimary))
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Burn ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualExpenses)}", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
+                                                Text(text = "Burn ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualExpenses)}", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
                                             }
                                         }
                                     }
@@ -434,7 +431,7 @@ fun YearlyScreen(
                                         Spacer(modifier = Modifier.width(16.dp))
 
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text("Annual Wealth Goal Execution", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                            Text(text = "Annual Wealth Goal Execution", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(
                                                 text = "Accumulated ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualAssets + annualNetSurplus)} towards annual compounding reserve target.",
@@ -492,7 +489,8 @@ fun YearlyScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            itemsIndexed(yearlyMonthsData) { index, mData ->
+                            items(yearlyMonthsData.size) { index ->
+                                val mData = yearlyMonthsData[index]
                                 MonthGridTimelineCard(
                                     data = mData,
                                     currencySymbol = userProfile.currencySymbol,
@@ -528,11 +526,10 @@ fun YearlyScreen(
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
                             item {
-                                Text("Annual Category Pareto", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
-                                Text("Cumulative spend distribution across entire year", fontSize = 11.5.sp, color = TextMuted)
+                                Text(text = "Annual Category Pareto", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                                Text(text = "Cumulative spend distribution across entire year", fontSize = 11.5.sp, color = TextMuted)
                                 Spacer(modifier = Modifier.height(16.dp))
 
-                                // Organic Spider / Web Spectrum Canvas
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -558,7 +555,7 @@ fun YearlyScreen(
                             }
 
                             item {
-                                Text("Highest Outflow Segments", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                                Text(text = "Highest Outflow Segments", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
                                 Spacer(modifier = Modifier.height(10.dp))
                             }
 
@@ -570,12 +567,13 @@ fun YearlyScreen(
                                         color = CardWhite
                                     ) {
                                         Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                                            Text("No recorded expenses for this year", fontSize = 12.sp, color = TextMuted)
+                                            Text(text = "No recorded expenses for this year", fontSize = 12.sp, color = TextMuted)
                                         }
                                     }
                                 }
                             } else {
-                                itemsIndexed(categoryRoster) { _, (cat, sum) ->
+                                items(categoryRoster.size) { idx ->
+                                    val (cat, sum) = categoryRoster[idx]
                                     val ratio = if (annualExpenses > 0) (sum / annualExpenses).toFloat() else 0f
                                     Surface(
                                         modifier = Modifier
@@ -591,9 +589,9 @@ fun YearlyScreen(
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text(cat, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                                                Text(text = cat, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
                                                 Text(
-                                                    "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", sum)} (${(ratio * 100).toInt()}%)",
+                                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", sum)} (${(ratio * 100).toInt()}%)",
                                                     fontWeight = FontWeight.Black,
                                                     fontSize = 13.sp,
                                                     color = PurplePrimary
@@ -693,7 +691,6 @@ private fun AnnualTopographyWaveCanvas(
         val maxVal = yearlyData.maxOfOrNull { maxOf(it.income, it.expenses, it.assets) }?.coerceAtLeast(100.0) ?: 100.0
         val pointsCount = yearlyData.size
 
-        // Generate spline points
         fun createSplinePath(values: List<Double>): Path {
             val pts = values.mapIndexed { idx, v ->
                 val x = (idx.toFloat() / (pointsCount - 1).coerceAtLeast(1)) * w
@@ -753,7 +750,6 @@ private fun LiquidGoalPillCanvas(
         val h = size.height
         val cornerRadius = CornerRadius(w / 2f, w / 2f)
 
-        // Background pill
         drawRoundRect(
             color = BorderLight.copy(alpha = 0.4f),
             size = Size(w, h),
@@ -838,7 +834,7 @@ private fun MonthGridTimelineCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(data.monthName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                Text(text = data.monthName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = statusColor.copy(alpha = 0.12f)
@@ -861,11 +857,10 @@ private fun MonthGridTimelineCard(
                 fontWeight = FontWeight.Black,
                 color = if (data.isFuture) TextMuted else TextDark
             )
-            Text("Outflow Burn", fontSize = 10.sp, color = TextMuted)
+            Text(text = "Outflow Burn", fontSize = 10.sp, color = TextMuted)
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Mini Triple Color Bar
             val total = (data.income + data.expenses + data.assets).coerceAtLeast(1.0)
             Row(
                 modifier = Modifier
@@ -896,9 +891,9 @@ private fun YearlyPillarPill(
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(title, fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = title, fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(amount, fontSize = 14.sp, fontWeight = FontWeight.Black, color = tint)
+            Text(text = amount, fontSize = 14.sp, fontWeight = FontWeight.Black, color = tint)
         }
     }
 }
