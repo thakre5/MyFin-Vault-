@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -35,7 +36,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,7 +62,6 @@ enum class SettingsActiveSheet {
 }
 
 private val BrandGreen = Color(0xFF5BB336)
-private val BrandBlue = Color(0xFF1E88E5)
 private val BrandCharcoal = Color(0xFF1C1D21)
 private val CoralAccent = Color(0xFFFF6B6B)
 
@@ -85,6 +84,7 @@ fun SettingsScreen(
         !userProfile.vaultMode.equals("SIMPLE", ignoreCase = true)
     }
 
+    // Export & Backup File Pickers
     val xlsxExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     ) { uri ->
@@ -151,10 +151,11 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
+            // 1. Pinned Top Navigation Bar
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 10.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 IconButton(
                     onClick = onOpenDrawer,
@@ -180,86 +181,109 @@ fun SettingsScreen(
                     modifier = Modifier.align(Alignment.Center)
                 )
 
-                IconButton(
-                    onClick = onNavigateToGuide,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .size(38.dp)
-                        .clip(CircleShape)
+                // Dual Top-Right Icons: User Guide & Notifications
+                Row(
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.HelpOutline,
-                        contentDescription = "User Guide",
-                        tint = TextDark,
-                        modifier = Modifier.size(22.dp)
-                    )
+                    IconButton(
+                        onClick = onNavigateToGuide,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.HelpOutline,
+                            contentDescription = "User Guide",
+                            tint = TextDark,
+                            modifier = Modifier.size(21.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { activeSheet = SettingsActiveSheet.NOTIFICATIONS },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Notifications,
+                            contentDescription = "Reminders & Alerts",
+                            tint = TextDark,
+                            modifier = Modifier.size(21.dp)
+                        )
+                    }
                 }
             }
 
-            Column(
+            // 2. Pinned Horizontal Profile Header (Matching 1:1 Reference Layout)
+            Row(
                 modifier = Modifier
-                    .weight(1f)
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp)
+                    .padding(top = 4.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                // Circular Avatar on the Left with AccentPurple Camera Badge
+                Box(
+                    modifier = Modifier.size(76.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier.size(86.dp),
-                        contentAlignment = Alignment.Center
+                    Surface(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .clickable { imagePickerLauncher.launch("image/*") },
+                        shape = CircleShape,
+                        color = AccentPurple.copy(alpha = 0.12f),
+                        border = BorderStroke(1.5.dp, CardWhite)
                     ) {
-                        Surface(
-                            modifier = Modifier
-                                .size(82.dp)
-                                .clip(CircleShape)
-                                .clickable { imagePickerLauncher.launch("image/*") },
-                            shape = CircleShape,
-                            color = AccentPurple.copy(alpha = 0.15f),
-                            border = BorderStroke(1.5.dp, CardWhite)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = userProfile.displayName.take(1).uppercase().ifBlank { "S" },
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = AccentPurple
-                                )
-                            }
-                        }
-
-                        Surface(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .size(26.dp)
-                                .clip(CircleShape)
-                                .clickable { imagePickerLauncher.launch("image/*") },
-                            shape = CircleShape,
-                            color = BrandBlue,
-                            border = BorderStroke(1.5.dp, CardWhite)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.PhotoCamera,
-                                    contentDescription = "Change photo",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                            }
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = userProfile.displayName.take(1).uppercase().ifBlank { "S" },
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Black,
+                                color = AccentPurple
+                            )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { imagePickerLauncher.launch("image/*") },
+                        shape = CircleShape,
+                        color = AccentPurple,
+                        border = BorderStroke(1.5.dp, CardWhite)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoCamera,
+                                contentDescription = "Change photo",
+                                tint = Color.White,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    }
+                }
 
+                Spacer(modifier = Modifier.width(18.dp))
+
+                // Left-Aligned Profile Details on the Right
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Text(
                         text = userProfile.displayName.ifBlank { "Sushant" },
                         fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
+                        fontSize = 17.sp,
                         color = TextDark
                     )
+
+                    Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
                         text = userProfile.email.ifBlank { "sushant@example.com" },
@@ -267,206 +291,230 @@ fun SettingsScreen(
                         color = TextMuted
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
                         text = "DOB: ${userProfile.dateOfBirth.ifBlank { "2000-03-21" }} • Inflow: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.baseMonthlyIncome)}/mo",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextMuted
+                        fontSize = 10.5.sp,
+                        color = TextMuted.copy(alpha = 0.85f),
+                        maxLines = 1
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
+                    // Left-Aligned Outlined "Edit Profile" Pill Button
                     OutlinedButton(
                         onClick = { activeSheet = SettingsActiveSheet.PERSONAL_INFO },
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, BrandBlue.copy(alpha = 0.6f)),
-                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
-                        modifier = Modifier.height(34.dp)
+                        shape = RoundedCornerShape(18.dp),
+                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.5f)),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                        modifier = Modifier.height(30.dp)
                     ) {
                         Text(
                             text = "Edit Profile",
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = BrandBlue
+                            color = AccentPurple
                         )
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Surface(
+            // 3. Scrollable Area: Floating White Card with Margins
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(4.dp, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)),
-                    shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-                    color = CardWhite
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 24.dp)
                 ) {
-                    Column(
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 20.dp)
-                            .padding(bottom = 36.dp),
-                        verticalArrangement = Arrangement.spacedBy(22.dp)
+                            .shadow(4.dp, RoundedCornerShape(24.dp)),
+                        shape = RoundedCornerShape(24.dp),
+                        color = CardWhite
                     ) {
-                        SettingsSectionGroup(title = "Strategy & Architecture") {
-                            SettingsSwitchRow(
-                                title = "3-Vault Strategy",
-                                subtitle = if (is3VaultActive) "Operating, Commitments & Fortress active" else "Simple flat accounts pool active",
-                                isChecked = is3VaultActive,
-                                onToggle = { activeSheet = SettingsActiveSheet.STRATEGY },
-                                onClick = { activeSheet = SettingsActiveSheet.STRATEGY }
-                            )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 22.dp),
+                            verticalArrangement = Arrangement.spacedBy(28.dp)
+                        ) {
+                            // Section: Strategy & Architecture
+                            SettingsSectionGroup(title = "Strategy & Architecture") {
+                                SettingsSwitchRow(
+                                    title = "3-Vault Strategy",
+                                    subtitle = if (is3VaultActive) "Operating, Commitments & Fortress active" else "Simple flat accounts pool active",
+                                    isChecked = is3VaultActive,
+                                    onToggle = { activeSheet = SettingsActiveSheet.STRATEGY },
+                                    onClick = { activeSheet = SettingsActiveSheet.STRATEGY }
+                                )
 
-                            SettingsNavigationRow(
-                                title = "Fortress Safety Net Target",
-                                value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.fortressThreshold)}",
-                                onClick = { activeSheet = SettingsActiveSheet.STRATEGY }
-                            )
+                                SettingsNavigationRow(
+                                    title = "Fortress Safety Net Target",
+                                    value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.fortressThreshold)}",
+                                    onClick = { activeSheet = SettingsActiveSheet.STRATEGY }
+                                )
 
-                            SettingsNavigationRow(
-                                title = "Expected Monthly Salary Inflow",
-                                value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.baseMonthlyIncome)}",
-                                onClick = { activeSheet = SettingsActiveSheet.PERSONAL_INFO }
+                                SettingsNavigationRow(
+                                    title = "Expected Monthly Salary Inflow",
+                                    value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.baseMonthlyIncome)}",
+                                    onClick = { activeSheet = SettingsActiveSheet.PERSONAL_INFO }
+                                )
+                            }
+
+                            // Section: Security & Privacy
+                            SettingsSectionGroup(title = "Security & Privacy") {
+                                SettingsSwitchRow(
+                                    title = "Biometric Authentication",
+                                    subtitle = "Fingerprint / Face unlock protection",
+                                    isChecked = userProfile.isBiometricEnabled,
+                                    onToggle = { activeSheet = SettingsActiveSheet.SECURITY },
+                                    onClick = { activeSheet = SettingsActiveSheet.SECURITY }
+                                )
+
+                                SettingsNavigationRow(
+                                    title = "Master PIN Passcode",
+                                    value = "Modify PIN",
+                                    onClick = { activeSheet = SettingsActiveSheet.SECURITY }
+                                )
+
+                                SettingsSwitchRow(
+                                    title = "Anti-Spy Screen Protection",
+                                    subtitle = "Blocks screenshots & app-switcher previews",
+                                    isChecked = !userProfile.isScreenCaptureAllowed,
+                                    onToggle = {
+                                        viewModel.updateScreenCaptureAllowed(!userProfile.isScreenCaptureAllowed)
+                                        Toast.makeText(context, if (userProfile.isScreenCaptureAllowed) "Screen privacy enabled" else "Screen capture allowed", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onClick = {
+                                        viewModel.updateScreenCaptureAllowed(!userProfile.isScreenCaptureAllowed)
+                                    }
+                                )
+                            }
+
+                            // Section: Option & Notifications
+                            SettingsSectionGroup(title = "Option & Notifications") {
+                                val timeStr = String.format(Locale.US, "%02d:%02d", userProfile.reminderHour, userProfile.reminderMinute)
+                                SettingsSwitchRow(
+                                    title = "Daily Expense Review Reminder",
+                                    subtitle = "Scheduled daily at $timeStr",
+                                    isChecked = userProfile.reminderEnabled,
+                                    onToggle = { activeSheet = SettingsActiveSheet.NOTIFICATIONS },
+                                    onClick = { activeSheet = SettingsActiveSheet.NOTIFICATIONS }
+                                )
+
+                                SettingsSwitchRow(
+                                    title = "AutoPay Commitment Alerts",
+                                    subtitle = "Warn 48h before fixed bill due dates",
+                                    isChecked = userProfile.isAutoPayReminderEnabled,
+                                    onToggle = {
+                                        val newStatus = !userProfile.isAutoPayReminderEnabled
+                                        viewModel.saveUserProfile(userProfile.copy(isAutoPayReminderEnabled = newStatus))
+                                    }
+                                )
+
+                                SettingsSwitchRow(
+                                    title = "Budget Overrun Warnings",
+                                    subtitle = "Alert when spend pace exceeds targets",
+                                    isChecked = userProfile.isOverrunWarningEnabled,
+                                    onToggle = {
+                                        val newStatus = !userProfile.isOverrunWarningEnabled
+                                        viewModel.saveUserProfile(userProfile.copy(isOverrunWarningEnabled = newStatus))
+                                    }
+                                )
+                            }
+
+                            // Section: Currency & Preferences
+                            SettingsSectionGroup(title = "Currency & Preferences") {
+                                SettingsNavigationRow(
+                                    title = "Primary Currency Symbol",
+                                    value = userProfile.currencySymbol,
+                                    onClick = { activeSheet = SettingsActiveSheet.CURRENCY }
+                                )
+
+                                SettingsNavigationRow(
+                                    title = "Connected Vault Accounts",
+                                    value = "Manage Vaults",
+                                    onClick = onNavigateToVaults
+                                )
+                            }
+
+                            // Section: Full Data Backup & Recovery
+                            SettingsSectionGroup(title = "Full Data Backup & Recovery") {
+                                SettingsNavigationRow(
+                                    title = "Create Full Vault Snapshot (.json)",
+                                    value = "Backup",
+                                    onClick = {
+                                        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+                                        jsonBackupLauncher.launch("MyFin_Backup_$timeStamp.json")
+                                    }
+                                )
+
+                                SettingsNavigationRow(
+                                    title = "Restore from Encrypted Snapshot",
+                                    value = "Restore",
+                                    onClick = {
+                                        jsonRestoreLauncher.launch(arrayOf("application/json", "text/plain"))
+                                    }
+                                )
+                            }
+
+                            // Section: Accounting Statements & Reports
+                            SettingsSectionGroup(title = "Accounting Statements & Reports") {
+                                SettingsNavigationRow(
+                                    title = "Export Excel Statement (.xlsx)",
+                                    value = "Generate",
+                                    onClick = {
+                                        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+                                        xlsxExportLauncher.launch("MyFin_Statement_$timeStamp.xlsx")
+                                    }
+                                )
+
+                                SettingsNavigationRow(
+                                    title = "Export Universal Ledger (.csv)",
+                                    value = "Export",
+                                    onClick = {
+                                        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+                                        csvExportLauncher.launch("MyFin_Ledger_$timeStamp.csv")
+                                    }
+                                )
+                            }
+
+                            // Section: Danger Zone
+                            SettingsSectionGroup(title = "Danger Zone") {
+                                SettingsNavigationRow(
+                                    title = "Reset Entire Financial Vault",
+                                    value = "Wipe Database",
+                                    isDestructive = true,
+                                    onClick = { activeSheet = SettingsActiveSheet.DATA_MANAGEMENT }
+                                )
+                            }
+
+                            // Shared Minimalist Branding Footer
+                            AppBrandingFooter(
+                                modifier = Modifier.fillMaxWidth(),
+                                version = "v1.0.0",
+                                showIcon = true
                             )
                         }
-
-                        SettingsSectionGroup(title = "Security & Privacy") {
-                            SettingsSwitchRow(
-                                title = "Biometric Authentication",
-                                subtitle = "Fingerprint / Face unlock protection",
-                                isChecked = userProfile.isBiometricEnabled,
-                                onToggle = { activeSheet = SettingsActiveSheet.SECURITY },
-                                onClick = { activeSheet = SettingsActiveSheet.SECURITY }
-                            )
-
-                            SettingsNavigationRow(
-                                title = "Master PIN Passcode",
-                                value = "Modify PIN",
-                                onClick = { activeSheet = SettingsActiveSheet.SECURITY }
-                            )
-
-                            SettingsSwitchRow(
-                                title = "Anti-Spy Screen Protection",
-                                subtitle = "Blocks screenshots & app-switcher previews",
-                                isChecked = !userProfile.isScreenCaptureAllowed,
-                                onToggle = {
-                                    viewModel.updateScreenCaptureAllowed(!userProfile.isScreenCaptureAllowed)
-                                    Toast.makeText(context, if (userProfile.isScreenCaptureAllowed) "Screen privacy enabled" else "Screen capture allowed", Toast.LENGTH_SHORT).show()
-                                },
-                                onClick = {
-                                    viewModel.updateScreenCaptureAllowed(!userProfile.isScreenCaptureAllowed)
-                                }
-                            )
-                        }
-
-                        SettingsSectionGroup(title = "Option & Notifications") {
-                            val timeStr = String.format(Locale.US, "%02d:%02d", userProfile.reminderHour, userProfile.reminderMinute)
-                            SettingsSwitchRow(
-                                title = "Daily Expense Review Reminder",
-                                subtitle = "Scheduled daily at $timeStr",
-                                isChecked = userProfile.reminderEnabled,
-                                onToggle = { activeSheet = SettingsActiveSheet.NOTIFICATIONS },
-                                onClick = { activeSheet = SettingsActiveSheet.NOTIFICATIONS }
-                            )
-
-                            SettingsSwitchRow(
-                                title = "AutoPay Commitment Alerts",
-                                subtitle = "Warn 48h before fixed bill due dates",
-                                isChecked = userProfile.isAutoPayReminderEnabled,
-                                onToggle = {
-                                    val newStatus = !userProfile.isAutoPayReminderEnabled
-                                    viewModel.saveUserProfile(userProfile.copy(isAutoPayReminderEnabled = newStatus))
-                                }
-                            )
-
-                            SettingsSwitchRow(
-                                title = "Budget Overrun Warnings",
-                                subtitle = "Alert when spend pace exceeds targets",
-                                isChecked = userProfile.isOverrunWarningEnabled,
-                                onToggle = {
-                                    val newStatus = !userProfile.isOverrunWarningEnabled
-                                    viewModel.saveUserProfile(userProfile.copy(isOverrunWarningEnabled = newStatus))
-                                }
-                            )
-                        }
-
-                        SettingsSectionGroup(title = "Currency & Preferences") {
-                            SettingsNavigationRow(
-                                title = "Primary Currency Symbol",
-                                value = userProfile.currencySymbol,
-                                onClick = { activeSheet = SettingsActiveSheet.CURRENCY }
-                            )
-
-                            SettingsNavigationRow(
-                                title = "Connected Vault Accounts",
-                                value = "Manage Vaults",
-                                onClick = onNavigateToVaults
-                            )
-                        }
-
-                        SettingsSectionGroup(title = "Full Data Backup & Recovery") {
-                            SettingsNavigationRow(
-                                title = "Create Full Vault Snapshot (.json)",
-                                value = "Backup",
-                                onClick = {
-                                    val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-                                    jsonBackupLauncher.launch("MyFin_Backup_$timeStamp.json")
-                                }
-                            )
-
-                            SettingsNavigationRow(
-                                title = "Restore from Encrypted Snapshot",
-                                value = "Restore",
-                                onClick = {
-                                    jsonRestoreLauncher.launch(arrayOf("application/json", "text/plain"))
-                                }
-                            )
-                        }
-
-                        SettingsSectionGroup(title = "Accounting Statements & Reports") {
-                            SettingsNavigationRow(
-                                title = "Export Excel Statement (.xlsx)",
-                                value = "Generate",
-                                onClick = {
-                                    val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-                                    xlsxExportLauncher.launch("MyFin_Statement_$timeStamp.xlsx")
-                                }
-                            )
-
-                            SettingsNavigationRow(
-                                title = "Export Universal Ledger (.csv)",
-                                value = "Export",
-                                onClick = {
-                                    val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-                                    csvExportLauncher.launch("MyFin_Ledger_$timeStamp.csv")
-                                }
-                            )
-                        }
-
-                        SettingsSectionGroup(title = "Danger Zone") {
-                            SettingsNavigationRow(
-                                title = "Reset Entire Financial Vault",
-                                value = "Wipe Database",
-                                isDestructive = true,
-                                onClick = { activeSheet = SettingsActiveSheet.DATA_MANAGEMENT }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        AppBrandingFooter(
-                            modifier = Modifier.fillMaxWidth(),
-                            version = "v1.0.0",
-                            showIcon = true
-                        )
                     }
                 }
             }
         }
     }
 
+    // ==========================================
+    // BOTTOM SHEETS & CONFIRMATION MODALS
+    // ==========================================
+
+    // 1. Biometric Confirmation Sheet (Matching Image 2)
     if (activeSheet == SettingsActiveSheet.SECURITY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -538,6 +586,7 @@ fun SettingsScreen(
         }
     }
 
+    // 2. Strategy Guidance Sheet (Matching Image 3)
     if (activeSheet == SettingsActiveSheet.STRATEGY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -669,6 +718,7 @@ fun SettingsScreen(
         }
     }
 
+    // 3. Edit Personal Info Bottom Sheet
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
         var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
         var emailInput by remember(userProfile) { mutableStateOf(userProfile.email) }
@@ -756,7 +806,7 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandCharcoal)
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
                     Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
@@ -766,6 +816,7 @@ fun SettingsScreen(
         }
     }
 
+    // 4. Notification Settings Bottom Sheet
     if (activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
         var hourInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderHour) }
         var minInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderMinute) }
@@ -844,7 +895,7 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandCharcoal)
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
                     Text("Save Reminder Time", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
@@ -854,6 +905,7 @@ fun SettingsScreen(
         }
     }
 
+    // 5. Currency Selector Bottom Sheet
     if (activeSheet == SettingsActiveSheet.CURRENCY) {
         val currencies = listOf("₹" to "Indian Rupee (INR)", "$" to "US Dollar (USD)", "€" to "Euro (EUR)", "£" to "British Pound (GBP)", "¥" to "Japanese Yen (JPY)", "AED " to "UAE Dirham (AED)")
 
@@ -909,6 +961,7 @@ fun SettingsScreen(
         }
     }
 
+    // 6. Danger Zone Confirmation Dialog
     if (activeSheet == SettingsActiveSheet.DATA_MANAGEMENT) {
         AlertDialog(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -944,6 +997,7 @@ fun SettingsScreen(
     }
 }
 
+// Vector Illustration Canvases
 @Composable
 private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
@@ -1077,6 +1131,7 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
     }
 }
 
+// Reusable Row Components
 @Composable
 private fun SettingsSectionGroup(
     title: String,
@@ -1136,7 +1191,7 @@ private fun SettingsSwitchRow(
             onCheckedChange = onToggle,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = BrandBlue,
+                checkedTrackColor = AccentPurple,
                 uncheckedThumbColor = Color.White,
                 uncheckedTrackColor = Color(0xFF8E8E93)
             )
