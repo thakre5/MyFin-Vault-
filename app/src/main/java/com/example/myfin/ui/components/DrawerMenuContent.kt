@@ -1,5 +1,8 @@
 package com.example.myfin.ui.components
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,23 +11,25 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.ui.theme.AccentPurple
-import com.example.myfin.ui.theme.BorderLight
 import com.example.myfin.ui.theme.SoftRed
-import com.example.myfin.ui.theme.TextDark
+import java.io.File
 
 @Composable
 fun DrawerMenuContent(
@@ -36,22 +41,42 @@ fun DrawerMenuContent(
     onEditProfile: () -> Unit,
     onLockApp: () -> Unit
 ) {
+    val context = LocalContext.current
+
+    val profileBitmap = remember(profileImageUri) {
+        if (!profileImageUri.isNullOrBlank()) {
+            try {
+                val file = File(profileImageUri)
+                if (file.exists()) {
+                    BitmapFactory.decodeFile(file.absolutePath)
+                } else {
+                    val uri = Uri.parse(profileImageUri)
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    BitmapFactory.decodeStream(inputStream)
+                }
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .padding(horizontal = 24.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
-            // Profile Header
+            // Profile Header Block
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
                     .clickable { onEditProfile() }
-                    .padding(vertical = 10.dp)
+                    .padding(vertical = 8.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -60,12 +85,21 @@ fun DrawerMenuContent(
                         .background(AccentPurple),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = displayName.take(1).uppercase().ifBlank { "M" },
-                        fontWeight = FontWeight.Black,
-                        fontSize = 20.sp,
-                        color = Color.White
-                    )
+                    if (profileBitmap != null) {
+                        Image(
+                            bitmap = profileBitmap.asImageBitmap(),
+                            contentDescription = "Profile Picture",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(
+                            text = displayName.take(1).uppercase().ifBlank { "M" },
+                            fontWeight = FontWeight.Black,
+                            fontSize = 20.sp,
+                            color = Color.White
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(14.dp))
@@ -79,15 +113,15 @@ fun DrawerMenuContent(
                     )
                     Text(
                         text = "Tap to manage profile",
-                        fontSize = 11.sp,
+                        fontSize = 11.5.sp,
                         color = Color.White.copy(alpha = 0.6f)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Navigation Items
+            // Navigation Items Roster
             DrawerNavItem(
                 icon = Icons.Default.Assessment,
                 label = "Monthly Dashboard",
@@ -96,7 +130,7 @@ fun DrawerMenuContent(
             )
             DrawerNavItem(
                 icon = Icons.Default.DateRange,
-                label = "Annual Vault Rollup",
+                label = "Annual Overview",
                 isSelected = currentSelection == NavigationTarget.YEARLY_VIEW,
                 onClick = { onSelectTarget(NavigationTarget.YEARLY_VIEW) }
             )
@@ -132,28 +166,51 @@ fun DrawerMenuContent(
             )
             DrawerNavItem(
                 icon = Icons.AutoMirrored.Filled.MenuBook,
-                label = "3-Bank Architecture Guide",
+                label = "User Guide",
                 isSelected = currentSelection == NavigationTarget.USER_GUIDE,
                 onClick = { onSelectTarget(NavigationTarget.USER_GUIDE) }
             )
         }
 
-        // Lock App Footer Button
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = SoftRed.copy(alpha = 0.15f),
-            modifier = Modifier
-                .fillMaxWidth(0.7f)
-                .clickable { onLockApp() }
+        // Bottom Section: Centered Lock Action + Branding Footer
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = SoftRed.copy(alpha = 0.15f),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable { onLockApp() }
             ) {
-                Icon(Icons.Default.Lock, contentDescription = "Lock", tint = SoftRed, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(10.dp))
-                Text("Lock Vault", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SoftRed)
+                Row(
+                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Lock",
+                        tint = SoftRed,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Lock Vault",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp,
+                        color = SoftRed
+                    )
+                }
             }
+
+            AppBrandingFooter(
+                modifier = Modifier.fillMaxWidth(),
+                version = "v1.0.0",
+                showIcon = true
+            )
         }
     }
 }
@@ -169,16 +226,17 @@ private fun DrawerNavItem(
         shape = RoundedCornerShape(12.dp),
         color = if (isSelected) AccentPurple.copy(alpha = 0.25f) else Color.Transparent,
         modifier = Modifier
-            .fillMaxWidth(0.8f)
+            .fillMaxWidth(0.85f)
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 2.dp)
+            .padding(vertical = 1.dp)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                icon,
+                imageVector = icon,
                 contentDescription = label,
                 tint = if (isSelected) AccentPurple else Color.White.copy(alpha = 0.8f),
                 modifier = Modifier.size(20.dp)
