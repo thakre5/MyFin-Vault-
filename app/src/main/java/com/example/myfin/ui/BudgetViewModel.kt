@@ -360,6 +360,13 @@ class BudgetViewModel(
         }
     }
 
+    fun updateVaultMode(mode: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = userProfile.value
+            dao.saveUserProfile(current.copy(vaultMode = mode))
+        }
+    }
+
     fun setMasterPin(pin: String, recoveryDob: String) {
         securityManager.setPin(pin)
         securityManager.setRecoveryDob(recoveryDob)
@@ -439,7 +446,8 @@ class BudgetViewModel(
         baseIncome: Double,
         fortressThreshold: Double,
         masterPin: String,
-        isBiometricEnabled: Boolean
+        isBiometricEnabled: Boolean,
+        vaultMode: String = "3_VAULT"
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             securityManager.setPin(masterPin)
@@ -451,7 +459,8 @@ class BudgetViewModel(
                 baseMonthlyIncome = baseIncome,
                 fortressThreshold = fortressThreshold,
                 isOnboardingCompleted = true,
-                isBiometricEnabled = isBiometricEnabled
+                isBiometricEnabled = isBiometricEnabled,
+                vaultMode = vaultMode
             )
             dao.saveUserProfile(profile)
             isAppUnlocked.value = true
@@ -968,6 +977,7 @@ class BudgetViewModel(
                 put("reminderEnabled", currentProfile.reminderEnabled)
                 put("reminderHour", currentProfile.reminderHour)
                 put("reminderMinute", currentProfile.reminderMinute)
+                put("vaultMode", currentProfile.vaultMode)
             }
             root.put("userProfile", profileObj)
 
@@ -1201,7 +1211,8 @@ class BudgetViewModel(
                     isOverrunWarningEnabled = p.optBoolean("isOverrunWarningEnabled", updatedProfile.isOverrunWarningEnabled),
                     reminderEnabled = p.optBoolean("reminderEnabled", updatedProfile.reminderEnabled),
                     reminderHour = p.optInt("reminderHour", updatedProfile.reminderHour),
-                    reminderMinute = p.optInt("reminderMinute", updatedProfile.reminderMinute)
+                    reminderMinute = p.optInt("reminderMinute", updatedProfile.reminderMinute),
+                    vaultMode = p.optString("vaultMode", updatedProfile.vaultMode)
                 )
             }
             dao.saveUserProfile(updatedProfile)
