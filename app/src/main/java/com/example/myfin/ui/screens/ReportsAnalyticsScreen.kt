@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.ExcelExportManager
 import com.example.myfin.data.TransactionEntity
@@ -80,14 +81,14 @@ data class DailySpendData(
 )
 
 private val CyanPrimary = Color(0xFF00D2EE)
-private val PurplePrimary = Color(0xFF6C5CE7)
 private val TealPrimary = Color(0xFF10B981)
 private val CoralAccent = Color(0xFFFF6B6B)
 
 private val FallbackHeroGradient = Brush.verticalGradient(
     colors = listOf(
-        Color(0xFFF6F8FF),
-        Color(0xFFEDE9FE).copy(alpha = 0.45f)
+        Color(0xFFFFFFFF),
+        Color(0xFFFCFAFF),
+        AccentPurple.copy(alpha = 0.05f)
     )
 )
 
@@ -229,7 +230,7 @@ fun ReportsAnalyticsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(CardWhite)
+            .background(CanvasLight)
     ) {
         Column(
             modifier = Modifier
@@ -249,12 +250,14 @@ fun ReportsAnalyticsScreen(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onOpenDrawer()
                     },
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = Icons.Default.ChevronLeft,
                         contentDescription = "Back / Menu",
-                        tint = Color(0xFF1E202E),
+                        tint = TextDark,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -270,7 +273,7 @@ fun ReportsAnalyticsScreen(
                         Icon(
                             imageVector = Icons.Outlined.FileDownload,
                             contentDescription = "Export",
-                            tint = TextMuted,
+                            tint = AccentPurple,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -278,29 +281,36 @@ fun ReportsAnalyticsScreen(
                     Spacer(modifier = Modifier.width(4.dp))
 
                     Box {
-                        Row(
+                        Surface(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(18.dp))
                                 .clickable {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     showTimeRangeMenu = true
-                                }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                },
+                            shape = RoundedCornerShape(18.dp),
+                            color = CardWhite,
+                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                            shadowElevation = 2.dp
                         ) {
-                            Text(
-                                text = selectedTimeRange.label,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextMuted
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = null,
-                                tint = TextMuted,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = selectedTimeRange.label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = AccentPurple,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
 
                         DropdownMenu(
@@ -376,6 +386,7 @@ fun ReportsAnalyticsScreen(
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 16.dp)
+                .zIndex(4f)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -384,16 +395,16 @@ fun ReportsAnalyticsScreen(
             ) {
                 Surface(
                     modifier = Modifier
-                        .height(58.dp)
+                        .height(60.dp)
                         .weight(1f)
-                        .shadow(12.dp, RoundedCornerShape(29.dp)),
-                    shape = RoundedCornerShape(29.dp),
+                        .shadow(16.dp, CircleShape),
+                    shape = CircleShape,
                     color = CardWhite
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 8.dp),
+                            .padding(horizontal = 4.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -401,13 +412,13 @@ fun ReportsAnalyticsScreen(
                             val isSelected = currentSubScreen == tab
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
+                                    .clip(CircleShape)
                                     .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
                                     .clickable {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         currentSubScreen = tab
                                     }
-                                    .padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 8.dp),
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Row(
@@ -418,15 +429,15 @@ fun ReportsAnalyticsScreen(
                                         imageVector = tab.icon,
                                         contentDescription = tab.label,
                                         tint = if (isSelected) AccentPurple else TextMuted,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(17.dp)
                                     )
                                     if (isSelected) {
-                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Spacer(modifier = Modifier.width(5.dp))
                                         Text(
                                             text = tab.label,
                                             color = AccentPurple,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp
+                                            fontSize = 11.5.sp
                                         )
                                     }
                                 }
@@ -435,28 +446,26 @@ fun ReportsAnalyticsScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
-                Surface(
-                    modifier = Modifier
-                        .size(58.dp)
-                        .shadow(12.dp, CircleShape)
-                        .clip(CircleShape)
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onNavigateToDashboard()
-                        },
+                FloatingActionButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onNavigateToDashboard()
+                    },
+                    containerColor = AccentPurple,
+                    contentColor = Color.White,
                     shape = CircleShape,
-                    color = Color(0xFF181A2A)
+                    modifier = Modifier
+                        .size(60.dp)
+                        .shadow(16.dp, CircleShape)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.CalendarMonth,
-                            contentDescription = "Switch to Dashboard",
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.CalendarMonth,
+                        contentDescription = "Switch to Dashboard",
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
                 }
             }
         }
@@ -490,7 +499,8 @@ fun ReportsAnalyticsScreen(
                             xlsxExportLauncher.launch("MyFin_Report_${selectedTimeRange.name}_$timeStamp.xlsx")
                             showExportBottomSheet = false
                         },
-                    color = CanvasLight
+                    color = CanvasLight,
+                    border = BorderStroke(0.8.dp, BorderLight)
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(
@@ -523,7 +533,8 @@ fun ReportsAnalyticsScreen(
                             csvExportLauncher.launch("MyFin_Ledger_${selectedTimeRange.name}_$timeStamp.csv")
                             showExportBottomSheet = false
                         },
-                    color = CanvasLight
+                    color = CanvasLight,
+                    border = BorderStroke(0.8.dp, BorderLight)
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(
@@ -547,7 +558,7 @@ fun ReportsAnalyticsScreen(
         }
     }
 
-    // Strategy Architecture Information Sheet (Informational Only + Settings Navigation)
+    // Strategy Architecture Information Sheet
     if (showStrategyInfoSheet) {
         val is3Vault = !userProfile.vaultMode.equals("SIMPLE", ignoreCase = true)
         ModalBottomSheet(
@@ -728,94 +739,101 @@ private fun SummaryAnalyticsTabContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 22.dp)
+            .padding(horizontal = 20.dp)
             .padding(bottom = 110.dp)
     ) {
-        Column(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(26.dp))
-                .background(FallbackHeroGradient)
-                .padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 12.dp)
+                .shadow(3.dp, RoundedCornerShape(26.dp)),
+            shape = RoundedCornerShape(26.dp),
+            color = CardWhite,
+            border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+            Column(
+                modifier = Modifier
+                    .background(FallbackHeroGradient)
+                    .padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 14.dp)
             ) {
-                Column {
-                    Text(
-                        text = "Net Capital Retained",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextMuted
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "$userProfileCurrency${String.format(Locale.US, "%,.2f", netSurplus)}",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Black,
-                        color = if (netSurplus >= 0) TextDark else CoralAccent
-                    )
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = if (netSurplus >= 0) TealPrimary.copy(alpha = 0.14f) else CoralAccent.copy(alpha = 0.14f)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = if (netSurplus >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.Default.TrendingDown,
-                            contentDescription = null,
-                            tint = if (netSurplus >= 0) TealPrimary else CoralAccent,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
+                    Column {
                         Text(
-                            text = "${String.format(Locale.US, "%.1f", retentionRate)}% Saved",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (netSurplus >= 0) TealPrimary else CoralAccent
+                            text = "Net Capital Retained",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextMuted
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "$userProfileCurrency${String.format(Locale.US, "%,.2f", netSurplus)}",
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Black,
+                            color = if (netSurplus >= 0) TextDark else CoralAccent
                         )
                     }
+
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (netSurplus >= 0) TealPrimary.copy(alpha = 0.14f) else CoralAccent.copy(alpha = 0.14f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (netSurplus >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.Default.TrendingDown,
+                                contentDescription = null,
+                                tint = if (netSurplus >= 0) TealPrimary else CoralAccent,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${String.format(Locale.US, "%.1f", retentionRate)}% Saved",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (netSurplus >= 0) TealPrimary else CoralAccent
+                            )
+                        }
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-            SummaryHeroSplineWave(weeklySpendData = weeklySpendData)
+                SummaryHeroSplineWave(weeklySpendData = weeklySpendData)
 
-            Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Daily Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome / 30.0)}",
-                    fontSize = 11.sp,
-                    color = TealPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Daily Burn: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}",
-                    fontSize = 11.sp,
-                    color = PurplePrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Daily Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome / 30.0)}",
+                        fontSize = 11.sp,
+                        color = TealPrimary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Daily Burn: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}",
+                        fontSize = 11.sp,
+                        color = AccentPurple,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             text = "Allocation Breakdown",
             fontWeight = FontWeight.Bold,
             fontSize = 18.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Text(
             text = "Commitments load vs. active safe-to-spend reserve",
@@ -823,104 +841,115 @@ private fun SummaryAnalyticsTabContent(
             color = TextMuted
         )
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(2.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
         ) {
-            Box(
-                modifier = Modifier.size(154.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                ConcentricRingsDonutCanvas(
-                    fixedAmount = fixedOutflow,
-                    variableAmount = variableOutflow
-                )
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "${retentionRate.toInt()}%",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color(0xFF1E202E)
-                    )
-                    Text(
-                        text = "Protected",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextMuted
-                    )
-                }
-            }
-
-            Column(
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = CanvasLight,
-                    modifier = Modifier.fillMaxWidth()
+                Box(
+                    modifier = Modifier.size(140.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(PurplePrimary)
+                    ConcentricRingsDonutCanvas(
+                        fixedAmount = fixedOutflow,
+                        variableAmount = variableOutflow
+                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "${retentionRate.toInt()}%",
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.Black,
+                            color = TextDark
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text("Fixed AutoPay", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
-                            Text(
-                                text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)}",
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E202E)
-                            )
-                        }
+                        Text(
+                            text = "Protected",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextMuted
+                        )
                     }
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = CanvasLight,
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = CanvasLight,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(CyanPrimary)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text("Variable Spend", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
-                            Text(
-                                text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}",
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E202E)
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(9.dp)
+                                    .clip(CircleShape)
+                                    .background(AccentPurple)
                             )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Fixed AutoPay", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                                Text(
+                                    text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)}",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                            }
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = CanvasLight,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(9.dp)
+                                    .clip(CircleShape)
+                                    .background(CyanPrimary)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Variable Spend", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                                Text(
+                                    text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(26.dp))
 
-        // Outflow Velocity Header with Local Anchored Dropdown
+        // Outflow Velocity Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -931,7 +960,7 @@ private fun SummaryAnalyticsTabContent(
                     text = "Outflow Velocity",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    color = Color(0xFF1E202E)
+                    color = TextDark
                 )
                 Text(
                     text = "Daily burn velocity distribution",
@@ -983,22 +1012,45 @@ private fun SummaryAnalyticsTabContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        StackedOutflowBarsCanvas(weeklySpendData = weeklySpendData)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(2.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                StackedOutflowBarsCanvas(weeklySpendData = weeklySpendData)
+            }
+        }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             text = "Velocity Density",
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(10.dp))
-        MicroFrequencyStripCanvas(transactions = allTransactions)
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(1.5.dp, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        ) {
+            Box(modifier = Modifier.padding(14.dp)) {
+                MicroFrequencyStripCanvas(transactions = allTransactions)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(26.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1009,8 +1061,8 @@ private fun SummaryAnalyticsTabContent(
                 val isSelected = selectedVelocityRange == range
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) PurplePrimary else Color.Transparent)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isSelected) AccentPurple else Color.Transparent)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onSelectVelocityRange(range)
@@ -1040,18 +1092,29 @@ private fun SummaryAnalyticsTabContent(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        DualTrajectoryLineCanvas(
-            weeklySpendData = weeklySpendData,
-            plannedBudget = plannedBudget
-        )
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(2.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                DualTrajectoryLineCanvas(
+                    weeklySpendData = weeklySpendData,
+                    plannedBudget = plannedBudget
+                )
+            }
+        }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(26.dp))
 
         Text(
             text = "Health Indicators",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -1071,7 +1134,7 @@ private fun SummaryAnalyticsTabContent(
                 title = "AutoPay Load",
                 value = "${commitmentLoad.toInt()}%",
                 badgeText = "Committed",
-                accentColor = PurplePrimary
+                accentColor = AccentPurple
             )
             SummaryHealthIndicatorPill(
                 modifier = Modifier.weight(1f),
@@ -1123,13 +1186,13 @@ private fun SummaryHeroSplineWave(weeklySpendData: List<DailySpendData>) {
             drawPath(
                 path = fillPath,
                 brush = Brush.verticalGradient(
-                    listOf(PurplePrimary.copy(alpha = 0.22f), Color.Transparent)
+                    listOf(AccentPurple.copy(alpha = 0.22f), Color.Transparent)
                 )
             )
 
             drawPath(
                 path = path,
-                color = PurplePrimary,
+                color = AccentPurple,
                 style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
             )
 
@@ -1144,7 +1207,7 @@ private fun SummaryHeroSplineWave(weeklySpendData: List<DailySpendData>) {
             if (highestVal > 0) {
                 val apex = points[peakIndex]
                 drawCircle(color = CardWhite, radius = 5.5.dp.toPx(), center = apex)
-                drawCircle(color = PurplePrimary, radius = 3.5.dp.toPx(), center = apex)
+                drawCircle(color = AccentPurple, radius = 3.5.dp.toPx(), center = apex)
             }
         }
     }
@@ -1161,7 +1224,8 @@ private fun SummaryHealthIndicatorPill(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        color = CanvasLight
+        color = CardWhite,
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -1181,7 +1245,7 @@ private fun SummaryHealthIndicatorPill(
                 )
             }
             Spacer(modifier = Modifier.height(6.dp))
-            Text(value, fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = Color(0xFF1E202E))
+            Text(value, fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = TextDark)
             Spacer(modifier = Modifier.height(2.dp))
             Text(badgeText, fontSize = 9.sp, color = accentColor, fontWeight = FontWeight.Bold)
         }
@@ -1217,7 +1281,7 @@ private fun CategoriesAnalyticsTabContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 20.dp)
             .padding(bottom = 110.dp)
     ) {
         Spacer(modifier = Modifier.height(6.dp))
@@ -1226,7 +1290,7 @@ private fun CategoriesAnalyticsTabContent(
             text = "Spending Matrix",
             fontWeight = FontWeight.Bold,
             fontSize = 18.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Text(
             text = "Target Benchmark vs. Actual Outflow",
@@ -1236,25 +1300,35 @@ private fun CategoriesAnalyticsTabContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Box(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp),
-            contentAlignment = Alignment.Center
+                .shadow(2.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
         ) {
-            CategoryRadarWebCanvas(
-                categoryList = categoryExpenses.map { it.first },
-                categorySums = categoryExpenses.map { it.second }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(210.dp)
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CategoryRadarWebCanvas(
+                    categoryList = categoryExpenses.map { it.first },
+                    categorySums = categoryExpenses.map { it.second }
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(26.dp))
 
         Text(
             text = "Cashflow Stream Split",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Text(
             text = "Needs (50%) • Wants (30%) • SIP Assets (20%)",
@@ -1262,121 +1336,163 @@ private fun CategoriesAnalyticsTabContent(
             color = TextMuted
         )
         Spacer(modifier = Modifier.height(14.dp))
-        SymmetricalFunnelRibbonCanvas(
-            needsAmount = needsSum,
-            wantsAmount = wantsSum,
-            assetAmount = totalAssets
-        )
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(2.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        ) {
+            Box(modifier = Modifier.padding(16.dp)) {
+                SymmetricalFunnelRibbonCanvas(
+                    needsAmount = needsSum,
+                    wantsAmount = wantsSum,
+                    assetAmount = totalAssets
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(26.dp))
 
         Text(
             text = "Budget Consumption",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (categoryExpenses.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("No categorized expenses in this cycle", fontSize = 12.sp, color = TextMuted)
-            }
-        } else {
-            categoryExpenses.take(4).forEach { (cat, amount) ->
-                val ratio = if (totalExpenses > 0) (amount / totalExpenses).toFloat() else 0f
-                Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(cat, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
-                        Text("$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)} (${(ratio * 100).toInt()}%)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PurplePrimary)
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(2.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                if (categoryExpenses.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(7.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(BorderLight.copy(alpha = 0.5f))
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(ratio.coerceIn(0.05f, 1f))
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Brush.horizontalGradient(listOf(CyanPrimary, PurplePrimary)))
-                        )
+                        Text("No categorized expenses in this cycle", fontSize = 12.sp, color = TextMuted)
+                    }
+                } else {
+                    categoryExpenses.take(4).forEach { (cat, amount) ->
+                        val ratio = if (totalExpenses > 0) (amount / totalExpenses).toFloat() else 0f
+                        Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(cat, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
+                                Text("$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)} (${(ratio * 100).toInt()}%)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(7.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(BorderLight.copy(alpha = 0.5f))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(ratio.coerceIn(0.05f, 1f))
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Brush.horizontalGradient(listOf(CyanPrimary, AccentPurple)))
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(26.dp))
 
         Text(
             text = "Itemized Category Roster",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(10.dp))
 
-        categoryExpenses.forEach { (cat, amount) ->
-            val ratio = if (totalExpenses > 0) (amount / totalExpenses) * 100 else 0.0
-            val catTxs = transactions.filter { it.category.equals(cat, ignoreCase = true) && it.type == TransactionType.EXPENSE }
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(2.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                if (categoryExpenses.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        Text("No category records found", fontSize = 12.sp, color = TextMuted)
+                    }
+                } else {
+                    categoryExpenses.forEachIndexed { index, (cat, amount) ->
+                        val ratio = if (totalExpenses > 0) (amount / totalExpenses) * 100 else 0.0
+                        val catTxs = transactions.filter { it.category.equals(cat, ignoreCase = true) && it.type == TransactionType.EXPENSE }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1.2f)) {
-                    Text(cat, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                    Text("${String.format(Locale.US, "%.1f", ratio)}% total outflow", fontSize = 11.sp, color = TextMuted)
-                }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1.2f)) {
+                                Text(cat, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                                Text("${String.format(Locale.US, "%.1f", ratio)}% total outflow", fontSize = 11.sp, color = TextMuted)
+                            }
 
-                Canvas(
-                    modifier = Modifier
-                        .width(60.dp)
-                        .height(20.dp)
-                ) {
-                    if (catTxs.size >= 2) {
-                        val maxCatTx = catTxs.maxOf { it.amount }.coerceAtLeast(1.0)
-                        val p = Path()
-                        catTxs.forEachIndexed { i, tx ->
-                            val px = (i.toFloat() / (catTxs.size - 1)) * size.width
-                            val py = size.height * (1f - (tx.amount / maxCatTx).toFloat().coerceIn(0.1f, 0.9f))
-                            if (i == 0) p.moveTo(px, py) else p.lineTo(px, py)
+                            Canvas(
+                                modifier = Modifier
+                                    .width(60.dp)
+                                    .height(20.dp)
+                            ) {
+                                if (catTxs.size >= 2) {
+                                    val maxCatTx = catTxs.maxOf { it.amount }.coerceAtLeast(1.0)
+                                    val p = Path()
+                                    catTxs.forEachIndexed { i, tx ->
+                                        val px = (i.toFloat() / (catTxs.size - 1)) * size.width
+                                        val py = size.height * (1f - (tx.amount / maxCatTx).toFloat().coerceIn(0.1f, 0.9f))
+                                        if (i == 0) p.moveTo(px, py) else p.lineTo(px, py)
+                                    }
+                                    drawPath(p, color = AccentPurple, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
+                                } else {
+                                    val p = Path().apply {
+                                        moveTo(0f, size.height * 0.75f)
+                                        lineTo(size.width, size.height * 0.4f)
+                                    }
+                                    drawPath(p, color = AccentPurple, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Text(
+                                text = "-$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)}",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 14.sp,
+                                color = SoftRed
+                            )
                         }
-                        drawPath(p, color = PurplePrimary, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
-                    } else {
-                        val p = Path().apply {
-                            moveTo(0f, size.height * 0.75f)
-                            lineTo(size.width, size.height * 0.4f)
+                        if (index < categoryExpenses.lastIndex) {
+                            HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
                         }
-                        drawPath(p, color = PurplePrimary, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
                     }
                 }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Text(
-                    text = "-$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)}",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 14.sp,
-                    color = SoftRed
-                )
             }
-            HorizontalDivider(color = BorderLight.copy(alpha = 0.35f), thickness = 0.7.dp)
         }
     }
 }
@@ -1400,7 +1516,7 @@ private fun WealthAnalyticsTabContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 20.dp)
             .padding(bottom = 110.dp)
     ) {
         Spacer(modifier = Modifier.height(6.dp))
@@ -1415,7 +1531,7 @@ private fun WealthAnalyticsTabContent(
                     text = "Net Capital Trajectory",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    color = Color(0xFF1E202E)
+                    color = TextDark
                 )
                 Text(
                     text = "Liquid Reserves + SIP Assets Accumulation",
@@ -1426,14 +1542,14 @@ private fun WealthAnalyticsTabContent(
 
             Surface(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .clickable { onOpenStrategyInfo() },
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(14.dp),
                 color = if (is3Vault) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
                 border = BorderStroke(0.7.dp, if (is3Vault) AccentPurple else BorderLight)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -1442,10 +1558,10 @@ private fun WealthAnalyticsTabContent(
                         tint = if (is3Vault) AccentPurple else TextDark,
                         modifier = Modifier.size(13.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = if (is3Vault) "3-Vault" else "Simple",
-                        fontSize = 10.5.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (is3Vault) AccentPurple else TextDark
                     )
@@ -1455,121 +1571,170 @@ private fun WealthAnalyticsTabContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        LayeredMountainAreaChartCanvas(
-            liquidTotal = totalLiquid,
-            assetTotal = totalAssets,
-            transactions = transactions
-        )
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(2.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        ) {
+            Box(modifier = Modifier.padding(16.dp)) {
+                LayeredMountainAreaChartCanvas(
+                    liquidTotal = totalLiquid,
+                    assetTotal = totalAssets,
+                    transactions = transactions
+                )
+            }
+        }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(26.dp))
 
         Text(
             text = "Capital Distribution",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(14.dp))
-        ThreeBubbleAllocationCanvas(
-            bankAmount = accounts.filter { !it.accountType.equals("Cash", true) }.sumOf { it.currentBalance },
-            cashAmount = accounts.filter { it.accountType.equals("Cash", true) }.sumOf { it.currentBalance },
-            assetAmount = totalAssets,
-            currency = userProfileCurrency
-        )
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(2.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        ) {
+            Box(modifier = Modifier.padding(16.dp)) {
+                ThreeBubbleAllocationCanvas(
+                    bankAmount = accounts.filter { !it.accountType.equals("Cash", true) }.sumOf { it.currentBalance },
+                    cashAmount = accounts.filter { it.accountType.equals("Cash", true) }.sumOf { it.currentBalance },
+                    assetAmount = totalAssets,
+                    currency = userProfileCurrency
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(26.dp))
 
         Text(
             text = "Emergency Buffer Runway",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
-        Spacer(modifier = Modifier.height(10.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(2.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
         ) {
-            Column {
-                Text(
-                    text = "${String.format(Locale.US, "%.1f", runwayMonths)} Months",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 24.sp,
-                    color = TealPrimary
-                )
-                Text("Living expenses secured in vaults", fontSize = 11.5.sp, color = TextMuted)
-            }
-            Box(
+            Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(TealPrimary.copy(alpha = 0.12f))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = if (runwayMonths >= 6) "Healthy Cushion" else "Building Buffer",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    color = TealPrimary
-                )
+                Column {
+                    Text(
+                        text = "${String.format(Locale.US, "%.1f", runwayMonths)} Months",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 22.sp,
+                        color = TealPrimary
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("Living expenses secured in vaults", fontSize = 11.5.sp, color = TextMuted)
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(TealPrimary.copy(alpha = 0.12f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = if (runwayMonths >= 6) "Healthy Cushion" else "Building Buffer",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = TealPrimary
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(26.dp))
 
         Text(
             text = if (is3Vault) "Strategic Vaults Status" else "Vaults Liquidity Status",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        accounts.forEach { acc ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(2.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                accounts.forEachIndexed { index, acc ->
+                    Row(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(if (acc.accountType.equals("Cash", true)) TealPrimary.copy(alpha = 0.12f) else PurplePrimary.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (acc.accountType.equals("Cash", true)) Icons.Default.Payments else Icons.Default.AccountBalance,
-                            contentDescription = null,
-                            tint = if (acc.accountType.equals("Cash", true)) TealPrimary else PurplePrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(acc.accountName, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                        Text(if (is3Vault) "${acc.accountType} Tier" else "${acc.accountType} Vault", fontSize = 11.sp, color = TextMuted)
-                    }
-                }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(if (acc.accountType.equals("Cash", true)) TealPrimary.copy(alpha = 0.12f) else AccentPurple.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (acc.accountType.equals("Cash", true)) Icons.Default.Payments else Icons.Default.AccountBalance,
+                                    contentDescription = null,
+                                    tint = if (acc.accountType.equals("Cash", true)) TealPrimary else AccentPurple,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(acc.accountName, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                                Text(if (is3Vault) "${acc.accountType} Tier" else "${acc.accountType} Vault", fontSize = 11.sp, color = TextMuted)
+                            }
+                        }
 
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", acc.currentBalance)}",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 14.5.sp,
-                        color = Color(0xFF1E202E)
-                    )
-                    Text(
-                        text = "Base: $userProfileCurrency${acc.startingBalance.toInt()}",
-                        fontSize = 10.5.sp,
-                        color = TextMuted
-                    )
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", acc.currentBalance)}",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 14.5.sp,
+                                color = TextDark
+                            )
+                            Text(
+                                text = "Base: $userProfileCurrency${acc.startingBalance.toInt()}",
+                                fontSize = 10.5.sp,
+                                color = TextMuted
+                            )
+                        }
+                    }
+                    if (index < accounts.lastIndex) {
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
+                    }
                 }
             }
-            HorizontalDivider(color = BorderLight.copy(alpha = 0.35f), thickness = 0.7.dp)
         }
     }
 }
@@ -1605,7 +1770,7 @@ private fun ConcentricRingsDonutCanvas(
 
         val innerRadius = outerRadius - strokeWidth - 10.dp.toPx()
         drawCircle(
-            color = PurplePrimary.copy(alpha = 0.12f),
+            color = AccentPurple.copy(alpha = 0.12f),
             radius = innerRadius,
             center = center,
             style = Stroke(width = strokeWidth)
@@ -1613,7 +1778,7 @@ private fun ConcentricRingsDonutCanvas(
 
         val fixedSweep = ((fixedAmount / total) * 360f).toFloat().coerceIn(10f, 340f)
         drawArc(
-            color = PurplePrimary,
+            color = AccentPurple,
             startAngle = 40f,
             sweepAngle = fixedSweep,
             useCenter = false,
@@ -1665,7 +1830,7 @@ private fun StackedOutflowBarsCanvas(
 
                 if (purpleH > 0f && data.totalAmount > 0) {
                     drawRoundRect(
-                        color = PurplePrimary,
+                        color = AccentPurple,
                         topLeft = Offset(x, size.height - purpleH),
                         size = Size(barWidth, purpleH),
                         cornerRadius = cornerRadius
@@ -1728,7 +1893,7 @@ private fun MicroFrequencyStripCanvas(transactions: List<TransactionEntity>) {
             val barH = size.height * hRatio
             drawRoundRect(
                 color = if (count > 0) {
-                    if (i % 3 == 0) CyanPrimary else PurplePrimary.copy(alpha = 0.85f)
+                    if (i % 3 == 0) CyanPrimary else AccentPurple.copy(alpha = 0.85f)
                 } else BorderLight.copy(alpha = 0.45f),
                 topLeft = Offset(i * spacing, size.height - barH),
                 size = Size(barW, barH),
@@ -1834,18 +1999,18 @@ private fun DualTrajectoryLineCanvas(
 
                 drawPath(
                     path = purplePath,
-                    color = PurplePrimary,
+                    color = AccentPurple,
                     style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
                 )
 
                 if (actualPoints.size >= 4) {
                     val dot1 = actualPoints[1]
                     drawCircle(color = CardWhite, radius = 4.dp.toPx(), center = dot1)
-                    drawCircle(color = PurplePrimary, radius = 3.dp.toPx(), center = dot1)
+                    drawCircle(color = AccentPurple, radius = 3.dp.toPx(), center = dot1)
 
                     val dot2 = actualPoints[actualPoints.size - 2]
                     drawCircle(color = CardWhite, radius = 4.dp.toPx(), center = dot2)
-                    drawCircle(color = PurplePrimary, radius = 3.dp.toPx(), center = dot2)
+                    drawCircle(color = AccentPurple, radius = 3.dp.toPx(), center = dot2)
                 }
             }
         }
@@ -1913,8 +2078,8 @@ private fun CategoryRadarWebCanvas(
         }
         polyPath.close()
 
-        drawPath(polyPath, color = PurplePrimary.copy(alpha = 0.22f))
-        drawPath(polyPath, color = PurplePrimary, style = Stroke(width = 2.dp.toPx()))
+        drawPath(polyPath, color = AccentPurple.copy(alpha = 0.22f))
+        drawPath(polyPath, color = AccentPurple, style = Stroke(width = 2.dp.toPx()))
     }
 }
 
@@ -1946,7 +2111,7 @@ private fun SymmetricalFunnelRibbonCanvas(
             cubicTo(w * 0.65f, band1Bottom, w * 0.35f, h * 0.35f, 0f, h * 0.35f)
             close()
         }
-        drawPath(path1, color = PurplePrimary.copy(alpha = 0.85f))
+        drawPath(path1, color = AccentPurple.copy(alpha = 0.85f))
 
         val path2 = Path().apply {
             moveTo(0f, h * 0.35f)
@@ -1994,7 +2159,7 @@ private fun LayeredMountainAreaChartCanvas(
         }
         drawPath(
             p1,
-            brush = Brush.verticalGradient(listOf(PurplePrimary.copy(alpha = 0.45f), PurplePrimary.copy(alpha = 0.05f)))
+            brush = Brush.verticalGradient(listOf(AccentPurple.copy(alpha = 0.45f), AccentPurple.copy(alpha = 0.05f)))
         )
 
         val p2 = Path().apply {
@@ -2029,7 +2194,7 @@ private fun ThreeBubbleAllocationCanvas(
             modifier = Modifier
                 .size(86.dp)
                 .clip(CircleShape)
-                .background(PurplePrimary.copy(alpha = 0.88f)),
+                .background(AccentPurple.copy(alpha = 0.88f)),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
