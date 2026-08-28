@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
 import com.example.myfin.ui.BudgetViewModel
@@ -89,15 +90,13 @@ fun SimpleAccountsScreen(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
                         .size(38.dp)
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(CardWhite)
-                        .border(0.8.dp, BorderLight.copy(alpha = 0.7f), RoundedCornerShape(11.dp))
+                        .clip(CircleShape)
                 ) {
                     Icon(
-                        Icons.Default.ChevronLeft,
+                        imageVector = Icons.Default.ChevronLeft,
                         contentDescription = "Drawer",
                         tint = TextDark,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
@@ -116,7 +115,8 @@ fun SimpleAccountsScreen(
                         .height(38.dp),
                     shape = RoundedCornerShape(12.dp),
                     color = CardWhite,
-                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                    shadowElevation = 2.dp
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -163,7 +163,7 @@ fun SimpleAccountsScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 105.dp)
             ) {
-                // Minimal Total Balance Card
+                // Total Balance Card with AccentPurple Ambient Gradient
                 item {
                     Surface(
                         modifier = Modifier
@@ -171,13 +171,17 @@ fun SimpleAccountsScreen(
                             .shadow(3.dp, RoundedCornerShape(22.dp)),
                         shape = RoundedCornerShape(22.dp),
                         color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
                     ) {
                         Column(
                             modifier = Modifier
                                 .background(
                                     Brush.verticalGradient(
-                                        listOf(CardWhite, CanvasLight.copy(alpha = 0.5f))
+                                        listOf(
+                                            Color(0xFFFFFFFF),
+                                            Color(0xFFFCFAFF),
+                                            AccentPurple.copy(alpha = 0.05f)
+                                        )
                                     )
                                 )
                                 .padding(20.dp)
@@ -293,13 +297,13 @@ fun SimpleAccountsScreen(
                                         modifier = Modifier
                                             .size(42.dp)
                                             .clip(CircleShape)
-                                            .background(CanvasLight),
+                                            .background(AccentPurple.copy(alpha = 0.10f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             Icons.Default.AccountBalance,
                                             contentDescription = null,
-                                            tint = TextDark,
+                                            tint = AccentPurple,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -358,7 +362,8 @@ fun SimpleAccountsScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .zIndex(4f),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -408,7 +413,7 @@ fun SimpleAccountsScreen(
 
             FloatingActionButton(
                 onClick = { showActionMenu = !showActionMenu },
-                containerColor = TextDark,
+                containerColor = AccentPurple,
                 contentColor = Color.White,
                 shape = CircleShape,
                 modifier = Modifier.size(60.dp).shadow(16.dp, CircleShape)
@@ -427,6 +432,7 @@ fun SimpleAccountsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .zIndex(5f)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -441,12 +447,13 @@ fun SimpleAccountsScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(bottom = 94.dp, end = 20.dp)
+                    .zIndex(6f)
             ) {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = CardWhite,
                     shadowElevation = 10.dp,
-                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                    border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.2f)),
                     modifier = Modifier.width(190.dp)
                 ) {
                     Column(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -460,7 +467,7 @@ fun SimpleAccountsScreen(
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.AddCard, contentDescription = null, tint = TextDark, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.AddCard, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(12.dp))
                             Text("Add Account", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
                         }
@@ -477,7 +484,7 @@ fun SimpleAccountsScreen(
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.SyncAlt, contentDescription = null, tint = TextDark, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.SyncAlt, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(12.dp))
                             Text("Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
                         }
@@ -508,7 +515,8 @@ fun SimpleAccountsScreen(
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -834,7 +842,7 @@ private fun DockPillTab(
     Box(
         modifier = Modifier
             .clip(CircleShape)
-            .background(if (isSelected) CanvasLight else Color.Transparent)
+            .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
