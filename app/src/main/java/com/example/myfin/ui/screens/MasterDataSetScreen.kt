@@ -42,6 +42,7 @@ import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AppBottomDock
 import com.example.myfin.ui.components.DockFabAction
+import com.example.myfin.ui.components.NavigationTarget
 import com.example.myfin.ui.components.rememberAutoScrollVisibilityConnection
 import com.example.myfin.ui.theme.*
 
