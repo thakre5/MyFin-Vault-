@@ -261,7 +261,7 @@ fun VaultStrategyScreen(
                                 modifier = Modifier.size(34.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.Insights,
+                                    imageVector = Icons.Default.Insights,
                                     contentDescription = "Reports & Analytics",
                                     tint = TextDark,
                                     modifier = Modifier.size(17.dp)
@@ -280,7 +280,7 @@ fun VaultStrategyScreen(
                                 modifier = Modifier.size(34.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.Settings,
+                                    imageVector = Icons.Default.Settings,
                                     contentDescription = "Vault Settings",
                                     tint = AccentPurple,
                                     modifier = Modifier.size(17.dp)
@@ -366,7 +366,7 @@ fun VaultStrategyScreen(
                                         .background(AccentPurple.copy(alpha = 0.10f))
                                 ) {
                                     Icon(
-                                        Icons.Default.HelpOutline,
+                                        imageVector = Icons.Default.HelpOutline,
                                         contentDescription = "Help Guide",
                                         tint = AccentPurple,
                                         modifier = Modifier.size(16.dp)
@@ -397,7 +397,7 @@ fun VaultStrategyScreen(
                                         modifier = Modifier.fillMaxSize()
                                     )
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Liquid", fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                                        Text(text = "Liquid", fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
                                         Text(
                                             text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalLiquidBalance)}",
                                             fontSize = 12.sp,
@@ -478,7 +478,7 @@ fun VaultStrategyScreen(
                             border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
                         ) {
                             Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                                Text("Initializing accounts...", fontSize = 12.sp, color = TextMuted)
+                                Text(text = "Initializing accounts...", fontSize = 12.sp, color = TextMuted)
                             }
                         }
                     }
@@ -599,13 +599,13 @@ fun VaultStrategyScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Savings, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(17.dp))
+                                        Icon(imageVector = Icons.Default.Savings, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(17.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Strategic Vault Routing", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
+                                        Text(text = "Strategic Vault Routing", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
                                     }
 
                                     Surface(shape = RoundedCornerShape(6.dp), color = AccentPurple.copy(alpha = 0.12f)) {
-                                        Text("92% On Plan", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AccentPurple, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                        Text(text = "92% On Plan", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AccentPurple, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                                     }
                                 }
 
@@ -636,8 +636,8 @@ fun VaultStrategyScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("Monthly Commitments Covered", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                                        Text("Tap to view routing breakdown", fontSize = 10.sp, color = TextMuted)
+                                        Text(text = "Monthly Commitments Covered", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                        Text(text = "Tap to view routing breakdown", fontSize = 10.sp, color = TextMuted)
                                     }
 
                                     Button(
@@ -647,7 +647,7 @@ fun VaultStrategyScreen(
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                         modifier = Modifier.height(30.dp)
                                     ) {
-                                        Text("Sweep Now", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text(text = "Sweep Now", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                     }
                                 }
                             }
@@ -685,8 +685,8 @@ fun VaultStrategyScreen(
             onSelectTarget = { target ->
                 when (target) {
                     NavigationTarget.MONTHLY_VIEW -> onNavigateToDashboard()
-                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
+                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.REPORTS_ANALYTICS -> onNavigateToVaultAnalytics()
                     NavigationTarget.VAULT_ACCOUNTS -> { /* Active */ }
                     else -> {}
@@ -703,10 +703,10 @@ fun VaultStrategyScreen(
         if (showHelpDialog) {
             AlertDialog(
                 onDismissRequest = { showHelpDialog = false },
-                title = { Text("3-Vault Financial Strategy", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                title = { Text(text = "3-Vault Financial Strategy", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                 text = {
                     Text(
-                        "• Operating Vault: Daily living expenses, dining, and immediate cash needs.\n\n" +
+                        text = "• Operating Vault: Daily living expenses, dining, and immediate cash needs.\n\n" +
                                 "• Commitments Vault: Dedicated buffer for rent, EMIs, and AutoPay bills.\n\n" +
                                 "• Fortress Vault: Untouchable liquid emergency fund and investment sweeps.",
                         fontSize = 12.5.sp,
@@ -716,7 +716,7 @@ fun VaultStrategyScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = { showHelpDialog = false }) {
-                        Text("Understood", fontWeight = FontWeight.Bold, color = AccentPurple)
+                        Text(text = "Understood", fontWeight = FontWeight.Bold, color = AccentPurple)
                     }
                 }
             )
@@ -749,7 +749,7 @@ fun VaultStrategyScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Edit: ${acc.accountName}", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                        Text(text = "Edit: ${acc.accountName}", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
 
                         IconButton(
                             onClick = {
@@ -761,7 +761,7 @@ fun VaultStrategyScreen(
                                 )
                             }
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete Account", tint = SoftRed, modifier = Modifier.size(20.dp))
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Account", tint = SoftRed, modifier = Modifier.size(20.dp))
                         }
                     }
 
@@ -770,7 +770,7 @@ fun VaultStrategyScreen(
                     OutlinedTextField(
                         value = nameText,
                         onValueChange = { nameText = it },
-                        label = { Text("Account Name", fontSize = 12.sp) },
+                        label = { Text(text = "Account Name", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -780,10 +780,10 @@ fun VaultStrategyScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("Strategic Vault Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "Strategic Vault Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        VaultTier.values().forEach { tier ->
+                        VaultTier.entries.forEach { tier ->
                             val isSel = selectedRole == tier
                             Surface(
                                 modifier = Modifier
@@ -811,7 +811,7 @@ fun VaultStrategyScreen(
                     OutlinedTextField(
                         value = balanceText,
                         onValueChange = { balanceText = it },
-                        label = { Text("Current Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        label = { Text(text = "Current Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -829,9 +829,9 @@ fun VaultStrategyScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Info, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(15.dp))
+                                Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Modification Impact", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = "Modification Impact", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
@@ -858,11 +858,13 @@ fun VaultStrategyScreen(
                             }
                         },
                         enabled = nameText.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text(text = "Save Changes", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -877,21 +879,21 @@ fun VaultStrategyScreen(
 
             AlertDialog(
                 onDismissRequest = { pendingEditConfirmation = null },
-                title = { Text("Confirm Account Modifications?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                title = { Text(text = "Confirm Account Modifications?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (isNameChanged) {
-                            Text("• Rename: '${conf.originalAccount.accountName}' ➔ '${conf.updatedName}'")
+                            Text(text = "• Rename: '${conf.originalAccount.accountName}' ➔ '${conf.updatedName}'")
                         }
                         if (isRoleChanged) {
-                            Text("• Strategic Role: '${conf.originalAccount.accountType}' ➔ '${conf.updatedRole.title}'")
+                            Text(text = "• Strategic Role: '${conf.originalAccount.accountType}' ➔ '${conf.updatedRole.title}'")
                         }
                         if (isBalChanged) {
                             val diff = conf.targetBalance - conf.originalAccount.currentBalance
-                            Text("• Balance Adjustment: ${if (diff > 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", diff)}")
+                            Text(text = "• Balance Adjustment: ${if (diff > 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", diff)}")
                         }
                         if (!isNameChanged && !isRoleChanged && !isBalChanged) {
-                            Text("No changes detected.")
+                            Text(text = "No changes detected.")
                         }
                     }
                 },
@@ -918,12 +920,12 @@ fun VaultStrategyScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Confirm & Apply", fontWeight = FontWeight.Bold)
+                        Text(text = "Confirm & Apply", fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { pendingEditConfirmation = null }) {
-                        Text("Cancel", color = TextDark)
+                        Text(text = "Cancel", color = TextDark)
                     }
                 }
             )
@@ -954,18 +956,18 @@ fun VaultStrategyScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("Strategic Routing Breakdown", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
-                            Text("Cashflow allocation & surplus routing analysis", fontSize = 11.5.sp, color = TextMuted)
+                            Text(text = "Strategic Routing Breakdown", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                            Text(text = "Cashflow allocation & surplus routing analysis", fontSize = 11.5.sp, color = TextMuted)
                         }
 
                         Surface(shape = RoundedCornerShape(8.dp), color = AccentPurple.copy(alpha = 0.12f)) {
-                            Text("92% On Plan", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AccentPurple, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            Text(text = "92% On Plan", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AccentPurple, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                         }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Text("Outflow Distribution (This Cycle)", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "Outflow Distribution (This Cycle)", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Surface(
@@ -979,34 +981,34 @@ fun VaultStrategyScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFE57A28)))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Everyday Spend & Living", fontSize = 12.sp, color = TextDark)
+                                    Text(text = "Everyday Spend & Living", fontSize = 12.sp, color = TextDark)
                                 }
-                                Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeExpenses)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeExpenses)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(AccentPurple))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Queued / Paid AutoPay Bills", fontSize = 12.sp, color = TextDark)
+                                    Text(text = "Queued / Paid AutoPay Bills", fontSize = 12.sp, color = TextDark)
                                 }
-                                Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SoftTeal))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Transfers & Fortress Sweeps", fontSize = 12.sp, color = TextDark)
+                                    Text(text = "Transfers & Fortress Sweeps", fontSize = 12.sp, color = TextDark)
                                 }
-                                Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeTransfersOut)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeTransfersOut)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    Text("Surplus Calculation Engine", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "Surplus Calculation Engine", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Surface(
@@ -1017,17 +1019,17 @@ fun VaultStrategyScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Current Liquid Balance", fontSize = 11.5.sp, color = TextMuted)
-                                Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeAccount?.currentBalance ?: 0.0)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = "Current Liquid Balance", fontSize = 11.5.sp, color = TextMuted)
+                                Text(text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeAccount?.currentBalance ?: 0.0)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Reserved for Upcoming AutoPay", fontSize = 11.5.sp, color = TextMuted)
-                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
+                                Text(text = "Reserved for Upcoming AutoPay", fontSize = 11.5.sp, color = TextMuted)
+                                Text(text = "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
                             }
                             HorizontalDivider(color = BorderLight, thickness = 0.6.dp)
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Available Sweepable Surplus", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                                Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", calculatedSweepSurplus)}", fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = SoftGreen)
+                                Text(text = "Available Sweepable Surplus", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", calculatedSweepSurplus)}", fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = SoftGreen)
                             }
                         }
                     }
@@ -1039,11 +1041,13 @@ fun VaultStrategyScreen(
                             showRoutingDetailsSheet = false
                             showTransferSheet = true
                         },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text("Sweep Surplus to Fortress (${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", calculatedSweepSurplus)})", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(text = "Sweep Surplus to Fortress (${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", calculatedSweepSurplus)})", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -1054,8 +1058,8 @@ fun VaultStrategyScreen(
         accountToDelete?.let { acc ->
             AlertDialog(
                 onDismissRequest = { accountToDelete = null },
-                title = { Text("Delete Account?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-                text = { Text("Are you sure you want to remove '${acc.accountName}'? Accounts with existing transactions cannot be removed without reassigning.", fontSize = 13.sp) },
+                title = { Text(text = "Delete Account?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                text = { Text(text = "Are you sure you want to remove '${acc.accountName}'? Accounts with existing transactions cannot be removed without reassigning.", fontSize = 13.sp) },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -1070,12 +1074,12 @@ fun VaultStrategyScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = SoftRed),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Delete", fontWeight = FontWeight.Bold)
+                        Text(text = "Delete", fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { accountToDelete = null }) {
-                        Text("Cancel", color = TextDark)
+                        Text(text = "Cancel", color = TextDark)
                     }
                 }
             )
@@ -1104,13 +1108,13 @@ fun VaultStrategyScreen(
                         .navigationBarsPadding()
                         .padding(horizontal = 22.dp, vertical = 8.dp)
                 ) {
-                    Text("Instant Vault Transfer", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                    Text(text = "Instant Vault Transfer", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("Transfer liquidity between your bank accounts & vaults", fontSize = 11.5.sp, color = TextMuted)
+                    Text(text = "Transfer liquidity between your bank accounts & vaults", fontSize = 11.5.sp, color = TextMuted)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Text("Source Account (From)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "Source Account (From)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(accountNames) { acc ->
@@ -1136,7 +1140,7 @@ fun VaultStrategyScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("Destination Account (To)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "Destination Account (To)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(accountNames) { acc ->
@@ -1165,7 +1169,7 @@ fun VaultStrategyScreen(
                     OutlinedTextField(
                         value = amountText,
                         onValueChange = { amountText = it },
-                        label = { Text("Transfer Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        label = { Text(text = "Transfer Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1178,7 +1182,7 @@ fun VaultStrategyScreen(
                     OutlinedTextField(
                         value = noteText,
                         onValueChange = { noteText = it },
-                        label = { Text("Note / Purpose (e.g., Strategic Vault Sweep)", fontSize = 12.sp) },
+                        label = { Text(text = "Note / Purpose (e.g., Strategic Vault Sweep)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1204,11 +1208,13 @@ fun VaultStrategyScreen(
                                 Toast.makeText(context, "Please enter a valid amount and distinct accounts", Toast.LENGTH_SHORT).show()
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text("Confirm Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text(text = "Confirm Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -1237,16 +1243,16 @@ fun VaultStrategyScreen(
                         .navigationBarsPadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
-                    Text("Add Vault Account", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                    Text(text = "Add Vault Account", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("Configure account name, strategic role, and starting balance", fontSize = 11.5.sp, color = TextMuted)
+                    Text(text = "Configure account name, strategic role, and starting balance", fontSize = 11.5.sp, color = TextMuted)
 
                     Spacer(modifier = Modifier.height(14.dp))
 
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Account Name (e.g., HDFC Salary, ICICI Bills)", fontSize = 12.sp) },
+                        label = { Text(text = "Account Name (e.g., HDFC Salary, ICICI Bills)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1256,10 +1262,10 @@ fun VaultStrategyScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("Strategic Vault Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "Strategic Vault Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        VaultTier.values().forEach { tier ->
+                        VaultTier.entries.forEach { tier ->
                             val isSel = selectedTier == tier
                             Surface(
                                 modifier = Modifier
@@ -1287,7 +1293,7 @@ fun VaultStrategyScreen(
                     OutlinedTextField(
                         value = balanceText,
                         onValueChange = { balanceText = it },
-                        label = { Text("Initial Starting Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        label = { Text(text = "Initial Starting Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1315,7 +1321,7 @@ fun VaultStrategyScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(text = "Create Account", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -1348,7 +1354,7 @@ fun VaultStrategyScreen(
                         modifier = Modifier.size(54.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                            Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
                         }
                     }
 
@@ -1364,7 +1370,9 @@ fun VaultStrategyScreen(
 
                     Button(
                         onClick = { receiptPayload = null },
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = TextDark)
                     ) {
@@ -1388,14 +1396,14 @@ private fun MatrixMetricCell(
 ) {
     Column(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(15.dp))
+            Icon(imageVector = icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(15.dp))
             Spacer(modifier = Modifier.width(5.dp))
-            Text(title, fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+            Text(text = title, fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
         }
         Spacer(modifier = Modifier.height(3.dp))
-        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
+        Text(text = value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
         Spacer(modifier = Modifier.height(1.dp))
-        Text(subtitle, fontSize = 9.5.sp, color = TextMuted)
+        Text(text = subtitle, fontSize = 9.5.sp, color = TextMuted)
     }
 }
 
@@ -1482,7 +1490,7 @@ private fun BankAccountPhysicalCard(
                         modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
-                            Icons.Default.Edit,
+                            imageVector = Icons.Default.Edit,
                             contentDescription = "Edit Account",
                             tint = TextMuted,
                             modifier = Modifier.size(15.dp)
@@ -1610,11 +1618,11 @@ private fun AllocationStatPill(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(color))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Text(text = title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextDark)
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("$percentage%", fontSize = 10.sp, color = TextMuted)
+                Text(text = "$percentage%", fontSize = 10.sp, color = TextMuted)
             }
-            Text(amount, fontSize = 11.sp, fontWeight = FontWeight.Black, color = TextDark)
+            Text(text = amount, fontSize = 11.sp, fontWeight = FontWeight.Black, color = TextDark)
         }
     }
 }
