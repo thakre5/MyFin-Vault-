@@ -111,6 +111,7 @@ fun SettingsScreen(
 
     var activeSheet by rememberSaveable { mutableStateOf(initialActiveSheet) }
     var expandedSection by rememberSaveable { mutableStateOf(SettingsAccordionSection.NONE) }
+    var avatarRefreshKey by remember { mutableStateOf(0L) }
 
     val is3VaultActive = remember(userProfile.vaultMode) {
         !userProfile.vaultMode.equals("SIMPLE", ignoreCase = true)
@@ -159,7 +160,7 @@ fun SettingsScreen(
         }
     }
 
-    // Copy selected image permanently to internal storage to avoid permission expiration
+    // Copy selected image permanently to internal storage and trigger instant UI refresh via avatarRefreshKey
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -172,9 +173,11 @@ fun SettingsScreen(
                 inputStream?.close()
                 outputStream.close()
                 viewModel.updateProfileImageUri(file.absolutePath)
+                avatarRefreshKey = System.currentTimeMillis()
                 Toast.makeText(context, "Profile picture updated", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 viewModel.updateProfileImageUri(sourceUri.toString())
+                avatarRefreshKey = System.currentTimeMillis()
             }
         }
     }
@@ -280,7 +283,7 @@ fun SettingsScreen(
                                 border = BorderStroke(3.dp, CardWhite)
                             ) {
                                 val profileUri = userProfile.profileImageUri
-                                val profileBitmap = remember(profileUri) {
+                                val profileBitmap = remember(profileUri, avatarRefreshKey) {
                                     if (!profileUri.isNullOrBlank()) {
                                         try {
                                             val file = File(profileUri)
