@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.ui.theme.AccentPurple
@@ -120,9 +121,10 @@ fun DrawerMenuContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            // Increased space to move main content down
+            Spacer(modifier = Modifier.height(30.dp))
 
-            // Navigation Items (Bounded strictly inside the left pane)
+            // Navigation Items
             DrawerNavItem(
                 icon = Icons.Default.Assessment,
                 label = "Monthly Dashboard",
@@ -173,11 +175,11 @@ fun DrawerMenuContent(
             )
         }
 
-        // Bottom Section: Centered Lock Action + Branding Footer
+        // Bottom Section: Centered Lock Action + Smaller, Visible Footer
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Surface(
                 shape = RoundedCornerShape(14.dp),
@@ -187,7 +189,7 @@ fun DrawerMenuContent(
                     .clickable { onLockApp() }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 9.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
@@ -195,23 +197,51 @@ fun DrawerMenuContent(
                         imageVector = Icons.Default.Lock,
                         contentDescription = "Lock",
                         tint = SoftRed,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Lock Vault",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp,
+                        fontSize = 12.sp,
                         color = SoftRed
                     )
                 }
             }
 
-            AppBrandingFooter(
-                modifier = Modifier.fillMaxWidth(),
-                version = "v1.0.0",
-                showIcon = true
-            )
+            // Compact legible branding footer
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+                modifier = Modifier.padding(top = 2.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.08f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.75f),
+                        modifier = Modifier.size(11.dp)
+                    )
+                }
+                Text(
+                    text = "MyFin Vault v1.0.0",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+                Text(
+                    text = "100% Offline SQLite • Zero Cloud Telemetry",
+                    fontSize = 8.5.sp,
+                    color = Color.White.copy(alpha = 0.50f),
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
