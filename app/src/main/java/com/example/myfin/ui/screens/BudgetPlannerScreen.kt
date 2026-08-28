@@ -1,9 +1,9 @@
 package com.example.myfin.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,7 +21,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -32,6 +33,10 @@ import androidx.compose.ui.zIndex
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.CategoryPerformance
+import com.example.myfin.ui.components.AppBottomDock
+import com.example.myfin.ui.components.DockFabAction
+import com.example.myfin.ui.components.NavigationTarget
+import com.example.myfin.ui.components.rememberAutoScrollVisibilityConnection
 import com.example.myfin.ui.theme.*
 import java.util.Calendar
 import java.util.Locale
@@ -68,9 +73,10 @@ fun BudgetPlannerScreen(
     onOpenDrawer: () -> Unit,
     onNavigateToTaxonomy: () -> Unit = {},
     onNavigateToMonthly: () -> Unit = {},
-    onNavigateToYearly: () -> Unit = {},
-    onNavigateToVaults: () -> Unit = {}
+    onNavigateToVaults: () -> Unit = {},
+    onNavigateToAnalytics: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
@@ -78,15 +84,22 @@ fun BudgetPlannerScreen(
     var categoryToConfirm by remember { mutableStateOf<CategoryPerformance?>(null) }
     var lockedCategoryAlert by remember { mutableStateOf<CategoryPerformance?>(null) }
     var editingCategory by remember { mutableStateOf<CategoryPerformance?>(null) }
+    var showQuickSelectTargetSheet by remember { mutableStateOf(false) }
+    var showCopyPlanDialog by remember { mutableStateOf(false) }
 
+    val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
     val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
-    // Date calculations for 5th-of-the-month edit restriction
+    // Timeline calculations for 5th-of-the-month discipline freeze
     val todayCal = remember { Calendar.getInstance() }
-    val isCurrentMonthAndYear = (uiState.selectedMonth == todayCal.get(Calendar.MONTH) + 1) &&
-            (uiState.selectedYear == todayCal.get(Calendar.YEAR))
+    val currentCalendarMonth = todayCal.get(Calendar.MONTH) + 1
+    val currentCalendarYear = todayCal.get(Calendar.YEAR)
     val currentDayOfMonth = todayCal.get(Calendar.DAY_OF_MONTH)
-    val isPastFifth = isCurrentMonthAndYear && (currentDayOfMonth > 5)
+
+    val isCurrentMonth = (uiState.selectedMonth == currentCalendarMonth) && (uiState.selectedYear == currentCalendarYear)
+    val isPastMonth = (uiState.selectedYear < currentCalendarYear) ||
+            (uiState.selectedYear == currentCalendarYear && uiState.selectedMonth < currentCalendarMonth)
+    val isPastFifth = isCurrentMonth && (currentDayOfMonth > 5)
 
     // Financial Allocation Metrics
     val totalPlannedIncome = uiState.metrics.plannedIncome
@@ -99,7 +112,7 @@ fun BudgetPlannerScreen(
     } else 0
     val isOverAllocated = unallocatedBuffer < 0
 
-    // Complete & Prioritized Category Resolution
+    // Prioritized Category Resolution
     val displayedCategories = remember(uiState.masterCategories, uiState.categories, selectedSegment) {
         val masterList = uiState.masterCategories.filter { it.type == selectedSegment }
         val performanceMap = uiState.categories.associateBy { it.category }
@@ -130,240 +143,369 @@ fun BudgetPlannerScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-        ) {
-            // Pinned Top Header Section
+    // Dynamic Contextual FAB Actions per Selected Tab
+    val fabActions = remember(selectedSegment, isPastMonth, isPastFifth) {
+        when (selectedSegment) {
+            TransactionType.EXPENSE -> listOf(
+                DockFabAction(
+                    icon = Icons.Default.Tune,
+                    label = "Set Expense Target",
+                    onClick = {
+                        if (isPastMonth) {
+                            Toast.makeText(context, "Historical months are read-only.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showQuickSelectTargetSheet = true
+                        }
+                    }
+                ),
+                DockFabAction(
+                    icon = Icons.Default.Autorenew,
+                    label = "Add Fixed Bill",
+                    onClick = {
+                        Toast.makeText(context, "Manage recurring AutoPay in Vaults or Settings.", Toast.LENGTH_SHORT).show()
+                    }
+                ),
+                DockFabAction(
+                    icon = Icons.Default.History,
+                    label = "Copy Last Month's Plan",
+                    onClick = {
+                        if (isPastMonth) {
+                            Toast.makeText(context, "Cannot overwrite historical months.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showCopyPlanDialog = true
+                        }
+                    }
+                )
+            )
+            TransactionType.INCOME -> listOf(
+                DockFabAction(
+                    icon = Icons.Default.TrendingUp,
+                    label = "Set Income Target",
+                    onClick = {
+                        if (isPastMonth) {
+                            Toast.makeText(context, "Historical months are read-only.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showQuickSelectTargetSheet = true
+                        }
+                    }
+                ),
+                DockFabAction(
+                    icon = Icons.Default.Savings,
+                    label = "Add Recurring Inflow",
+                    onClick = {
+                        Toast.makeText(context, "Configure fixed salary/inflow streams.", Toast.LENGTH_SHORT).show()
+                    }
+                ),
+                DockFabAction(
+                    icon = Icons.Default.History,
+                    label = "Copy Last Month's Plan",
+                    onClick = {
+                        if (isPastMonth) {
+                            Toast.makeText(context, "Cannot overwrite historical months.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showCopyPlanDialog = true
+                        }
+                    }
+                )
+            )
+            TransactionType.ASSET -> listOf(
+                DockFabAction(
+                    icon = Icons.Default.PieChart,
+                    label = "Set SIP Target",
+                    onClick = {
+                        if (isPastMonth) {
+                            Toast.makeText(context, "Historical months are read-only.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showQuickSelectTargetSheet = true
+                        }
+                    }
+                ),
+                DockFabAction(
+                    icon = Icons.Default.AccountBalance,
+                    label = "Add Recurring SIP",
+                    onClick = {
+                        Toast.makeText(context, "Configure automated investment SIPs.", Toast.LENGTH_SHORT).show()
+                    }
+                ),
+                DockFabAction(
+                    icon = Icons.Default.History,
+                    label = "Copy Last Month's Plan",
+                    onClick = {
+                        if (isPastMonth) {
+                            Toast.makeText(context, "Cannot overwrite historical months.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showCopyPlanDialog = true
+                        }
+                    }
+                )
+            )
+            TransactionType.TRANSFER -> emptyList()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CanvasLight)
+            .nestedScroll(scrollConnection)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // =========================================================
+            // 1. PINNED TOP HEADER WITH SHELF GRADIENT DISSOLVE
+            // =========================================================
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .zIndex(2f)
             ) {
-                // Top App Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CanvasLight)
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = 6.dp, bottom = 8.dp)
                 ) {
-                    IconButton(
-                        onClick = onOpenDrawer,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
+                    // Top Bar
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.ChevronLeft,
-                            contentDescription = "Drawer",
-                            tint = TextDark,
-                            modifier = Modifier.size(24.dp)
+                        IconButton(
+                            onClick = onOpenDrawer,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronLeft,
+                                contentDescription = "Drawer",
+                                tint = TextDark,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        Text(
+                            text = "Budget Planner",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 16.sp,
+                            color = TextDark
                         )
+
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = CardWhite,
+                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                            shadowElevation = 2.dp
+                        ) {
+                            Text(
+                                text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
                     }
 
-                    Text(
-                        text = "Budget Planner",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 16.sp,
-                        color = TextDark
-                    )
+                    Spacer(modifier = Modifier.height(8.dp))
 
+                    // Inflow Baseline Hero Card
                     Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(3.dp, RoundedCornerShape(18.dp)),
                         shape = RoundedCornerShape(18.dp),
                         color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
-                        shadowElevation = 2.dp
+                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
                     ) {
-                        Text(
-                            text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Inflow Baseline Hero Card with AccentPurple Ambient Gradient
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(3.dp, RoundedCornerShape(18.dp)),
-                    shape = RoundedCornerShape(18.dp),
-                    color = CardWhite,
-                    border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color(0xFFFFFFFF),
-                                        Color(0xFFFCFAFF),
-                                        AccentPurple.copy(alpha = 0.05f)
+                        Column(
+                            modifier = Modifier
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color(0xFFFFFFFF),
+                                            Color(0xFFFCFAFF),
+                                            AccentPurple.copy(alpha = 0.05f)
+                                        )
                                     )
                                 )
-                            )
-                            .padding(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(16.dp)
                         ) {
-                            Text(
-                                text = "TOTAL MONTHLY INFLOW BASELINE",
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextMuted,
-                                letterSpacing = 0.5.sp
-                            )
-
-                            Surface(
-                                shape = RoundedCornerShape(7.dp),
-                                color = if (isOverAllocated) SoftRed.copy(alpha = 0.12f) else AccentPurple.copy(alpha = 0.12f)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (isOverAllocated) "Over-allocated ($allocationPercentage%)" else "$allocationPercentage% Allocated",
-                                    color = if (isOverAllocated) SoftRed else AccentPurple,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+                                    text = "TOTAL MONTHLY INFLOW BASELINE",
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextMuted,
+                                    letterSpacing = 0.5.sp
                                 )
+
+                                Surface(
+                                    shape = RoundedCornerShape(7.dp),
+                                    color = if (isOverAllocated) SoftRed.copy(alpha = 0.12f) else AccentPurple.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = if (isOverAllocated) "Over-allocated ($allocationPercentage%)" else "$allocationPercentage% Allocated",
+                                        color = if (isOverAllocated) SoftRed else AccentPurple,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            Text(
+                                text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPlannedIncome)}",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextDark,
+                                letterSpacing = (-0.4).sp
+                            )
+
+                            Text(
+                                text = if (isOverAllocated) {
+                                    "Deficit: Exceeds income by ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(unallocatedBuffer))}"
+                                } else {
+                                    "Unallocated buffer: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", unallocatedBuffer)} left to assign"
+                                },
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (isOverAllocated) SoftRed else TextMuted
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Dual Segment Allocation Progress Bar
+                            val expenseFraction = if (totalPlannedIncome > 0) (totalPlannedExpenses / totalPlannedIncome).toFloat().coerceIn(0f, 1f) else 0f
+                            val assetFraction = if (totalPlannedIncome > 0) (totalPlannedAssets / totalPlannedIncome).toFloat().coerceIn(0f, 1f) else 0f
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(BorderLight.copy(alpha = 0.6f))
+                            ) {
+                                if (expenseFraction > 0f) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(expenseFraction.coerceAtLeast(0.001f))
+                                            .fillMaxHeight()
+                                            .background(SoftRed)
+                                    )
+                                }
+                                if (assetFraction > 0f) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(assetFraction.coerceAtLeast(0.001f))
+                                            .fillMaxHeight()
+                                            .background(SoftTeal)
+                                    )
+                                }
+                                val remainder = (1f - (expenseFraction + assetFraction)).coerceAtLeast(0f)
+                                if (remainder > 0f) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(remainder)
+                                            .fillMaxHeight()
+                                            .background(Color.Transparent)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Allocation Legends
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftRed))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Expenses: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPlannedExpenses)}", fontSize = 10.sp, color = TextDark, fontWeight = FontWeight.SemiBold)
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftTeal))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Assets/SIP: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPlannedAssets)}", fontSize = 10.sp, color = TextDark, fontWeight = FontWeight.SemiBold)
+                                }
                             }
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                        Text(
-                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPlannedIncome)}",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextDark,
-                            letterSpacing = (-0.4).sp
-                        )
-
-                        Text(
-                            text = if (isOverAllocated) {
-                                "Deficit: Exceeds income by ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(unallocatedBuffer))}"
-                            } else {
-                                "Unallocated buffer: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", unallocatedBuffer)} left to assign"
-                            },
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = if (isOverAllocated) SoftRed else TextMuted
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Dual Segment Allocation Progress Bar
-                        val expenseFraction = if (totalPlannedIncome > 0) (totalPlannedExpenses / totalPlannedIncome).toFloat().coerceIn(0f, 1f) else 0f
-                        val assetFraction = if (totalPlannedIncome > 0) (totalPlannedAssets / totalPlannedIncome).toFloat().coerceIn(0f, 1f) else 0f
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(BorderLight.copy(alpha = 0.6f))
-                        ) {
-                            if (expenseFraction > 0f) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(expenseFraction.coerceAtLeast(0.001f))
-                                        .fillMaxHeight()
-                                        .background(SoftRed)
+                    // Flow Segment Switcher
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(BorderLight.copy(alpha = 0.5f))
+                            .padding(2.5.dp)
+                    ) {
+                        listOf(
+                            Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
+                            Triple(TransactionType.INCOME, "Income", SoftGreen),
+                            Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal)
+                        ).forEach { (type, label, color) ->
+                            val isSelected = selectedSegment == type
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) CardWhite else Color.Transparent)
+                                    .clickable { selectedSegment = type }
+                                    .padding(vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 11.sp,
+                                    color = if (isSelected) color else TextMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                            }
-                            if (assetFraction > 0f) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(assetFraction.coerceAtLeast(0.001f))
-                                        .fillMaxHeight()
-                                        .background(SoftTeal)
-                                )
-                            }
-                            val remainder = (1f - (expenseFraction + assetFraction)).coerceAtLeast(0f)
-                            if (remainder > 0f) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(remainder)
-                                        .fillMaxHeight()
-                                        .background(Color.Transparent)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Legends
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftRed))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Expenses: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPlannedExpenses)}", fontSize = 10.sp, color = TextDark, fontWeight = FontWeight.SemiBold)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftTeal))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Assets/SIP: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPlannedAssets)}", fontSize = 10.sp, color = TextDark, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Single-Line Segment Switcher
-                Row(
+                // Smooth Dissolve Shelf Placed Below Segment Bar
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(BorderLight.copy(alpha = 0.5f))
-                        .padding(2.5.dp)
-                ) {
-                    listOf(
-                        Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
-                        Triple(TransactionType.INCOME, "Income", SoftGreen),
-                        Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal)
-                    ).forEach { (type, label, color) ->
-                        val isSelected = selectedSegment == type
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) CardWhite else Color.Transparent)
-                                .clickable { selectedSegment = type }
-                                .padding(vertical = 6.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = label,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 11.sp,
-                                color = if (isSelected) color else TextMuted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                        .height(14.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    CanvasLight,
+                                    CanvasLight.copy(alpha = 0f)
+                                )
                             )
-                        }
-                    }
-                }
+                        )
+                )
             }
 
-            // Scrollable Category Limits List
+            // =========================================================
+            // 2. SCROLLABLE CATEGORY LIMITS LIST
+            // =========================================================
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                contentPadding = PaddingValues(top = 4.dp, bottom = 105.dp)
+                contentPadding = PaddingValues(top = 4.dp, bottom = 125.dp)
             ) {
                 if (displayedCategories.isEmpty()) {
                     item {
@@ -382,14 +524,17 @@ fun BudgetPlannerScreen(
                         val committedAmount = remember(uiState.fixedBills, cat) {
                             uiState.fixedBills.filter { it.category == cat.category && it.type == cat.type }.sumOf { it.amount }
                         }
+                        val isLocked = (isPastMonth) || (isPastFifth && cat.plannedAmount > 0.0)
 
                         BudgetCategoryCleanCard(
                             category = cat,
                             committedAutoPay = committedAmount,
                             currencySymbol = userProfile.currencySymbol,
+                            isLocked = isLocked,
                             onClick = {
-                                val isLocked = isPastFifth && (cat.plannedAmount > 0.0)
-                                if (isLocked) {
+                                if (isPastMonth) {
+                                    Toast.makeText(context, "Historical months cannot be modified.", Toast.LENGTH_SHORT).show()
+                                } else if (isPastFifth && cat.plannedAmount > 0.0) {
                                     lockedCategoryAlert = cat
                                 } else {
                                     categoryToConfirm = cat
@@ -402,79 +547,56 @@ fun BudgetPlannerScreen(
             }
         }
 
-        // 4 + 1 Floating Bottom Navigation Dock
-        Row(
+        // =========================================================
+        // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
+        // =========================================================
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
                 .fillMaxWidth()
-                .zIndex(4f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(60.dp)
-                    .shadow(16.dp, CircleShape),
-                shape = CircleShape,
-                color = CardWhite
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    DockPillTab(
-                        title = "Planner",
-                        icon = Icons.Default.PieChart,
-                        isSelected = true,
-                        onClick = { }
+                .height(115.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            CanvasLight.copy(alpha = 0.85f),
+                            CanvasLight
+                        )
                     )
-                    DockPillTab(
-                        title = "Taxonomy",
-                        icon = Icons.Default.Category,
-                        isSelected = false,
-                        onClick = onNavigateToTaxonomy
-                    )
-                    DockPillTab(
-                        title = "Monthly",
-                        icon = Icons.Default.Assessment,
-                        isSelected = false,
-                        onClick = onNavigateToMonthly
-                    )
-                    DockPillTab(
-                        title = "Annual",
-                        icon = Icons.Default.AutoGraph,
-                        isSelected = false,
-                        onClick = onNavigateToYearly
-                    )
+                )
+                .zIndex(2.5f)
+        )
+
+        // =========================================================
+        // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH TAB-AWARE FAB
+        // =========================================================
+        AppBottomDock(
+            currentSelection = NavigationTarget.BUDGET_PLANNER,
+            onSelectTarget = { target ->
+                when (target) {
+                    NavigationTarget.MONTHLY_VIEW -> onNavigateToMonthly()
+                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
+                    NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
+                    NavigationTarget.REPORTS_ANALYTICS -> onNavigateToAnalytics()
+                    NavigationTarget.BUDGET_PLANNER -> { /* Active */ }
+                    else -> {}
                 }
-            }
+            },
+            fabActions = fabActions,
+            isVisible = isDockVisible.value,
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(4f)
+        )
 
-            Spacer(modifier = Modifier.width(10.dp))
-
-            FloatingActionButton(
-                onClick = onNavigateToVaults,
-                containerColor = AccentPurple,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.size(60.dp).shadow(16.dp, CircleShape)
-            ) {
-                Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Vaults", modifier = Modifier.size(26.dp))
-            }
-        }
-
-        // Alert 1: Locked After 5th Notice
+        // Alert: Locked Past the 5th
         lockedCategoryAlert?.let { cat ->
             AlertDialog(
                 onDismissRequest = { lockedCategoryAlert = null },
                 title = { Text("Budget Ceiling Frozen", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                 text = {
                     Text(
-                        "Budget limits cannot be altered after the 5th of the month. Your existing ceiling of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.plannedAmount)} for '${cat.category}' is locked to maintain spending discipline."
+                        "Budget limits are locked after the 5th of the month. Your ceiling of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.plannedAmount)} for '${cat.category}' is frozen to maintain month-end discipline."
                     )
                 },
                 confirmButton = {
@@ -485,7 +607,7 @@ fun BudgetPlannerScreen(
             )
         }
 
-        // Alert 2: Edit Confirmation Dialog
+        // Alert: Confirm Edit Target
         categoryToConfirm?.let { cat ->
             AlertDialog(
                 onDismissRequest = { categoryToConfirm = null },
@@ -513,8 +635,131 @@ fun BudgetPlannerScreen(
             )
         }
 
-        // Modal Bottom Sheet: Set Budget
+        // Alert: Copy Last Month's Plan Confirmation
+        if (showCopyPlanDialog) {
+            AlertDialog(
+                onDismissRequest = { showCopyPlanDialog = false },
+                title = { Text("Copy Last Month's Plan?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                text = {
+                    Text(
+                        "This will sync planned ceilings and baseline goals from the previous month into ${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}. Any custom limits already set will be updated.",
+                        fontSize = 13.sp,
+                        color = TextDark
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.syncNextMonthPlan()
+                            Toast.makeText(context, "Previous month's plan applied successfully!", Toast.LENGTH_SHORT).show()
+                            showCopyPlanDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Copy Plan", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCopyPlanDialog = false }) {
+                        Text("Cancel", color = TextDark)
+                    }
+                }
+            )
+        }
+
+        // Sheet: Quick Pick Target from FAB
+        if (showQuickSelectTargetSheet) {
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+            ModalBottomSheet(
+                onDismissRequest = { showQuickSelectTargetSheet = false },
+                sheetState = sheetState,
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                dragHandle = {
+                    Surface(
+                        modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp),
+                        shape = CircleShape,
+                        color = BorderLight
+                    ) {}
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 22.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "Select ${selectedSegment.name.lowercase().replaceFirstChar { it.uppercase() }} Category",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("Choose a category to set or modify its monthly target ceiling", fontSize = 11.5.sp, color = TextMuted)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                        items(displayedCategories) { cat ->
+                            val isFrozen = isPastFifth && (cat.plannedAmount > 0.0)
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp)
+                                    .clickable {
+                                        showQuickSelectTargetSheet = false
+                                        if (isFrozen) {
+                                            lockedCategoryAlert = cat
+                                        } else {
+                                            editingCategory = cat
+                                        }
+                                    },
+                                shape = RoundedCornerShape(10.dp),
+                                color = CanvasLight,
+                                border = BorderStroke(0.6.dp, BorderLight)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = cat.category,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = if (isFrozen) TextMuted else TextDark
+                                    )
+                                    if (isFrozen) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Frozen", fontSize = 11.sp, color = TextMuted)
+                                        }
+                                    } else {
+                                        Text(
+                                            text = if (cat.plannedAmount > 0) "${userProfile.currencySymbol}${cat.plannedAmount.toInt()}" else "Unset",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = if (cat.plannedAmount > 0) AccentPurple else TextMuted
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+            }
+        }
+
+        // Sheet: Set Category Target Budget
         editingCategory?.let { cat ->
+            val committedAutoPay = remember(uiState.fixedBills, cat) {
+                uiState.fixedBills.filter { it.category == cat.category && it.type == cat.type }.sumOf { it.amount }
+            }
             var customAmountText by remember { mutableStateOf(if (cat.plannedAmount > 0) cat.plannedAmount.toInt().toString() else "") }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -564,9 +809,10 @@ fun BudgetPlannerScreen(
 
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Configure monthly baseline limit for this category",
+                        text = if (committedAutoPay > 0) "Committed AutoPay Floor: ${userProfile.currencySymbol}${committedAutoPay.toInt()}" else "Configure monthly baseline limit for this category",
                         fontSize = 11.5.sp,
-                        color = TextMuted
+                        color = if (committedAutoPay > 0) AccentPurple else TextMuted,
+                        fontWeight = if (committedAutoPay > 0) FontWeight.SemiBold else FontWeight.Normal
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -639,8 +885,12 @@ fun BudgetPlannerScreen(
                         Button(
                             onClick = {
                                 val amt = customAmountText.toDoubleOrNull() ?: 0.0
-                                viewModel.updateCategoryBudget(cat.category, amt, cat.type)
-                                editingCategory = null
+                                if (committedAutoPay > 0 && amt < committedAutoPay) {
+                                    Toast.makeText(context, "Budget cannot be lower than committed AutoPay (${userProfile.currencySymbol}${committedAutoPay.toInt()})", Toast.LENGTH_LONG).show()
+                                } else {
+                                    viewModel.updateCategoryBudget(cat.category, amt, cat.type)
+                                    editingCategory = null
+                                }
                             },
                             modifier = Modifier.weight(1.3f),
                             shape = RoundedCornerShape(12.dp),
@@ -662,6 +912,7 @@ private fun BudgetCategoryCleanCard(
     category: CategoryPerformance,
     committedAutoPay: Double,
     currencySymbol: String,
+    isLocked: Boolean,
     onClick: () -> Unit
 ) {
     val typeColor = when (category.type) {
@@ -715,14 +966,25 @@ private fun BudgetCategoryCleanCard(
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = category.category,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        color = TextDark,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = category.category,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = TextDark,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (isLocked) {
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = "Locked",
+                                tint = TextMuted.copy(alpha = 0.65f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = subtitleText,
@@ -743,36 +1005,6 @@ private fun BudgetCategoryCleanCard(
                 fontSize = 14.5.sp,
                 color = if (category.plannedAmount > 0) TextDark else TextMuted
             )
-        }
-    }
-}
-
-@Composable
-private fun DockPillTab(
-    title: String,
-    icon: ImageVector,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                icon,
-                contentDescription = title,
-                tint = if (isSelected) AccentPurple else TextMuted,
-                modifier = Modifier.size(17.dp)
-            )
-            if (isSelected) {
-                Spacer(modifier = Modifier.width(5.dp))
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = AccentPurple)
-            }
         }
     }
 }
