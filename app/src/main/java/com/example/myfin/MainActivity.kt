@@ -222,15 +222,27 @@ class MainActivity : FragmentActivity() {
                                         )
                                     }
                                     NavigationTarget.VAULT_ACCOUNTS -> {
-                                        VaultAccountsScreen(
-                                            viewModel = viewModel,
-                                            onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
-                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
-                                            onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
-                                            onNavigateToVaultAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS },
-                                            onNavigateToVaultSettings = { currentTarget = NavigationTarget.SETTINGS }
-                                        )
+                                        if (userProfile.vaultMode.equals("SIMPLE", ignoreCase = true)) {
+                                            SimpleAccountsScreen(
+                                                viewModel = viewModel,
+                                                onOpenDrawer = { isDrawerOpen = true },
+                                                onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
+                                                onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
+                                                onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
+                                                onNavigateToVaultAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS },
+                                                onNavigateToVaultSettings = { currentTarget = NavigationTarget.SETTINGS }
+                                            )
+                                        } else {
+                                            VaultStrategyScreen(
+                                                viewModel = viewModel,
+                                                onOpenDrawer = { isDrawerOpen = true },
+                                                onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
+                                                onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
+                                                onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
+                                                onNavigateToVaultAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS },
+                                                onNavigateToVaultSettings = { currentTarget = NavigationTarget.SETTINGS }
+                                            )
+                                        }
                                     }
                                     NavigationTarget.REPORTS_ANALYTICS -> {
                                         ReportsAnalyticsScreen(
