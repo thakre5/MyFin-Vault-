@@ -341,7 +341,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    // User Identity Block (Isolated & Directly Clickable to Edit Profile)
+                    // User Identity Block (Directly clickable to edit profile)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
