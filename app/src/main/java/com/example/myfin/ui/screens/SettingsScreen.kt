@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,6 +55,14 @@ import java.util.*
 enum class SettingsActiveSheet {
     NONE,
     PERSONAL_INFO,
+    VAULT_STRATEGY,
+    FORTRESS_THRESHOLD,
+    BIOMETRIC_CONFIRM,
+    CHANGE_PIN,
+    DAILY_REMINDER,
+    CURRENCY_PICKER,
+    RESET_CONFIRM,
+    // Aliases for compatibility
     STRATEGY,
     SECURITY,
     NOTIFICATIONS,
@@ -181,7 +190,6 @@ fun SettingsScreen(
                     modifier = Modifier.align(Alignment.Center)
                 )
 
-                // Dual Top-Right Icons: User Guide & Notifications
                 Row(
                     modifier = Modifier.align(Alignment.CenterEnd),
                     verticalAlignment = Alignment.CenterVertically
@@ -201,14 +209,14 @@ fun SettingsScreen(
                     }
 
                     IconButton(
-                        onClick = { activeSheet = SettingsActiveSheet.NOTIFICATIONS },
+                        onClick = { activeSheet = SettingsActiveSheet.DAILY_REMINDER },
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Notifications,
-                            contentDescription = "Reminders & Alerts",
+                            contentDescription = "Reminders",
                             tint = TextDark,
                             modifier = Modifier.size(21.dp)
                         )
@@ -216,22 +224,22 @@ fun SettingsScreen(
                 }
             }
 
-            // 2. Pinned Horizontal Profile Header (Matching 1:1 Reference Layout)
+            // 2. Pinned Clean Horizontal Profile Header (Exact Reference Match)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 22.dp)
-                    .padding(top = 4.dp, bottom = 16.dp),
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 6.dp, bottom = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Circular Avatar on the Left with AccentPurple Camera Badge
+                // Left: Avatar with Camera Badge
                 Box(
-                    modifier = Modifier.size(76.dp),
+                    modifier = Modifier.size(70.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Surface(
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(66.dp)
                             .clip(CircleShape)
                             .clickable { imagePickerLauncher.launch("image/*") },
                         shape = CircleShape,
@@ -241,7 +249,7 @@ fun SettingsScreen(
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = userProfile.displayName.take(1).uppercase().ifBlank { "S" },
-                                fontSize = 28.sp,
+                                fontSize = 26.sp,
                                 fontWeight = FontWeight.Black,
                                 color = AccentPurple
                             )
@@ -251,7 +259,7 @@ fun SettingsScreen(
                     Surface(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .size(24.dp)
+                            .size(22.dp)
                             .clip(CircleShape)
                             .clickable { imagePickerLauncher.launch("image/*") },
                         shape = CircleShape,
@@ -263,15 +271,15 @@ fun SettingsScreen(
                                 imageVector = Icons.Default.PhotoCamera,
                                 contentDescription = "Change photo",
                                 tint = Color.White,
-                                modifier = Modifier.size(12.dp)
+                                modifier = Modifier.size(11.dp)
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.width(18.dp))
+                Spacer(modifier = Modifier.width(16.dp))
 
-                // Left-Aligned Profile Details on the Right
+                // Right: Vertically Stacked Clean Info + Pill Button
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.Center
@@ -279,36 +287,26 @@ fun SettingsScreen(
                     Text(
                         text = userProfile.displayName.ifBlank { "Sushant" },
                         fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
+                        fontSize = 16.5.sp,
                         color = TextDark
                     )
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(1.dp))
 
                     Text(
                         text = userProfile.email.ifBlank { "sushant@example.com" },
-                        fontSize = 12.sp,
+                        fontSize = 12.5.sp,
                         color = TextMuted
                     )
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(7.dp))
 
-                    Text(
-                        text = "DOB: ${userProfile.dateOfBirth.ifBlank { "2000-03-21" }} • Inflow: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.baseMonthlyIncome)}/mo",
-                        fontSize = 10.5.sp,
-                        color = TextMuted.copy(alpha = 0.85f),
-                        maxLines = 1
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Left-Aligned Outlined "Edit Profile" Pill Button
                     OutlinedButton(
                         onClick = { activeSheet = SettingsActiveSheet.PERSONAL_INFO },
-                        shape = RoundedCornerShape(18.dp),
-                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.5f)),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-                        modifier = Modifier.height(30.dp)
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.6f)),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp),
+                        modifier = Modifier.height(28.dp)
                     ) {
                         Text(
                             text = "Edit Profile",
@@ -320,7 +318,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 3. Scrollable Area: Floating White Card with Margins
+            // 3. Scrollable Area: Floating White Card Container
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -336,30 +334,29 @@ fun SettingsScreen(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .shadow(4.dp, RoundedCornerShape(24.dp)),
-                        shape = RoundedCornerShape(24.dp),
+                            .shadow(4.dp, RoundedCornerShape(26.dp)),
+                        shape = RoundedCornerShape(26.dp),
                         color = CardWhite
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 20.dp, vertical = 22.dp),
-                            verticalArrangement = Arrangement.spacedBy(28.dp)
+                            verticalArrangement = Arrangement.spacedBy(30.dp)
                         ) {
                             // Section: Strategy & Architecture
                             SettingsSectionGroup(title = "Strategy & Architecture") {
                                 SettingsSwitchRow(
                                     title = "3-Vault Strategy",
-                                    subtitle = if (is3VaultActive) "Operating, Commitments & Fortress active" else "Simple flat accounts pool active",
                                     isChecked = is3VaultActive,
-                                    onToggle = { activeSheet = SettingsActiveSheet.STRATEGY },
-                                    onClick = { activeSheet = SettingsActiveSheet.STRATEGY }
+                                    onToggle = { activeSheet = SettingsActiveSheet.VAULT_STRATEGY },
+                                    onClick = { activeSheet = SettingsActiveSheet.VAULT_STRATEGY }
                                 )
 
                                 SettingsNavigationRow(
                                     title = "Fortress Safety Net Target",
                                     value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.fortressThreshold)}",
-                                    onClick = { activeSheet = SettingsActiveSheet.STRATEGY }
+                                    onClick = { activeSheet = SettingsActiveSheet.FORTRESS_THRESHOLD }
                                 )
 
                                 SettingsNavigationRow(
@@ -373,21 +370,19 @@ fun SettingsScreen(
                             SettingsSectionGroup(title = "Security & Privacy") {
                                 SettingsSwitchRow(
                                     title = "Biometric Authentication",
-                                    subtitle = "Fingerprint / Face unlock protection",
                                     isChecked = userProfile.isBiometricEnabled,
-                                    onToggle = { activeSheet = SettingsActiveSheet.SECURITY },
-                                    onClick = { activeSheet = SettingsActiveSheet.SECURITY }
+                                    onToggle = { activeSheet = SettingsActiveSheet.BIOMETRIC_CONFIRM },
+                                    onClick = { activeSheet = SettingsActiveSheet.BIOMETRIC_CONFIRM }
                                 )
 
                                 SettingsNavigationRow(
                                     title = "Master PIN Passcode",
                                     value = "Modify PIN",
-                                    onClick = { activeSheet = SettingsActiveSheet.SECURITY }
+                                    onClick = { activeSheet = SettingsActiveSheet.CHANGE_PIN }
                                 )
 
                                 SettingsSwitchRow(
                                     title = "Anti-Spy Screen Protection",
-                                    subtitle = "Blocks screenshots & app-switcher previews",
                                     isChecked = !userProfile.isScreenCaptureAllowed,
                                     onToggle = {
                                         viewModel.updateScreenCaptureAllowed(!userProfile.isScreenCaptureAllowed)
@@ -403,16 +398,14 @@ fun SettingsScreen(
                             SettingsSectionGroup(title = "Option & Notifications") {
                                 val timeStr = String.format(Locale.US, "%02d:%02d", userProfile.reminderHour, userProfile.reminderMinute)
                                 SettingsSwitchRow(
-                                    title = "Daily Expense Review Reminder",
-                                    subtitle = "Scheduled daily at $timeStr",
+                                    title = "Daily Review Reminder ($timeStr)",
                                     isChecked = userProfile.reminderEnabled,
-                                    onToggle = { activeSheet = SettingsActiveSheet.NOTIFICATIONS },
-                                    onClick = { activeSheet = SettingsActiveSheet.NOTIFICATIONS }
+                                    onToggle = { activeSheet = SettingsActiveSheet.DAILY_REMINDER },
+                                    onClick = { activeSheet = SettingsActiveSheet.DAILY_REMINDER }
                                 )
 
                                 SettingsSwitchRow(
-                                    title = "AutoPay Commitment Alerts",
-                                    subtitle = "Warn 48h before fixed bill due dates",
+                                    title = "AutoPay Bill Due Alerts",
                                     isChecked = userProfile.isAutoPayReminderEnabled,
                                     onToggle = {
                                         val newStatus = !userProfile.isAutoPayReminderEnabled
@@ -422,7 +415,6 @@ fun SettingsScreen(
 
                                 SettingsSwitchRow(
                                     title = "Budget Overrun Warnings",
-                                    subtitle = "Alert when spend pace exceeds targets",
                                     isChecked = userProfile.isOverrunWarningEnabled,
                                     onToggle = {
                                         val newStatus = !userProfile.isOverrunWarningEnabled
@@ -432,11 +424,11 @@ fun SettingsScreen(
                             }
 
                             // Section: Currency & Preferences
-                            SettingsSectionGroup(title = "Currency & Preferences") {
+                            SettingsSectionGroup(title = "Preferences & Accounts") {
                                 SettingsNavigationRow(
-                                    title = "Primary Currency Symbol",
+                                    title = "Primary Currency",
                                     value = userProfile.currencySymbol,
-                                    onClick = { activeSheet = SettingsActiveSheet.CURRENCY }
+                                    onClick = { activeSheet = SettingsActiveSheet.CURRENCY_PICKER }
                                 )
 
                                 SettingsNavigationRow(
@@ -446,10 +438,10 @@ fun SettingsScreen(
                                 )
                             }
 
-                            // Section: Full Data Backup & Recovery
+                            // Section: Data Backup & Recovery
                             SettingsSectionGroup(title = "Full Data Backup & Recovery") {
                                 SettingsNavigationRow(
-                                    title = "Create Full Vault Snapshot (.json)",
+                                    title = "Full Vault Snapshot (.json)",
                                     value = "Backup",
                                     onClick = {
                                         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
@@ -466,11 +458,11 @@ fun SettingsScreen(
                                 )
                             }
 
-                            // Section: Accounting Statements & Reports
+                            // Section: Statements & Reports
                             SettingsSectionGroup(title = "Accounting Statements & Reports") {
                                 SettingsNavigationRow(
-                                    title = "Export Excel Statement (.xlsx)",
-                                    value = "Generate",
+                                    title = "Excel Statement (.xlsx)",
+                                    value = "Export",
                                     onClick = {
                                         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
                                         xlsxExportLauncher.launch("MyFin_Statement_$timeStamp.xlsx")
@@ -478,7 +470,7 @@ fun SettingsScreen(
                                 )
 
                                 SettingsNavigationRow(
-                                    title = "Export Universal Ledger (.csv)",
+                                    title = "Flat Universal Ledger (.csv)",
                                     value = "Export",
                                     onClick = {
                                         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
@@ -491,13 +483,12 @@ fun SettingsScreen(
                             SettingsSectionGroup(title = "Danger Zone") {
                                 SettingsNavigationRow(
                                     title = "Reset Entire Financial Vault",
-                                    value = "Wipe Database",
+                                    value = "Wipe",
                                     isDestructive = true,
-                                    onClick = { activeSheet = SettingsActiveSheet.DATA_MANAGEMENT }
+                                    onClick = { activeSheet = SettingsActiveSheet.RESET_CONFIRM }
                                 )
                             }
 
-                            // Shared Minimalist Branding Footer
                             AppBrandingFooter(
                                 modifier = Modifier.fillMaxWidth(),
                                 version = "v1.0.0",
@@ -511,11 +502,16 @@ fun SettingsScreen(
     }
 
     // ==========================================
-    // BOTTOM SHEETS & CONFIRMATION MODALS
+    // DEDICATED BOTTOM SHEETS & MODALS
     // ==========================================
 
-    // 1. Biometric Confirmation Sheet (Matching Image 2)
-    if (activeSheet == SettingsActiveSheet.SECURITY) {
+    // 1. Edit Personal Info Sheet
+    if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
+        var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
+        var emailInput by remember(userProfile) { mutableStateOf(userProfile.email) }
+        var dobInput by remember(userProfile) { mutableStateOf(userProfile.dateOfBirth) }
+        var incomeInput by remember(userProfile) { mutableStateOf(String.format(Locale.US, "%.0f", userProfile.baseMonthlyIncome)) }
+
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
             containerColor = CardWhite,
@@ -525,60 +521,81 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(150.dp)
-                        .padding(top = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    BiometricIllustrationCanvas(modifier = Modifier.fillMaxSize())
-                }
+                Text("Personal Information", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                Text("Configure identity & base cashflow parameters", fontSize = 12.sp, color = TextMuted)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = nameInput,
+                    onValueChange = { nameInput = it },
+                    label = { Text("Display Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = emailInput,
+                    onValueChange = { emailInput = it },
+                    label = { Text("Email Address") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = dobInput,
+                    onValueChange = { dobInput = it },
+                    label = { Text("Date of Birth (YYYY-MM-DD)") },
+                    supportingText = { Text("Your DOB serves as the immutable security key for PIN resets", fontSize = 10.5.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = incomeInput,
+                    onValueChange = { incomeInput = it },
+                    label = { Text("Expected Monthly Salary / Inflow (${userProfile.currencySymbol})") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                Text(
-                    text = "Verify your identity",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black,
-                    color = BrandCharcoal,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Biometric authentication encrypts your local database access using device hardware keys. Your stored data never leaves this phone.",
-                    fontSize = 12.5.sp,
-                    color = TextMuted,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
                 Button(
                     onClick = {
-                        val newBiometricState = !userProfile.isBiometricEnabled
-                        viewModel.updateBiometricEnabled(newBiometricState)
+                        val parsedIncome = incomeInput.toDoubleOrNull() ?: userProfile.baseMonthlyIncome
+                        viewModel.saveUserProfile(
+                            userProfile.copy(
+                                displayName = nameInput.trim(),
+                                email = emailInput.trim(),
+                                dateOfBirth = dobInput.trim(),
+                                baseMonthlyIncome = parsedIncome
+                            )
+                        )
                         activeSheet = SettingsActiveSheet.NONE
-                        Toast.makeText(context, if (newBiometricState) "Biometrics Enabled" else "Biometrics Disabled", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Profile updated successfully", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (userProfile.isBiometricEnabled) CoralAccent else BrandGreen)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
-                    Text(
-                        text = if (userProfile.isBiometricEnabled) "Disable Biometrics" else "Enable Biometric Unlock",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.5.sp,
-                        color = Color.White
-                    )
+                    Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -586,8 +603,8 @@ fun SettingsScreen(
         }
     }
 
-    // 2. Strategy Guidance Sheet (Matching Image 3)
-    if (activeSheet == SettingsActiveSheet.STRATEGY) {
+    // 2. Strategy Mode Guidance Sheet (Bank Illustration - Image 3)
+    if (activeSheet == SettingsActiveSheet.VAULT_STRATEGY || activeSheet == SettingsActiveSheet.STRATEGY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
             containerColor = CardWhite,
@@ -624,9 +641,9 @@ fun SettingsScreen(
 
                 Text(
                     text = if (is3VaultActive) {
-                        "Every time you log expenses or AutoPay bills, liquidity is routed cleanly through Operating, Commitments, and Fortress reserves."
+                        "Liquidity is segregated across Operating, Commitments, and Fortress tiers to prevent accidental overspending."
                     } else {
-                        "All connected bank accounts are tracked as a flat, unsegmented liquidity balance."
+                        "All connected bank accounts are tracked as a single, flat liquidity balance without reserve locks."
                     },
                     fontSize = 12.5.sp,
                     color = TextMuted,
@@ -718,12 +735,11 @@ fun SettingsScreen(
         }
     }
 
-    // 3. Edit Personal Info Bottom Sheet
-    if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
-        var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
-        var emailInput by remember(userProfile) { mutableStateOf(userProfile.email) }
-        var dobInput by remember(userProfile) { mutableStateOf(userProfile.dateOfBirth) }
-        var incomeInput by remember(userProfile) { mutableStateOf(String.format(Locale.US, "%.0f", userProfile.baseMonthlyIncome)) }
+    // 3. Fortress Emergency Threshold Sheet (Auto-Sweep FD Target)
+    if (activeSheet == SettingsActiveSheet.FORTRESS_THRESHOLD) {
+        var thresholdInput by remember(userProfile) {
+            mutableStateOf(String.format(Locale.US, "%.0f", userProfile.fortressThreshold))
+        }
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -736,71 +752,53 @@ fun SettingsScreen(
                     .navigationBarsPadding()
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
-                Text("Personal Information", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Configure identity & base financial parameters", fontSize = 12.sp, color = TextMuted)
+                Text("Fortress Safety Net Target", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                Text("Target liquid buffer used for Auto-Sweep FD and runway pacing", fontSize = 12.sp, color = TextMuted)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
-                    value = nameInput,
-                    onValueChange = { nameInput = it },
-                    label = { Text("Display Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = emailInput,
-                    onValueChange = { emailInput = it },
-                    label = { Text("Email Address") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = dobInput,
-                    onValueChange = { dobInput = it },
-                    label = { Text("Date of Birth (YYYY-MM-DD)") },
-                    supportingText = { Text("Used as immutable security key for PIN recovery", fontSize = 10.5.sp) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = incomeInput,
-                    onValueChange = { incomeInput = it },
-                    label = { Text("Expected Monthly Salary / Inflow (${userProfile.currencySymbol})") },
+                    value = thresholdInput,
+                    onValueChange = { thresholdInput = it },
+                    label = { Text("Emergency Target Amount (${userProfile.currencySymbol})") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
 
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text("Quick Multiplier Presets:", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val base = userProfile.baseMonthlyIncome.takeIf { it > 0 } ?: 25000.0
+                    listOf(3 to "3 Months", 6 to "6 Months", 12 to "12 Months").forEach { (multiplier, label) ->
+                        OutlinedButton(
+                            onClick = {
+                                thresholdInput = String.format(Locale.US, "%.0f", base * multiplier)
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 4.dp)
+                        ) {
+                            Text(label, fontSize = 11.sp, color = AccentPurple)
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Button(
                     onClick = {
-                        val parsedIncome = incomeInput.toDoubleOrNull() ?: userProfile.baseMonthlyIncome
-                        viewModel.saveUserProfile(
-                            userProfile.copy(
-                                displayName = nameInput.trim(),
-                                email = emailInput.trim(),
-                                dateOfBirth = dobInput.trim(),
-                                baseMonthlyIncome = parsedIncome
-                            )
-                        )
+                        val parsed = thresholdInput.toDoubleOrNull() ?: userProfile.fortressThreshold
+                        viewModel.saveUserProfile(userProfile.copy(fortressThreshold = parsed))
                         activeSheet = SettingsActiveSheet.NONE
-                        Toast.makeText(context, "Profile updated successfully", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Fortress target set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", parsed)}", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -808,7 +806,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
-                    Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Save Fortress Target", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -816,8 +814,175 @@ fun SettingsScreen(
         }
     }
 
-    // 4. Notification Settings Bottom Sheet
-    if (activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
+    // 4. Biometric Confirmation Sheet (Fingerprint - Image 2)
+    if (activeSheet == SettingsActiveSheet.BIOMETRIC_CONFIRM || activeSheet == SettingsActiveSheet.SECURITY) {
+        ModalBottomSheet(
+            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            containerColor = CardWhite,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(150.dp)
+                        .padding(top = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BiometricIllustrationCanvas(modifier = Modifier.fillMaxSize())
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = "Verify your identity",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = BrandCharcoal,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Biometric authentication encrypts your local database access using device hardware keys. Your stored data never leaves this phone.",
+                    fontSize = 12.5.sp,
+                    color = TextMuted,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = {
+                        val newBiometricState = !userProfile.isBiometricEnabled
+                        viewModel.updateBiometricEnabled(newBiometricState)
+                        activeSheet = SettingsActiveSheet.NONE
+                        Toast.makeText(context, if (newBiometricState) "Biometrics Enabled" else "Biometrics Disabled", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (userProfile.isBiometricEnabled) CoralAccent else BrandGreen)
+                ) {
+                    Text(
+                        text = if (userProfile.isBiometricEnabled) "Disable Biometrics" else "Enable Biometric Unlock",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.5.sp,
+                        color = Color.White
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    }
+
+    // 5. Change Master PIN Sheet (With DOB Verification)
+    if (activeSheet == SettingsActiveSheet.CHANGE_PIN) {
+        var verifyDob by remember { mutableStateOf("") }
+        var newPin by remember { mutableStateOf("") }
+        var confirmPin by remember { mutableStateOf("") }
+        var errorMessage by remember { mutableStateOf<String?>(null) }
+
+        ModalBottomSheet(
+            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            containerColor = CardWhite,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                Text("Modify Master PIN", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                Text("Verify your security DOB to set a new 4-digit passcode", fontSize = 12.sp, color = TextMuted)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = verifyDob,
+                    onValueChange = { verifyDob = it; errorMessage = null },
+                    label = { Text("Security Key (DOB: YYYY-MM-DD)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = newPin,
+                    onValueChange = { if (it.length <= 4) { newPin = it; errorMessage = null } },
+                    label = { Text("New 4-Digit PIN") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = confirmPin,
+                    onValueChange = { if (it.length <= 4) { confirmPin = it; errorMessage = null } },
+                    label = { Text("Confirm New PIN") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                )
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(errorMessage.orEmpty(), color = SoftRed, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        val cleanVerify = verifyDob.trim().replace("-", "").replace("/", "")
+                        val cleanSaved = userProfile.dateOfBirth.trim().replace("-", "").replace("/", "")
+                        if (cleanVerify != cleanSaved) {
+                            errorMessage = "DOB verification failed. Please enter your correct birth date."
+                        } else if (newPin.length != 4) {
+                            errorMessage = "New PIN must be exactly 4 digits."
+                        } else if (newPin != confirmPin) {
+                            errorMessage = "PIN confirmation does not match."
+                        } else {
+                            viewModel.updateMasterPin(newPin)
+                            activeSheet = SettingsActiveSheet.NONE
+                            Toast.makeText(context, "Master PIN updated successfully", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                ) {
+                    Text("Update Master PIN", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    }
+
+    // 6. Daily Review Reminder Time Sheet
+    if (activeSheet == SettingsActiveSheet.DAILY_REMINDER || activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
         var hourInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderHour) }
         var minInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderMinute) }
 
@@ -833,7 +998,7 @@ fun SettingsScreen(
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Daily Expense Review", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Receive a gentle offline prompt to review transactions", fontSize = 12.sp, color = TextMuted)
+                Text("Configure scheduled offline reminder time", fontSize = 12.sp, color = TextMuted)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -905,9 +1070,16 @@ fun SettingsScreen(
         }
     }
 
-    // 5. Currency Selector Bottom Sheet
-    if (activeSheet == SettingsActiveSheet.CURRENCY) {
-        val currencies = listOf("₹" to "Indian Rupee (INR)", "$" to "US Dollar (USD)", "€" to "Euro (EUR)", "£" to "British Pound (GBP)", "¥" to "Japanese Yen (JPY)", "AED " to "UAE Dirham (AED)")
+    // 7. Currency Selector Sheet
+    if (activeSheet == SettingsActiveSheet.CURRENCY_PICKER || activeSheet == SettingsActiveSheet.CURRENCY) {
+        val currencies = listOf(
+            "₹" to "Indian Rupee (INR)",
+            "$" to "US Dollar (USD)",
+            "€" to "Euro (EUR)",
+            "£" to "British Pound (GBP)",
+            "¥" to "Japanese Yen (JPY)",
+            "AED " to "UAE Dirham (AED)"
+        )
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -961,8 +1133,8 @@ fun SettingsScreen(
         }
     }
 
-    // 6. Danger Zone Confirmation Dialog
-    if (activeSheet == SettingsActiveSheet.DATA_MANAGEMENT) {
+    // 8. Danger Zone Confirmation Dialog
+    if (activeSheet == SettingsActiveSheet.RESET_CONFIRM || activeSheet == SettingsActiveSheet.DATA_MANAGEMENT) {
         AlertDialog(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
             title = { Text("Reset Entire Financial Vault?", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = SoftRed) },
@@ -997,7 +1169,10 @@ fun SettingsScreen(
     }
 }
 
-// Vector Illustration Canvases
+// ==========================================
+// VECTOR ILLUSTRATION CANVASES
+// ==========================================
+
 @Composable
 private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
@@ -1131,7 +1306,10 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
     }
 }
 
-// Reusable Row Components
+// ==========================================
+// REUSABLE SETTINGS ROW COMPONENTS
+// ==========================================
+
 @Composable
 private fun SettingsSectionGroup(
     title: String,
@@ -1156,7 +1334,6 @@ private fun SettingsSectionGroup(
 @Composable
 private fun SettingsSwitchRow(
     title: String,
-    subtitle: String? = null,
     isChecked: Boolean,
     onToggle: (Boolean) -> Unit,
     onClick: (() -> Unit)? = null
@@ -1168,23 +1345,13 @@ private fun SettingsSwitchRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(
-                text = title,
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = TextDark
-            )
-            if (subtitle != null) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = subtitle,
-                    fontSize = 11.sp,
-                    color = TextMuted,
-                    lineHeight = 14.sp
-                )
-            }
-        }
+        Text(
+            text = title,
+            fontSize = 13.5.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextDark,
+            modifier = Modifier.weight(1f).padding(end = 12.dp)
+        )
 
         Switch(
             checked = isChecked,
