@@ -191,7 +191,10 @@ class MainActivity : FragmentActivity() {
                                         MonthlyScreen(
                                             viewModel = viewModel,
                                             onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER }
+                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
+                                            onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
+                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
+                                            onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
                                         )
                                     }
                                     NavigationTarget.DATA_SET -> {
@@ -200,7 +203,8 @@ class MainActivity : FragmentActivity() {
                                             onOpenDrawer = { isDrawerOpen = true },
                                             onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
                                             onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
-                                            onNavigateToMonthly = { currentTarget = NavigationTarget.MONTHLY_VIEW }
+                                            onNavigateToMonthly = { currentTarget = NavigationTarget.MONTHLY_VIEW },
+                                            onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
                                         )
                                     }
                                     NavigationTarget.BUDGET_PLANNER -> {
@@ -210,7 +214,8 @@ class MainActivity : FragmentActivity() {
                                             onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
                                             onNavigateToMonthly = { currentTarget = NavigationTarget.MONTHLY_VIEW },
                                             onNavigateToYearly = { currentTarget = NavigationTarget.YEARLY_VIEW },
-                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS }
+                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
+                                            onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
                                         )
                                     }
                                     NavigationTarget.YEARLY_VIEW -> {
@@ -250,6 +255,9 @@ class MainActivity : FragmentActivity() {
                                             viewModel = viewModel,
                                             onOpenDrawer = { isDrawerOpen = true },
                                             onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
+                                            onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
+                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
+                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
                                             onNavigateToSettings = { currentTarget = NavigationTarget.SETTINGS }
                                         )
                                     }
