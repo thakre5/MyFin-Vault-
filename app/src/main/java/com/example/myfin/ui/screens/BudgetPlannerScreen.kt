@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.CategoryPerformance
@@ -130,7 +131,6 @@ fun BudgetPlannerScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
-        // Pure Column Structure eliminates clipping & overlapping
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -152,15 +152,13 @@ fun BudgetPlannerScreen(
                         onClick = onOpenDrawer,
                         modifier = Modifier
                             .size(38.dp)
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(CardWhite)
-                            .border(0.8.dp, BorderLight.copy(alpha = 0.7f), RoundedCornerShape(11.dp))
+                            .clip(CircleShape)
                     ) {
                         Icon(
-                            Icons.Default.ChevronLeft,
+                            imageVector = Icons.Default.ChevronLeft,
                             contentDescription = "Drawer",
                             tint = TextDark,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
 
@@ -172,30 +170,31 @@ fun BudgetPlannerScreen(
                     )
 
                     Surface(
-                        shape = RoundedCornerShape(11.dp),
+                        shape = RoundedCornerShape(18.dp),
                         color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                        shadowElevation = 2.dp
                     ) {
                         Text(
                             text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
-                            fontSize = 11.5.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextDark,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Inflow Baseline Hero Card
+                // Inflow Baseline Hero Card with AccentPurple Ambient Gradient
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .shadow(3.dp, RoundedCornerShape(18.dp)),
                     shape = RoundedCornerShape(18.dp),
                     color = CardWhite,
-                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                    border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
                 ) {
                     Column(
                         modifier = Modifier
@@ -203,12 +202,12 @@ fun BudgetPlannerScreen(
                                 Brush.verticalGradient(
                                     colors = listOf(
                                         Color(0xFFFFFFFF),
-                                        Color(0xFFFCFBFE),
-                                        Color(0xFFF6F4FD)
+                                        Color(0xFFFCFAFF),
+                                        AccentPurple.copy(alpha = 0.05f)
                                     )
                                 )
                             )
-                            .padding(14.dp)
+                            .padding(16.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -225,11 +224,11 @@ fun BudgetPlannerScreen(
 
                             Surface(
                                 shape = RoundedCornerShape(7.dp),
-                                color = if (isOverAllocated) SoftRed.copy(alpha = 0.12f) else SoftGreen.copy(alpha = 0.12f)
+                                color = if (isOverAllocated) SoftRed.copy(alpha = 0.12f) else AccentPurple.copy(alpha = 0.12f)
                             ) {
                                 Text(
                                     text = if (isOverAllocated) "Over-allocated ($allocationPercentage%)" else "$allocationPercentage% Allocated",
-                                    color = if (isOverAllocated) SoftRed else SoftGreen,
+                                    color = if (isOverAllocated) SoftRed else AccentPurple,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
@@ -358,7 +357,7 @@ fun BudgetPlannerScreen(
                 }
             }
 
-            // Scrollable Category Limits List (weight(1f) avoids any card clipping)
+            // Scrollable Category Limits List
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -408,7 +407,8 @@ fun BudgetPlannerScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .zIndex(4f),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -458,7 +458,7 @@ fun BudgetPlannerScreen(
 
             FloatingActionButton(
                 onClick = onNavigateToVaults,
-                containerColor = TextDark,
+                containerColor = AccentPurple,
                 contentColor = Color.White,
                 shape = CircleShape,
                 modifier = Modifier.size(60.dp).shadow(16.dp, CircleShape)
@@ -697,7 +697,6 @@ private fun BudgetCategoryCleanCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // Colored Avatar Initial Badge
                 Box(
                     modifier = Modifier
                         .size(36.dp)
@@ -738,7 +737,6 @@ private fun BudgetCategoryCleanCard(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Right-aligned Planned Target
             Text(
                 text = "$currencySymbol${String.format(Locale.US, "%,.0f", category.plannedAmount)}",
                 fontWeight = FontWeight.Black,
@@ -759,7 +757,7 @@ private fun DockPillTab(
     Box(
         modifier = Modifier
             .clip(CircleShape)
-            .background(if (isSelected) CanvasLight else Color.Transparent)
+            .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
