@@ -22,14 +22,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -203,7 +207,7 @@ fun AppBottomDock(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Navigation Capsule Island
+            // Navigation Capsule Island with Proportional Flex Weights
             Surface(
                 modifier = Modifier
                     .height(58.dp)
@@ -219,15 +223,18 @@ fun AppBottomDock(
                 border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.5f))
             ) {
                 Row(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     navItems.forEach { item ->
                         val isSelected = currentSelection == item.target
 
+                        // Assign extra width weight to the active tab to accommodate the full text label
                         Box(
                             modifier = Modifier
-                                .weight(1f)
+                                .weight(if (isSelected) 1.45f else 1.0f)
                                 .fillMaxHeight()
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
@@ -246,7 +253,7 @@ fun AppBottomDock(
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
                                     .padding(
-                                        horizontal = if (isSelected) 12.dp else 8.dp,
+                                        horizontal = if (isSelected) 10.dp else 6.dp,
                                         vertical = 7.dp
                                     ),
                                 contentAlignment = Alignment.Center
@@ -259,16 +266,18 @@ fun AppBottomDock(
                                         imageVector = item.icon,
                                         contentDescription = item.label,
                                         tint = if (isSelected) AccentPurple else TextMuted,
-                                        modifier = Modifier.size(19.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                     if (isSelected) {
-                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = item.label,
                                             color = AccentPurple,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 11.5.sp,
-                                            maxLines = 1
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Clip
                                         )
                                     }
                                 }
@@ -278,7 +287,7 @@ fun AppBottomDock(
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             // Action FAB
             Surface(
@@ -321,4 +330,28 @@ fun AppBottomDock(
             }
         }
     }
+}
+
+/**
+ * Scroll connection helper with debounce threshold to eliminate touch jitter.
+ */
+@Composable
+fun rememberAutoScrollVisibilityConnection(): Pair<MutableState<Boolean>, NestedScrollConnection> {
+    val isVisible = remember { mutableStateOf(true) }
+
+    val connection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val delta = available.y
+                if (delta < -14f && isVisible.value) {
+                    isVisible.value = false
+                } else if (delta > 14f && !isVisible.value) {
+                    isVisible.value = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    return Pair(isVisible, connection)
 }
