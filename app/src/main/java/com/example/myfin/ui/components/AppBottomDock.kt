@@ -55,7 +55,7 @@ data class DockNavItem(
 
 val DefaultDockNavItems = listOf(
     DockNavItem(NavigationTarget.MONTHLY_VIEW, "Summary", Icons.Default.Assessment),
-    DockNavItem(NavigationTarget.DATA_SET, "Taxonomy", Icons.Default.Category),
+    DockNavItem(NavigationTarget.BUDGET_PLANNER, "Planner", Icons.Default.PieChart),
     DockNavItem(NavigationTarget.VAULT_ACCOUNTS, "Vaults", Icons.Default.AccountBalance),
     DockNavItem(NavigationTarget.REPORTS_ANALYTICS, "Analytics", Icons.Default.BarChart)
 )
@@ -98,7 +98,7 @@ fun AppBottomDock(
     )
 
     Box(modifier = modifier) {
-        // 1. Full-Screen Dimmed Backdrop Scrim (Closes menu on tap)
+        // 1. Full-Screen Dimmed Backdrop Scrim
         AnimatedVisibility(
             visible = isFabMenuExpanded && fabActions.isNotEmpty(),
             enter = fadeIn(tween(180)),
@@ -117,7 +117,7 @@ fun AppBottomDock(
             )
         }
 
-        // 2. Floating Contextual Actions Popup (Independent Overlap Layer)
+        // 2. Floating Contextual Actions Popup
         AnimatedVisibility(
             visible = isFabMenuExpanded && fabActions.isNotEmpty(),
             enter = scaleIn(
@@ -188,7 +188,7 @@ fun AppBottomDock(
             }
         }
 
-        // 3. Main Bottom Dock Row (Fixed strictly at Alignment.BottomCenter)
+        // 3. Main Bottom Dock Row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -219,49 +219,58 @@ fun AppBottomDock(
                 border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.5f))
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxSize(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     navItems.forEach { item ->
                         val isSelected = currentSelection == item.target
+
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
+                                .weight(1f)
+                                .fillMaxHeight()
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    isFabMenuExpanded = false
                                     if (!isSelected) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        isFabMenuExpanded = false
                                         onSelectTarget(item.target)
                                     }
-                                }
-                                .padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 8.dp),
+                                },
                             contentAlignment = Alignment.Center
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
+                                    .padding(
+                                        horizontal = if (isSelected) 12.dp else 8.dp,
+                                        vertical = 7.dp
+                                    ),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = item.label,
-                                    tint = if (isSelected) AccentPurple else TextMuted,
-                                    modifier = Modifier.size(19.dp)
-                                )
-                                if (isSelected) {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = item.label,
-                                        color = AccentPurple,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = item.icon,
+                                        contentDescription = item.label,
+                                        tint = if (isSelected) AccentPurple else TextMuted,
+                                        modifier = Modifier.size(19.dp)
                                     )
+                                    if (isSelected) {
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = item.label,
+                                            color = AccentPurple,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.5.sp,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -271,7 +280,7 @@ fun AppBottomDock(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Contextual Action FAB Button
+            // Action FAB
             Surface(
                 modifier = Modifier
                     .size(58.dp)
@@ -282,7 +291,10 @@ fun AppBottomDock(
                         spotColor = AccentPurple.copy(alpha = 0.45f)
                     )
                     .clip(CircleShape)
-                    .clickable {
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         if (fabActions.isNotEmpty()) {
                             isFabMenuExpanded = !isFabMenuExpanded
@@ -293,7 +305,10 @@ fun AppBottomDock(
                 shape = CircleShape,
                 color = AccentPurple
             ) {
-                Box(contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Contextual Action",
