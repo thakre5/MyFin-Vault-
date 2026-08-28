@@ -578,10 +578,7 @@ fun BudgetPlannerScreen(
                     NavigationTarget.MONTHLY_VIEW -> onNavigateToMonthly()
                     NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
-                    NavigationTarget.REPORTS_ANALYTICS -> {
-                        onNavigateToAnalytics()
-                        onNavigateToYearly()
-                    }
+                    NavigationTarget.REPORTS_ANALYTICS -> onNavigateToAnalytics()
                     NavigationTarget.BUDGET_PLANNER -> { /* Active */ }
                     else -> {}
                 }
