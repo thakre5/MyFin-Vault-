@@ -5,6 +5,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -95,47 +97,68 @@ fun AppBottomDock(
         label = "fabRotation"
     )
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .graphicsLayer {
-                alpha = animAlpha
-                translationY = animTranslationY
-            },
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.End
+    Box(modifier = modifier) {
+        // 1. Full-Screen Dimmed Scrim when FAB Menu is Expanded
+        AnimatedVisibility(
+            visible = isFabMenuExpanded && fabActions.isNotEmpty(),
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(150)),
+            modifier = Modifier.fillMaxSize().zIndex(1f)
         ) {
-            // Contextual Actions Popup (Anchored strictly directly above the FAB)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.28f))
+                    .pointerInput(Unit) {
+                        detectTapGestures { isFabMenuExpanded = false }
+                    }
+            )
+        }
+
+        // 2. Bottom Dock & Contextual Menu Container (Pinned Strictly to Bottom)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .graphicsLayer {
+                    alpha = animAlpha
+                    translationY = animTranslationY
+                }
+                .zIndex(2f)
+        ) {
+            // Contextual Actions Popup (Compact, Right-Aligned directly above FAB)
             AnimatedVisibility(
                 visible = isFabMenuExpanded && fabActions.isNotEmpty(),
                 enter = scaleIn(
-                    transformOrigin = TransformOrigin(1f, 1f),
-                    animationSpec = tween(180)
-                ) + fadeIn(animationSpec = tween(180)),
+                    transformOrigin = TransformOrigin(0.85f, 1f),
+                    animationSpec = spring(dampingRatio = 0.8f, stiffness = 450f)
+                ) + fadeIn(animationSpec = tween(150)),
                 exit = scaleOut(
-                    transformOrigin = TransformOrigin(1f, 1f),
-                    animationSpec = tween(150)
-                ) + fadeOut(animationSpec = tween(150)),
+                    transformOrigin = TransformOrigin(0.85f, 1f),
+                    animationSpec = tween(120)
+                ) + fadeOut(animationSpec = tween(120)),
                 modifier = Modifier
-                    .padding(bottom = 12.dp, end = 2.dp)
-                    .zIndex(2f)
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 72.dp, end = 2.dp)
+                    .zIndex(3f)
             ) {
                 Surface(
                     modifier = Modifier
-                        .widthIn(min = 185.dp)
-                        .shadow(16.dp, RoundedCornerShape(20.dp), ambientColor = Color.Black.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.20f))
-                        .clip(RoundedCornerShape(20.dp)),
-                    shape = RoundedCornerShape(20.dp),
+                        .width(185.dp)
+                        .shadow(
+                            elevation = 18.dp,
+                            shape = RoundedCornerShape(18.dp),
+                            ambientColor = Color.Black.copy(alpha = 0.22f),
+                            spotColor = Color.Black.copy(alpha = 0.28f)
+                        )
+                        .clip(RoundedCornerShape(18.dp)),
+                    shape = RoundedCornerShape(18.dp),
                     color = CardWhite,
                     border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
                 ) {
-                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
                         fabActions.forEachIndexed { index, action ->
                             Row(
                                 modifier = Modifier
@@ -145,29 +168,29 @@ fun AppBottomDock(
                                         isFabMenuExpanded = false
                                         action.onClick()
                                     }
-                                    .padding(horizontal = 18.dp, vertical = 12.dp),
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = action.icon,
                                     contentDescription = action.label,
                                     tint = AccentPurple,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(19.dp)
                                 )
-                                Spacer(modifier = Modifier.width(14.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = action.label,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 13.5.sp,
+                                    fontSize = 13.sp,
                                     color = TextDark
                                 )
                             }
 
                             if (index < fabActions.size - 1) {
                                 HorizontalDivider(
-                                    color = BorderLight.copy(alpha = 0.4f),
+                                    color = BorderLight.copy(alpha = 0.5f),
                                     thickness = 0.7.dp,
-                                    modifier = Modifier.padding(horizontal = 12.dp)
+                                    modifier = Modifier.padding(horizontal = 10.dp)
                                 )
                             }
                         }
@@ -175,11 +198,11 @@ fun AppBottomDock(
                 }
             }
 
-            // Bottom Navigation Island + Contextual FAB Row
+            // Bottom Navigation Island + Action FAB Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .zIndex(1.5f),
+                    .zIndex(2f),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -188,7 +211,12 @@ fun AppBottomDock(
                     modifier = Modifier
                         .height(58.dp)
                         .weight(1f)
-                        .shadow(16.dp, RoundedCornerShape(29.dp), ambientColor = Color.Black.copy(alpha = 0.12f), spotColor = Color.Black.copy(alpha = 0.16f)),
+                        .shadow(
+                            elevation = 16.dp,
+                            shape = RoundedCornerShape(29.dp),
+                            ambientColor = Color.Black.copy(alpha = 0.12f),
+                            spotColor = Color.Black.copy(alpha = 0.18f)
+                        ),
                     shape = RoundedCornerShape(29.dp),
                     color = CardWhite,
                     border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.5f))
@@ -250,7 +278,12 @@ fun AppBottomDock(
                 Surface(
                     modifier = Modifier
                         .size(58.dp)
-                        .shadow(16.dp, CircleShape, ambientColor = AccentPurple.copy(alpha = 0.40f), spotColor = AccentPurple.copy(alpha = 0.45f))
+                        .shadow(
+                            elevation = 16.dp,
+                            shape = CircleShape,
+                            ambientColor = AccentPurple.copy(alpha = 0.40f),
+                            spotColor = AccentPurple.copy(alpha = 0.45f)
+                        )
                         .clip(CircleShape)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
