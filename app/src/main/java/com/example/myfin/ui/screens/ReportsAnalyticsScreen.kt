@@ -1,4 +1,4 @@
-Package com.example.myfin.ui.screens
+package com.example.myfin.ui.screens
 
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
