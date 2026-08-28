@@ -6,9 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,9 +26,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
@@ -39,11 +36,13 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import com.example.myfin.data.CategoryEntity
 import com.example.myfin.data.SubcategoryEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
+import com.example.myfin.ui.components.AppBottomDock
+import com.example.myfin.ui.components.DockFabAction
+import com.example.myfin.ui.components.rememberAutoScrollVisibilityConnection
 import com.example.myfin.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,14 +52,16 @@ fun MasterDataSetScreen(
     onOpenDrawer: () -> Unit,
     onNavigateToPlanner: () -> Unit = {},
     onNavigateToVaults: () -> Unit = {},
-    onNavigateToMonthly: () -> Unit = {}
+    onNavigateToMonthly: () -> Unit = {},
+    onNavigateToAnalytics: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val uiState by viewModel.monthlyUiState.collectAsState()
 
     var selectedSegment by remember { mutableStateOf(TransactionType.EXPENSE) }
     var searchQuery by remember { mutableStateOf("") }
-    var showActionMenu by remember { mutableStateOf(false) }
+
+    val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
 
     // Bottom Sheets & Dialog States
     var showAddCategorySheet by remember { mutableStateOf(false) }
@@ -109,7 +110,27 @@ fun MasterDataSetScreen(
         TransactionType.TRANSFER -> AccentPurple
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
+    val fabActions = remember {
+        listOf(
+            DockFabAction(
+                icon = Icons.Default.Category,
+                label = "Add Category",
+                onClick = { showAddCategorySheet = true }
+            ),
+            DockFabAction(
+                icon = Icons.Default.SubdirectoryArrowRight,
+                label = "Add Subcategory",
+                onClick = { showAddSubcategorySheet = true }
+            )
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CanvasLight)
+            .nestedScroll(scrollConnection)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -353,7 +374,7 @@ fun MasterDataSetScreen(
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                contentPadding = PaddingValues(top = 4.dp, bottom = 105.dp)
+                contentPadding = PaddingValues(top = 4.dp, bottom = 110.dp)
             ) {
                 if (filteredCategories.isEmpty()) {
                     item {
@@ -397,148 +418,23 @@ fun MasterDataSetScreen(
             }
         }
 
-        // 4 + 1 Floating Bottom Navigation Dock
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
-                .fillMaxWidth()
-                .zIndex(4f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(60.dp)
-                    .shadow(16.dp, CircleShape),
-                shape = CircleShape,
-                color = CardWhite
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    DockPillTab(
-                        title = "Taxonomy",
-                        icon = Icons.Default.Category,
-                        isSelected = true,
-                        onClick = { }
-                    )
-                    DockPillTab(
-                        title = "Planner",
-                        icon = Icons.Default.PieChart,
-                        isSelected = false,
-                        onClick = onNavigateToPlanner
-                    )
-                    DockPillTab(
-                        title = "Vaults",
-                        icon = Icons.Default.AccountBalanceWallet,
-                        isSelected = false,
-                        onClick = onNavigateToVaults
-                    )
-                    DockPillTab(
-                        title = "Monthly",
-                        icon = Icons.Default.Assessment,
-                        isSelected = false,
-                        onClick = onNavigateToMonthly
-                    )
+        // Standardized Floating Bottom Navigation Dock with Contextual FAB Menu
+        AppBottomDock(
+            currentSelection = NavigationTarget.DATA_SET,
+            onSelectTarget = { target ->
+                when (target) {
+                    NavigationTarget.MONTHLY_VIEW -> onNavigateToMonthly()
+                    NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
+                    NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
+                    NavigationTarget.REPORTS_ANALYTICS -> onNavigateToAnalytics()
+                    NavigationTarget.DATA_SET -> { /* Already on this screen */ }
+                    else -> {}
                 }
-            }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            FloatingActionButton(
-                onClick = { showActionMenu = !showActionMenu },
-                containerColor = AccentPurple,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.size(60.dp).shadow(16.dp, CircleShape)
-            ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = "Create",
-                    modifier = Modifier
-                        .size(28.dp)
-                        .rotate(if (showActionMenu) 45f else 0f)
-                )
-            }
-        }
-
-        // Anchored Action Menu
-        if (showActionMenu) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(5f)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { showActionMenu = false }
-                    )
-            )
-
-            AnimatedVisibility(
-                visible = showActionMenu,
-                enter = scaleIn(
-                    transformOrigin = TransformOrigin(1f, 1f),
-                    animationSpec = tween(180)
-                ) + fadeIn(animationSpec = tween(180)),
-                exit = scaleOut(
-                    transformOrigin = TransformOrigin(1f, 1f),
-                    animationSpec = tween(150)
-                ) + fadeOut(animationSpec = tween(150)),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 94.dp, end = 20.dp)
-                    .zIndex(6f)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = CardWhite,
-                    shadowElevation = 10.dp,
-                    border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.2f)),
-                    modifier = Modifier.width(190.dp)
-                ) {
-                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showActionMenu = false
-                                    showAddCategorySheet = true
-                                }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Category, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Add Category", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                        }
-
-                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showActionMenu = false
-                                    showAddSubcategorySheet = true
-                                }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.SubdirectoryArrowRight, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Add Subcategory", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                        }
-                    }
-                }
-            }
-        }
+            },
+            fabActions = fabActions,
+            isVisible = isDockVisible.value,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
 
         // Alert: Protected Category Notice
         alertNoticeMessage?.let { msg ->
@@ -1086,7 +982,9 @@ private fun IntegratedCategoryTreeCard(
                             Icons.Default.ExpandMore,
                             contentDescription = null,
                             tint = TextMuted,
-                            modifier = Modifier.size(18.dp).rotate(arrowRotation)
+                            modifier = Modifier
+                                .size(18.dp)
+                                .rotate(arrowRotation)
                         )
                     }
                 }
@@ -1226,36 +1124,6 @@ private fun IntegratedSubcategoryRow(
                 color = TextDark,
                 modifier = Modifier.weight(1f)
             )
-        }
-    }
-}
-
-@Composable
-private fun DockPillTab(
-    title: String,
-    icon: ImageVector,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                icon,
-                contentDescription = title,
-                tint = if (isSelected) AccentPurple else TextMuted,
-                modifier = Modifier.size(17.dp)
-            )
-            if (isSelected) {
-                Spacer(modifier = Modifier.width(5.dp))
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = AccentPurple)
-            }
         }
     }
 }
