@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -37,6 +38,7 @@ import kotlinx.coroutines.launch
  * Floating segmented indicator pill linked to a horizontal PagerState.
  * Renders an animated title and interactive dash segments above the bottom navigation dock.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FloatingPagerIndicator(
     pagerState: PagerState,
