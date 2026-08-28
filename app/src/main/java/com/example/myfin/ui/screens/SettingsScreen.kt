@@ -341,12 +341,14 @@ fun SettingsScreen(
                         }
                     }
 
-                    // User Identity Block
+                    // User Identity Block (Isolated & Directly Clickable to Edit Profile)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp)
                             .padding(top = 4.dp, bottom = 12.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { activeSheet = SettingsActiveSheet.PERSONAL_INFO }
                     ) {
                         Text(
                             text = userProfile.displayName.ifBlank { "Alex Doe" },
