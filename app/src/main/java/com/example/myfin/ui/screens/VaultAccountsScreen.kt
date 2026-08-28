@@ -105,7 +105,7 @@ fun VaultAccountsScreen(
     onNavigateToDashboard: () -> Unit = {},
     onNavigateToPlanner: () -> Unit = {},
     onNavigateToTaxonomy: () -> Unit = {},
-    onNavigateToVaultAnalytics: () -> Unit = onNavigateToDashboard,
+    onNavigateToVaultAnalytics: () -> Unit = {},
     onNavigateToVaultSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -122,12 +122,10 @@ fun VaultAccountsScreen(
     var showAddAccountSheet by remember { mutableStateOf(false) }
     var showRoutingDetailsSheet by remember { mutableStateOf(false) }
 
-    // Full Account Modifier States
     var editingAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
     var pendingEditConfirmation by remember { mutableStateOf<PendingEditConfirmation?>(null) }
     var accountToDelete by remember { mutableStateOf<AccountEntity?>(null) }
 
-    // Direct Room database account stream
     val displayAccounts = uiState.accounts
     var activeSelectedCardIndex by remember { mutableIntStateOf(0) }
     val activeAccount = remember(displayAccounts, activeSelectedCardIndex) {
@@ -150,7 +148,6 @@ fun VaultAccountsScreen(
         displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.CASH }.sumOf { it.currentBalance }
     }
 
-    // Cashflow Matrix Metrics
     val activeAccountTxs = remember(uiState.groupedTransactions, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         uiState.groupedTransactions.values.flatten().filter { it.accountName.equals(name, ignoreCase = true) }
@@ -183,7 +180,6 @@ fun VaultAccountsScreen(
         pendingBillsForAccount.sumOf { it.amount }
     }
 
-    // Calculated Sweep Surplus
     val calculatedSweepSurplus = remember(activeAccount?.currentBalance, totalPendingBillsAmount, dailyBurnRate) {
         val bal = activeAccount?.currentBalance ?: 0.0
         val remainingDays = max(1, 30 - daysElapsed)
@@ -197,17 +193,17 @@ fun VaultAccountsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // 1. Redesigned Top Header Bar with Compact Right Action Cluster
-            Row(
+            // 1. Fully Centered Top Header Bar with Symmetric Anchor Placement
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
             ) {
                 // Left Drawer Trigger
                 IconButton(
                     onClick = onOpenDrawer,
                     modifier = Modifier
+                        .align(Alignment.CenterStart)
                         .size(38.dp)
                         .clip(RoundedCornerShape(11.dp))
                         .background(CardWhite)
@@ -221,56 +217,56 @@ fun VaultAccountsScreen(
                     )
                 }
 
-                // Centered Screen Title
+                // Perfectly Centered Screen Title
                 Text(
                     text = if (isThreeVaultStrategy) "3-Vault Strategy" else "Vault Accounts",
                     fontWeight = FontWeight.Black,
                     fontSize = 17.sp,
                     color = TextDark,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.align(Alignment.Center)
                 )
 
-                // Right Small Button 1: Vault Analytics
-                IconButton(
-                    onClick = onNavigateToVaultAnalytics,
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(CardWhite)
-                        .border(0.8.dp, BorderLight.copy(alpha = 0.7f), CircleShape)
+                // Right Action Cluster
+                Row(
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.Assessment,
-                        contentDescription = "Vault Analytics",
-                        tint = TextDark,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                    // Button 1: Reports & Analytics Destination
+                    IconButton(
+                        onClick = onNavigateToVaultAnalytics,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(CardWhite)
+                            .border(0.8.dp, BorderLight.copy(alpha = 0.7f), CircleShape)
+                    ) {
+                        Icon(
+                            Icons.Default.Assessment,
+                            contentDescription = "Reports & Analytics",
+                            tint = TextDark,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
 
-                Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
-                // Right Small Button 2: Mode / Vault Settings
-                IconButton(
-                    onClick = {
-                        if (onNavigateToVaultSettings != {}) {
-                            onNavigateToVaultSettings()
-                        } else {
-                            pendingModeTarget = !isThreeVaultStrategy
-                        }
-                    },
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(CardWhite)
-                        .border(0.8.dp, BorderLight.copy(alpha = 0.7f), CircleShape)
-                ) {
-                    Icon(
-                        Icons.Default.Tune,
-                        contentDescription = "Vault Mode Settings",
-                        tint = AccentPurple,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    // Button 2: Vault Settings / Mode Target
+                    IconButton(
+                        onClick = onNavigateToVaultSettings,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(CardWhite)
+                            .border(0.8.dp, BorderLight.copy(alpha = 0.7f), CircleShape)
+                    ) {
+                        Icon(
+                            Icons.Default.Tune,
+                            contentDescription = "Vault Settings",
+                            tint = AccentPurple,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
 
@@ -537,7 +533,7 @@ fun VaultAccountsScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // 6. Strategic Vault Routing Card (Clickable to open breakdown sheet)
+                        // 6. Strategic Vault Routing Card
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -566,7 +562,6 @@ fun VaultAccountsScreen(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Outflow Multi-segment Bar
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -792,7 +787,6 @@ fun VaultAccountsScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 1. Account Name
                     OutlinedTextField(
                         value = nameText,
                         onValueChange = { nameText = it },
@@ -806,7 +800,6 @@ fun VaultAccountsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // 2. Strategic Vault Role Selector
                     Text("Strategic Vault Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -835,7 +828,6 @@ fun VaultAccountsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // 3. Balance Adjustment Field
                     OutlinedTextField(
                         value = balanceText,
                         onValueChange = { balanceText = it },
@@ -849,7 +841,6 @@ fun VaultAccountsScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Inline Impact Confirmation Disclaimer
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -928,7 +919,6 @@ fun VaultAccountsScreen(
                     Button(
                         onClick = {
                             val orig = conf.originalAccount
-                            // 1. Update Name, Starting Balance & Role Cascade
                             viewModel.updateAccountDetails(
                                 oldName = orig.accountName,
                                 newName = conf.updatedName,
@@ -937,7 +927,6 @@ fun VaultAccountsScreen(
                                 sortOrder = orig.sortOrder
                             )
 
-                            // 2. Adjust Balance if modified
                             if (isBalChanged) {
                                 viewModel.adjustAccountBalance(conf.updatedName, conf.targetBalance)
                             }
@@ -996,7 +985,6 @@ fun VaultAccountsScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Detailed Outflow Allocations
                     Text("Outflow Distribution (This Cycle)", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(6.dp))
 
@@ -1038,7 +1026,6 @@ fun VaultAccountsScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Surplus Calculation Engine
                     Text("Surplus Calculation Engine", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(6.dp))
 
