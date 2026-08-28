@@ -16,6 +16,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.abs
 import kotlin.math.max
 
 data class SubcategoryPerformance(
@@ -136,6 +137,7 @@ class BudgetViewModel(
     init {
         viewModelScope.launch(Dispatchers.IO) {
             seedFullExcelTaxonomyIfEmpty()
+            seedDefaultAccountsIfEmpty()
             checkAndRolloverRecurringBills(currentMonth.value, currentYear.value)
             checkIfRolloverPromptNeeded()
         }
@@ -464,6 +466,20 @@ class BudgetViewModel(
         }
     }
 
+    suspend fun seedDefaultAccountsIfEmpty() = withContext(Dispatchers.IO) {
+        val count = dao.getAccountCount()
+        if (count == 0) {
+            dao.insertAccounts(
+                listOf(
+                    AccountEntity(accountName = "Operating Account", startingBalance = 0.0, accountType = "Operating", sortOrder = 0),
+                    AccountEntity(accountName = "Commitments Account", startingBalance = 0.0, accountType = "Commitments", sortOrder = 1),
+                    AccountEntity(accountName = "Fortress Account", startingBalance = 0.0, accountType = "Fortress", sortOrder = 2),
+                    AccountEntity(accountName = "Cash Wallet", startingBalance = 0.0, accountType = "Cash", sortOrder = 3)
+                )
+            )
+        }
+    }
+
     fun resetEntireVault(onComplete: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             dao.clearAllTransactions()
@@ -474,6 +490,7 @@ class BudgetViewModel(
             dao.clearAllCategories()
             dao.clearAllSubcategories()
             seedFullExcelTaxonomyIfEmpty()
+            seedDefaultAccountsIfEmpty()
             securityManager.setPin("")
             isAppUnlocked.value = false
             withContext(Dispatchers.Main) {
@@ -641,7 +658,7 @@ class BudgetViewModel(
         }
     }
 
-    fun addSubcategory(parentCategory: String, name: String, type: TransactionType) {
+    fun addSubcategory(parentCategory: String, name: String, type: TransactionType = TransactionType.EXPENSE) {
         viewModelScope.launch(Dispatchers.IO) { dao.insertSubcategory(SubcategoryEntity(parentCategory = parentCategory, name = name.trim(), type = type)) }
     }
 
@@ -769,7 +786,7 @@ class BudgetViewModel(
         }
     }
 
-    fun addAccount(name: String, startingBalance: Double, type: String = "Bank", sortOrder: Int = 0) {
+    fun addAccount(name: String, startingBalance: Double, type: String = "Operating", sortOrder: Int = 0) {
         viewModelScope.launch(Dispatchers.IO) {
             val existingAccounts = dao.getAllAccounts().first()
             val effectiveOrder = if (sortOrder == 0 && existingAccounts.isNotEmpty()) {
@@ -778,7 +795,7 @@ class BudgetViewModel(
 
             dao.insertAccount(
                 AccountEntity(
-                    accountName = name.trim(),
+                    accountName = name.trim().uppercase(),
                     startingBalance = startingBalance,
                     accountType = type,
                     sortOrder = effectiveOrder
@@ -787,8 +804,41 @@ class BudgetViewModel(
         }
     }
 
-    fun updateAccountStartingBalance(accountName: String, startingBalance: Double, type: String = "Bank") {
-        viewModelScope.launch(Dispatchers.IO) { dao.insertAccount(AccountEntity(accountName, startingBalance, type)) }
+    fun updateAccountStartingBalance(accountName: String, startingBalance: Double, type: String = "Operating") {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = dao.getAccountByName(accountName)
+            if (existing != null) {
+                dao.insertAccount(existing.copy(startingBalance = startingBalance))
+            } else {
+                dao.insertAccount(AccountEntity(accountName = accountName, startingBalance = startingBalance, accountType = type))
+            }
+        }
+    }
+
+    fun adjustAccountBalance(accountName: String, targetBalance: Double) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = dao.getAccountByName(accountName)
+            val balances = dao.getAccountBalances().first()
+            val currentBal = balances.find { it.accountName.equals(accountName, ignoreCase = true) }?.currentBalance ?: 0.0
+            val diff = targetBalance - currentBal
+            if (diff != 0.0) {
+                val txType = if (diff > 0.0) TransactionType.INCOME else TransactionType.EXPENSE
+                val cal = Calendar.getInstance()
+                dao.insertTransaction(
+                    TransactionEntity(
+                        title = "Balance Adjustment",
+                        amount = abs(diff),
+                        category = "General",
+                        subcategory = existing?.accountType ?: "Adjustment",
+                        accountName = accountName,
+                        type = txType,
+                        date = System.currentTimeMillis(),
+                        month = cal.get(Calendar.MONTH) + 1,
+                        year = cal.get(Calendar.YEAR)
+                    )
+                )
+            }
+        }
     }
 
     fun updateAccountDetails(
@@ -1053,7 +1103,7 @@ class BudgetViewModel(
                 val accArray = root.getJSONArray("accounts")
                 for (i in 0 until accArray.length()) {
                     val a = accArray.getJSONObject(i)
-                    val accType = if (a.has("accountType")) a.getString("accountType") else a.optString("type", "Bank")
+                    val accType = if (a.has("accountType")) a.getString("accountType") else a.optString("type", "Operating")
                     val sortOrder = a.optInt("sortOrder", i)
                     dao.insertAccount(
                         AccountEntity(
