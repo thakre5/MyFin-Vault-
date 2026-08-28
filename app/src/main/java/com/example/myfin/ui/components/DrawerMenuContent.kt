@@ -62,25 +62,26 @@ fun DrawerMenuContent(
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxHeight()
+            .width(245.dp)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 18.dp),
+            .padding(horizontal = 16.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
-            // Profile Header Block
+            // Profile Header
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .clickable { onEditProfile() }
-                    .padding(vertical = 8.dp)
+                    .padding(vertical = 6.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
                         .background(AccentPurple),
                     contentAlignment = Alignment.Center
@@ -96,32 +97,32 @@ fun DrawerMenuContent(
                         Text(
                             text = displayName.take(1).uppercase().ifBlank { "M" },
                             fontWeight = FontWeight.Black,
-                            fontSize = 20.sp,
+                            fontSize = 18.sp,
                             color = Color.White
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 Column {
                     Text(
                         text = displayName.ifBlank { "MyFin Vault" },
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         color = Color.White
                     )
                     Text(
                         text = "Tap to manage profile",
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
                         color = Color.White.copy(alpha = 0.6f)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // Navigation Items Roster
+            // Navigation Items (Bounded strictly inside the left pane)
             DrawerNavItem(
                 icon = Icons.Default.Assessment,
                 label = "Monthly Dashboard",
@@ -186,7 +187,7 @@ fun DrawerMenuContent(
                     .clickable { onLockApp() }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 9.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
@@ -224,29 +225,29 @@ private fun DrawerNavItem(
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) AccentPurple.copy(alpha = 0.25f) else Color.Transparent,
+        color = if (isSelected) AccentPurple.copy(alpha = 0.28f) else Color.Transparent,
         modifier = Modifier
-            .fillMaxWidth(0.85f)
+            .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 1.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = if (isSelected) AccentPurple else Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.size(20.dp)
+                tint = if (isSelected) AccentPurple else Color.White.copy(alpha = 0.82f),
+                modifier = Modifier.size(19.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = label,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 13.5.sp,
-                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f)
+                fontSize = 13.sp,
+                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.82f)
             )
         }
     }
