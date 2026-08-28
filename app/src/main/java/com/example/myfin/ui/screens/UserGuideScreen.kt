@@ -3,9 +3,12 @@ package com.example.myfin.ui.screens
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.ui.components.AppBrandingFooter
 import com.example.myfin.ui.theme.*
+import kotlinx.coroutines.delay
 
 enum class GuideAccordionSection {
     NONE,
@@ -431,6 +435,7 @@ fun UserGuideScreen(
 // ACCORDION & FORMATTING COMPONENTS
 // ==========================================
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GuideAccordionCard(
     icon: ImageVector,
@@ -440,9 +445,19 @@ private fun GuideAccordionCard(
     onToggleExpand: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+
+    LaunchedEffect(isExpanded) {
+        if (isExpanded) {
+            delay(150)
+            bringIntoViewRequester.bringIntoView()
+        }
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .bringIntoViewRequester(bringIntoViewRequester)
             .shadow(3.dp, RoundedCornerShape(20.dp)),
         shape = RoundedCornerShape(20.dp),
         color = CardWhite
