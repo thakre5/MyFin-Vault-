@@ -62,7 +62,7 @@ enum class SettingsActiveSheet {
     DAILY_REMINDER,
     CURRENCY_PICKER,
     RESET_CONFIRM,
-    // Legacy / Navigation Aliases
+    // Navigation / Drawer Aliases
     STRATEGY,
     SECURITY,
     NOTIFICATIONS,
@@ -224,7 +224,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 2. Pinned Horizontal Profile Header (Matching Reference Layout)
+            // 2. Pinned Horizontal Profile Header (Matching 1:1 Reference Layout)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -436,7 +436,7 @@ fun SettingsScreen(
                                 )
                             }
 
-                            // Section: Data Backup & Recovery
+                            // Section: Full Data Backup & Recovery
                             SettingsSectionGroup(title = "Full Data Backup & Recovery") {
                                 SettingsNavigationRow(
                                     title = "Full Vault Snapshot (.json)",
@@ -498,6 +498,10 @@ fun SettingsScreen(
             }
         }
     }
+
+    // ==========================================
+    // DEDICATED BOTTOM SHEETS & MODALS
+    // ==========================================
 
     // 1. Edit Personal Info Sheet
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
@@ -790,7 +794,7 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         val parsed = thresholdInput.toDoubleOrNull() ?: userProfile.fortressThreshold
-                        viewModel.saveUserProfile(userProfile.copy(fortressThreshold = parsed))
+                        viewModel.updateFortressThreshold(parsed)
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, "Fortress target set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", parsed)}", Toast.LENGTH_SHORT).show()
                     },
@@ -880,7 +884,7 @@ fun SettingsScreen(
         }
     }
 
-    // 5. Change Master PIN Sheet (Using viewModel.savePin)
+    // 5. Change Master PIN Sheet (Uses viewModel.setMasterPin)
     if (activeSheet == SettingsActiveSheet.CHANGE_PIN) {
         var verifyDob by remember { mutableStateOf("") }
         var newPin by remember { mutableStateOf("") }
@@ -956,7 +960,7 @@ fun SettingsScreen(
                         } else if (newPin != confirmPin) {
                             errorMessage = "PIN confirmation does not match."
                         } else {
-                            viewModel.savePin(newPin)
+                            viewModel.setMasterPin(newPin, userProfile.dateOfBirth)
                             activeSheet = SettingsActiveSheet.NONE
                             Toast.makeText(context, "Master PIN updated successfully", Toast.LENGTH_SHORT).show()
                         }
@@ -1163,7 +1167,10 @@ fun SettingsScreen(
     }
 }
 
-// Vector Illustration Canvases
+// ==========================================
+// VECTOR ILLUSTRATION CANVASES
+// ==========================================
+
 @Composable
 private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
@@ -1297,7 +1304,10 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
     }
 }
 
-// Reusable Settings Row Components
+// ==========================================
+// REUSABLE SETTINGS ROW COMPONENTS
+// ==========================================
+
 @Composable
 private fun SettingsSectionGroup(
     title: String,
