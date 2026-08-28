@@ -36,16 +36,18 @@ fun PerspectiveDrawer(
             .fillMaxSize()
             .background(TextDark)
     ) {
-        // Drawer Menu Layer
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    alpha = transitionProgress
-                    translationX = (1f - transitionProgress) * -100f
-                }
-        ) {
-            drawerContent()
+        // Drawer Menu Layer (Only active and hit-testable when open or animating)
+        if (isDrawerOpen || transitionProgress > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        alpha = transitionProgress
+                        translationX = (1f - transitionProgress) * -100f
+                    }
+            ) {
+                drawerContent()
+            }
         }
 
         // Pushed Main Content Layer
