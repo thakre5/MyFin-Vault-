@@ -38,6 +38,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.zIndex
 import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
@@ -105,7 +106,7 @@ fun MonthlyScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(top = 100.dp, bottom = 120.dp)
+            contentPadding = PaddingValues(top = 96.dp, bottom = 120.dp)
         ) {
             // --- TAB 1: SUMMARY ---
             if (activeTab == DashboardTab.SUMMARY) {
@@ -117,7 +118,7 @@ fun MonthlyScreen(
                                 .shadow(3.dp, RoundedCornerShape(18.dp)),
                             shape = RoundedCornerShape(18.dp),
                             color = CardWhite,
-                            border = BorderStroke(1.dp, AccentPurpleLight)
+                            border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.35f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(16.dp),
@@ -152,7 +153,7 @@ fun MonthlyScreen(
                     }
                 }
 
-                // Hero Card: Safe-to-Spend Guardrail & Live Sparkline
+                // Hero Card: Safe-to-Spend Guardrail & Live Sparkline (Infused with AccentPurple Ambient Gradient)
                 item {
                     val isHealthy = uiState.metrics.safeToSpend > 0
                     val statusColor = if (isHealthy) SoftGreen else SoftRed
@@ -163,7 +164,7 @@ fun MonthlyScreen(
                             .shadow(6.dp, RoundedCornerShape(26.dp)),
                         shape = RoundedCornerShape(26.dp),
                         color = CardWhite,
-                        border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.6f))
+                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
                     ) {
                         Column(
                             modifier = Modifier
@@ -171,8 +172,8 @@ fun MonthlyScreen(
                                     Brush.verticalGradient(
                                         colors = listOf(
                                             Color(0xFFFFFFFF),
-                                            Color(0xFFFCFBFE),
-                                            Color(0xFFF6F4FD)
+                                            Color(0xFFFCFAFF),
+                                            AccentPurple.copy(alpha = 0.05f)
                                         )
                                     )
                                 )
@@ -186,11 +187,11 @@ fun MonthlyScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
                                         modifier = Modifier
-                                            .size(7.dp)
+                                            .size(8.dp)
                                             .clip(CircleShape)
                                             .background(statusColor)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(7.dp))
                                     Text(
                                         text = "SAFE TO SPEND GUARDRAIL",
                                         color = TextMuted,
@@ -202,11 +203,12 @@ fun MonthlyScreen(
 
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = statusColor.copy(alpha = 0.12f)
+                                    color = if (isHealthy) AccentPurple.copy(alpha = 0.1f) else statusColor.copy(alpha = 0.12f),
+                                    border = BorderStroke(0.6.dp, if (isHealthy) AccentPurple.copy(alpha = 0.25f) else statusColor.copy(alpha = 0.3f))
                                 ) {
                                     Text(
                                         text = "${uiState.metrics.safeToSpendPercentage}% Capacity",
-                                        color = statusColor,
+                                        color = if (isHealthy) AccentPurple else statusColor,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -242,7 +244,7 @@ fun MonthlyScreen(
                             SpendingSparkline(
                                 points = uiState.metrics.dailyExpensePoints,
                                 lineColor = if (isHealthy) AccentPurple else SoftRed,
-                                gradientStartColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.28f),
+                                gradientStartColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.32f),
                                 gradientEndColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.0f)
                             )
 
@@ -730,7 +732,7 @@ fun MonthlyScreen(
             // --- TAB 2: TRANSACTIONS ---
             if (activeTab == DashboardTab.TRANSACTIONS) {
                 item {
-                    // Compact Slim Search Field
+                    // Compact Slim Search Field with subtle AccentPurple cursor & focus
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -835,15 +837,36 @@ fun MonthlyScreen(
                                 selected = filterCriteria.account == "ALL",
                                 onClick = { viewModel.updateFilter(filterCriteria.type, "ALL", filterCriteria.startDate, filterCriteria.endDate) },
                                 label = { Text("All Vaults", fontSize = 11.sp) },
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(8.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = AccentPurple.copy(alpha = 0.12f),
+                                    selectedLabelColor = AccentPurple
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = filterCriteria.account == "ALL",
+                                    selectedBorderColor = AccentPurple.copy(alpha = 0.4f),
+                                    borderColor = BorderLight
+                                )
                             )
                         }
                         items(accountsList) { acc ->
+                            val isSelected = filterCriteria.account == acc
                             FilterChip(
-                                selected = filterCriteria.account == acc,
+                                selected = isSelected,
                                 onClick = { viewModel.updateFilter(filterCriteria.type, acc, filterCriteria.startDate, filterCriteria.endDate) },
                                 label = { Text(acc, fontSize = 11.sp) },
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(8.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = AccentPurple.copy(alpha = 0.12f),
+                                    selectedLabelColor = AccentPurple
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isSelected,
+                                    selectedBorderColor = AccentPurple.copy(alpha = 0.4f),
+                                    borderColor = BorderLight
+                                )
                             )
                         }
                     }
@@ -996,21 +1019,33 @@ fun MonthlyScreen(
             }
         }
 
-        // Pinned Top Bar
+        // ==========================================
+        // PINNED TOP BAR (Compact with Accent Glow)
+        // ==========================================
         Surface(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .fillMaxWidth(),
-            color = CanvasLight.copy(alpha = 0.96f)
+                .fillMaxWidth()
+                .zIndex(3f),
+            color = CanvasLight.copy(alpha = 0.95f)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                AccentPurple.copy(alpha = 0.08f),
+                                Color.Transparent
+                            )
+                        )
+                    )
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1020,7 +1055,8 @@ fun MonthlyScreen(
                             .size(42.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(CardWhite)
-                            .border(0.8.dp, BorderLight.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
+                            .border(0.8.dp, AccentPurple.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                            .shadow(1.dp, RoundedCornerShape(12.dp))
                     ) {
                         Icon(
                             Icons.Default.ChevronLeft,
@@ -1036,7 +1072,8 @@ fun MonthlyScreen(
                             .clickable { showMonthPicker = true },
                         shape = RoundedCornerShape(20.dp),
                         color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.22f)),
+                        shadowElevation = 2.dp
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -1049,19 +1086,22 @@ fun MonthlyScreen(
                                 color = TextDark
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
             }
         }
 
-        // 4 + 1 Floating Bottom Navigation Dock
+        // ==========================================
+        // 4 + 1 FLOATING BOTTOM NAVIGATION DOCK
+        // ==========================================
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .zIndex(4f),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -1111,7 +1151,7 @@ fun MonthlyScreen(
 
             FloatingActionButton(
                 onClick = { showActionMenu = !showActionMenu },
-                containerColor = TextDark,
+                containerColor = AccentPurple,
                 contentColor = Color.White,
                 shape = CircleShape,
                 modifier = Modifier.size(60.dp).shadow(16.dp, CircleShape)
@@ -1126,12 +1166,12 @@ fun MonthlyScreen(
             }
         }
 
-        // Anchored Action Menu (Replacing Center Popup with Refined Floating Menu)
+        // Anchored Action Menu
         if (showActionMenu) {
-            // Dismiss Backdrop
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .zIndex(5f)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -1139,7 +1179,6 @@ fun MonthlyScreen(
                     )
             )
 
-            // Anchored Floating Card
             AnimatedVisibility(
                 visible = showActionMenu,
                 enter = scaleIn(
@@ -1153,12 +1192,13 @@ fun MonthlyScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(bottom = 94.dp, end = 20.dp)
+                    .zIndex(6f)
             ) {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = CardWhite,
                     shadowElevation = 10.dp,
-                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                    border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.2f)),
                     modifier = Modifier.width(190.dp)
                 ) {
                     Column(
@@ -1179,7 +1219,7 @@ fun MonthlyScreen(
                             Icon(
                                 Icons.Default.Add,
                                 contentDescription = null,
-                                tint = TextDark,
+                                tint = AccentPurple,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -1210,7 +1250,7 @@ fun MonthlyScreen(
                             Icon(
                                 Icons.Default.SyncAlt,
                                 contentDescription = null,
-                                tint = TextDark,
+                                tint = AccentPurple,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -1226,7 +1266,7 @@ fun MonthlyScreen(
             }
         }
 
-        // Transaction Detail Bottom Sheet (Read-Only Matrix with Edit/Delete Triggers)
+        // Transaction Detail Bottom Sheet
         viewingTx?.let { tx ->
             TransactionDetailBottomSheet(
                 transaction = tx,
@@ -1617,7 +1657,7 @@ private fun DockPillTab(
     Box(
         modifier = Modifier
             .clip(CircleShape)
-            .background(if (isSelected) CanvasLight else Color.Transparent)
+            .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
