@@ -91,6 +91,12 @@ interface BudgetDao {
     @Query("SELECT * FROM accounts ORDER BY sortOrder ASC")
     fun getAllAccounts(): Flow<List<AccountEntity>>
 
+    @Query("SELECT * FROM accounts WHERE accountName = :name LIMIT 1")
+    suspend fun getAccountByName(name: String): AccountEntity?
+
+    @Query("SELECT COUNT(*) FROM accounts")
+    suspend fun getAccountCount(): Int
+
     @Query("""
         SELECT 
             a.accountName, 
@@ -113,7 +119,16 @@ interface BudgetDao {
     suspend fun insertAccounts(accounts: List<AccountEntity>)
 
     @Update
+    suspend fun updateAccount(account: AccountEntity)
+
+    @Update
     suspend fun updateAccounts(accounts: List<AccountEntity>)
+
+    @Query("UPDATE accounts SET startingBalance = :startingBalance WHERE accountName = :accountName")
+    suspend fun updateAccountStartingBalance(accountName: String, startingBalance: Double)
+
+    @Query("UPDATE accounts SET accountType = :accountType WHERE accountName = :accountName")
+    suspend fun updateAccountType(accountName: String, accountType: String)
 
     @Transaction
     suspend fun reorderAccounts(orderedAccounts: List<AccountEntity>) {
@@ -169,7 +184,7 @@ interface BudgetDao {
     @Query("DELETE FROM subcategories")
     suspend fun clearAllSubcategories()
 
-    // --- CASCADING RENAMES ---
+    // --- CASCADING RENAMES & ADJUSTMENTS ---
     @Query("UPDATE transactions SET category = :newName WHERE category = :oldName")
     suspend fun cascadeRenameCategoryInTransactions(oldName: String, newName: String)
 
