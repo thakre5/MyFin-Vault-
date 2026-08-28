@@ -224,7 +224,12 @@ class MainActivity : FragmentActivity() {
                                             onOpenDrawer = { isDrawerOpen = true },
                                             onNavigateToMonth = { _, _ ->
                                                 currentTarget = NavigationTarget.MONTHLY_VIEW
-                                            }
+                                            },
+                                            onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
+                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
+                                            onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
+                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
+                                            onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
                                         )
                                     }
                                     NavigationTarget.VAULT_ACCOUNTS -> {
@@ -255,8 +260,8 @@ class MainActivity : FragmentActivity() {
                                             viewModel = viewModel,
                                             onOpenDrawer = { isDrawerOpen = true },
                                             onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
-                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
                                             onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
+                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
                                             onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
                                             onNavigateToSettings = { currentTarget = NavigationTarget.SETTINGS }
                                         )
