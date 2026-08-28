@@ -76,5 +76,6 @@ data class UserProfile(
     val isOverrunWarningEnabled: Boolean = true,
     val reminderEnabled: Boolean = true,
     val reminderHour: Int = 20,
-    val reminderMinute: Int = 0
+    val reminderMinute: Int = 0,
+    val vaultMode: String = "3_VAULT" // "3_VAULT" or "SIMPLE"
 )
