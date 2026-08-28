@@ -2,6 +2,7 @@ package com.example.myfin.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
@@ -11,6 +12,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -39,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -51,7 +54,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
-import coil.compose.AsyncImage
 import com.example.myfin.data.ExcelExportManager
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AppBrandingFooter
@@ -261,10 +263,23 @@ fun SettingsScreen(
                                 color = AccentPurple.copy(alpha = 0.15f),
                                 border = BorderStroke(3.dp, CardWhite)
                             ) {
+                                val profileUri = userProfile.profileImageUri
+                                val profileBitmap = remember(profileUri) {
+                                    if (!profileUri.isNullOrBlank()) {
+                                        try {
+                                            val uri = Uri.parse(profileUri)
+                                            val inputStream = context.contentResolver.openInputStream(uri)
+                                            BitmapFactory.decodeStream(inputStream)
+                                        } catch (e: Exception) {
+                                            null
+                                        }
+                                    } else null
+                                }
+
                                 Box(contentAlignment = Alignment.Center) {
-                                    if (userProfile.profileImageUri.isNotBlank()) {
-                                        AsyncImage(
-                                            model = userProfile.profileImageUri,
+                                    if (profileBitmap != null) {
+                                        Image(
+                                            bitmap = profileBitmap.asImageBitmap(),
                                             contentDescription = "Profile Picture",
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
