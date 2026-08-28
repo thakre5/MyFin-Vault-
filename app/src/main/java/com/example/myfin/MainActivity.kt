@@ -102,7 +102,7 @@ class MainActivity : FragmentActivity() {
 
                 var isDrawerOpen by rememberSaveable { mutableStateOf(false) }
                 var currentTarget by rememberSaveable { mutableStateOf(NavigationTarget.MONTHLY_VIEW) }
-                var settingsInitialSheet by rememberSaveable { mutableStateOf(SettingsActiveSheet.NONE) }
+                var settingsInitialSheet by rememberSaveable { mutableStateOf<SettingsActiveSheet>(SettingsActiveSheet.NONE) }
 
                 when {
                     isFirstLaunch -> {
@@ -248,7 +248,8 @@ class MainActivity : FragmentActivity() {
                                         ReportsAnalyticsScreen(
                                             viewModel = viewModel,
                                             onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW }
+                                            onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
+                                            onNavigateToSettings = { currentTarget = NavigationTarget.SETTINGS }
                                         )
                                     }
                                     NavigationTarget.SETTINGS -> {
