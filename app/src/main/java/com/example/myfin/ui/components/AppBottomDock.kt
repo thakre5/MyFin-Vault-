@@ -102,7 +102,7 @@ fun AppBottomDock(
     )
 
     Box(modifier = modifier) {
-        // 1. Full-Screen Dimmed Backdrop Scrim
+        // 1. Full-Screen Dimmed Backdrop Scrim (Closes menu on tap)
         AnimatedVisibility(
             visible = isFabMenuExpanded && fabActions.isNotEmpty(),
             enter = fadeIn(tween(180)),
@@ -121,7 +121,7 @@ fun AppBottomDock(
             )
         }
 
-        // 2. Floating Contextual Actions Popup
+        // 2. Floating Contextual Actions Popup (Independent Overlap Layer)
         AnimatedVisibility(
             visible = isFabMenuExpanded && fabActions.isNotEmpty(),
             enter = scaleIn(
@@ -192,7 +192,7 @@ fun AppBottomDock(
             }
         }
 
-        // 3. Main Bottom Dock Row
+        // 3. Main Bottom Dock Row (Fixed strictly at Alignment.BottomCenter)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -225,17 +225,18 @@ fun AppBottomDock(
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 4.dp),
+                        .padding(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     navItems.forEach { item ->
                         val isSelected = currentSelection == item.target
 
-                        // Assign extra width weight to the active tab to accommodate the full text label
                         Box(
                             modifier = Modifier
-                                .weight(if (isSelected) 1.45f else 1.0f)
+                                .weight(if (isSelected) 1.85f else 1.0f)
                                 .fillMaxHeight()
+                                .clip(RoundedCornerShape(25.dp))
+                                .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
@@ -245,41 +246,32 @@ fun AppBottomDock(
                                     if (!isSelected) {
                                         onSelectTarget(item.target)
                                     }
-                                },
+                                }
+                                .padding(horizontal = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
-                                    .padding(
-                                        horizontal = if (isSelected) 10.dp else 6.dp,
-                                        vertical = 7.dp
-                                    ),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = item.icon,
-                                        contentDescription = item.label,
-                                        tint = if (isSelected) AccentPurple else TextMuted,
-                                        modifier = Modifier.size(18.dp)
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.label,
+                                    tint = if (isSelected) AccentPurple else TextMuted,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                if (isSelected) {
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = item.label,
+                                        color = AccentPurple,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        letterSpacing = (-0.2).sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Clip
                                     )
-                                    if (isSelected) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = item.label,
-                                            color = AccentPurple,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.5.sp,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = TextOverflow.Clip
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -289,7 +281,7 @@ fun AppBottomDock(
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            // Action FAB
+            // Contextual Action FAB Button
             Surface(
                 modifier = Modifier
                     .size(58.dp)
@@ -333,7 +325,7 @@ fun AppBottomDock(
 }
 
 /**
- * Scroll connection helper with debounce threshold to eliminate touch jitter.
+ * Scroll connection helper with debounce threshold to eliminate touch cancellation jitter.
  */
 @Composable
 fun rememberAutoScrollVisibilityConnection(): Pair<MutableState<Boolean>, NestedScrollConnection> {
