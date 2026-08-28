@@ -18,12 +18,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -476,9 +474,9 @@ fun ReportsAnalyticsScreen(
             onSelectTarget = { target ->
                 when (target) {
                     NavigationTarget.MONTHLY_VIEW -> onNavigateToDashboard()
-                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
                     NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
+                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.REPORTS_ANALYTICS -> { /* Active */ }
                     else -> {}
                 }
