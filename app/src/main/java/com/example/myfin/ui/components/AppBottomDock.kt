@@ -98,12 +98,14 @@ fun AppBottomDock(
     )
 
     Box(modifier = modifier) {
-        // 1. Full-Screen Dimmed Scrim when FAB Menu is Expanded
+        // 1. Full-Screen Dimmed Backdrop Scrim (Closes menu on tap)
         AnimatedVisibility(
             visible = isFabMenuExpanded && fabActions.isNotEmpty(),
             enter = fadeIn(tween(180)),
-            exit = fadeOut(tween(150)),
-            modifier = Modifier.fillMaxSize().zIndex(1f)
+            exit = fadeOut(tween(140)),
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(1f)
         ) {
             Box(
                 modifier = Modifier
@@ -115,8 +117,79 @@ fun AppBottomDock(
             )
         }
 
-        // 2. Bottom Dock & Contextual Menu Container (Pinned Strictly to Bottom)
-        Box(
+        // 2. Floating Contextual Actions Popup (Independent Overlap Layer)
+        AnimatedVisibility(
+            visible = isFabMenuExpanded && fabActions.isNotEmpty(),
+            enter = scaleIn(
+                transformOrigin = TransformOrigin(0.88f, 1f),
+                animationSpec = spring(dampingRatio = 0.8f, stiffness = 450f)
+            ) + fadeIn(animationSpec = tween(150)),
+            exit = scaleOut(
+                transformOrigin = TransformOrigin(0.88f, 1f),
+                animationSpec = tween(120)
+            ) + fadeOut(animationSpec = tween(120)),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(bottom = 80.dp, end = 16.dp)
+                .zIndex(3f)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .width(185.dp)
+                    .shadow(
+                        elevation = 18.dp,
+                        shape = RoundedCornerShape(18.dp),
+                        ambientColor = Color.Black.copy(alpha = 0.22f),
+                        spotColor = Color.Black.copy(alpha = 0.28f)
+                    )
+                    .clip(RoundedCornerShape(18.dp)),
+                shape = RoundedCornerShape(18.dp),
+                color = CardWhite,
+                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+            ) {
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    fabActions.forEachIndexed { index, action ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    isFabMenuExpanded = false
+                                    action.onClick()
+                                }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = action.icon,
+                                contentDescription = action.label,
+                                tint = AccentPurple,
+                                modifier = Modifier.size(19.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = action.label,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = TextDark
+                            )
+                        }
+
+                        if (index < fabActions.size - 1) {
+                            HorizontalDivider(
+                                color = BorderLight.copy(alpha = 0.5f),
+                                thickness = 0.7.dp,
+                                modifier = Modifier.padding(horizontal = 10.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Main Bottom Dock Row (Fixed strictly at Alignment.BottomCenter)
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
@@ -126,186 +199,109 @@ fun AppBottomDock(
                     alpha = animAlpha
                     translationY = animTranslationY
                 }
-                .zIndex(2f)
+                .zIndex(2f),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Contextual Actions Popup (Compact, Right-Aligned directly above FAB)
-            AnimatedVisibility(
-                visible = isFabMenuExpanded && fabActions.isNotEmpty(),
-                enter = scaleIn(
-                    transformOrigin = TransformOrigin(0.85f, 1f),
-                    animationSpec = spring(dampingRatio = 0.8f, stiffness = 450f)
-                ) + fadeIn(animationSpec = tween(150)),
-                exit = scaleOut(
-                    transformOrigin = TransformOrigin(0.85f, 1f),
-                    animationSpec = tween(120)
-                ) + fadeOut(animationSpec = tween(120)),
+            // Navigation Capsule Island
+            Surface(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 72.dp, end = 2.dp)
-                    .zIndex(3f)
+                    .height(58.dp)
+                    .weight(1f)
+                    .shadow(
+                        elevation = 16.dp,
+                        shape = RoundedCornerShape(29.dp),
+                        ambientColor = Color.Black.copy(alpha = 0.12f),
+                        spotColor = Color.Black.copy(alpha = 0.18f)
+                    ),
+                shape = RoundedCornerShape(29.dp),
+                color = CardWhite,
+                border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.5f))
             ) {
-                Surface(
+                Row(
                     modifier = Modifier
-                        .width(185.dp)
-                        .shadow(
-                            elevation = 18.dp,
-                            shape = RoundedCornerShape(18.dp),
-                            ambientColor = Color.Black.copy(alpha = 0.22f),
-                            spotColor = Color.Black.copy(alpha = 0.28f)
-                        )
-                        .clip(RoundedCornerShape(18.dp)),
-                    shape = RoundedCornerShape(18.dp),
-                    color = CardWhite,
-                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                        .fillMaxSize()
+                        .padding(horizontal = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                        fabActions.forEachIndexed { index, action ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
+                    navItems.forEach { item ->
+                        val isSelected = currentSelection == item.target
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    if (!isSelected) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         isFabMenuExpanded = false
-                                        action.onClick()
+                                        onSelectTarget(item.target)
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                }
+                                .padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    imageVector = action.icon,
-                                    contentDescription = action.label,
-                                    tint = AccentPurple,
+                                    imageVector = item.icon,
+                                    contentDescription = item.label,
+                                    tint = if (isSelected) AccentPurple else TextMuted,
                                     modifier = Modifier.size(19.dp)
                                 )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = action.label,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = TextDark
-                                )
-                            }
-
-                            if (index < fabActions.size - 1) {
-                                HorizontalDivider(
-                                    color = BorderLight.copy(alpha = 0.5f),
-                                    thickness = 0.7.dp,
-                                    modifier = Modifier.padding(horizontal = 10.dp)
-                                )
+                                if (isSelected) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = item.label,
+                                        color = AccentPurple,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // Bottom Navigation Island + Action FAB Row
-            Row(
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Contextual Action FAB Button
+            Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .zIndex(2f),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Left Main Navigation Capsule
-                Surface(
-                    modifier = Modifier
-                        .height(58.dp)
-                        .weight(1f)
-                        .shadow(
-                            elevation = 16.dp,
-                            shape = RoundedCornerShape(29.dp),
-                            ambientColor = Color.Black.copy(alpha = 0.12f),
-                            spotColor = Color.Black.copy(alpha = 0.18f)
-                        ),
-                    shape = RoundedCornerShape(29.dp),
-                    color = CardWhite,
-                    border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.5f))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        navItems.forEach { item ->
-                            val isSelected = currentSelection == item.target
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) {
-                                        if (!isSelected) {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            isFabMenuExpanded = false
-                                            onSelectTarget(item.target)
-                                        }
-                                    }
-                                    .padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = item.icon,
-                                        contentDescription = item.label,
-                                        tint = if (isSelected) AccentPurple else TextMuted,
-                                        modifier = Modifier.size(19.dp)
-                                    )
-                                    if (isSelected) {
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = item.label,
-                                            color = AccentPurple,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp
-                                        )
-                                    }
-                                }
-                            }
+                    .size(58.dp)
+                    .shadow(
+                        elevation = 16.dp,
+                        shape = CircleShape,
+                        ambientColor = AccentPurple.copy(alpha = 0.40f),
+                        spotColor = AccentPurple.copy(alpha = 0.45f)
+                    )
+                    .clip(CircleShape)
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        if (fabActions.isNotEmpty()) {
+                            isFabMenuExpanded = !isFabMenuExpanded
+                        } else {
+                            onDirectFabClick?.invoke()
                         }
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Right Action FAB
-                Surface(
-                    modifier = Modifier
-                        .size(58.dp)
-                        .shadow(
-                            elevation = 16.dp,
-                            shape = CircleShape,
-                            ambientColor = AccentPurple.copy(alpha = 0.40f),
-                            spotColor = AccentPurple.copy(alpha = 0.45f)
-                        )
-                        .clip(CircleShape)
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            if (fabActions.isNotEmpty()) {
-                                isFabMenuExpanded = !isFabMenuExpanded
-                            } else {
-                                onDirectFabClick?.invoke()
-                            }
-                        },
-                    shape = CircleShape,
-                    color = AccentPurple
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Contextual Action",
-                            tint = Color.White,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .rotate(fabRotation)
-                        )
-                    }
+                    },
+                shape = CircleShape,
+                color = AccentPurple
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Contextual Action",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .rotate(fabRotation)
+                    )
                 }
             }
         }
