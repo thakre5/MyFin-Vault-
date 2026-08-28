@@ -21,9 +21,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -67,12 +70,7 @@ fun FloatingPagerIndicator(
                     alpha = animAlpha
                     translationY = animTranslationY
                 }
-                .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(20.dp),
-                    ambientColor = Color.Black.copy(alpha = 0.12f),
-                    spotColor = Color.Black.copy(alpha = 0.16f)
-                )
+                .shadow(elevation = 8.dp, shape = RoundedCornerShape(20.dp), ambientColor = Color.Black.copy(alpha = 0.12f), spotColor = Color.Black.copy(alpha = 0.16f))
                 .clip(RoundedCornerShape(20.dp)),
             shape = RoundedCornerShape(20.dp),
             color = containerColor,
@@ -140,4 +138,25 @@ fun FloatingPagerIndicator(
             }
         }
     }
+}
+
+@Composable
+fun rememberAutoScrollVisibilityConnection(): Pair<MutableState<Boolean>, NestedScrollConnection> {
+    val isVisible = remember { mutableStateOf(true) }
+
+    val connection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val delta = available.y
+                if (delta < -8f && isVisible.value) {
+                    isVisible.value = false
+                } else if (delta > 8f && !isVisible.value) {
+                    isVisible.value = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    return Pair(isVisible, connection)
 }
