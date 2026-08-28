@@ -15,7 +15,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.example.myfin.ui.theme.TextDark
+
+// Deep soft purple background for the drawer canvas
+private val SoftPurpleDrawerBg = Color(0xFF231B38)
 
 @Composable
 fun PerspectiveDrawer(
@@ -34,16 +36,17 @@ fun PerspectiveDrawer(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(TextDark)
+            .background(SoftPurpleDrawerBg)
     ) {
-        // Drawer Menu Layer (Only active and hit-testable when open or animating)
+        // Drawer Menu Layer (Isolated & active only when open)
         if (isDrawerOpen || transitionProgress > 0f) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxHeight()
+                    .width(250.dp)
                     .graphicsLayer {
                         alpha = transitionProgress
-                        translationX = (1f - transitionProgress) * -100f
+                        translationX = (1f - transitionProgress) * -80f
                     }
             ) {
                 drawerContent()
