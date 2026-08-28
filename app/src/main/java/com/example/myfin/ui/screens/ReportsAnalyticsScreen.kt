@@ -142,13 +142,17 @@ fun ReportsAnalyticsScreen(
         val calendar = Calendar.getInstance()
         when (selectedTimeRange) {
             TimeRangeFilter.THIS_WEEK -> {
-                calendar.firstDayOfWeek = Calendar.MONDAY
-                calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+                val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+                val offset = (dayOfWeek + 5) % 7
+                calendar.add(Calendar.DAY_OF_MONTH, -offset)
                 calendar.set(Calendar.HOUR_OF_DAY, 0)
                 calendar.set(Calendar.MINUTE, 0)
                 calendar.set(Calendar.SECOND, 0)
+                calendar.set(Calendar.MILLISECOND, 0)
                 val startOfWeek = calendar.timeInMillis
-                allTransactions.filter { it.date >= startOfWeek }
+                calendar.add(Calendar.DAY_OF_MONTH, 7)
+                val endOfWeek = calendar.timeInMillis
+                allTransactions.filter { it.date in startOfWeek until endOfWeek }
             }
             TimeRangeFilter.THIS_MONTH -> {
                 val currentMonth = calendar.get(Calendar.MONTH)
@@ -173,8 +177,12 @@ fun ReportsAnalyticsScreen(
     val totalIncome = remember(filteredTransactions) {
         filteredTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
     }
-    val fixedOutflow = remember(uiState.fixedBills) {
-        uiState.fixedBills.filter { it.type == TransactionType.EXPENSE || it.type == TransactionType.ASSET }.sumOf { it.amount }
+    val fixedOutflow = remember(uiState.fixedBills, selectedTimeRange) {
+        val totalFixed = uiState.fixedBills.filter { it.type == TransactionType.EXPENSE || it.type == TransactionType.ASSET }.sumOf { it.amount }
+        when (selectedTimeRange) {
+            TimeRangeFilter.THIS_WEEK -> totalFixed * (7.0 / 30.0)
+            TimeRangeFilter.THIS_MONTH, TimeRangeFilter.LAST_MONTH -> totalFixed
+        }
     }
     val variableOutflow = remember(filteredTransactions) {
         filteredTransactions.filter { it.type == TransactionType.EXPENSE && it.linkedFixedBillId == null }.sumOf { it.amount }
@@ -190,13 +198,15 @@ fun ReportsAnalyticsScreen(
     val weeklySpendBuckets = remember(allTransactions) {
         val days = listOf("M", "T", "W", "T", "F", "S", "S")
         val calendar = Calendar.getInstance()
-        calendar.firstDayOfWeek = Calendar.MONDAY
-        calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+        val offset = (dayOfWeek + 5) % 7
+        calendar.add(Calendar.DAY_OF_MONTH, -offset)
         calendar.set(Calendar.HOUR_OF_DAY, 0)
         calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
         val startOfWeek = calendar.timeInMillis
-        calendar.add(Calendar.DAY_OF_WEEK, 7)
+        calendar.add(Calendar.DAY_OF_MONTH, 7)
         val endOfWeek = calendar.timeInMillis
 
         val thisWeekTxs = allTransactions.filter { it.date in startOfWeek until endOfWeek && it.type == TransactionType.EXPENSE }
@@ -207,8 +217,8 @@ fun ReportsAnalyticsScreen(
         val dayCal = Calendar.getInstance()
         for (tx in thisWeekTxs) {
             dayCal.timeInMillis = tx.date
-            val dayOfWeek = dayCal.get(Calendar.DAY_OF_WEEK)
-            val dayIndex = (dayOfWeek + 5) % 7
+            val txDay = dayCal.get(Calendar.DAY_OF_WEEK)
+            val dayIndex = (txDay + 5) % 7
             if (tx.linkedFixedBillId != null) {
                 essentialSums[dayIndex] += tx.amount
             } else {
@@ -724,6 +734,17 @@ private fun SummaryAnalyticsTabContent(
     val retentionRate = if (totalIncome > 0) ((netSurplus / totalIncome) * 100).coerceIn(0.0, 100.0) else 0.0
     val commitmentLoad = if (totalBudget > 0) ((fixedOutflow / totalBudget) * 100).coerceIn(0.0, 100.0) else 0.0
 
+    val daysInScope = when (selectedTimeRange) {
+        TimeRangeFilter.THIS_WEEK -> 7.0
+        TimeRangeFilter.THIS_MONTH -> {
+            Calendar.getInstance().getActualMaximum(Calendar.DAY_OF_MONTH).toDouble()
+        }
+        TimeRangeFilter.LAST_MONTH -> {
+            Calendar.getInstance().apply { add(Calendar.MONTH, -1) }.getActualMaximum(Calendar.DAY_OF_MONTH).toDouble()
+        }
+    }
+    val dailyInflow = if (daysInScope > 0) totalIncome / daysInScope else 0.0
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -795,7 +816,7 @@ private fun SummaryAnalyticsTabContent(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Daily Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome / 30.0)}",
+                    text = "Daily Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyInflow)}",
                     fontSize = 11.sp,
                     color = TealPrimary,
                     fontWeight = FontWeight.SemiBold
@@ -1392,7 +1413,17 @@ private fun WealthAnalyticsTabContent(
     transactions: List<TransactionEntity>
 ) {
     val totalLiquid = remember(accounts) { accounts.sumOf { it.currentBalance } }
-    val monthlyBurnRate = totalExpenses.coerceAtLeast(1.0)
+    val currentMonthExpenses = remember(transactions) {
+        val cal = Calendar.getInstance()
+        val curM = cal.get(Calendar.MONTH)
+        val curY = cal.get(Calendar.YEAR)
+        val txCal = Calendar.getInstance()
+        transactions.filter {
+            txCal.timeInMillis = it.date
+            txCal.get(Calendar.MONTH) == curM && txCal.get(Calendar.YEAR) == curY && it.type == TransactionType.EXPENSE
+        }.sumOf { it.amount }
+    }
+    val monthlyBurnRate = if (currentMonthExpenses > 0) currentMonthExpenses else totalExpenses.coerceAtLeast(1.0)
     val runwayMonths = (totalLiquid / monthlyBurnRate)
     val is3Vault = !vaultMode.equals("SIMPLE", ignoreCase = true)
 
@@ -2065,4 +2096,3 @@ private fun ThreeBubbleAllocationCanvas(
         }
     }
 }
-
