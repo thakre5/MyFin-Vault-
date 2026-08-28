@@ -6,7 +6,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -106,7 +105,7 @@ fun MonthlyScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(top = 96.dp, bottom = 120.dp)
+            contentPadding = PaddingValues(top = 92.dp, bottom = 120.dp)
         ) {
             // --- TAB 1: SUMMARY ---
             if (activeTab == DashboardTab.SUMMARY) {
@@ -153,7 +152,7 @@ fun MonthlyScreen(
                     }
                 }
 
-                // Hero Card: Safe-to-Spend Guardrail & Live Sparkline (Infused with AccentPurple Ambient Gradient)
+                // Hero Card: Safe-to-Spend Guardrail & Live Sparkline
                 item {
                     val isHealthy = uiState.metrics.safeToSpend > 0
                     val statusColor = if (isHealthy) SoftGreen else SoftRed
@@ -1020,7 +1019,7 @@ fun MonthlyScreen(
         }
 
         // ==========================================
-        // PINNED TOP BAR (Compact with Accent Glow)
+        // PINNED TOP BAR (Restored Clean Top Button)
         // ==========================================
         Surface(
             modifier = Modifier
@@ -1045,21 +1044,18 @@ fun MonthlyScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = onOpenDrawer,
                         modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(CardWhite)
-                            .border(0.8.dp, AccentPurple.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                            .shadow(1.dp, RoundedCornerShape(12.dp))
+                            .size(38.dp)
+                            .clip(CircleShape)
                     ) {
                         Icon(
-                            Icons.Default.ChevronLeft,
+                            imageVector = Icons.Default.ChevronLeft,
                             contentDescription = "Drawer / Navigation",
                             tint = TextDark,
                             modifier = Modifier.size(24.dp)
@@ -1072,11 +1068,11 @@ fun MonthlyScreen(
                             .clickable { showMonthPicker = true },
                         shape = RoundedCornerShape(20.dp),
                         color = CardWhite,
-                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.22f)),
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
                         shadowElevation = 2.dp
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
