@@ -13,7 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -29,6 +28,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.myfin.ui.components.AppBrandingFooter
 import com.example.myfin.ui.theme.*
 
@@ -53,131 +53,166 @@ fun UserGuideScreen(
             .fillMaxSize()
             .background(CanvasLight)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-        ) {
-            // 1. Top Purple Gradient Horizon Header (Matching Settings Style)
+        Column(modifier = Modifier.fillMaxSize()) {
+            // ==========================================
+            // 1. PINNED HEADER SECTION (STATIC ON TOP)
+            // ==========================================
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(170.dp)
+                    .zIndex(2f)
             ) {
-                // Top Gradient Background
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CanvasLight)
+                ) {
+                    // Top Purple Gradient Horizon Banner
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(170.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(125.dp)
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            AccentPurple,
+                                            AccentPurple.copy(alpha = 0.88f),
+                                            Color(0xFF6C5CE7).copy(alpha = 0.24f)
+                                        )
+                                    )
+                                )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .statusBarsPadding()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = onBack,
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.22f))
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronLeft,
+                                        contentDescription = "Back",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+
+                                Text(
+                                    text = "Handbook v1.0",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White.copy(alpha = 0.92f),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.White.copy(alpha = 0.18f))
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+
+                        // 50:50 Overlapping Hero Icon on Horizon Line
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(start = 24.dp)
+                                .size(80.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(76.dp),
+                                shape = CircleShape,
+                                color = AccentPurple,
+                                border = BorderStroke(3.dp, CardWhite),
+                                shadowElevation = 4.dp
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.MenuBook,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(34.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Guide Title Block
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .padding(top = 4.dp, bottom = 12.dp)
+                    ) {
+                        Text(
+                            text = "User Guide & Architecture",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = TextDark
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Mathematical Engine, Vault Logic & Local Privacy Specs",
+                            fontSize = 12.5.sp,
+                            color = TextMuted
+                        )
+                    }
+                }
+
+                // Smooth Dissolve Fade Overlay at Bottom of Pinned Header
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(130.dp)
+                        .height(18.dp)
+                        .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
-                                    AccentPurple,
-                                    AccentPurple.copy(alpha = 0.88f),
-                                    Color(0xFF6C5CE7).copy(alpha = 0.22f)
+                                    CanvasLight,
+                                    CanvasLight.copy(alpha = 0f)
                                 )
                             )
                         )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onBack,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.22f))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ChevronLeft,
-                                contentDescription = "Back",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-
-                        Text(
-                            text = "Handbook v1.0",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White.copy(alpha = 0.9f),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color.White.copy(alpha = 0.15f))
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
-                    }
-                }
-
-                // 50:50 Overlapping Hero Icon on the Left Horizon
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 24.dp)
-                        .size(80.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        modifier = Modifier.size(76.dp),
-                        shape = CircleShape,
-                        color = AccentPurple,
-                        border = BorderStroke(3.dp, CardWhite),
-                        shadowElevation = 4.dp
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.MenuBook,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(34.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 2. Left-Aligned Title & Subtitle Section
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(top = 4.dp, bottom = 18.dp)
-            ) {
-                Text(
-                    text = "User Guide & Architecture",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                    color = TextDark
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Mathematical Engine, Vault Logic & Local Privacy Specs",
-                    fontSize = 12.5.sp,
-                    color = TextMuted
                 )
             }
 
-            // 3. Expandable Accordion Cards (Single Active Section Mode)
+            // ==========================================
+            // 2. SCROLLABLE HANDBOOK CARDS CONTAINER
+            // ==========================================
             Column(
                 modifier = Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 6.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Section 1: System Architecture & Privacy
+                // Section 1: Architecture & Privacy Specs
                 GuideAccordionCard(
                     icon = Icons.Default.Shield,
                     title = "1. Architecture & Privacy Specs",
                     subtitle = "100% Offline SQLite & Hardware KeyStore",
                     isExpanded = expandedSection == GuideAccordionSection.ARCHITECTURE,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.ARCHITECTURE) GuideAccordionSection.NONE else GuideAccordionSection.ARCHITECTURE
+                        expandedSection = if (expandedSection == GuideAccordionSection.ARCHITECTURE) {
+                            GuideAccordionSection.NONE
+                        } else {
+                            GuideAccordionSection.ARCHITECTURE
+                        }
                     }
                 ) {
                     GuideTextParagraph("MyFin Vault is engineered around a 100% offline-first local ledger model. The application maintains zero external cloud databases, zero telemetry, and zero network trackers. All data stays strictly on your physical device.")
@@ -207,7 +242,11 @@ fun UserGuideScreen(
                     subtitle = "3-Vault Strategy vs. Simple Mode",
                     isExpanded = expandedSection == GuideAccordionSection.VAULT_MODES,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.VAULT_MODES) GuideAccordionSection.NONE else GuideAccordionSection.VAULT_MODES
+                        expandedSection = if (expandedSection == GuideAccordionSection.VAULT_MODES) {
+                            GuideAccordionSection.NONE
+                        } else {
+                            GuideAccordionSection.VAULT_MODES
+                        }
                     }
                 ) {
                     GuideTextParagraph("You can switch between two capital segregation frameworks in Settings & Vault Hub at any time:")
@@ -223,7 +262,7 @@ fun UserGuideScreen(
                     )
                     GuideFeatureBullet(
                         title = "Fortress Vault",
-                        desc = "High-reserve emergency buffer. Shielded from everyday spending metrics and used for emergency runway runway calculations."
+                        desc = "High-reserve emergency buffer. Shielded from everyday spending metrics and used for emergency runway calculations."
                     )
                     GuideFeatureBullet(
                         title = "Cash Wallet",
@@ -235,14 +274,18 @@ fun UserGuideScreen(
                     GuideTextParagraph("Aggregates all connected bank accounts and cash balances into a single flat liquidity pool without segregated reserve buckets.")
                 }
 
-                // Section 3: Core Mathematical Engine & Formulas
+                // Section 3: Mathematical Engine & Formulas
                 GuideAccordionCard(
                     icon = Icons.Default.Functions,
                     title = "3. Mathematical Engine & Formulas",
                     subtitle = "Real-Time S2S, Runways, Pacing & Splits",
                     isExpanded = expandedSection == GuideAccordionSection.MATHEMATICAL_FORMULAS,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.MATHEMATICAL_FORMULAS) GuideAccordionSection.NONE else GuideAccordionSection.MATHEMATICAL_FORMULAS
+                        expandedSection = if (expandedSection == GuideAccordionSection.MATHEMATICAL_FORMULAS) {
+                            GuideAccordionSection.NONE
+                        } else {
+                            GuideAccordionSection.MATHEMATICAL_FORMULAS
+                        }
                     }
                 ) {
                     GuideSubheading("A. Effective Base Inflow Determination")
@@ -289,7 +332,11 @@ fun UserGuideScreen(
                     subtitle = "Monthly, Planner, Master DB, Analytics & Vaults",
                     isExpanded = expandedSection == GuideAccordionSection.SCREEN_DIRECTORY,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.SCREEN_DIRECTORY) GuideAccordionSection.NONE else GuideAccordionSection.SCREEN_DIRECTORY
+                        expandedSection = if (expandedSection == GuideAccordionSection.SCREEN_DIRECTORY) {
+                            GuideAccordionSection.NONE
+                        } else {
+                            GuideAccordionSection.SCREEN_DIRECTORY
+                        }
                     }
                 ) {
                     GuideFeatureBullet(
@@ -321,7 +368,11 @@ fun UserGuideScreen(
                     subtitle = "Full .json snapshots, .xlsx Workbooks, .csv Ledgers",
                     isExpanded = expandedSection == GuideAccordionSection.BACKUP_EXPORTS,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.BACKUP_EXPORTS) GuideAccordionSection.NONE else GuideAccordionSection.BACKUP_EXPORTS
+                        expandedSection = if (expandedSection == GuideAccordionSection.BACKUP_EXPORTS) {
+                            GuideAccordionSection.NONE
+                        } else {
+                            GuideAccordionSection.BACKUP_EXPORTS
+                        }
                     }
                 ) {
                     GuideFeatureBullet(
@@ -345,7 +396,11 @@ fun UserGuideScreen(
                     subtitle = "Reference Table of Arithmetic Variables",
                     isExpanded = expandedSection == GuideAccordionSection.SYMBOL_LEGEND,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.SYMBOL_LEGEND) GuideAccordionSection.NONE else GuideAccordionSection.SYMBOL_LEGEND
+                        expandedSection = if (expandedSection == GuideAccordionSection.SYMBOL_LEGEND) {
+                            GuideAccordionSection.NONE
+                        } else {
+                            GuideAccordionSection.SYMBOL_LEGEND
+                        }
                     }
                 ) {
                     GuideSymbolRow(symbol = "I_base", meaning = "Effective Base Inflow", formula = "max(I_planned, I_actual)")
@@ -357,7 +412,7 @@ fun UserGuideScreen(
                     GuideSymbolRow(symbol = "M_runway", meaning = "Emergency Cushion Months", formula = "Liquid Vaults / max(1.0, E_monthly)")
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 // Shared App Branding Footer
                 AppBrandingFooter(
@@ -366,14 +421,14 @@ fun UserGuideScreen(
                     showIcon = true
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
 }
 
 // ==========================================
-// GUIDE ACCORDION & FORMATTING COMPONENTS
+// ACCORDION & FORMATTING COMPONENTS
 // ==========================================
 
 @Composable
