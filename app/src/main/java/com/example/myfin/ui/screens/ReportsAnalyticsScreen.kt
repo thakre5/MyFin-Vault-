@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
@@ -95,7 +96,8 @@ private val FallbackHeroGradient = Brush.verticalGradient(
 fun ReportsAnalyticsScreen(
     viewModel: BudgetViewModel,
     onOpenDrawer: () -> Unit,
-    onNavigateToDashboard: () -> Unit
+    onNavigateToDashboard: () -> Unit,
+    onNavigateToSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -108,7 +110,7 @@ fun ReportsAnalyticsScreen(
     var currentSubScreen by remember { mutableStateOf(AnalyticsSubScreen.SUMMARY) }
     var showTimeRangeMenu by remember { mutableStateOf(false) }
     var showExportBottomSheet by remember { mutableStateOf(false) }
-    var showModeSwitcherSheet by remember { mutableStateOf(false) }
+    var showStrategyInfoSheet by remember { mutableStateOf(false) }
 
     val csvExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -234,7 +236,7 @@ fun ReportsAnalyticsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // Header Bar
+            // Top Header Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -335,8 +337,8 @@ fun ReportsAnalyticsScreen(
                             variableOutflow = variableOutflow,
                             selectedVelocityRange = selectedVelocityRange,
                             onSelectVelocityRange = { selectedVelocityRange = it },
-                            selectedTimeRangeLabel = selectedTimeRange.label,
-                            onOpenTimeRangeMenu = { showTimeRangeMenu = true },
+                            selectedTimeRange = selectedTimeRange,
+                            onSelectTimeRange = { selectedTimeRange = it },
                             plannedBudget = uiState.metrics.plannedExpenses,
                             safeToSpend = uiState.metrics.safeToSpend,
                             weeklySpendData = weeklySpendBuckets,
@@ -356,7 +358,7 @@ fun ReportsAnalyticsScreen(
                         WealthAnalyticsTabContent(
                             userProfileCurrency = userProfile.currencySymbol,
                             vaultMode = userProfile.vaultMode,
-                            onOpenModeSwitcher = { showModeSwitcherSheet = true },
+                            onOpenStrategyInfo = { showStrategyInfoSheet = true },
                             totalAssets = totalAssets,
                             totalExpenses = totalExpenses,
                             accounts = uiState.accounts,
@@ -545,11 +547,11 @@ fun ReportsAnalyticsScreen(
         }
     }
 
-    // Vault Mode Switcher Bottom Sheet
-    if (showModeSwitcherSheet) {
-        val isCurrent3Vault = !userProfile.vaultMode.equals("SIMPLE", ignoreCase = true)
+    // Strategy Architecture Information Sheet (Informational Only + Settings Navigation)
+    if (showStrategyInfoSheet) {
+        val is3Vault = !userProfile.vaultMode.equals("SIMPLE", ignoreCase = true)
         ModalBottomSheet(
-            onDismissRequest = { showModeSwitcherSheet = false },
+            onDismissRequest = { showStrategyInfoSheet = false },
             containerColor = CardWhite,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
@@ -560,79 +562,137 @@ fun ReportsAnalyticsScreen(
                     .padding(bottom = 32.dp)
                     .navigationBarsPadding()
             ) {
-                Text("Strategy Mode Preference", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Choose your preferred account structure and wealth view", fontSize = 12.sp, color = TextMuted)
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Option 1: 3-Vault Strategy
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable {
-                            viewModel.updateVaultMode("3_VAULT")
-                            showModeSwitcherSheet = false
-                            Toast.makeText(context, "3-Vault Strategy activated", Toast.LENGTH_SHORT).show()
-                        },
-                    color = if (isCurrent3Vault) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                    border = BorderStroke(1.dp, if (isCurrent3Vault) AccentPurple else BorderLight)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(AccentPurple.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Layers, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(22.dp))
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("3-Vault Strategy (Recommended)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                            Text("Operating, Commitments, Fortress & Cash tiers", fontSize = 11.sp, color = TextMuted)
-                        }
-                        if (isCurrent3Vault) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = AccentPurple)
+                    Text("Vault Strategy Architecture", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (is3Vault) AccentPurple.copy(alpha = 0.12f) else TextDark.copy(alpha = 0.08f)
+                    ) {
+                        Text(
+                            text = if (is3Vault) "3-Vault Active" else "Simple Mode Active",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (is3Vault) AccentPurple else TextDark,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = if (is3Vault) {
+                        "Your wealth is systematically partitioned across structured financial tiers to prevent accidental overspending."
+                    } else {
+                        "Your wealth is managed as a unified, flat liquidity pool across all connected bank cards and wallets."
+                    },
+                    fontSize = 12.sp,
+                    color = TextMuted,
+                    lineHeight = 16.sp
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                if (is3Vault) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StrategyTierInfoRow(
+                            icon = Icons.Default.AccountBalance,
+                            color = Color(0xFFE57A28),
+                            title = "Operating Vault Tier",
+                            desc = "Covers everyday groceries and variable daily lifestyle spend."
+                        )
+                        StrategyTierInfoRow(
+                            icon = Icons.Default.CreditCard,
+                            color = AccentPurple,
+                            title = "Commitments Vault Tier",
+                            desc = "Dedicated lockbox protecting AutoPay bills and EMI obligations."
+                        )
+                        StrategyTierInfoRow(
+                            icon = Icons.Default.Security,
+                            color = SoftTeal,
+                            title = "Fortress Vault Tier",
+                            desc = "Liquid emergency reserve safeguarding against unforeseen life events."
+                        )
+                        StrategyTierInfoRow(
+                            icon = Icons.Default.Payments,
+                            color = SoftGreen,
+                            title = "Physical Cash Tier",
+                            desc = "Physical wallet buffer for cash transactions and petty expenses."
+                        )
+                    }
+                } else {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = CanvasLight,
+                        border = BorderStroke(0.6.dp, BorderLight)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Flat Liquidity Structure", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                            Text(
+                                text = "Simple Mode aggregates all accounts into a single total net liquidity figure without reserve rules, strategic sweeps, or role badges.",
+                                fontSize = 11.5.sp,
+                                color = TextMuted,
+                                lineHeight = 16.sp
+                            )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                // Option 2: Simple Mode
-                Surface(
+                Button(
+                    onClick = {
+                        showStrategyInfoSheet = false
+                        onNavigateToSettings()
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable {
-                            viewModel.updateVaultMode("SIMPLE")
-                            showModeSwitcherSheet = false
-                            Toast.makeText(context, "Simple Mode activated", Toast.LENGTH_SHORT).show()
-                        },
-                    color = if (!isCurrent3Vault) TextDark.copy(alpha = 0.08f) else CanvasLight,
-                    border = BorderStroke(1.dp, if (!isCurrent3Vault) TextDark else BorderLight)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(TextDark.copy(alpha = 0.12f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = TextDark, modifier = Modifier.size(22.dp))
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Simple Mode", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                            Text("Flat, aggregate liquidity view without tiered reserves", fontSize = 11.sp, color = TextMuted)
-                        }
-                        if (!isCurrent3Vault) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = TextDark)
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Customize Strategy in Settings", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StrategyTierInfoRow(
+    icon: ImageVector,
+    color: Color,
+    title: String,
+    desc: String
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = CanvasLight,
+        border = BorderStroke(0.6.dp, BorderLight)
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(17.dp))
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = TextDark)
+                Text(desc, fontSize = 10.5.sp, color = TextMuted, lineHeight = 14.sp)
             }
         }
     }
@@ -647,14 +707,16 @@ private fun SummaryAnalyticsTabContent(
     variableOutflow: Double,
     selectedVelocityRange: VelocityRange,
     onSelectVelocityRange: (VelocityRange) -> Unit,
-    selectedTimeRangeLabel: String,
-    onOpenTimeRangeMenu: () -> Unit,
+    selectedTimeRange: TimeRangeFilter,
+    onSelectTimeRange: (TimeRangeFilter) -> Unit,
     plannedBudget: Double,
     safeToSpend: Double,
     weeklySpendData: List<DailySpendData>,
     allTransactions: List<TransactionEntity>
 ) {
     val haptic = LocalHapticFeedback.current
+    var showLocalVelocityMenu by remember { mutableStateOf(false) }
+
     val totalOutflow = fixedOutflow + variableOutflow
     val totalWeeklyExpenses = weeklySpendData.sumOf { it.totalAmount }
     val dailyBurn = totalWeeklyExpenses / 7.0
@@ -858,6 +920,7 @@ private fun SummaryAnalyticsTabContent(
 
         Spacer(modifier = Modifier.height(30.dp))
 
+        // Outflow Velocity Header with Local Anchored Dropdown
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -877,28 +940,46 @@ private fun SummaryAnalyticsTabContent(
                 )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onOpenTimeRangeMenu()
+            Box {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showLocalVelocityMenu = true
+                        }
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = selectedTimeRange.label,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextMuted
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        tint = TextMuted,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = showLocalVelocityMenu,
+                    onDismissRequest = { showLocalVelocityMenu = false }
+                ) {
+                    TimeRangeFilter.entries.forEach { filter ->
+                        DropdownMenuItem(
+                            text = { Text(filter.label) },
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onSelectTimeRange(filter)
+                                showLocalVelocityMenu = false
+                            }
+                        )
                     }
-                    .padding(4.dp)
-            ) {
-                Text(
-                    text = selectedTimeRangeLabel,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextMuted
-                )
-                Icon(
-                    imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    tint = TextMuted,
-                    modifier = Modifier.size(16.dp)
-                )
+                }
             }
         }
 
@@ -1304,7 +1385,7 @@ private fun CategoriesAnalyticsTabContent(
 private fun WealthAnalyticsTabContent(
     userProfileCurrency: String,
     vaultMode: String,
-    onOpenModeSwitcher: () -> Unit,
+    onOpenStrategyInfo: () -> Unit,
     totalAssets: Double,
     totalExpenses: Double,
     accounts: List<AccountBalanceResult>,
@@ -1346,7 +1427,7 @@ private fun WealthAnalyticsTabContent(
             Surface(
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .clickable { onOpenModeSwitcher() },
+                    .clickable { onOpenStrategyInfo() },
                 shape = RoundedCornerShape(10.dp),
                 color = if (is3Vault) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
                 border = BorderStroke(0.7.dp, if (is3Vault) AccentPurple else BorderLight)
