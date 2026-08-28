@@ -32,7 +32,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import com.example.myfin.ui.screens.NavigationTarget
 import com.example.myfin.ui.theme.*
 
 /**
@@ -73,7 +72,6 @@ fun AppBottomDock(
     val haptic = LocalHapticFeedback.current
     var isFabMenuExpanded by remember { mutableStateOf(false) }
 
-    // Auto-collapse popup if the dock is hidden or navigation changes
     LaunchedEffect(isVisible, currentSelection) {
         if (!isVisible) {
             isFabMenuExpanded = false
@@ -120,7 +118,7 @@ fun AppBottomDock(
             )
         }
 
-        // Contextual Actions Popup Card (Placed directly above the FAB)
+        // Contextual Actions Popup Card
         AnimatedVisibility(
             visible = isFabMenuExpanded && fabActions.isNotEmpty(),
             enter = fadeIn(tween(160)) + scaleIn(tween(180), initialScale = 0.85f),
