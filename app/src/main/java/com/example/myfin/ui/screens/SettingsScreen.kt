@@ -75,6 +75,16 @@ enum class SettingsActiveSheet {
     DATA_MANAGEMENT
 }
 
+enum class SettingsAccordionSection {
+    NONE,
+    PROFILE,
+    STRATEGY,
+    SECURITY,
+    REMINDERS,
+    BACKUP,
+    REPORTS
+}
+
 private val BrandGreen = Color(0xFF5BB336)
 private val BrandCharcoal = Color(0xFF1C1D21)
 private val CoralAccent = Color(0xFFFF6B6B)
@@ -93,14 +103,7 @@ fun SettingsScreen(
     val userProfile by viewModel.userProfile.collectAsState()
 
     var activeSheet by rememberSaveable { mutableStateOf(initialActiveSheet) }
-
-    // Accordion Expansion States
-    var expandProfile by rememberSaveable { mutableStateOf(false) }
-    var expandStrategy by rememberSaveable { mutableStateOf(false) }
-    var expandSecurity by rememberSaveable { mutableStateOf(false) }
-    var expandReminders by rememberSaveable { mutableStateOf(false) }
-    var expandBackup by rememberSaveable { mutableStateOf(false) }
-    var expandReports by rememberSaveable { mutableStateOf(false) }
+    var expandedSection by rememberSaveable { mutableStateOf(SettingsAccordionSection.NONE) }
 
     val is3VaultActive = remember(userProfile.vaultMode) {
         !userProfile.vaultMode.equals("SIMPLE", ignoreCase = true)
@@ -179,7 +182,7 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .height(180.dp)
             ) {
-                // Top Purple Gradient Header
+                // Top Gradient Background
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -230,7 +233,7 @@ fun SettingsScreen(
                     }
                 }
 
-                // Profile Avatar positioned exactly 50% on top banner & 50% on canvas
+                // Profile Avatar positioned 50% on top banner & 50% on canvas
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -300,7 +303,7 @@ fun SettingsScreen(
                 )
             }
 
-            // 3. Expandable Parent-Child Accordion Cards
+            // 3. Expandable Parent-Child Accordion Cards (Auto Single-Open)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -311,8 +314,14 @@ fun SettingsScreen(
                 ExpandableSettingsCard(
                     icon = Icons.Default.Person,
                     title = "Profile & Regional",
-                    isExpanded = expandProfile,
-                    onToggleExpand = { expandProfile = !expandProfile }
+                    isExpanded = expandedSection == SettingsAccordionSection.PROFILE,
+                    onToggleExpand = {
+                        expandedSection = if (expandedSection == SettingsAccordionSection.PROFILE) {
+                            SettingsAccordionSection.NONE
+                        } else {
+                            SettingsAccordionSection.PROFILE
+                        }
+                    }
                 ) {
                     SettingsChildNavRow(
                         title = "Country & Primary Currency",
@@ -321,11 +330,11 @@ fun SettingsScreen(
                     )
                     SettingsChildNavRow(
                         title = "Personal Information",
-                        value = "DOB & Email",
+                        value = "DOB & Inflow",
                         onClick = { activeSheet = SettingsActiveSheet.PERSONAL_INFO }
                     )
                     SettingsChildNavRow(
-                        title = "Expected Monthly Salary Inflow",
+                        title = "Expected Monthly Salary",
                         value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.baseMonthlyIncome)}",
                         onClick = { activeSheet = SettingsActiveSheet.PERSONAL_INFO }
                     )
@@ -335,8 +344,14 @@ fun SettingsScreen(
                 ExpandableSettingsCard(
                     icon = Icons.Default.Layers,
                     title = "Strategy & Architecture",
-                    isExpanded = expandStrategy,
-                    onToggleExpand = { expandStrategy = !expandStrategy }
+                    isExpanded = expandedSection == SettingsAccordionSection.STRATEGY,
+                    onToggleExpand = {
+                        expandedSection = if (expandedSection == SettingsAccordionSection.STRATEGY) {
+                            SettingsAccordionSection.NONE
+                        } else {
+                            SettingsAccordionSection.STRATEGY
+                        }
+                    }
                 ) {
                     SettingsChildSwitchRow(
                         title = "3-Vault Strategy Mode",
@@ -360,8 +375,14 @@ fun SettingsScreen(
                 ExpandableSettingsCard(
                     icon = Icons.Default.Lock,
                     title = "Security & Privacy",
-                    isExpanded = expandSecurity,
-                    onToggleExpand = { expandSecurity = !expandSecurity }
+                    isExpanded = expandedSection == SettingsAccordionSection.SECURITY,
+                    onToggleExpand = {
+                        expandedSection = if (expandedSection == SettingsAccordionSection.SECURITY) {
+                            SettingsAccordionSection.NONE
+                        } else {
+                            SettingsAccordionSection.SECURITY
+                        }
+                    }
                 ) {
                     SettingsChildSwitchRow(
                         title = "Biometric Authentication",
@@ -389,8 +410,14 @@ fun SettingsScreen(
                 ExpandableSettingsCard(
                     icon = Icons.Outlined.Notifications,
                     title = "Reminders & Alerts",
-                    isExpanded = expandReminders,
-                    onToggleExpand = { expandReminders = !expandReminders }
+                    isExpanded = expandedSection == SettingsAccordionSection.REMINDERS,
+                    onToggleExpand = {
+                        expandedSection = if (expandedSection == SettingsAccordionSection.REMINDERS) {
+                            SettingsAccordionSection.NONE
+                        } else {
+                            SettingsAccordionSection.REMINDERS
+                        }
+                    }
                 ) {
                     SettingsChildSwitchRow(
                         title = "Daily Review Reminder ($reminderTime)",
@@ -418,8 +445,14 @@ fun SettingsScreen(
                 ExpandableSettingsCard(
                     icon = Icons.Default.Backup,
                     title = "Data Backup & Recovery",
-                    isExpanded = expandBackup,
-                    onToggleExpand = { expandBackup = !expandBackup }
+                    isExpanded = expandedSection == SettingsAccordionSection.BACKUP,
+                    onToggleExpand = {
+                        expandedSection = if (expandedSection == SettingsAccordionSection.BACKUP) {
+                            SettingsAccordionSection.NONE
+                        } else {
+                            SettingsAccordionSection.BACKUP
+                        }
+                    }
                 ) {
                     SettingsChildNavRow(
                         title = "Create Full Vault Snapshot (.json)",
@@ -442,8 +475,14 @@ fun SettingsScreen(
                 ExpandableSettingsCard(
                     icon = Icons.Default.TableChart,
                     title = "Financial Statements & Reports",
-                    isExpanded = expandReports,
-                    onToggleExpand = { expandReports = !expandReports }
+                    isExpanded = expandedSection == SettingsAccordionSection.REPORTS,
+                    onToggleExpand = {
+                        expandedSection = if (expandedSection == SettingsAccordionSection.REPORTS) {
+                            SettingsAccordionSection.NONE
+                        } else {
+                            SettingsAccordionSection.REPORTS
+                        }
+                    }
                 ) {
                     SettingsChildNavRow(
                         title = "Export Excel Statement (.xlsx)",
@@ -564,7 +603,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // 4. Bottom Hero Lock Button (Matching Reference UI Style)
+                // 4. Bottom Hero Lock Button
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -616,12 +655,14 @@ fun SettingsScreen(
     // DEDICATED BOTTOM SHEETS & MODALS
     // ==========================================
 
-    // 1. Edit Personal Info Sheet
+    // 1. Edit Personal Info Sheet (Syncs Directly with id = 1)
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
-        var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
-        var emailInput by remember(userProfile) { mutableStateOf(userProfile.email) }
-        var dobInput by remember(userProfile) { mutableStateOf(userProfile.dateOfBirth) }
-        var incomeInput by remember(userProfile) { mutableStateOf(String.format(Locale.US, "%.0f", userProfile.baseMonthlyIncome)) }
+        var nameInput by remember(userProfile.displayName) { mutableStateOf(userProfile.displayName) }
+        var emailInput by remember(userProfile.email) { mutableStateOf(userProfile.email) }
+        var dobInput by remember(userProfile.dateOfBirth) { mutableStateOf(userProfile.dateOfBirth) }
+        var incomeInput by remember(userProfile.baseMonthlyIncome) {
+            mutableStateOf(String.format(Locale.US, "%.0f", userProfile.baseMonthlyIncome))
+        }
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -689,14 +730,14 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         val parsedIncome = incomeInput.toDoubleOrNull() ?: userProfile.baseMonthlyIncome
-                        viewModel.saveUserProfile(
-                            userProfile.copy(
-                                displayName = nameInput.trim(),
-                                email = emailInput.trim(),
-                                dateOfBirth = dobInput.trim(),
-                                baseMonthlyIncome = parsedIncome
-                            )
+                        val updated = userProfile.copy(
+                            id = 1,
+                            displayName = nameInput.trim(),
+                            email = emailInput.trim(),
+                            dateOfBirth = dobInput.trim(),
+                            baseMonthlyIncome = parsedIncome
                         )
+                        viewModel.saveUserProfile(updated)
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, "Profile updated successfully", Toast.LENGTH_SHORT).show()
                     },
@@ -848,7 +889,7 @@ fun SettingsScreen(
 
     // 3. Fortress Emergency Threshold Sheet
     if (activeSheet == SettingsActiveSheet.FORTRESS_THRESHOLD) {
-        var thresholdInput by remember(userProfile) {
+        var thresholdInput by remember(userProfile.fortressThreshold) {
             mutableStateOf(String.format(Locale.US, "%.0f", userProfile.fortressThreshold))
         }
 
@@ -1094,8 +1135,8 @@ fun SettingsScreen(
 
     // 6. Daily Review Reminder Time Sheet
     if (activeSheet == SettingsActiveSheet.DAILY_REMINDER || activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
-        var hourInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderHour) }
-        var minInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderMinute) }
+        var hourInput by remember(userProfile.reminderHour) { mutableIntStateOf(userProfile.reminderHour) }
+        var minInput by remember(userProfile.reminderMinute) { mutableIntStateOf(userProfile.reminderMinute) }
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
