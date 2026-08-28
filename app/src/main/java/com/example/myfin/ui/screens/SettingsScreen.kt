@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -84,7 +85,6 @@ fun SettingsScreen(
         !userProfile.vaultMode.equals("SIMPLE", ignoreCase = true)
     }
 
-    // Export & Backup File Pickers
     val xlsxExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     ) { uri ->
@@ -151,7 +151,6 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // Header Bar
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -197,14 +196,12 @@ fun SettingsScreen(
                 }
             }
 
-            // Scrollable Settings Content
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                // Profile & Identity Header
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -299,7 +296,6 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Continuous White Card Container
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -314,7 +310,6 @@ fun SettingsScreen(
                             .padding(bottom = 36.dp),
                         verticalArrangement = Arrangement.spacedBy(22.dp)
                     ) {
-                        // Section: Strategy & Architecture
                         SettingsSectionGroup(title = "Strategy & Architecture") {
                             SettingsSwitchRow(
                                 title = "3-Vault Strategy",
@@ -337,7 +332,6 @@ fun SettingsScreen(
                             )
                         }
 
-                        // Section: Security & Privacy
                         SettingsSectionGroup(title = "Security & Privacy") {
                             SettingsSwitchRow(
                                 title = "Biometric Authentication",
@@ -367,7 +361,6 @@ fun SettingsScreen(
                             )
                         }
 
-                        // Section: Option & Notifications
                         SettingsSectionGroup(title = "Option & Notifications") {
                             val timeStr = String.format(Locale.US, "%02d:%02d", userProfile.reminderHour, userProfile.reminderMinute)
                             SettingsSwitchRow(
@@ -399,7 +392,6 @@ fun SettingsScreen(
                             )
                         }
 
-                        // Section: Currency & Preferences
                         SettingsSectionGroup(title = "Currency & Preferences") {
                             SettingsNavigationRow(
                                 title = "Primary Currency Symbol",
@@ -414,7 +406,6 @@ fun SettingsScreen(
                             )
                         }
 
-                        // Section: Full Data Backup & Recovery
                         SettingsSectionGroup(title = "Full Data Backup & Recovery") {
                             SettingsNavigationRow(
                                 title = "Create Full Vault Snapshot (.json)",
@@ -434,7 +425,6 @@ fun SettingsScreen(
                             )
                         }
 
-                        // Section: Accounting Statements & Reports
                         SettingsSectionGroup(title = "Accounting Statements & Reports") {
                             SettingsNavigationRow(
                                 title = "Export Excel Statement (.xlsx)",
@@ -455,7 +445,6 @@ fun SettingsScreen(
                             )
                         }
 
-                        // Section: Danger Zone
                         SettingsSectionGroup(title = "Danger Zone") {
                             SettingsNavigationRow(
                                 title = "Reset Entire Financial Vault",
@@ -467,7 +456,6 @@ fun SettingsScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // Branding Footer
                         AppBrandingFooter(
                             modifier = Modifier.fillMaxWidth(),
                             version = "v1.0.0",
@@ -479,7 +467,6 @@ fun SettingsScreen(
         }
     }
 
-    // Biometric Confirmation Sheet (Matching Image 2)
     if (activeSheet == SettingsActiveSheet.SECURITY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -551,7 +538,6 @@ fun SettingsScreen(
         }
     }
 
-    // Strategy Guidance Sheet (Matching Image 3)
     if (activeSheet == SettingsActiveSheet.STRATEGY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -683,7 +669,6 @@ fun SettingsScreen(
         }
     }
 
-    // Edit Personal Info Sheet
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
         var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
         var emailInput by remember(userProfile) { mutableStateOf(userProfile.email) }
@@ -781,7 +766,6 @@ fun SettingsScreen(
         }
     }
 
-    // Notification Reminder Time Sheet
     if (activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
         var hourInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderHour) }
         var minInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderMinute) }
@@ -870,7 +854,6 @@ fun SettingsScreen(
         }
     }
 
-    // Currency Selector Sheet
     if (activeSheet == SettingsActiveSheet.CURRENCY) {
         val currencies = listOf("₹" to "Indian Rupee (INR)", "$" to "US Dollar (USD)", "€" to "Euro (EUR)", "£" to "British Pound (GBP)", "¥" to "Japanese Yen (JPY)", "AED " to "UAE Dirham (AED)")
 
@@ -926,7 +909,6 @@ fun SettingsScreen(
         }
     }
 
-    // Danger Zone Confirmation Dialog
     if (activeSheet == SettingsActiveSheet.DATA_MANAGEMENT) {
         AlertDialog(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -962,7 +944,6 @@ fun SettingsScreen(
     }
 }
 
-// Vector Illustration Canvases
 @Composable
 private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
@@ -1096,7 +1077,6 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
     }
 }
 
-// Reusable Row Components
 @Composable
 private fun SettingsSectionGroup(
     title: String,
