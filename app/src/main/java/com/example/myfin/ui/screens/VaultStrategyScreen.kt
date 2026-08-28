@@ -1245,7 +1245,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Add Account Bottom Sheet
+        // Add Account Bottom Sheet (With Fix)
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
             var balanceText by remember { mutableStateOf("") }
@@ -1295,7 +1295,7 @@ fun VaultStrategyScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(9.dp))
-                                    .clickable { selectedRole = tier },
+                                    .clickable { selectedTier = tier },
                                 shape = RoundedCornerShape(9.dp),
                                 color = if (isSel) tier.color.copy(alpha = 0.14f) else CanvasLight,
                                 border = BorderStroke(0.7.dp, if (isSel) tier.color else BorderLight)
