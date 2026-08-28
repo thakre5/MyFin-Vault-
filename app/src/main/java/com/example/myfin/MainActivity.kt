@@ -25,7 +25,6 @@ import com.example.myfin.data.SecurityManager
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.screens.*
-import com.example.myfin.ui.screens.SettingsActiveSheet
 import com.example.myfin.ui.theme.MyfinTheme
 
 class MainActivity : FragmentActivity() {
