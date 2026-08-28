@@ -193,7 +193,7 @@ fun VaultAccountsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // 1. Fully Centered Top Header Bar with Symmetric Anchor Placement
+            // 1. Fully Centered Top Header Bar with Unified Right Capsule
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -217,7 +217,7 @@ fun VaultAccountsScreen(
                     )
                 }
 
-                // Perfectly Centered Screen Title
+                // Centered Screen Title
                 Text(
                     text = if (isThreeVaultStrategy) "3-Vault Strategy" else "Vault Accounts",
                     fontWeight = FontWeight.Black,
@@ -227,45 +227,52 @@ fun VaultAccountsScreen(
                     modifier = Modifier.align(Alignment.Center)
                 )
 
-                // Right Action Cluster
-                Row(
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                    verticalAlignment = Alignment.CenterVertically
+                // Right Unified Action Capsule (Insights + Settings)
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .height(38.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                 ) {
-                    // Button 1: Reports & Analytics Destination
-                    IconButton(
-                        onClick = onNavigateToVaultAnalytics,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(CardWhite)
-                            .border(0.8.dp, BorderLight.copy(alpha = 0.7f), CircleShape)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 2.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Assessment,
-                            contentDescription = "Reports & Analytics",
-                            tint = TextDark,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                        // Button 1: Reports & Analytics
+                        IconButton(
+                            onClick = onNavigateToVaultAnalytics,
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Insights,
+                                contentDescription = "Reports & Analytics",
+                                tint = TextDark,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
 
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    // Button 2: Vault Settings / Mode Target
-                    IconButton(
-                        onClick = onNavigateToVaultSettings,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(CardWhite)
-                            .border(0.8.dp, BorderLight.copy(alpha = 0.7f), CircleShape)
-                    ) {
-                        Icon(
-                            Icons.Default.Tune,
-                            contentDescription = "Vault Settings",
-                            tint = AccentPurple,
-                            modifier = Modifier.size(18.dp)
+                        // Vertical Divider
+                        Box(
+                            modifier = Modifier
+                                .width(0.8.dp)
+                                .height(16.dp)
+                                .background(BorderLight.copy(alpha = 0.8f))
                         )
+
+                        // Button 2: Vault Settings / Preferences
+                        IconButton(
+                            onClick = onNavigateToVaultSettings,
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = "Vault Settings",
+                                tint = AccentPurple,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
                     }
                 }
             }
