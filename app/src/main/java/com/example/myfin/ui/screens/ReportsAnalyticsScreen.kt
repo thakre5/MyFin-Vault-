@@ -7,9 +7,12 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,16 +37,19 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.ExcelExportManager
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
+import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -66,12 +72,6 @@ enum class VelocityRange(val label: String) {
     Y("Y")
 }
 
-enum class AnalyticsSubScreen(val label: String, val icon: ImageVector) {
-    SUMMARY("Summary", Icons.Default.BarChart),
-    CATEGORIES("Categories", Icons.Default.ReceiptLong),
-    WEALTH("Wealth", Icons.Default.AccountBalance)
-}
-
 data class DailySpendData(
     val dayLabel: String,
     val essentialAmount: Double,
@@ -91,12 +91,15 @@ private val FallbackHeroGradient = Brush.verticalGradient(
     )
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsAnalyticsScreen(
     viewModel: BudgetViewModel,
     onOpenDrawer: () -> Unit,
-    onNavigateToDashboard: () -> Unit,
+    onNavigateToDashboard: () -> Unit = {},
+    onNavigateToPlanner: () -> Unit = {},
+    onNavigateToTaxonomy: () -> Unit = {},
+    onNavigateToVaults: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -105,9 +108,12 @@ fun ReportsAnalyticsScreen(
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
+    val pagerState = rememberPagerState(pageCount = { 3 })
+    val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
+    val pageTitles = remember { listOf("Summary", "Categories", "Wealth") }
+
     var selectedTimeRange by remember { mutableStateOf(TimeRangeFilter.THIS_WEEK) }
     var selectedVelocityRange by remember { mutableStateOf(VelocityRange.M) }
-    var currentSubScreen by remember { mutableStateOf(AnalyticsSubScreen.SUMMARY) }
     var showTimeRangeMenu by remember { mutableStateOf(false) }
     var showExportBottomSheet by remember { mutableStateOf(false) }
     var showStrategyInfoSheet by remember { mutableStateOf(false) }
@@ -236,81 +242,111 @@ fun ReportsAnalyticsScreen(
         }
     }
 
+    val fabActions = remember {
+        listOf(
+            DockFabAction(
+                icon = Icons.Default.TableChart,
+                label = "Export Excel (.xlsx)",
+                onClick = {
+                    val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+                    xlsxExportLauncher.launch("MyFin_Report_${selectedTimeRange.name}_$timeStamp.xlsx")
+                }
+            ),
+            DockFabAction(
+                icon = Icons.Default.Description,
+                label = "Export Ledger (.csv)",
+                onClick = {
+                    val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+                    csvExportLauncher.launch("MyFin_Ledger_${selectedTimeRange.name}_$timeStamp.csv")
+                }
+            ),
+            DockFabAction(
+                icon = Icons.Default.Layers,
+                label = "Vault Architecture",
+                onClick = { showStrategyInfoSheet = true }
+            )
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(CardWhite)
+            .background(CanvasLight)
+            .nestedScroll(scrollConnection)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-        ) {
-            // Top Header Bar
-            Row(
+        Column(modifier = Modifier.fillMaxSize()) {
+            // =========================================================
+            // 1. PINNED TOP BAR (WITH DOWNWARD GRADIENT DISSOLVE SHELF)
+            // =========================================================
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .zIndex(2f)
             ) {
-                IconButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onOpenDrawer()
-                    },
-                    modifier = Modifier.size(36.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CanvasLight)
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back / Menu",
-                        tint = Color(0xFF1E202E),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            showExportBottomSheet = true
+                            onOpenDrawer()
                         },
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.FileDownload,
-                            contentDescription = "Export",
-                            tint = TextMuted,
-                            modifier = Modifier.size(22.dp)
+                            imageVector = Icons.Default.ChevronLeft,
+                            contentDescription = "Drawer / Navigation",
+                            tint = TextDark,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Reports & Analytics",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 16.sp,
+                        color = TextDark
+                    )
 
                     Box {
-                        Row(
+                        Surface(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     showTimeRangeMenu = true
-                                }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                },
+                            shape = RoundedCornerShape(20.dp),
+                            color = CardWhite,
+                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                            shadowElevation = 2.dp
                         ) {
-                            Text(
-                                text = selectedTimeRange.label,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextMuted
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = null,
-                                tint = TextMuted,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = selectedTimeRange.label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = AccentPurple,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
                         }
 
                         DropdownMenu(
@@ -319,7 +355,7 @@ fun ReportsAnalyticsScreen(
                         ) {
                             TimeRangeFilter.entries.forEach { filter ->
                                 DropdownMenuItem(
-                                    text = { Text(filter.label) },
+                                    text = { Text(filter.label, fontSize = 13.sp, fontWeight = FontWeight.Medium) },
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         selectedTimeRange = filter
@@ -330,15 +366,34 @@ fun ReportsAnalyticsScreen(
                         }
                     }
                 }
+
+                // Smooth Dissolve Shelf Placed Below Top Header
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(14.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    CanvasLight,
+                                    CanvasLight.copy(alpha = 0f)
+                                )
+                            )
+                        )
+                )
             }
 
-            Crossfade(
-                targetState = currentSubScreen,
-                animationSpec = tween(220),
-                label = "analyticsTabs"
-            ) { subScreen ->
-                when (subScreen) {
-                    AnalyticsSubScreen.SUMMARY -> {
+            // =========================================================
+            // 2. FULL-SCREEN HORIZONTAL PAGER (SWIPEABLE ANALYTICS TABS)
+            // =========================================================
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) { page ->
+                when (page) {
+                    0 -> {
                         SummaryAnalyticsTabContent(
                             userProfileCurrency = userProfile.currencySymbol,
                             totalIncome = totalIncome,
@@ -355,7 +410,7 @@ fun ReportsAnalyticsScreen(
                             allTransactions = allTransactions
                         )
                     }
-                    AnalyticsSubScreen.CATEGORIES -> {
+                    1 -> {
                         CategoriesAnalyticsTabContent(
                             userProfileCurrency = userProfile.currencySymbol,
                             totalIncome = totalIncome,
@@ -364,7 +419,7 @@ fun ReportsAnalyticsScreen(
                             transactions = filteredTransactions
                         )
                     }
-                    AnalyticsSubScreen.WEALTH -> {
+                    2 -> {
                         WealthAnalyticsTabContent(
                             userProfileCurrency = userProfile.currencySymbol,
                             vaultMode = userProfile.vaultMode,
@@ -379,296 +434,264 @@ fun ReportsAnalyticsScreen(
             }
         }
 
-        // Floating Bottom Navigation Dock
+        // =========================================================
+        // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
+        // =========================================================
         Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .height(115.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            CanvasLight.copy(alpha = 0.85f),
+                            CanvasLight
+                        )
+                    )
+                )
+                .zIndex(2.5f)
+        )
+
+        // =========================================================
+        // 4. FLOATING PAGER INDICATOR PILL (ANCHORED LEFT ABOVE ACTIVE TAB)
+        // =========================================================
+        FloatingPagerIndicator(
+            pagerState = pagerState,
+            pageTitles = pageTitles,
+            isVisible = isDockVisible.value,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                .padding(start = 22.dp, bottom = 78.dp)
+                .zIndex(3.5f)
+        )
+
+        // =========================================================
+        // 5. STANDARDIZED FLOATING BOTTOM NAVIGATION DOCK WITH FAB
+        // =========================================================
+        AppBottomDock(
+            currentSelection = NavigationTarget.REPORTS_ANALYTICS,
+            onSelectTarget = { target ->
+                when (target) {
+                    NavigationTarget.MONTHLY_VIEW -> onNavigateToDashboard()
+                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
+                    NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
+                    NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
+                    NavigationTarget.REPORTS_ANALYTICS -> { /* Active */ }
+                    else -> {}
+                }
+            },
+            fabActions = fabActions,
+            isVisible = isDockVisible.value,
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(4f)
+        )
+
+        // =========================================================
+        // 6. MODALS, SHEETS & CONFIRMATION DIALOGS
+        // =========================================================
+
+        // Export Statement Bottom Sheet
+        if (showExportBottomSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showExportBottomSheet = false },
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
             ) {
-                Surface(
+                Column(
                     modifier = Modifier
-                        .height(58.dp)
-                        .weight(1f)
-                        .shadow(12.dp, RoundedCornerShape(29.dp)),
-                    shape = RoundedCornerShape(29.dp),
-                    color = CardWhite
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp)
+                        .navigationBarsPadding()
                 ) {
-                    Row(
+                    Text("Export Statement Report", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                    Text("Scope: ${selectedTimeRange.label} (${filteredTransactions.size} records)", fontSize = 12.sp, color = TextMuted)
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Surface(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+                                xlsxExportLauncher.launch("MyFin_Report_${selectedTimeRange.name}_$timeStamp.xlsx")
+                                showExportBottomSheet = false
+                            },
+                        color = CanvasLight
                     ) {
-                        AnalyticsSubScreen.entries.forEach { tab ->
-                            val isSelected = currentSubScreen == tab
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
-                                    .clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        currentSubScreen = tab
-                                    }
-                                    .padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 8.dp),
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SoftGreen.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = tab.icon,
-                                        contentDescription = tab.label,
-                                        tint = if (isSelected) AccentPurple else TextMuted,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    if (isSelected) {
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = tab.label,
-                                            color = AccentPurple,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp
-                                        )
-                                    }
-                                }
+                                Icon(Icons.Default.TableChart, contentDescription = null, tint = SoftGreen, modifier = Modifier.size(22.dp))
                             }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Excel Workbook (.xlsx)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                Text("Multi-tab formatted statement with category sums", fontSize = 11.sp, color = TextMuted)
+                            }
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = BorderLight)
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                Surface(
-                    modifier = Modifier
-                        .size(58.dp)
-                        .shadow(12.dp, CircleShape)
-                        .clip(CircleShape)
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onNavigateToDashboard()
-                        },
-                    shape = CircleShape,
-                    color = Color(0xFF181A2A)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.CalendarMonth,
-                            contentDescription = "Switch to Dashboard",
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // Export Statement Bottom Sheet
-    if (showExportBottomSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showExportBottomSheet = false },
-            containerColor = CardWhite,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
-                    .navigationBarsPadding()
-            ) {
-                Text("Export Statement Report", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Scope: ${selectedTimeRange.label} (${filteredTransactions.size} records)", fontSize = 12.sp, color = TextMuted)
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-                            xlsxExportLauncher.launch("MyFin_Report_${selectedTimeRange.name}_$timeStamp.xlsx")
-                            showExportBottomSheet = false
-                        },
-                    color = CanvasLight
-                ) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(SoftGreen.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.TableChart, contentDescription = null, tint = SoftGreen, modifier = Modifier.size(22.dp))
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Excel Workbook (.xlsx)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                            Text("Multi-tab formatted statement with category sums", fontSize = 11.sp, color = TextMuted)
-                        }
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = BorderLight)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-                            csvExportLauncher.launch("MyFin_Ledger_${selectedTimeRange.name}_$timeStamp.csv")
-                            showExportBottomSheet = false
-                        },
-                    color = CanvasLight
-                ) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(AccentPurple.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Description, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(22.dp))
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Universal Flat Ledger (.csv)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                            Text("Lightweight comma-delimited raw accounting table", fontSize = 11.sp, color = TextMuted)
-                        }
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = BorderLight)
-                    }
-                }
-            }
-        }
-    }
-
-    // Strategy Architecture Information Sheet (Informational Only + Settings Navigation)
-    if (showStrategyInfoSheet) {
-        val is3Vault = !userProfile.vaultMode.equals("SIMPLE", ignoreCase = true)
-        ModalBottomSheet(
-            onDismissRequest = { showStrategyInfoSheet = false },
-            containerColor = CardWhite,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
-                    .navigationBarsPadding()
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Vault Strategy Architecture", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (is3Vault) AccentPurple.copy(alpha = 0.12f) else TextDark.copy(alpha = 0.08f)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+                                csvExportLauncher.launch("MyFin_Ledger_${selectedTimeRange.name}_$timeStamp.csv")
+                                showExportBottomSheet = false
+                            },
+                        color = CanvasLight
                     ) {
-                        Text(
-                            text = if (is3Vault) "3-Vault Active" else "Simple Mode Active",
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (is3Vault) AccentPurple else TextDark,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(AccentPurple.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Description, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(22.dp))
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Universal Flat Ledger (.csv)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                Text("Lightweight comma-delimited raw accounting table", fontSize = 11.sp, color = TextMuted)
+                            }
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = BorderLight)
+                        }
                     }
                 }
+            }
+        }
 
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = if (is3Vault) {
-                        "Your wealth is systematically partitioned across structured financial tiers to prevent accidental overspending."
-                    } else {
-                        "Your wealth is managed as a unified, flat liquidity pool across all connected bank cards and wallets."
-                    },
-                    fontSize = 12.sp,
-                    color = TextMuted,
-                    lineHeight = 16.sp
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                if (is3Vault) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StrategyTierInfoRow(
-                            icon = Icons.Default.AccountBalance,
-                            color = Color(0xFFE57A28),
-                            title = "Operating Vault Tier",
-                            desc = "Covers everyday groceries and variable daily lifestyle spend."
-                        )
-                        StrategyTierInfoRow(
-                            icon = Icons.Default.CreditCard,
-                            color = AccentPurple,
-                            title = "Commitments Vault Tier",
-                            desc = "Dedicated lockbox protecting AutoPay bills and EMI obligations."
-                        )
-                        StrategyTierInfoRow(
-                            icon = Icons.Default.Security,
-                            color = SoftTeal,
-                            title = "Fortress Vault Tier",
-                            desc = "Liquid emergency reserve safeguarding against unforeseen life events."
-                        )
-                        StrategyTierInfoRow(
-                            icon = Icons.Default.Payments,
-                            color = SoftGreen,
-                            title = "Physical Cash Tier",
-                            desc = "Physical wallet buffer for cash transactions and petty expenses."
-                        )
-                    }
-                } else {
-                    Surface(
+        // Strategy Architecture Information Sheet
+        if (showStrategyInfoSheet) {
+            val is3Vault = !userProfile.vaultMode.equals("SIMPLE", ignoreCase = true)
+            ModalBottomSheet(
+                onDismissRequest = { showStrategyInfoSheet = false },
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp)
+                        .navigationBarsPadding()
+                ) {
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        color = CanvasLight,
-                        border = BorderStroke(0.6.dp, BorderLight)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Flat Liquidity Structure", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                        Text("Vault Strategy Architecture", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (is3Vault) AccentPurple.copy(alpha = 0.12f) else TextDark.copy(alpha = 0.08f)
+                        ) {
                             Text(
-                                text = "Simple Mode aggregates all accounts into a single total net liquidity figure without reserve rules, strategic sweeps, or role badges.",
-                                fontSize = 11.5.sp,
-                                color = TextMuted,
-                                lineHeight = 16.sp
+                                text = if (is3Vault) "3-Vault Active" else "Simple Mode Active",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (is3Vault) AccentPurple else TextDark,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = if (is3Vault) {
+                            "Your wealth is systematically partitioned across structured financial tiers to prevent accidental overspending."
+                        } else {
+                            "Your wealth is managed as a unified, flat liquidity pool across all connected bank cards and wallets."
+                        },
+                        fontSize = 12.sp,
+                        color = TextMuted,
+                        lineHeight = 16.sp
+                    )
 
-                Button(
-                    onClick = {
-                        showStrategyInfoSheet = false
-                        onNavigateToSettings()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Customize Strategy in Settings", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    if (is3Vault) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            StrategyTierInfoRow(
+                                icon = Icons.Default.AccountBalance,
+                                color = Color(0xFFE57A28),
+                                title = "Operating Vault Tier",
+                                desc = "Covers everyday groceries and variable daily lifestyle spend."
+                            )
+                            StrategyTierInfoRow(
+                                icon = Icons.Default.CreditCard,
+                                color = AccentPurple,
+                                title = "Commitments Vault Tier",
+                                desc = "Dedicated lockbox protecting AutoPay bills and EMI obligations."
+                            )
+                            StrategyTierInfoRow(
+                                icon = Icons.Default.Security,
+                                color = SoftTeal,
+                                title = "Fortress Vault Tier",
+                                desc = "Liquid emergency reserve safeguarding against unforeseen life events."
+                            )
+                            StrategyTierInfoRow(
+                                icon = Icons.Default.Payments,
+                                color = SoftGreen,
+                                title = "Physical Cash Tier",
+                                desc = "Physical wallet buffer for cash transactions and petty expenses."
+                            )
+                        }
+                    } else {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            color = CanvasLight,
+                            border = BorderStroke(0.6.dp, BorderLight)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Flat Liquidity Structure", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                                Text(
+                                    text = "Simple Mode aggregates all accounts into a single total net liquidity figure without reserve rules, strategic sweeps, or role badges.",
+                                    fontSize = 11.5.sp,
+                                    color = TextMuted,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            showStrategyInfoSheet = false
+                            onNavigateToSettings()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Customize Strategy in Settings", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
                     }
                 }
             }
@@ -750,7 +773,7 @@ private fun SummaryAnalyticsTabContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 22.dp)
-            .padding(bottom = 110.dp)
+            .padding(top = 4.dp, bottom = 140.dp)
     ) {
         Column(
             modifier = Modifier
@@ -941,7 +964,7 @@ private fun SummaryAnalyticsTabContent(
 
         Spacer(modifier = Modifier.height(30.dp))
 
-        // Outflow Velocity Header with Local Anchored Dropdown
+        // Outflow Velocity Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1239,7 +1262,7 @@ private fun CategoriesAnalyticsTabContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
-            .padding(bottom = 110.dp)
+            .padding(top = 4.dp, bottom = 140.dp)
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -1432,7 +1455,7 @@ private fun WealthAnalyticsTabContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
-            .padding(bottom = 110.dp)
+            .padding(top = 4.dp, bottom = 140.dp)
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
