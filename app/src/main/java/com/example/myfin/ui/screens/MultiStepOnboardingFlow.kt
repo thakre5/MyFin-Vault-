@@ -17,7 +17,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -38,8 +37,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -54,10 +51,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.theme.*
@@ -126,13 +121,13 @@ fun MultiStepOnboardingFlow(
     // Step 2 States: PIN & Security
     var masterPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
-    var rawDobDigits by remember { mutableStateOf("") } // 8 digits (DDMMYYYY)
+    var rawDobDigits by remember { mutableStateOf("") }
     var isBiometricEnabled by remember { mutableStateOf(true) }
-    var pinEntryPhase by remember { mutableIntStateOf(1) } // 1: Enter, 2: Confirm & Recovery
+    var pinEntryPhase by remember { mutableIntStateOf(1) }
 
     // Step 3 States: Country & Strategy
     var selectedCountry by remember { mutableStateOf(SupportedCountries[0]) }
-    var selectedStrategy by remember { mutableStateOf("3-VAULT") } // "3-VAULT" or "SIMPLE"
+    var selectedStrategy by remember { mutableStateOf("3-VAULT") }
 
     // Step 4 States: Initial Bank Accounts
     val initialAccounts = remember {
@@ -155,7 +150,7 @@ fun MultiStepOnboardingFlow(
         )
     }
 
-    // Photo Picker
+    // Photo Picker Launcher
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
@@ -191,7 +186,6 @@ fun MultiStepOnboardingFlow(
             "${rawDobDigits.substring(0, 2)}/${rawDobDigits.substring(2, 4)}/${rawDobDigits.substring(4, 8)}"
         } else ""
 
-        // 1. Save User Profile (Default screenshot protection to OFF once completed)
         viewModel.updateProfileName(displayName.trim().ifEmpty { "Jordan Lee" })
         viewModel.updateEmail(emailAddress.trim().ifEmpty { "jordan.vault@myfin.app" })
         viewModel.updateCurrency(selectedCountry.currencySymbol)
@@ -203,10 +197,8 @@ fun MultiStepOnboardingFlow(
         }
         viewModel.setBiometricEnabled(isBiometricEnabled)
 
-        // 2. Persist Encrypted Master PIN
         viewModel.saveMasterPin(masterPin.ifEmpty { "1234" })
 
-        // 3. Populate Initial Accounts
         initialAccounts.forEach { acc ->
             val bal = acc.initialBalanceText.toDoubleOrNull() ?: 0.0
             viewModel.addAccount(
@@ -216,7 +208,6 @@ fun MultiStepOnboardingFlow(
             )
         }
 
-        // 4. Populate Pre-configured Commitments
         initialCommitments.filter { it.isSelected }.forEach { bill ->
             val amt = bill.amountText.toDoubleOrNull() ?: 0.0
             if (amt > 0.0) {
@@ -233,12 +224,10 @@ fun MultiStepOnboardingFlow(
             }
         }
 
-        // 5. Complete Onboarding and Unlock Dashboard
         viewModel.completeOnboarding()
         onComplete()
     }
 
-    // Auto-Close Countdown Driver on Step 6
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == 6) {
             remainingSeconds = 10
@@ -258,9 +247,6 @@ fun MultiStepOnboardingFlow(
             .navigationBarsPadding()
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // =========================================================
-            // TOP NAVIGATION & STEP PROGRESS INDICATOR (Hidden on Step 0)
-            // =========================================================
             if (pagerState.currentPage > 0) {
                 Row(
                     modifier = Modifier
@@ -290,7 +276,6 @@ fun MultiStepOnboardingFlow(
                         Spacer(modifier = Modifier.size(36.dp))
                     }
 
-                    // Segmented Progress Bar (Steps 1 to 6)
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -326,9 +311,6 @@ fun MultiStepOnboardingFlow(
                 }
             }
 
-            // =========================================================
-            // MAIN PAGER CONTAINER
-            // =========================================================
             HorizontalPager(
                 state = pagerState,
                 userScrollEnabled = false,
@@ -337,7 +319,6 @@ fun MultiStepOnboardingFlow(
                     .fillMaxWidth()
             ) { page ->
                 when (page) {
-                    // --- STEP 0: 1:1 SOLNEX-STYLE WELCOME GATEWAY ---
                     0 -> {
                         OnboardingStep0WelcomeGateway(
                             currencySymbol = selectedCountry.currencySymbol,
@@ -353,8 +334,6 @@ fun MultiStepOnboardingFlow(
                             }
                         )
                     }
-
-                    // --- STEP 1: IDENTITY & PROFILE ---
                     1 -> {
                         OnboardingStep1Identity(
                             profileImageUri = profileImageUri,
@@ -376,8 +355,6 @@ fun MultiStepOnboardingFlow(
                             }
                         )
                     }
-
-                    // --- STEP 2: MASTER PIN & LOCAL ZERO-KNOWLEDGE SECURITY ---
                     2 -> {
                         OnboardingStep2PinSecurity(
                             pinEntryPhase = pinEntryPhase,
@@ -420,8 +397,6 @@ fun MultiStepOnboardingFlow(
                             }
                         )
                     }
-
-                    // --- STEP 3: COUNTRY REGION & VAULT STRATEGY ENGINE ---
                     3 -> {
                         OnboardingStep3CountryStrategy(
                             selectedCountry = selectedCountry,
@@ -433,8 +408,6 @@ fun MultiStepOnboardingFlow(
                             }
                         )
                     }
-
-                    // --- STEP 4: INITIAL BANK ACCOUNTS & LIQUIDITY ---
                     4 -> {
                         OnboardingStep4Accounts(
                             accounts = initialAccounts,
@@ -447,8 +420,6 @@ fun MultiStepOnboardingFlow(
                             }
                         )
                     }
-
-                    // --- STEP 5: FIXED COMMITMENTS (TAXONOMY BOUND) ---
                     5 -> {
                         OnboardingStep5Commitments(
                             commitments = initialCommitments,
@@ -464,8 +435,6 @@ fun MultiStepOnboardingFlow(
                             }
                         )
                     }
-
-                    // --- STEP 6: VAULT SEEDING & DELIBERATION HERO TRANSITION ---
                     6 -> {
                         OnboardingStep6VaultSealing(
                             displayName = displayName,
@@ -486,7 +455,7 @@ fun MultiStepOnboardingFlow(
 }
 
 // -------------------------------------------------------------
-// STEP 0: 1:1 SOLNEX STYLE WELCOME GATEWAY
+// STEP 0: 1:1 WELCOME GATEWAY
 // -------------------------------------------------------------
 @Composable
 private fun OnboardingStep0WelcomeGateway(
@@ -514,7 +483,6 @@ private fun OnboardingStep0WelcomeGateway(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Brand Logo Header (No skip button)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -542,12 +510,10 @@ private fun OnboardingStep0WelcomeGateway(
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            // 1:1 Solnex Tilted Card Stack & Silver Medallions
             SolnexTiltedCardsHero(currencySymbol = currencySymbol)
 
             Spacer(modifier = Modifier.height(36.dp))
 
-            // Typography & Copy
             Text(
                 text = "The Vault That\nWorks Everywhere",
                 fontSize = 28.sp,
@@ -571,7 +537,6 @@ private fun OnboardingStep0WelcomeGateway(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // 3-Pill Carousel Indicator
             Row(
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -582,7 +547,6 @@ private fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // Bottom Action Buttons
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -626,7 +590,7 @@ private fun OnboardingStep0WelcomeGateway(
 }
 
 // -------------------------------------------------------------
-// 1:1 SOLNEX TILTED CARD STACK & SILVER COIN MEDALLIONS
+// TILTED CARD STACK & SILVER COIN MEDALLIONS
 // -------------------------------------------------------------
 @Composable
 private fun SolnexTiltedCardsHero(currencySymbol: String) {
@@ -636,7 +600,6 @@ private fun SolnexTiltedCardsHero(currencySymbol: String) {
             .height(220.dp),
         contentAlignment = Alignment.Center
     ) {
-        // 1. Back Card (Lavender / Violet -14deg)
         Surface(
             modifier = Modifier
                 .width(220.dp)
@@ -668,7 +631,6 @@ private fun SolnexTiltedCardsHero(currencySymbol: String) {
             }
         }
 
-        // 2. Front Card (Crimson / Magenta -6deg)
         Surface(
             modifier = Modifier
                 .width(235.dp)
@@ -701,7 +663,6 @@ private fun SolnexTiltedCardsHero(currencySymbol: String) {
             }
         }
 
-        // 3. 3D Silver Embossed Coins
         Canvas(
             modifier = Modifier
                 .size(110.dp)
@@ -711,7 +672,6 @@ private fun SolnexTiltedCardsHero(currencySymbol: String) {
             val c1 = Offset(size.width * 0.72f, size.height * 0.35f)
             val r1 = 26.dp.toPx()
 
-            // Coin 1 (Euro / Silver Emblem)
             drawCircle(color = Color.Black.copy(alpha = 0.15f), radius = r1 + 3f, center = Offset(c1.x + 4f, c1.y + 4f))
             drawCircle(
                 brush = Brush.radialGradient(
@@ -727,7 +687,6 @@ private fun SolnexTiltedCardsHero(currencySymbol: String) {
             val c2 = Offset(size.width * 0.40f, size.height * 0.65f)
             val r2 = 30.dp.toPx()
 
-            // Coin 2 (Bitcoin / Currency Medallion)
             drawCircle(color = Color.Black.copy(alpha = 0.22f), radius = r2 + 4f, center = Offset(c2.x + 4f, c2.y + 4f))
             drawCircle(
                 brush = Brush.radialGradient(
@@ -744,7 +703,7 @@ private fun SolnexTiltedCardsHero(currencySymbol: String) {
 }
 
 // -------------------------------------------------------------
-// STEP 1: IDENTITY & PROFILE (MATCHES SETTINGS SCREEN STYLE)
+// STEP 1: IDENTITY & PROFILE
 // -------------------------------------------------------------
 @Composable
 private fun OnboardingStep1Identity(
@@ -791,7 +750,6 @@ private fun OnboardingStep1Identity(
 
             Spacer(modifier = Modifier.height(22.dp))
 
-            // Profile Avatar Picker Frame
             Surface(
                 modifier = Modifier
                     .size(88.dp)
@@ -832,7 +790,6 @@ private fun OnboardingStep1Identity(
                         }
                     }
 
-                    // Bottom-Right Camera Overlay Badge
                     Surface(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -1225,7 +1182,7 @@ private fun OnboardingStep3CountryStrategy(
 }
 
 // -------------------------------------------------------------
-// STEP 4: INITIAL BANK ACCOUNTS & LIQUIDITY (FIXED STATE & HEIGHT)
+// STEP 4: INITIAL BANK ACCOUNTS & LIQUIDITY
 // -------------------------------------------------------------
 @Composable
 private fun OnboardingStep4Accounts(
@@ -1307,7 +1264,7 @@ private fun OnboardingStep4Accounts(
 }
 
 // -------------------------------------------------------------
-// STEP 5: FIXED COMMITMENTS (NATURAL HEIGHT TEXT FIELDS)
+// STEP 5: FIXED COMMITMENTS
 // -------------------------------------------------------------
 @Composable
 private fun OnboardingStep5Commitments(
@@ -1442,7 +1399,6 @@ private fun OnboardingStep6VaultSealing(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Consolidated Passport Card
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1504,7 +1460,6 @@ private fun OnboardingStep6VaultSealing(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Animated Human Deliberation Hero Canvas
             HumanDeliberationSceneCanvas(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1512,7 +1467,6 @@ private fun OnboardingStep6VaultSealing(
             )
         }
 
-        // Compact Bottom Countdown Pill & Launch Button
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(bottom = 18.dp)
@@ -1569,60 +1523,4 @@ private fun OnboardingStep6VaultSealing(
 }
 
 // -------------------------------------------------------------
-// MOTION GRAPHICS: DELIBERATION HERO SCENE CANVAS
-// -------------------------------------------------------------
-@Composable
-private fun HumanDeliberationSceneCanvas(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "deliberation")
-    val pulse by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "delibPulse"
-    )
-    val floatOffset by infiniteTransition.animateFloat(
-        initialValue = -3f,
-        targetValue = 3f,
-        animationSpec = infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "delibFloat"
-    )
-
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val c = Offset(w / 2, h * 0.52f)
-
-        // 1. Central Ambient Glow & Vault Matrix Node
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(PurplePrimary.copy(alpha = 0.25f * pulse), Color.Transparent),
-                center = c,
-                radius = 70.dp.toPx()
-            ),
-            radius = 70.dp.toPx(),
-            center = c
-        )
-
-        // Central Hologram Platform Base
-        drawOval(
-            color = BorderLight.copy(alpha = 0.6f),
-            topLeft = Offset(w * 0.22f, h * 0.78f),
-            size = Size(w * 0.56f, 16.dp.toPx())
-        )
-
-        // 2. Central Floating Vault Shield Glyph
-        val shieldCenter = Offset(c.x, c.y + floatOffset)
-        drawCircle(color = AccentPurple.copy(alpha = 0.18f), radius = 22.dp.toPx(), center = shieldCenter)
-        drawCircle(color = AccentPurple, radius = 10.dp.toPx(), center = shieldCenter)
-        drawCircle(color = Color.White, radius = 4.dp.toPx(), center = shieldCenter)
-
-        // 3. Deliberation Figure 1 (Left: The Strategist)
-        val f1Center = Offset(w * 0.24f, h * 0.50f)
-        drawLine(color = CyanPrimary.copy(alpha = 0.45f * pulse), start = f1Center, end = shieldCenter, strokeWidth = 1.5.dp.toPx())
-        drawCircle(color = TextDark, radius = 9.dp.toPx(), center = Offset(f1Center.x, f1Center.y - 18.dp.toPx()))
-        drawRoundRect(color = CyanPrimary, topLeft = Offset(f1Center.x - 10.dp.toPx(), f1Center.y - 6.dp.toPx()), size = Size(20.dp.toPx(), 26.dp.toPx()), cornerRadius = CornerRadius(6.dp.toPx()))
-        drawCircle(color = TealPrimary, radius = 4.dp.toPx(), center = Offset(f1Center.x + 8.dp.toPx(), f1Center.y + 4.dp.toPx() + floatOffset))
-
-        // 4. Deliberation Figure 2 (Center-Back: The Guardian)
-        val f2Center = Offset(w * 0.50f, h * 0.28f)
-        drawLine
+// MOTION GRAPHICS: DELIBERATION
