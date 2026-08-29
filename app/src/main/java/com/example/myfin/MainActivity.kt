@@ -70,9 +70,8 @@ class MainActivity : FragmentActivity() {
             MyfinTheme {
                 val userProfile by viewModel.userProfile.collectAsState()
                 val isUnlocked by viewModel.isAppUnlocked.collectAsState()
-                val storedPin = remember(isUnlocked) { securityManager.getStoredPin().orEmpty() }
 
-                val isFirstLaunch = !userProfile.isOnboardingCompleted || storedPin.isBlank()
+                val isFirstLaunch = !userProfile.isOnboardingCompleted
 
                 LaunchedEffect(userProfile.isScreenCaptureAllowed, isFirstLaunch) {
                     if (isFirstLaunch || userProfile.isScreenCaptureAllowed) {
@@ -121,28 +120,14 @@ class MainActivity : FragmentActivity() {
                             moveTaskToBack(true)
                         }
 
-                        LaunchedEffect(userProfile.isBiometricEnabled, isUnlocked, storedPin) {
-                            if (!isUnlocked &&
-                                userProfile.isBiometricEnabled &&
-                                storedPin.isNotBlank() &&
-                                securityManager.canAuthenticateWithBiometrics(this@MainActivity)
-                            ) {
-                                securityManager.showBiometricPrompt(
-                                    activity = this@MainActivity,
-                                    onSuccess = { viewModel.unlockApp() },
-                                    onError = { }
-                                )
-                            }
-                        }
-
                         PinLockScreen(
-                            correctPin = storedPin,
+                            profileName = userProfile.displayName,
+                            profileImageUri = userProfile.profileImageUri,
                             recoveryDob = userProfile.dateOfBirth,
+                            isBiometricEnabled = userProfile.isBiometricEnabled,
                             onUnlockSuccess = { viewModel.unlockApp() },
-                            onEmergencyReset = {
-                                viewModel.resetEntireVault {
-                                    viewModel.lockApp()
-                                }
+                            onResetPasswordOnly = { newPin ->
+                                viewModel.saveMasterPin(newPin)
                             }
                         )
                     }
