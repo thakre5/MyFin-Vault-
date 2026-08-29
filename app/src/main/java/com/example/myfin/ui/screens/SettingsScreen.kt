@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import coil.compose.SubcomposeAsyncImage
+import com.example.myfin.BuildConfig
 import com.example.myfin.data.ExcelExportManager
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AppBrandingFooter
@@ -748,9 +749,10 @@ fun SettingsScreen(
                     }
                 }
 
+                // Dynamic App Branding Footer
                 AppBrandingFooter(
                     modifier = Modifier.fillMaxWidth(),
-                    version = "v1.0.0",
+                    version = "v${BuildConfig.VERSION_NAME}",
                     showIcon = true
                 )
 
