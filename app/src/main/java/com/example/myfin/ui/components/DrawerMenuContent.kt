@@ -1,8 +1,5 @@
 package com.example.myfin.ui.components
 
-import android.graphics.BitmapFactory
-import android.net.Uri
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,19 +12,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
 import com.example.myfin.ui.theme.AccentPurple
 import com.example.myfin.ui.theme.SoftRed
 import java.io.File
@@ -42,25 +37,6 @@ fun DrawerMenuContent(
     onEditProfile: () -> Unit,
     onLockApp: () -> Unit
 ) {
-    val context = LocalContext.current
-
-    val profileBitmap = remember(profileImageUri) {
-        if (!profileImageUri.isNullOrBlank()) {
-            try {
-                val file = File(profileImageUri)
-                if (file.exists()) {
-                    BitmapFactory.decodeFile(file.absolutePath)
-                } else {
-                    val uri = Uri.parse(profileImageUri)
-                    val inputStream = context.contentResolver.openInputStream(uri)
-                    BitmapFactory.decodeStream(inputStream)
-                }
-            } catch (e: Exception) {
-                null
-            }
-        } else null
-    }
-
     Column(
         modifier = Modifier
             .fillMaxHeight()
@@ -87,12 +63,38 @@ fun DrawerMenuContent(
                         .background(AccentPurple),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (profileBitmap != null) {
-                        Image(
-                            bitmap = profileBitmap.asImageBitmap(),
+                    if (!profileImageUri.isNullOrBlank()) {
+                        SubcomposeAsyncImage(
+                            model = File(profileImageUri).takeIf { it.exists() } ?: profileImageUri,
                             contentDescription = "Profile Picture",
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Crop,
+                            error = {
+                                Box(
+                                    modifier = Modifier.fillMaxSize().background(AccentPurple),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = displayName.take(1).uppercase().ifBlank { "M" },
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 18.sp,
+                                        color = Color.White
+                                    )
+                                }
+                            },
+                            loading = {
+                                Box(
+                                    modifier = Modifier.fillMaxSize().background(AccentPurple),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = displayName.take(1).uppercase().ifBlank { "M" },
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 18.sp,
+                                        color = Color.White
+                                    )
+                                }
+                            }
                         )
                     } else {
                         Text(
@@ -121,7 +123,6 @@ fun DrawerMenuContent(
                 }
             }
 
-            // Increased space to move main content down
             Spacer(modifier = Modifier.height(30.dp))
 
             // Navigation Items
@@ -175,7 +176,7 @@ fun DrawerMenuContent(
             )
         }
 
-        // Bottom Section: Centered Lock Action + Smaller, Visible Footer
+        // Bottom Section: Centered Lock Action + Legible Footer
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -209,7 +210,6 @@ fun DrawerMenuContent(
                 }
             }
 
-            // Compact legible branding footer
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(3.dp),
