@@ -50,7 +50,6 @@ fun MultiStepOnboardingFlow(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
-    // 2 Pager Steps: Step 0 = Unified In-Place Gateway, Step 1 = Vault Sealing
     val pagerState = rememberPagerState(pageCount = { 2 })
 
     var showSplashReveal by remember { mutableStateOf(true) }
@@ -136,18 +135,18 @@ fun MultiStepOnboardingFlow(
             "${rawDobDigits.substring(0, 2)}/${rawDobDigits.substring(2, 4)}/${rawDobDigits.substring(4, 8)}"
         } else ""
 
-        viewModel.updateProfileName(displayName.trim().ifEmpty { "Vault User" })
-        viewModel.updateEmail(emailAddress.trim())
-        viewModel.updateCurrency(selectedCountry.currencySymbol)
-        viewModel.updateVaultMode(selectedStrategy)
-        viewModel.updateScreenCaptureAllowed(false)
-        if (formattedDob.isNotBlank()) {
-            viewModel.updateDateOfBirth(formattedDob)
-        }
-        viewModel.setBiometricEnabled(isBiometricEnabled)
-        viewModel.saveMasterPin(masterPin.ifEmpty { "1234" })
+        // 1. Atomic Profile & Security Persistence (Preserves isBiometricEnabled correctly)
+        viewModel.finalizeOnboardingProfile(
+            displayName = displayName,
+            email = emailAddress,
+            dob = formattedDob,
+            currencySymbol = selectedCountry.currencySymbol,
+            vaultMode = selectedStrategy,
+            masterPin = masterPin.ifEmpty { "1234" },
+            isBiometricEnabled = isBiometricEnabled
+        )
 
-        // Atomic replacement ensures ONLY the configured accounts exist in Room
+        // 2. Set Up Accounts
         val accountEntities = initialAccounts.mapIndexed { index, acc ->
             AccountEntity(
                 accountName = acc.name.trim().uppercase(),
@@ -158,6 +157,7 @@ fun MultiStepOnboardingFlow(
         }
         viewModel.replaceAllAccounts(accountEntities)
 
+        // 3. Set Up Commitments
         val commitmentsAccountName = initialAccounts.firstOrNull { it.defaultType == "Commitments" }?.name?.uppercase()
             ?: initialAccounts.first().name.uppercase()
         val operatingAccountName = initialAccounts.firstOrNull { it.defaultType == "Operating" }?.name?.uppercase()
@@ -179,7 +179,6 @@ fun MultiStepOnboardingFlow(
             }
         }
 
-        viewModel.completeOnboarding()
         onComplete()
     }
 
@@ -299,7 +298,6 @@ fun MultiStepOnboardingFlow(
                     }
             ) {
                 when (page) {
-                    // STEP 0: UNIFIED IN-PLACE GATEWAY
                     0 -> {
                         OnboardingStep0WelcomeGateway(
                             displayName = displayName,
@@ -366,7 +364,6 @@ fun MultiStepOnboardingFlow(
                         )
                     }
 
-                    // STEP 1: FINAL DELIBERATION & VAULT SEALING COUNTDOWN
                     1 -> {
                         OnboardingStep6VaultSealing(
                             displayName = displayName,
