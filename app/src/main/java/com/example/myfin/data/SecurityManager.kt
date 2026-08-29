@@ -16,18 +16,23 @@ class SecurityManager(context: Context) {
         return prefs.getString(KEY_PIN_HASH, null)
     }
 
+    fun hasPin(): Boolean {
+        return !getStoredPin().isNullOrBlank()
+    }
+
     fun setPin(pin: String) {
-        if (pin.isBlank()) {
+        val cleanPin = pin.trim()
+        if (cleanPin.isBlank()) {
             prefs.edit().remove(KEY_PIN_HASH).apply()
         } else {
-            val hash = hashString(pin)
+            val hash = hashString(cleanPin)
             prefs.edit().putString(KEY_PIN_HASH, hash).apply()
         }
     }
 
     fun verifyPin(inputPin: String): Boolean {
         val storedHash = getStoredPin() ?: return false
-        return hashString(inputPin) == storedHash
+        return hashString(inputPin.trim()) == storedHash
     }
 
     fun setRecoveryDob(dob: String) {
@@ -40,7 +45,10 @@ class SecurityManager(context: Context) {
 
     fun verifyDob(inputDob: String): Boolean {
         val storedDob = getRecoveryDob() ?: return false
-        return inputDob.trim().equals(storedDob.trim(), ignoreCase = true)
+        val cleanInput = inputDob.filter { it.isDigit() }
+        val cleanStored = storedDob.filter { it.isDigit() }
+        return inputDob.trim().equals(storedDob.trim(), ignoreCase = true) ||
+                (cleanInput.isNotEmpty() && cleanInput == cleanStored)
     }
 
     fun canAuthenticateWithBiometrics(context: Context): Boolean {
