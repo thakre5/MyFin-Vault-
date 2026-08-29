@@ -1,4 +1,8 @@
-@file:OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@file:OptIn(
+    ExperimentalFoundationApi::class,
+    ExperimentalMaterial3Api::class,
+    ExperimentalLayoutApi::class
+)
 
 package com.example.myfin.ui.onboarding.steps
 
@@ -19,9 +23,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarToday
@@ -41,6 +47,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -79,11 +86,13 @@ fun OnboardingStep0WelcomeGateway(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val scrollState = rememberScrollState()
 
-    // Stage State: False = Carousel, True = Profile Identity Form
     var isFormMode by remember { mutableStateOf(false) }
 
-    // Intercept hardware Back to gracefully revert to the Carousel stage
+    // Dynamic keyboard visibility detection
+    val isImeVisible = WindowInsets.isImeVisible
+
     BackHandler(enabled = isFormMode) {
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         isFormMode = false
@@ -95,7 +104,6 @@ fun OnboardingStep0WelcomeGateway(
     val countrySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val restoreSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Continuous Infinite Carousel Driver
     val virtualPageCount = 3000
     val initialPage = (virtualPageCount / 2) - ((virtualPageCount / 2) % WelcomeCarouselSlides.size)
     val carouselPagerState = rememberPagerState(
@@ -116,7 +124,35 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Dynamic Restore Button Width & Height Interpolation
+    // Smoothly scroll down when keyboard appears to keep focused inputs visible
+    LaunchedEffect(isImeVisible) {
+        if (isImeVisible && isFormMode) {
+            delay(100L)
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
+    // Adaptive Hero Card Scale & Height
+    val heroScale by animateFloatAsState(
+        targetValue = when {
+            isImeVisible && isFormMode -> 0.62f
+            isFormMode -> 0.88f
+            else -> 1.0f
+        },
+        animationSpec = tween(350, easing = FastOutSlowInEasing),
+        label = "heroScale"
+    )
+    val heroHeight by animateDpAsState(
+        targetValue = when {
+            isImeVisible && isFormMode -> 125.dp
+            isFormMode -> 195.dp
+            else -> 235.dp
+        },
+        animationSpec = tween(350, easing = FastOutSlowInEasing),
+        label = "heroHeight"
+    )
+
+    // Dynamic Restore Button Width & Height
     val restoreButtonWidthFraction by animateFloatAsState(
         targetValue = if (isFormMode) 0.52f else 1.0f,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
@@ -142,268 +178,219 @@ fun OnboardingStep0WelcomeGateway(
                 )
             )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            // =========================================================
-            // 1. PINNED BRANDING HEADER (100% Static & Anchored)
-            // =========================================================
-            Row(
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val minScreenHeight = maxHeight
+
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 24.dp)
+                    .defaultMinSize(minHeight = minScreenHeight),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = Color.Transparent,
-                    modifier = Modifier.size(36.dp)
+                // =========================================================
+                // 1. PINNED BRANDING HEADER
+                // =========================================================
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(CyanPrimary, AccentPurple, PurplePrimary)
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Transparent,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(CyanPrimary, AccentPurple, PurplePrimary)
+                                )
                             )
-                        )
-                        val c = center
-                        val r = size.minDimension * 0.32f
-                        repeat(8) { i ->
-                            val angleRad = Math.toRadians((i * 45.0))
-                            val px = c.x + (r * cos(angleRad)).toFloat()
-                            val py = c.y + (r * sin(angleRad)).toFloat()
-                            drawLine(
-                                color = Color.White,
-                                start = c,
-                                end = Offset(px, py),
-                                strokeWidth = 2.4.dp.toPx(),
-                                cap = StrokeCap.Round
-                            )
+                            val c = center
+                            val r = size.minDimension * 0.32f
+                            repeat(8) { i ->
+                                val angleRad = Math.toRadians((i * 45.0))
+                                val px = c.x + (r * cos(angleRad)).toFloat()
+                                val py = c.y + (r * sin(angleRad)).toFloat()
+                                drawLine(
+                                    color = Color.White,
+                                    start = c,
+                                    end = Offset(px, py),
+                                    strokeWidth = 2.4.dp.toPx(),
+                                    cap = StrokeCap.Round
+                                )
+                            }
+                            drawCircle(color = Color.White, radius = 2.5.dp.toPx(), center = c)
                         }
-                        drawCircle(color = Color.White, radius = 2.5.dp.toPx(), center = c)
                     }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "MyFin",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextDark,
+                        letterSpacing = (-0.5).sp
+                    )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "MyFin",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Black,
-                    color = TextDark,
-                    letterSpacing = (-0.5).sp
-                )
-            }
 
-            Spacer(modifier = Modifier.weight(0.2f))
+                Spacer(modifier = Modifier.height(if (isImeVisible) 4.dp else 12.dp))
 
-            // =========================================================
-            // 2. PINNED 3D TILTED HERO CARDS (100% Static & Anchored)
-            // =========================================================
-            SolnexTiltedCardsHero(currencySymbol = selectedCountry.currencySymbol)
-
-            Spacer(modifier = Modifier.weight(0.25f))
-
-            // =========================================================
-            // 3. RIGHT-TO-LEFT CHOREOGRAPHED MIDDLE CONTENT
-            // =========================================================
-            AnimatedContent(
-                targetState = isFormMode,
-                transitionSpec = {
-                    if (targetState) {
-                        (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> fullWidth } + fadeIn(tween(420)))
-                            .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeOut(tween(420)))
-                    } else {
-                        (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeIn(tween(420)))
-                            .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> fullWidth } + fadeOut(tween(420)))
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = "middleContentTransition"
-            ) { formActive ->
-                if (!formActive) {
-                    // STAGE 0: Continuous Text Carousel & Indexer
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        HorizontalPager(
-                            state = carouselPagerState,
-                            userScrollEnabled = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(130.dp)
-                        ) { page ->
-                            val actualIndex = page % WelcomeCarouselSlides.size
-                            val slide = WelcomeCarouselSlides[actualIndex]
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = slide.title,
-                                    fontSize = 28.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = TextDark,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = 34.sp,
-                                    letterSpacing = (-0.6).sp
-                                )
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                Text(
-                                    text = slide.subtitle,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = TextMuted,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = 18.sp
-                                )
-                            }
+                // =========================================================
+                // 2. RESPONSIVE HERO CARDS (Smoothly scales when keyboard opens)
+                // =========================================================
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(heroHeight),
+                    contentAlignment = Alignment.Center
+                ) {
+                    SolnexTiltedCardsHero(
+                        currencySymbol = selectedCountry.currencySymbol,
+                        modifier = Modifier.graphicsLayer {
+                            scaleX = heroScale
+                            scaleY = heroScale
                         }
+                    )
+                }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(if (isImeVisible) 6.dp else 16.dp))
 
-                        val activeIndex = carouselPagerState.currentPage % WelcomeCarouselSlides.size
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            repeat(WelcomeCarouselSlides.size) { idx ->
-                                val isSelected = activeIndex == idx
-                                val width by animateDpAsState(if (isSelected) 18.dp else 5.dp, label = "dotWidth")
-                                Box(
-                                    modifier = Modifier
-                                        .width(width)
-                                        .height(4.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isSelected) TextDark else BorderLight)
-                                )
-                            }
+                // =========================================================
+                // 3. MIDDLE CONTENT (Carousel OR Form)
+                // =========================================================
+                AnimatedContent(
+                    targetState = isFormMode,
+                    transitionSpec = {
+                        if (targetState) {
+                            (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> fullWidth } + fadeIn(tween(420)))
+                                .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeOut(tween(420)))
+                        } else {
+                            (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeIn(tween(420)))
+                                .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> fullWidth } + fadeOut(tween(420)))
                         }
-                    }
-                } else {
-                    // STAGE 1: Title + 4 Profile Form Fields (Capsule Layout)
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // Section Title & Subtitle
-                        Text(
-                            text = "Create Vault Account",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextDark,
-                            textAlign = TextAlign.Center,
-                            letterSpacing = (-0.5).sp
-                        )
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(
-                            text = "Enter your offline profile credentials",
-                            fontSize = 12.sp,
-                            color = TextMuted,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Form Boxes
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = "middleContentTransition"
+                ) { formActive ->
+                    if (!formActive) {
+                        // STAGE 0: Carousel & Indexer
                         Column(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // 1. Username
-                            OutlinedTextField(
-                                value = displayName,
-                                onValueChange = onDisplayNameChange,
-                                placeholder = { Text("Username", fontSize = 13.5.sp, color = TextMuted) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Outlined.Person,
-                                        contentDescription = null,
-                                        tint = AccentPurple,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                },
-                                singleLine = true,
-                                textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
-                                shape = RoundedCornerShape(26.dp),
+                            HorizontalPager(
+                                state = carouselPagerState,
+                                userScrollEnabled = true,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(50.dp),
-                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = CardWhite,
-                                    unfocusedContainerColor = CardWhite,
-                                    focusedBorderColor = AccentPurple,
-                                    unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
-                                )
-                            )
-
-                            // 2. Email Address
-                            OutlinedTextField(
-                                value = emailAddress,
-                                onValueChange = onEmailChange,
-                                placeholder = { Text("Email Address", fontSize = 13.5.sp, color = TextMuted) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Outlined.Mail,
-                                        contentDescription = null,
-                                        tint = AccentPurple,
-                                        modifier = Modifier.size(18.dp)
+                                    .height(130.dp)
+                            ) { page ->
+                                val actualIndex = page % WelcomeCarouselSlides.size
+                                val slide = WelcomeCarouselSlides[actualIndex]
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = slide.title,
+                                        fontSize = 28.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = TextDark,
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 34.sp,
+                                        letterSpacing = (-0.6).sp
                                     )
-                                },
-                                singleLine = true,
-                                textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
-                                shape = RoundedCornerShape(26.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(50.dp),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = CardWhite,
-                                    unfocusedContainerColor = CardWhite,
-                                    focusedBorderColor = AccentPurple,
-                                    unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
-                                )
-                            )
 
-                            // 3. 50:50 Split Row (DOB & Country Currency)
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Text(
+                                        text = slide.subtitle,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextMuted,
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 18.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            val activeIndex = carouselPagerState.currentPage % WelcomeCarouselSlides.size
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
+                                repeat(WelcomeCarouselSlides.size) { idx ->
+                                    val isSelected = activeIndex == idx
+                                    val width by animateDpAsState(if (isSelected) 18.dp else 5.dp, label = "dotWidth")
+                                    Box(
+                                        modifier = Modifier
+                                            .width(width)
+                                            .height(4.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isSelected) TextDark else BorderLight)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // STAGE 1: Title + 4 Profile Form Fields
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Create Vault Account",
+                                fontSize = if (isImeVisible) 19.sp else 22.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextDark,
+                                textAlign = TextAlign.Center,
+                                letterSpacing = (-0.5).sp
+                            )
+                            if (!isImeVisible) {
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "Enter your offline profile credentials",
+                                    fontSize = 12.sp,
+                                    color = TextMuted,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(if (isImeVisible) 8.dp else 14.dp))
+
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // 1. Username
                                 OutlinedTextField(
-                                    value = rawDobDigits,
-                                    onValueChange = { input ->
-                                        onDobChange(input.filter { it.isDigit() }.take(8))
-                                    },
-                                    placeholder = { Text("DD/MM/YYYY", fontSize = 12.sp, color = TextMuted) },
+                                    value = displayName,
+                                    onValueChange = onDisplayNameChange,
+                                    placeholder = { Text("Username", fontSize = 13.5.sp, color = TextMuted) },
                                     leadingIcon = {
                                         Icon(
-                                            Icons.Default.CalendarToday,
+                                            Icons.Outlined.Person,
                                             contentDescription = null,
                                             tint = AccentPurple,
-                                            modifier = Modifier.size(15.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     },
-                                    visualTransformation = OnboardingDateVisualTransformation(),
                                     singleLine = true,
-                                    textStyle = TextStyle(
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = TextDark,
-                                        letterSpacing = 0.5.sp
-                                    ),
+                                    textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                     shape = RoundedCornerShape(26.dp),
                                     modifier = Modifier
-                                        .weight(1f)
+                                        .fillMaxWidth()
                                         .height(50.dp),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedContainerColor = CardWhite,
                                         unfocusedContainerColor = CardWhite,
@@ -412,120 +399,187 @@ fun OnboardingStep0WelcomeGateway(
                                     )
                                 )
 
-                                Surface(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(50.dp)
-                                        .clip(RoundedCornerShape(26.dp))
-                                        .clickable { showCountryPickerSheet = true },
-                                    shape = RoundedCornerShape(26.dp),
-                                    color = CardWhite,
-                                    border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(horizontal = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f, fill = false)
-                                        ) {
-                                            Text(selectedCountry.flagEmoji, fontSize = 15.sp)
-                                            Spacer(modifier = Modifier.width(5.dp))
-                                            Text(
-                                                text = "${selectedCountry.currencySymbol} ${selectedCountry.currencyCode}",
-                                                fontSize = 12.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = TextDark,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
+                                // 2. Email Address
+                                OutlinedTextField(
+                                    value = emailAddress,
+                                    onValueChange = onEmailChange,
+                                    placeholder = { Text("Email Address", fontSize = 13.5.sp, color = TextMuted) },
+                                    leadingIcon = {
                                         Icon(
-                                            Icons.Default.ArrowDropDown,
-                                            contentDescription = "Select Currency",
-                                            tint = TextMuted,
+                                            Icons.Outlined.Mail,
+                                            contentDescription = null,
+                                            tint = AccentPurple,
                                             modifier = Modifier.size(18.dp)
                                         )
+                                    },
+                                    singleLine = true,
+                                    textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
+                                    shape = RoundedCornerShape(26.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(50.dp),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = CardWhite,
+                                        unfocusedContainerColor = CardWhite,
+                                        focusedBorderColor = AccentPurple,
+                                        unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                                    )
+                                )
+
+                                // 3. 50:50 Split Row (DOB & Country Currency)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = rawDobDigits,
+                                        onValueChange = { input ->
+                                            onDobChange(input.filter { it.isDigit() }.take(8))
+                                        },
+                                        placeholder = { Text("DD/MM/YYYY", fontSize = 12.sp, color = TextMuted) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.CalendarToday,
+                                                contentDescription = null,
+                                                tint = AccentPurple,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        },
+                                        visualTransformation = OnboardingDateVisualTransformation(),
+                                        singleLine = true,
+                                        textStyle = TextStyle(
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = TextDark,
+                                            letterSpacing = 0.5.sp
+                                        ),
+                                        shape = RoundedCornerShape(26.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(50.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = CardWhite,
+                                            unfocusedContainerColor = CardWhite,
+                                            focusedBorderColor = AccentPurple,
+                                            unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                                        )
+                                    )
+
+                                    Surface(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(50.dp)
+                                            .clip(RoundedCornerShape(26.dp))
+                                            .clickable { showCountryPickerSheet = true },
+                                        shape = RoundedCornerShape(26.dp),
+                                        color = CardWhite,
+                                        border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            ) {
+                                                Text(selectedCountry.flagEmoji, fontSize = 15.sp)
+                                                Spacer(modifier = Modifier.width(5.dp))
+                                                Text(
+                                                    text = "${selectedCountry.currencySymbol} ${selectedCountry.currencyCode}",
+                                                    fontSize = 12.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = TextDark,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Icon(
+                                                Icons.Default.ArrowDropDown,
+                                                contentDescription = "Select Currency",
+                                                tint = TextMuted,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.weight(0.3f))
+                Spacer(modifier = Modifier.height(if (isImeVisible) 10.dp else 16.dp))
 
-            // =========================================================
-            // 4. SYNCHRONIZED BUTTON MORPHING & SHRINKING
-            // =========================================================
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Primary Action Button: "Get Started" -> "Register Vault"
-                Button(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        if (!isFormMode) {
-                            isFormMode = true
-                        } else {
-                            if (displayName.trim().isEmpty()) {
-                                Toast.makeText(context, "Please enter your username", Toast.LENGTH_SHORT).show()
-                            } else if (rawDobDigits.length < 8) {
-                                Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
-                            } else {
-                                onProceedToSecurity()
-                            }
-                        }
-                    },
+                // =========================================================
+                // 4. ACTION BUTTONS
+                // =========================================================
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                        .padding(bottom = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    AnimatedContent(
-                        targetState = isFormMode,
-                        transitionSpec = {
-                            fadeIn(tween(250)).togetherWith(fadeOut(tween(250)))
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (!isFormMode) {
+                                isFormMode = true
+                            } else {
+                                if (displayName.trim().isEmpty()) {
+                                    Toast.makeText(context, "Please enter your username", Toast.LENGTH_SHORT).show()
+                                } else if (rawDobDigits.length < 8) {
+                                    Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    onProceedToSecurity()
+                                }
+                            }
                         },
-                        label = "primaryButtonText"
-                    ) { formActive ->
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(26.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                    ) {
+                        AnimatedContent(
+                            targetState = isFormMode,
+                            transitionSpec = {
+                                fadeIn(tween(250)).togetherWith(fadeOut(tween(250)))
+                            },
+                            label = "primaryButtonText"
+                        ) { formActive ->
+                            Text(
+                                text = if (!formActive) "Get Started" else "Register Vault",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.5.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { showRestoreConfirmationSheet = true },
+                        modifier = Modifier
+                            .fillMaxWidth(restoreButtonWidthFraction)
+                            .height(restoreButtonHeight),
+                        shape = RoundedCornerShape(26.dp),
+                        border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f)),
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = CardWhite),
+                        contentPadding = PaddingValues(horizontal = 16.dp)
+                    ) {
                         Text(
-                            text = if (!formActive) "Get Started" else "Register Vault",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.5.sp,
-                            color = Color.White
+                            text = "Restore Vault",
+                            fontWeight = if (isFormMode) FontWeight.SemiBold else FontWeight.Bold,
+                            fontSize = if (isFormMode) 13.sp else 14.5.sp,
+                            color = TextDark,
+                            maxLines = 1
                         )
                     }
-                }
-
-                // Secondary Action Button: Smooth Width Shrink
-                OutlinedButton(
-                    onClick = { showRestoreConfirmationSheet = true },
-                    modifier = Modifier
-                        .fillMaxWidth(restoreButtonWidthFraction)
-                        .height(restoreButtonHeight),
-                    shape = RoundedCornerShape(26.dp),
-                    border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f)),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = CardWhite),
-                    contentPadding = PaddingValues(horizontal = 16.dp)
-                ) {
-                    Text(
-                        text = "Restore Vault",
-                        fontWeight = if (isFormMode) FontWeight.SemiBold else FontWeight.Bold,
-                        fontSize = if (isFormMode) 13.sp else 14.5.sp,
-                        color = TextDark,
-                        maxLines = 1
-                    )
                 }
             }
         }
