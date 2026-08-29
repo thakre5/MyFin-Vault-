@@ -12,22 +12,22 @@ class OnboardingDateVisualTransformation : VisualTransformation {
         for (i in trimmed.indices) {
             out += trimmed[i]
             if (i == 1 || i == 3) {
-                out += " / "
+                out += "/"
             }
         }
 
         val offsetTranslator = object : OffsetMapping {
             override fun originalToTransformed(offset: Int): Int {
                 if (offset <= 1) return offset
-                if (offset <= 3) return offset + 3
-                if (offset <= 8) return offset + 6
-                return 14
+                if (offset <= 3) return offset + 1
+                if (offset <= 8) return offset + 2
+                return 10
             }
 
             override fun transformedToOriginal(offset: Int): Int {
                 if (offset <= 2) return offset
-                if (offset <= 6) return (offset - 3).coerceAtLeast(0)
-                if (offset <= 14) return (offset - 6).coerceAtLeast(0)
+                if (offset <= 5) return (offset - 1).coerceAtLeast(0)
+                if (offset <= 10) return (offset - 2).coerceAtLeast(0)
                 return 8
             }
         }
