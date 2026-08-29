@@ -2,7 +2,6 @@ package com.example.myfin.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
@@ -12,7 +11,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -42,7 +40,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -55,12 +52,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
+import coil.compose.SubcomposeAsyncImage
 import com.example.myfin.data.ExcelExportManager
-import com.example.myfin.data.SupportedCountries
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AppBrandingFooter
+import com.example.myfin.ui.onboarding.SupportedCountries
 import com.example.myfin.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -76,7 +76,6 @@ enum class SettingsActiveSheet {
     DAILY_REMINDER,
     COUNTRY_CURRENCY_PICKER,
     RESET_CONFIRM,
-    // Navigation Aliases
     STRATEGY,
     SECURITY,
     NOTIFICATIONS,
@@ -93,6 +92,8 @@ enum class SettingsAccordionSection {
     BACKUP,
     REPORTS
 }
+
+private val SettingsTealColor = Color(0xFF0D9488)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -158,24 +159,32 @@ fun SettingsScreen(
         }
     }
 
-    // Permanent Avatar Image Persistence
+    // Background Async Image Saving
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { sourceUri ->
-            try {
-                val inputStream = context.contentResolver.openInputStream(sourceUri)
-                val file = File(context.filesDir, "profile_avatar.jpg")
-                val outputStream = FileOutputStream(file)
-                inputStream?.copyTo(outputStream)
-                inputStream?.close()
-                outputStream.close()
-                viewModel.updateProfileImageUri(file.absolutePath)
-                avatarRefreshKey = System.currentTimeMillis()
-                Toast.makeText(context, "Profile picture updated", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                viewModel.updateProfileImageUri(sourceUri.toString())
-                avatarRefreshKey = System.currentTimeMillis()
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    val inputStream = context.contentResolver.openInputStream(sourceUri)
+                    val file = File(context.filesDir, "profile_avatar.jpg")
+                    val outputStream = FileOutputStream(file)
+                    inputStream?.use { input ->
+                        outputStream.use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    viewModel.updateProfileImageUri(file.absolutePath)
+                    withContext(Dispatchers.Main) {
+                        avatarRefreshKey = System.currentTimeMillis()
+                        Toast.makeText(context, "Profile picture updated", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    viewModel.updateProfileImageUri(sourceUri.toString())
+                    withContext(Dispatchers.Main) {
+                        avatarRefreshKey = System.currentTimeMillis()
+                    }
+                }
             }
         }
     }
@@ -281,30 +290,32 @@ fun SettingsScreen(
                                 border = BorderStroke(3.dp, CardWhite)
                             ) {
                                 val profileUri = userProfile.profileImageUri
-                                val profileBitmap = remember(profileUri, avatarRefreshKey) {
+                                val imageModel = remember(profileUri, avatarRefreshKey) {
                                     if (!profileUri.isNullOrBlank()) {
-                                        try {
-                                            val file = File(profileUri)
-                                            if (file.exists()) {
-                                                BitmapFactory.decodeFile(file.absolutePath)
-                                            } else {
-                                                val uri = Uri.parse(profileUri)
-                                                val inputStream = context.contentResolver.openInputStream(uri)
-                                                BitmapFactory.decodeStream(inputStream)
-                                            }
-                                        } catch (e: Exception) {
-                                            null
-                                        }
+                                        File(profileUri).takeIf { it.exists() } ?: profileUri
                                     } else null
                                 }
 
                                 Box(contentAlignment = Alignment.Center) {
-                                    if (profileBitmap != null) {
-                                        Image(
-                                            bitmap = profileBitmap.asImageBitmap(),
+                                    if (imageModel != null) {
+                                        SubcomposeAsyncImage(
+                                            model = imageModel,
                                             contentDescription = "Profile Picture",
                                             modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop
+                                            contentScale = ContentScale.Crop,
+                                            error = {
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize().background(AccentPurple.copy(alpha = 0.15f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = userProfile.displayName.take(1).uppercase().ifBlank { "A" },
+                                                        fontSize = 30.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        color = AccentPurple
+                                                    )
+                                                }
+                                            }
                                         )
                                     } else {
                                         Text(
@@ -745,7 +756,7 @@ fun SettingsScreen(
     // DEDICATED BOTTOM SHEETS & MODALS
     // ==========================================
 
-    // 1. Edit Personal Info Sheet (DOB Sync Enabled)
+    // 1. Edit Personal Info Sheet
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
         var nameInput by remember(userProfile.displayName) { mutableStateOf(userProfile.displayName.ifBlank { "Alex Doe" }) }
         var emailInput by remember(userProfile.email) { mutableStateOf(userProfile.email.ifBlank { "alex.doe@example.com" }) }
@@ -945,7 +956,7 @@ fun SettingsScreen(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = TealPrimary,
+                            tint = SettingsTealColor,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1629,7 +1640,7 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
         val lockH = 36.dp.toPx()
 
         drawArc(
-            color = TealPrimary,
+            color = SettingsTealColor,
             startAngle = 180f,
             sweepAngle = 180f,
             useCenter = false,
@@ -1639,7 +1650,7 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
         )
 
         drawRoundRect(
-            color = TealPrimary,
+            color = SettingsTealColor,
             topLeft = Offset(lockLeft, lockTop),
             size = Size(lockW, lockH),
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
@@ -1667,7 +1678,7 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
         )
         drawRoundRect(
-            color = TealPrimary.copy(alpha = 0.15f),
+            color = SettingsTealColor.copy(alpha = 0.15f),
             topLeft = Offset(w * 0.52f, h * 0.50f),
             size = Size(w * 0.35f, h * 0.35f),
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
