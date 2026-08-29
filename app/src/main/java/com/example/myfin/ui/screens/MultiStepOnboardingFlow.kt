@@ -17,6 +17,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -37,6 +38,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
@@ -52,8 +54,10 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.theme.*
@@ -112,7 +116,7 @@ fun MultiStepOnboardingFlow(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { 6 })
+    val pagerState = rememberPagerState(pageCount = { 7 })
 
     // Step 1 States: Profile & Identity
     var profileImageUri by remember { mutableStateOf<Uri?>(null) }
@@ -130,7 +134,7 @@ fun MultiStepOnboardingFlow(
     var selectedCountry by remember { mutableStateOf(SupportedCountries[0]) }
     var selectedStrategy by remember { mutableStateOf("3-VAULT") } // "3-VAULT" or "SIMPLE"
 
-    // Step 4 States: Initial Bank Accounts (Generic Architecture Naming)
+    // Step 4 States: Initial Bank Accounts
     val initialAccounts = remember {
         mutableStateListOf(
             InitialAccountSetup("PRIMARY INCOME VAULT", "Operating", "50000"),
@@ -161,6 +165,20 @@ fun MultiStepOnboardingFlow(
         }
     }
 
+    // Backup Document Picker for Restore
+    val restoreBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            viewModel.restoreVaultFromUri(context, it) { success, msg ->
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                if (success) {
+                    onComplete()
+                }
+            }
+        }
+    }
+
     // Step 6: 10-Second Auto-Closing Countdown State
     var remainingSeconds by remember { mutableIntStateOf(10) }
     var hasSealedAndLaunched by remember { mutableStateOf(false) }
@@ -173,7 +191,7 @@ fun MultiStepOnboardingFlow(
             "${rawDobDigits.substring(0, 2)}/${rawDobDigits.substring(2, 4)}/${rawDobDigits.substring(4, 8)}"
         } else ""
 
-        // 1. Save User Profile (Default screenshot protection to OFF)
+        // 1. Save User Profile (Default screenshot protection to OFF once completed)
         viewModel.updateProfileName(displayName.trim().ifEmpty { "Jordan Lee" })
         viewModel.updateEmail(emailAddress.trim().ifEmpty { "jordan.vault@myfin.app" })
         viewModel.updateCurrency(selectedCountry.currencySymbol)
@@ -198,7 +216,7 @@ fun MultiStepOnboardingFlow(
             )
         }
 
-        // 4. Populate Pre-configured Commitments (Taxonomy Bound)
+        // 4. Populate Pre-configured Commitments
         initialCommitments.filter { it.isSelected }.forEach { bill ->
             val amt = bill.amountText.toDoubleOrNull() ?: 0.0
             if (amt > 0.0) {
@@ -222,7 +240,7 @@ fun MultiStepOnboardingFlow(
 
     // Auto-Close Countdown Driver on Step 6
     LaunchedEffect(pagerState.currentPage) {
-        if (pagerState.currentPage == 5) {
+        if (pagerState.currentPage == 6) {
             remainingSeconds = 10
             while (remainingSeconds > 0) {
                 delay(1000L)
@@ -241,68 +259,71 @@ fun MultiStepOnboardingFlow(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // =========================================================
-            // TOP NAVIGATION & STEP PROGRESS INDICATOR
+            // TOP NAVIGATION & STEP PROGRESS INDICATOR (Hidden on Step 0)
             // =========================================================
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (pagerState.currentPage > 0 && pagerState.currentPage < 5) {
-                    IconButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                if (pagerState.currentPage == 1 && pinEntryPhase == 2) {
-                                    pinEntryPhase = 1
-                                    confirmPin = ""
-                                } else {
-                                    pagerState.animateScrollToPage(pagerState.currentPage - 1)
-                                }
-                            }
-                        },
-                        modifier = Modifier.size(36.dp).clip(CircleShape).background(CardWhite)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextDark, modifier = Modifier.size(18.dp))
-                    }
-                } else {
-                    Spacer(modifier = Modifier.size(36.dp))
-                }
-
-                // Segmented Progress Bar (6 Steps)
+            if (pagerState.currentPage > 0) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    repeat(6) { index ->
-                        val isCurrent = pagerState.currentPage == index
-                        val isPassed = pagerState.currentPage > index
-                        val width by animateDpAsState(if (isCurrent) 22.dp else 7.dp, label = "stepPill")
-
-                        Box(
-                            modifier = Modifier
-                                .width(width)
-                                .height(4.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    when {
-                                        isCurrent -> AccentPurple
-                                        isPassed -> AccentPurple.copy(alpha = 0.5f)
-                                        else -> BorderLight
+                    if (pagerState.currentPage < 6) {
+                        IconButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    if (pagerState.currentPage == 2 && pinEntryPhase == 2) {
+                                        pinEntryPhase = 1
+                                        confirmPin = ""
+                                    } else {
+                                        pagerState.animateScrollToPage(pagerState.currentPage - 1)
                                     }
-                                )
-                        )
+                                }
+                            },
+                            modifier = Modifier.size(36.dp).clip(CircleShape).background(CardWhite)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextDark, modifier = Modifier.size(18.dp))
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.size(36.dp))
                     }
-                }
 
-                Text(
-                    text = "${pagerState.currentPage + 1}/6",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextMuted
-                )
+                    // Segmented Progress Bar (Steps 1 to 6)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(6) { index ->
+                            val activeStepIndex = pagerState.currentPage - 1
+                            val isCurrent = activeStepIndex == index
+                            val isPassed = activeStepIndex > index
+                            val width by animateDpAsState(if (isCurrent) 22.dp else 7.dp, label = "stepPill")
+
+                            Box(
+                                modifier = Modifier
+                                    .width(width)
+                                    .height(4.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        when {
+                                            isCurrent -> AccentPurple
+                                            isPassed -> AccentPurple.copy(alpha = 0.5f)
+                                            else -> BorderLight
+                                        }
+                                    )
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "${pagerState.currentPage}/6",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMuted
+                    )
+                }
             }
 
             // =========================================================
@@ -316,8 +337,25 @@ fun MultiStepOnboardingFlow(
                     .fillMaxWidth()
             ) { page ->
                 when (page) {
-                    // --- STEP 1: WELCOME, AVATAR & IDENTITY ---
+                    // --- STEP 0: 1:1 SOLNEX-STYLE WELCOME GATEWAY ---
                     0 -> {
+                        OnboardingStep0WelcomeGateway(
+                            currencySymbol = selectedCountry.currencySymbol,
+                            onGetStarted = {
+                                coroutineScope.launch {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    pagerState.animateScrollToPage(1)
+                                }
+                            },
+                            onRestoreVault = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                restoreBackupLauncher.launch(arrayOf("application/json", "*/*"))
+                            }
+                        )
+                    }
+
+                    // --- STEP 1: IDENTITY & PROFILE ---
+                    1 -> {
                         OnboardingStep1Identity(
                             profileImageUri = profileImageUri,
                             displayName = displayName,
@@ -331,16 +369,16 @@ fun MultiStepOnboardingFlow(
                             onEmailChange = { emailAddress = it },
                             onContinue = {
                                 if (displayName.trim().isEmpty()) {
-                                    Toast.makeText(context, "Please enter your name", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Please enter your display name", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                    coroutineScope.launch { pagerState.animateScrollToPage(2) }
                                 }
                             }
                         )
                     }
 
                     // --- STEP 2: MASTER PIN & LOCAL ZERO-KNOWLEDGE SECURITY ---
-                    1 -> {
+                    2 -> {
                         OnboardingStep2PinSecurity(
                             pinEntryPhase = pinEntryPhase,
                             masterPin = masterPin,
@@ -377,27 +415,27 @@ fun MultiStepOnboardingFlow(
                                 } else if (rawDobDigits.length < 8) {
                                     Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    coroutineScope.launch { pagerState.animateScrollToPage(2) }
+                                    coroutineScope.launch { pagerState.animateScrollToPage(3) }
                                 }
                             }
                         )
                     }
 
                     // --- STEP 3: COUNTRY REGION & VAULT STRATEGY ENGINE ---
-                    2 -> {
+                    3 -> {
                         OnboardingStep3CountryStrategy(
                             selectedCountry = selectedCountry,
                             selectedStrategy = selectedStrategy,
                             onSelectCountry = { selectedCountry = it },
                             onSelectStrategy = { selectedStrategy = it },
                             onContinue = {
-                                coroutineScope.launch { pagerState.animateScrollToPage(3) }
+                                coroutineScope.launch { pagerState.animateScrollToPage(4) }
                             }
                         )
                     }
 
                     // --- STEP 4: INITIAL BANK ACCOUNTS & LIQUIDITY ---
-                    3 -> {
+                    4 -> {
                         OnboardingStep4Accounts(
                             accounts = initialAccounts,
                             currencySymbol = selectedCountry.currencySymbol,
@@ -405,13 +443,13 @@ fun MultiStepOnboardingFlow(
                                 initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
                             },
                             onContinue = {
-                                coroutineScope.launch { pagerState.animateScrollToPage(4) }
+                                coroutineScope.launch { pagerState.animateScrollToPage(5) }
                             }
                         )
                     }
 
                     // --- STEP 5: FIXED COMMITMENTS (TAXONOMY BOUND) ---
-                    4 -> {
+                    5 -> {
                         OnboardingStep5Commitments(
                             commitments = initialCommitments,
                             currencySymbol = selectedCountry.currencySymbol,
@@ -422,13 +460,13 @@ fun MultiStepOnboardingFlow(
                                 initialCommitments[idx] = initialCommitments[idx].copy(amountText = amt)
                             },
                             onContinue = {
-                                coroutineScope.launch { pagerState.animateScrollToPage(5) }
+                                coroutineScope.launch { pagerState.animateScrollToPage(6) }
                             }
                         )
                     }
 
                     // --- STEP 6: VAULT SEEDING & DELIBERATION HERO TRANSITION ---
-                    5 -> {
+                    6 -> {
                         OnboardingStep6VaultSealing(
                             displayName = displayName,
                             emailAddress = emailAddress,
@@ -443,6 +481,264 @@ fun MultiStepOnboardingFlow(
                     }
                 }
             }
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// STEP 0: 1:1 SOLNEX STYLE WELCOME GATEWAY
+// -------------------------------------------------------------
+@Composable
+private fun OnboardingStep0WelcomeGateway(
+    currencySymbol: String,
+    onGetStarted: () -> Unit,
+    onRestoreVault: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFF3E8FF),
+                        Color(0xFFEDE9FE).copy(alpha = 0.6f),
+                        CanvasLight
+                    )
+                )
+            )
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Brand Logo Header (No skip button)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = AccentPurple.copy(alpha = 0.15f),
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("✦", fontSize = 16.sp, color = AccentPurple, fontWeight = FontWeight.Black)
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "MyFin",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black,
+                    color = TextDark,
+                    letterSpacing = (-0.5).sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // 1:1 Solnex Tilted Card Stack & Silver Medallions
+            SolnexTiltedCardsHero(currencySymbol = currencySymbol)
+
+            Spacer(modifier = Modifier.height(36.dp))
+
+            // Typography & Copy
+            Text(
+                text = "The Vault That\nWorks Everywhere",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Black,
+                color = TextDark,
+                textAlign = TextAlign.Center,
+                lineHeight = 34.sp,
+                letterSpacing = (-0.6).sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "Create your offline account to partition, store,\nand grow your capital securely",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextMuted,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // 3-Pill Carousel Indicator
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.width(18.dp).height(4.dp).clip(CircleShape).background(TextDark))
+                Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(BorderLight))
+                Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(BorderLight))
+            }
+        }
+
+        // Bottom Action Buttons
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Button(
+                onClick = onGetStarted,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(26.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+            ) {
+                Text(
+                    text = "Get Started",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.5.sp,
+                    color = Color.White
+                )
+            }
+
+            OutlinedButton(
+                onClick = onRestoreVault,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(26.dp),
+                border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f)),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = CardWhite)
+            ) {
+                Text(
+                    text = "Restore Vault",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.5.sp,
+                    color = TextDark
+                )
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// 1:1 SOLNEX TILTED CARD STACK & SILVER COIN MEDALLIONS
+// -------------------------------------------------------------
+@Composable
+private fun SolnexTiltedCardsHero(currencySymbol: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(220.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        // 1. Back Card (Lavender / Violet -14deg)
+        Surface(
+            modifier = Modifier
+                .width(220.dp)
+                .height(135.dp)
+                .graphicsLayer {
+                    rotationZ = -14f
+                    translationX = -25f
+                    translationY = -15f
+                }
+                .shadow(12.dp, RoundedCornerShape(18.dp)),
+            shape = RoundedCornerShape(18.dp),
+            color = Color.Transparent
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(Color(0xFF9333EA), Color(0xFFA855F7), Color(0xFFC084FC))
+                        )
+                    )
+                    .padding(14.dp)
+            ) {
+                Text("✦", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+                Column(modifier = Modifier.align(Alignment.BottomStart)) {
+                    Text("Balance", fontSize = 9.sp, color = Color.White.copy(alpha = 0.7f))
+                    Text("$currencySymbol 2,597.12", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+
+        // 2. Front Card (Crimson / Magenta -6deg)
+        Surface(
+            modifier = Modifier
+                .width(235.dp)
+                .height(145.dp)
+                .graphicsLayer {
+                    rotationZ = -5f
+                    translationX = 15f
+                    translationY = 15f
+                }
+                .shadow(18.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = Color.Transparent
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(Color(0xFF700934), Color(0xFFC026D3), Color(0xFFE11D48))
+                        )
+                    )
+                    .padding(16.dp)
+            ) {
+                Text("✦", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
+
+                Column(modifier = Modifier.align(Alignment.BottomStart)) {
+                    Text("Balance", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
+                    Text("$currencySymbol 24,597.36", fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color.White)
+                }
+            }
+        }
+
+        // 3. 3D Silver Embossed Coins
+        Canvas(
+            modifier = Modifier
+                .size(110.dp)
+                .align(Alignment.TopEnd)
+                .offset(x = (-20).dp, y = 5.dp)
+        ) {
+            val c1 = Offset(size.width * 0.72f, size.height * 0.35f)
+            val r1 = 26.dp.toPx()
+
+            // Coin 1 (Euro / Silver Emblem)
+            drawCircle(color = Color.Black.copy(alpha = 0.15f), radius = r1 + 3f, center = Offset(c1.x + 4f, c1.y + 4f))
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFFFFFFFF), Color(0xFFE2E8F0), Color(0xFF94A3B8)),
+                    center = c1,
+                    radius = r1
+                ),
+                radius = r1,
+                center = c1
+            )
+            drawCircle(color = Color(0xFFCBD5E1), radius = r1 * 0.82f, center = c1, style = Stroke(width = 2.dp.toPx()))
+
+            val c2 = Offset(size.width * 0.40f, size.height * 0.65f)
+            val r2 = 30.dp.toPx()
+
+            // Coin 2 (Bitcoin / Currency Medallion)
+            drawCircle(color = Color.Black.copy(alpha = 0.22f), radius = r2 + 4f, center = Offset(c2.x + 4f, c2.y + 4f))
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFFFFFFFF), Color(0xFFF1F5F9), Color(0xFF64748B)),
+                    center = c2,
+                    radius = r2
+                ),
+                radius = r2,
+                center = c2
+            )
+            drawCircle(color = Color(0xFFCBD5E1), radius = r2 * 0.85f, center = c2, style = Stroke(width = 2.5.dp.toPx()))
         }
     }
 }
@@ -495,7 +791,7 @@ private fun OnboardingStep1Identity(
 
             Spacer(modifier = Modifier.height(22.dp))
 
-            // Profile Avatar Picker Frame matching SettingsScreen Style
+            // Profile Avatar Picker Frame
             Surface(
                 modifier = Modifier
                     .size(88.dp)
@@ -559,7 +855,6 @@ private fun OnboardingStep1Identity(
 
             Spacer(modifier = Modifier.height(22.dp))
 
-            // Name Input
             OutlinedTextField(
                 value = displayName,
                 onValueChange = onDisplayNameChange,
@@ -577,7 +872,6 @@ private fun OnboardingStep1Identity(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Email Input
             OutlinedTextField(
                 value = emailAddress,
                 onValueChange = onEmailChange,
@@ -668,7 +962,6 @@ private fun OnboardingStep2PinSecurity(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // Bouncy 4-Digit Indicators
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             repeat(4) { idx ->
                 val isFilled = idx < currentPinString.length
@@ -685,7 +978,6 @@ private fun OnboardingStep2PinSecurity(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Phase 2 ONLY: Show Recovery DOB & Biometric Switch
         if (pinEntryPhase == 2) {
             OutlinedTextField(
                 value = rawDobDigits,
@@ -731,7 +1023,6 @@ private fun OnboardingStep2PinSecurity(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Numeric Keypad
         val keys = listOf(
             listOf("1", "2", "3"),
             listOf("4", "5", "6"),
@@ -1334,141 +1625,4 @@ private fun HumanDeliberationSceneCanvas(modifier: Modifier = Modifier) {
 
         // 4. Deliberation Figure 2 (Center-Back: The Guardian)
         val f2Center = Offset(w * 0.50f, h * 0.28f)
-        drawLine(color = PurplePrimary.copy(alpha = 0.45f * pulse), start = f2Center, end = shieldCenter, strokeWidth = 1.5.dp.toPx())
-        drawCircle(color = TextDark, radius = 8.dp.toPx(), center = Offset(f2Center.x, f2Center.y - 16.dp.toPx()))
-        drawRoundRect(color = PurplePrimary, topLeft = Offset(f2Center.x - 9.dp.toPx(), f2Center.y - 6.dp.toPx()), size = Size(18.dp.toPx(), 22.dp.toPx()), cornerRadius = CornerRadius(5.dp.toPx()))
-
-        // 5. Deliberation Figure 3 (Right: The Allocator)
-        val f3Center = Offset(w * 0.76f, h * 0.50f)
-        drawLine(color = Color(0xFFE57A28).copy(alpha = 0.45f * pulse), start = f3Center, end = shieldCenter, strokeWidth = 1.5.dp.toPx())
-        drawCircle(color = TextDark, radius = 9.dp.toPx(), center = Offset(f3Center.x, f3Center.y - 18.dp.toPx()))
-        drawRoundRect(color = Color(0xFFE57A28), topLeft = Offset(f3Center.x - 10.dp.toPx(), f3Center.y - 6.dp.toPx()), size = Size(20.dp.toPx(), 26.dp.toPx()), cornerRadius = CornerRadius(6.dp.toPx()))
-        drawCircle(color = Color(0xFFE57A28), radius = 4.dp.toPx(), center = Offset(f3Center.x - 8.dp.toPx(), f3Center.y + 4.dp.toPx() - floatOffset))
-    }
-}
-
-// -------------------------------------------------------------
-// MOTION GRAPHICS CANVASES & IMAGE UTILITIES
-// -------------------------------------------------------------
-
-@Composable
-fun rememberImageBitmapFromUri(context: Context, uri: Uri?): ImageBitmap? {
-    return remember(uri) {
-        if (uri == null) null
-        else {
-            try {
-                context.contentResolver.openInputStream(uri)?.use { stream ->
-                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
-                }
-            } catch (e: Exception) {
-                null
-            }
-        }
-    }
-}
-
-@Composable
-private fun OrbitalVaultParticlesCanvas(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "orbital")
-    val angle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing)),
-        label = "angle"
-    )
-
-    Canvas(modifier = modifier) {
-        val c = center
-        val r = size.minDimension * 0.38f
-
-        drawCircle(
-            brush = Brush.radialGradient(listOf(PurplePrimary.copy(alpha = 0.35f), Color.Transparent)),
-            radius = r * 1.1f,
-            center = c
-        )
-        drawCircle(color = AccentPurple, radius = r * 0.55f, center = c)
-
-        repeat(6) { i ->
-            val particleAngle = Math.toRadians((angle + (i * 60)).toDouble())
-            val px = c.x + (r * cos(particleAngle)).toFloat()
-            val py = c.y + (r * sin(particleAngle)).toFloat()
-            drawCircle(color = if (i % 2 == 0) CyanPrimary else TealPrimary, radius = 4.dp.toPx(), center = Offset(px, py))
-        }
-    }
-}
-
-@Composable
-private fun SecurityRadarPulseCanvas(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseRatio by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pulseRatio"
-    )
-
-    Canvas(modifier = modifier) {
-        val c = center
-        val maxR = size.minDimension * 0.45f
-        drawCircle(color = AccentPurple.copy(alpha = 0.15f * (1f - pulseRatio)), radius = maxR * pulseRatio, center = c)
-        drawCircle(color = AccentPurple.copy(alpha = 0.35f), radius = maxR * 0.6f, center = c)
-        drawCircle(color = AccentPurple, radius = maxR * 0.35f, center = c)
-    }
-}
-
-@Composable
-private fun OrbitalSyncClockCanvas(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "clock")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(4000, easing = LinearEasing)),
-        label = "rot"
-    )
-
-    Canvas(modifier = modifier) {
-        val c = center
-        val r = size.minDimension * 0.42f
-
-        drawCircle(
-            color = AccentPurple.copy(alpha = 0.4f),
-            radius = r,
-            style = Stroke(width = 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), rotation))
-        )
-        drawCircle(color = AccentPurple, radius = 4.dp.toPx(), center = c)
-    }
-}
-
-// -------------------------------------------------------------
-// AUTOMATIC DOB FORMATTER (DD / MM / YYYY)
-// -------------------------------------------------------------
-class DateVisualTransformation : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText {
-        val trimmed = if (text.text.length >= 8) text.text.substring(0..7) else text.text
-        var out = ""
-        for (i in trimmed.indices) {
-            out += trimmed[i]
-            if (i == 1 || i == 3) {
-                out += " / "
-            }
-        }
-
-        val offsetTranslator = object : OffsetMapping {
-            override fun originalToTransformed(offset: Int): Int {
-                if (offset <= 1) return offset
-                if (offset <= 3) return offset + 3
-                if (offset <= 8) return offset + 6
-                return 14
-            }
-
-            override fun transformedToOriginal(offset: Int): Int {
-                if (offset <= 2) return offset
-                if (offset <= 6) return (offset - 3).coerceAtLeast(0)
-                if (offset <= 14) return (offset - 6).coerceAtLeast(0)
-                return 8
-            }
-        }
-
-        return TransformedText(AnnotatedString(out), offsetTranslator)
-    }
-}
+        drawLine
