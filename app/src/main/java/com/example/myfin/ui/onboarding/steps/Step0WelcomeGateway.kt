@@ -69,6 +69,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.myfin.ui.onboarding.CountryCurrencyMapping
 import com.example.myfin.ui.onboarding.CyanPrimary
 import com.example.myfin.ui.onboarding.PurplePrimary
@@ -149,7 +150,7 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Carousel Setup
+    // Continuous Infinite Carousel Driver
     val virtualPageCount = 3000
     val initialPage = (virtualPageCount / 2) - ((virtualPageCount / 2) % WelcomeCarouselSlides.size)
     val carouselPagerState = rememberPagerState(
@@ -230,73 +231,26 @@ fun OnboardingStep0WelcomeGateway(
                 )
             )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-        ) {
-            // =========================================================
-            // 1. PINNED FIXED BRANDING HEADER
-            // =========================================================
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = Color.Transparent,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(CyanPrimary, AccentPurple, PurplePrimary)
-                            )
-                        )
-                        val c = center
-                        val r = size.minDimension * 0.32f
-                        repeat(8) { i ->
-                            val angleRad = Math.toRadians((i * 45.0))
-                            val px = c.x + (r * cos(angleRad)).toFloat()
-                            val py = c.y + (r * sin(angleRad)).toFloat()
-                            drawLine(
-                                color = Color.White,
-                                start = c,
-                                end = Offset(px, py),
-                                strokeWidth = 2.4.dp.toPx(),
-                                cap = StrokeCap.Round
-                            )
-                        }
-                        drawCircle(color = Color.White, radius = 2.5.dp.toPx(), center = c)
-                    }
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "MyFin",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Black,
-                    color = TextDark,
-                    letterSpacing = (-0.5).sp
-                )
-            }
+        // =========================================================================
+        // LAYER 1: FULL-SCREEN SCROLLABLE BODY (Passes Under Floating Header)
+        // =========================================================================
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val minScreenHeight = maxHeight
 
-            // =========================================================
-            // 2. SCROLLABLE BODY WITH DYNAMIC IME KEYBOARD PADDING
-            // =========================================================
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .verticalScroll(scrollState)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
                     .imePadding()
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 24.dp)
+                    .defaultMinSize(minHeight = minScreenHeight),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Spacer(modifier = Modifier.height(if (isImeVisible) 2.dp else 8.dp))
+                // Top offset spacer matching floating header height
+                Spacer(modifier = Modifier.height(56.dp))
 
                 // Hero Cards
                 Box(
@@ -605,7 +559,7 @@ fun OnboardingStep0WelcomeGateway(
                                     // Row 1: Create Master Password / PIN
                                     OutlinedTextField(
                                         value = masterPin,
-                                        onValueChange = onMasterPinChange,
+                                        onMasterPinChange = onMasterPinChange,
                                         placeholder = { Text("Create Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
                                             Icon(
@@ -645,7 +599,7 @@ fun OnboardingStep0WelcomeGateway(
                                     val isPinMatching = confirmPin.isNotEmpty() && confirmPin == masterPin
                                     OutlinedTextField(
                                         value = confirmPin,
-                                        onValueChange = onConfirmPinChange,
+                                        onConfirmPinChange = onConfirmPinChange,
                                         placeholder = { Text("Confirm Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
                                             Icon(
@@ -700,7 +654,6 @@ fun OnboardingStep0WelcomeGateway(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        // Left 50%: Pre-filled DOB chip
                                         Surface(
                                             modifier = Modifier
                                                 .weight(1f)
@@ -739,7 +692,6 @@ fun OnboardingStep0WelcomeGateway(
                                             }
                                         }
 
-                                        // Right 50%: Biometric pill
                                         Surface(
                                             modifier = Modifier
                                                 .weight(1f)
@@ -802,7 +754,7 @@ fun OnboardingStep0WelcomeGateway(
                 Spacer(modifier = Modifier.height(if (isImeVisible) 10.dp else 16.dp))
 
                 // =========================================================
-                // 3. SYNCHRONIZED ACTION BUTTONS
+                // BOTTOM ACTION BUTTONS
                 // =========================================================
                 Column(
                     modifier = Modifier
@@ -811,7 +763,7 @@ fun OnboardingStep0WelcomeGateway(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Primary Action Button (Morphs label and shrinks in Stage 2)
+                    // Primary Action Button
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -869,7 +821,7 @@ fun OnboardingStep0WelcomeGateway(
                         }
                     }
 
-                    // Secondary Restore Button (Collapses and disappears in Stage 2)
+                    // Secondary Restore Button
                     AnimatedVisibility(
                         visible = currentStage != GatewayStage.SECURITY,
                         enter = fadeIn(tween(300)) + expandVertically(tween(300)),
@@ -899,6 +851,69 @@ fun OnboardingStep0WelcomeGateway(
                         }
                     }
                 }
+            }
+        }
+
+        // =========================================================================
+        // LAYER 2: FLOATING TRANSPARENT BRANDING HEADER (Pinned with Soft Gradient)
+        // =========================================================================
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .zIndex(10f)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFFF3E8FF).copy(alpha = 0.95f),
+                            Color(0xFFF3E8FF).copy(alpha = 0.60f),
+                            Color.Transparent
+                        )
+                    )
+                )
+                .statusBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = Color.Transparent,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(CyanPrimary, AccentPurple, PurplePrimary)
+                            )
+                        )
+                        val c = center
+                        val r = size.minDimension * 0.32f
+                        repeat(8) { i ->
+                            val angleRad = Math.toRadians((i * 45.0))
+                            val px = c.x + (r * cos(angleRad)).toFloat()
+                            val py = c.y + (r * sin(angleRad)).toFloat()
+                            drawLine(
+                                color = Color.White,
+                                start = c,
+                                end = Offset(px, py),
+                                strokeWidth = 2.4.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                        }
+                        drawCircle(color = Color.White, radius = 2.5.dp.toPx(), center = c)
+                    }
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "MyFin",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
+                    color = TextDark,
+                    letterSpacing = (-0.5).sp
+                )
             }
         }
 
