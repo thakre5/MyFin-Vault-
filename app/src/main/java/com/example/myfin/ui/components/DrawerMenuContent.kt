@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
+import com.example.myfin.BuildConfig
 import com.example.myfin.ui.theme.AccentPurple
 import com.example.myfin.ui.theme.SoftRed
 import java.io.File
@@ -176,7 +177,7 @@ fun DrawerMenuContent(
             )
         }
 
-        // Bottom Section: Centered Lock Action + Legible Footer
+        // Bottom Section: Centered Lock Action + Dynamic Version Footer
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -230,7 +231,7 @@ fun DrawerMenuContent(
                     )
                 }
                 Text(
-                    text = "MyFin Vault v1.0.0",
+                    text = "MyFin Vault v${BuildConfig.VERSION_NAME}",
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White.copy(alpha = 0.85f)
