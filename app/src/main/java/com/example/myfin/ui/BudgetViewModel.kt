@@ -360,6 +360,36 @@ class BudgetViewModel(
         }
     }
 
+    fun finalizeOnboardingProfile(
+        displayName: String,
+        email: String,
+        dob: String,
+        currencySymbol: String,
+        vaultMode: String,
+        masterPin: String,
+        isBiometricEnabled: Boolean
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            securityManager.setPin(masterPin)
+            if (dob.isNotBlank()) {
+                securityManager.setRecoveryDob(dob)
+            }
+            val profile = UserProfile(
+                id = 1,
+                displayName = displayName.trim().ifEmpty { "Vault User" },
+                email = email.trim(),
+                dateOfBirth = dob.trim(),
+                currencySymbol = currencySymbol,
+                vaultMode = vaultMode,
+                isBiometricEnabled = isBiometricEnabled,
+                isScreenCaptureAllowed = false,
+                isOnboardingCompleted = true
+            )
+            dao.saveUserProfile(profile)
+            isAppUnlocked.value = true
+        }
+    }
+
     fun updateVaultMode(mode: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
@@ -522,7 +552,6 @@ class BudgetViewModel(
     suspend fun seedDefaultAccountsIfEmpty() = withContext(Dispatchers.IO) {
         val isCompleted = dao.getUserProfile().first()?.isOnboardingCompleted ?: false
         val count = dao.getAccountCount()
-        // Do not pre-populate dummy accounts if onboarding is not yet completed
         if (count == 0 && isCompleted) {
             dao.insertAccounts(
                 listOf(
