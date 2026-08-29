@@ -846,31 +846,33 @@ fun OnboardingStep0WelcomeGateway(
                                     textAlign = TextAlign.Center
                                 )
 
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
-                                // Live Total Liquid Balance Aggregate Banner
+                                // Sleek, Compact Pill Container matching Text Box Geometry
                                 Surface(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = AccentPurple.copy(alpha = 0.09f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp),
+                                    shape = RoundedCornerShape(22.dp),
+                                    color = AccentPurple.copy(alpha = 0.08f),
                                     border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.25f))
                                 ) {
                                     Row(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                                            .fillMaxSize()
+                                            .padding(horizontal = 16.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(
                                             text = "Total Liquid Balance",
-                                            fontSize = 12.5.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = TextDark
                                         )
                                         Text(
                                             text = "${selectedCountry.currencySymbol} %,.2f".format(totalLiquidBalance),
-                                            fontSize = 15.sp,
+                                            fontSize = 14.5.sp,
                                             fontWeight = FontWeight.Black,
                                             color = AccentPurple
                                         )
@@ -1098,96 +1100,101 @@ fun OnboardingStep0WelcomeGateway(
                                     textAlign = TextAlign.Center
                                 )
 
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
-                                // Tri-Metric Real-Time Aggregate Cash Flow Card
+                                // Sleek, Compact Tri-Metric Capsule matching Text Box Geometry
                                 Surface(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(46.dp),
+                                    shape = RoundedCornerShape(23.dp),
                                     color = CardWhite,
                                     border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
                                 ) {
                                     Row(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                                            .fillMaxSize()
+                                            .padding(horizontal = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceEvenly
                                     ) {
-                                        // 1. Income (Inflow)
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                        // 1. Inflow
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center,
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(6.dp)
-                                                        .clip(CircleShape)
-                                                        .background(Color(0xFF10B981))
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Inflow", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextMuted)
-                                            }
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = "${selectedCountry.currencySymbol} %,.0f".format(totalIncome),
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF10B981)
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xFF10B981))
                                             )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Column(verticalArrangement = Arrangement.Center) {
+                                                Text("Inflow", fontSize = 8.5.sp, fontWeight = FontWeight.Medium, color = TextMuted, lineHeight = 9.sp)
+                                                Text(
+                                                    text = "${selectedCountry.currencySymbol} %,.0f".format(totalIncome),
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF10B981),
+                                                    lineHeight = 13.sp
+                                                )
+                                            }
                                         }
 
-                                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(BorderLight))
+                                        Box(modifier = Modifier.width(1.dp).height(18.dp).background(BorderLight))
 
-                                        // 2. Expenses (Outflow)
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                        // 2. Outflow
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center,
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(6.dp)
-                                                        .clip(CircleShape)
-                                                        .background(Color(0xFFF43F5E))
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Outflow", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextMuted)
-                                            }
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = "${selectedCountry.currencySymbol} %,.0f".format(totalExpenses),
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFF43F5E)
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xFFF43F5E))
                                             )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Column(verticalArrangement = Arrangement.Center) {
+                                                Text("Outflow", fontSize = 8.5.sp, fontWeight = FontWeight.Medium, color = TextMuted, lineHeight = 9.sp)
+                                                Text(
+                                                    text = "${selectedCountry.currencySymbol} %,.0f".format(totalExpenses),
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFF43F5E),
+                                                    lineHeight = 13.sp
+                                                )
+                                            }
                                         }
 
-                                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(BorderLight))
+                                        Box(modifier = Modifier.width(1.dp).height(18.dp).background(BorderLight))
 
-                                        // 3. Wealth (Assets / SIP)
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                        // 3. Assets
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center,
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(6.dp)
-                                                        .clip(CircleShape)
-                                                        .background(AccentPurple)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Assets", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextMuted)
-                                            }
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = "${selectedCountry.currencySymbol} %,.0f".format(totalAssets),
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = AccentPurple
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(AccentPurple)
                                             )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Column(verticalArrangement = Arrangement.Center) {
+                                                Text("Assets", fontSize = 8.5.sp, fontWeight = FontWeight.Medium, color = TextMuted, lineHeight = 9.sp)
+                                                Text(
+                                                    text = "${selectedCountry.currencySymbol} %,.0f".format(totalAssets),
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AccentPurple,
+                                                    lineHeight = 13.sp
+                                                )
+                                            }
                                         }
                                     }
                                 }
