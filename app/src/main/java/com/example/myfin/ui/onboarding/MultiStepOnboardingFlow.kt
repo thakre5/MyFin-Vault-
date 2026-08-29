@@ -14,13 +14,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -52,7 +49,8 @@ fun MultiStepOnboardingFlow(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    // 2 Pager Steps: Step 0 = Unified In-Place Gateway (Carousel -> Identity -> Security -> Strategy -> Accounts -> Commitments), Step 1 = Vault Sealing
+    val pagerState = rememberPagerState(pageCount = { 2 })
 
     var showSplashReveal by remember { mutableStateOf(true) }
 
@@ -81,7 +79,6 @@ fun MultiStepOnboardingFlow(
         )
     }
 
-    // Strategy Synchronization Helper (Preserves balance inputs across transitions)
     fun syncAccountsForStrategy(strategy: String) {
         val existingBalances = initialAccounts.associate { it.name to it.initialBalanceText }
         val primaryBal = existingBalances["Primary Bank"] ?: "50000"
@@ -96,7 +93,6 @@ fun MultiStepOnboardingFlow(
             initialAccounts.add(InitialAccountSetup("Tertiary Bank", "Fortress", tertiaryBal))
             initialAccounts.add(InitialAccountSetup("Cash Wallet", "Cash", cashBal))
         } else {
-            // Simple Unified: All banks unified to "Operating" type
             initialAccounts.add(InitialAccountSetup("Primary Bank", "Operating", primaryBal))
             initialAccounts.add(InitialAccountSetup("Secondary Bank", "Operating", secondaryBal))
             initialAccounts.add(InitialAccountSetup("Tertiary Bank", "Operating", tertiaryBal))
@@ -104,14 +100,14 @@ fun MultiStepOnboardingFlow(
         }
     }
 
+    // 5 Mapped AutoPay Commitments (2 Expenses, 2 Assets, 1 Income)
     val initialCommitments = remember {
         mutableStateListOf(
-            InitialCommitmentPreset("House Rent", "Utilities & Living Bills", "Rent", TransactionType.EXPENSE, 5, "15000", true),
-            InitialCommitmentPreset("Mutual Fund SIP", "Investments & Wealth", "Mutual Funds", TransactionType.ASSET, 10, "10000", true),
-            InitialCommitmentPreset("Electricity Bill", "Utilities & Living Bills", "Electricity", TransactionType.EXPENSE, 12, "2500", true),
-            InitialCommitmentPreset("Wi-Fi & Broadband", "Utilities & Living Bills", "Internet", TransactionType.EXPENSE, 8, "999", true),
-            InitialCommitmentPreset("OTT Subscriptions", "Leisure, Trips & Media", "Subscriptions", TransactionType.EXPENSE, 15, "649", false),
-            InitialCommitmentPreset("Car / Personal EMI", "Debt & Financial Obligations", "Loan EMI", TransactionType.EXPENSE, 10, "8500", false)
+            InitialCommitmentPreset("House / PG Rent", "Utilities & Living Bills", "PG Rent", TransactionType.EXPENSE, 5, "15000", true),
+            InitialCommitmentPreset("Debt / Loan EMI", "Debt & Financial Obligations", "Credit Cards & EMI", TransactionType.EXPENSE, 10, "8500", true),
+            InitialCommitmentPreset("Mutual Fund SIP", "Investments & Wealth", "Mutual Funds (MF)", TransactionType.ASSET, 10, "10000", true),
+            InitialCommitmentPreset("Emergency Reserve", "Liquid Reserves & Receivables", "Emergency Fund", TransactionType.ASSET, 1, "5000", true),
+            InitialCommitmentPreset("Monthly Salary", "Salary & Professional Inflow", "Base Salary (Pay Slip)", TransactionType.INCOME, 1, "75000", true)
         )
     }
 
@@ -159,6 +155,9 @@ fun MultiStepOnboardingFlow(
             )
         }
 
+        val commitmentsAccountName = initialAccounts.firstOrNull { it.defaultType == "Commitments" }?.name ?: initialAccounts.first().name
+        val operatingAccountName = initialAccounts.firstOrNull { it.defaultType == "Operating" }?.name ?: initialAccounts.first().name
+
         initialCommitments.filter { it.isSelected }.forEach { bill ->
             val amt = bill.amountText.toDoubleOrNull() ?: 0.0
             if (amt > 0.0) {
@@ -167,7 +166,7 @@ fun MultiStepOnboardingFlow(
                     amount = amt,
                     category = bill.categoryName,
                     subcategory = bill.subcategoryName,
-                    account = initialAccounts.firstOrNull { it.defaultType == "Commitments" }?.name ?: initialAccounts.first().name,
+                    account = if (bill.type == TransactionType.INCOME) operatingAccountName else commitmentsAccountName,
                     toAccount = null,
                     type = bill.type,
                     dueDay = bill.defaultDueDay
@@ -180,7 +179,7 @@ fun MultiStepOnboardingFlow(
     }
 
     LaunchedEffect(pagerState.currentPage) {
-        if (pagerState.currentPage == 2) {
+        if (pagerState.currentPage == 1) {
             remainingSeconds = 10
             while (remainingSeconds > 0) {
                 delay(1000L)
@@ -275,189 +274,106 @@ fun MultiStepOnboardingFlow(
             }
         }
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (pagerState.currentPage > 0) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                pagerState.animateScrollToPage(
-                                    page = pagerState.currentPage - 1,
-                                    animationSpec = tween(450, easing = FastOutSlowInEasing)
-                                )
-                            }
-                        },
-                        modifier = Modifier.size(36.dp).clip(CircleShape).background(CardWhite)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextDark, modifier = Modifier.size(18.dp))
-                    }
+        HorizontalPager(
+            state = pagerState,
+            userScrollEnabled = false,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
+            val clampedOffset = pageOffset.coerceIn(0f, 1f)
+            val scale = 1f - (0.06f * clampedOffset)
+            val alpha = 1f - (0.4f * clampedOffset)
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        repeat(2) { index ->
-                            val activeStepIndex = pagerState.currentPage - 1
-                            val isCurrent = activeStepIndex == index
-                            val isPassed = activeStepIndex > index
-                            val width by animateDpAsState(
-                                targetValue = if (isCurrent) 22.dp else 7.dp,
-                                animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
-                                label = "stepPill"
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .width(width)
-                                    .height(4.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        when {
-                                            isCurrent -> AccentPurple
-                                            isPassed -> AccentPurple.copy(alpha = 0.5f)
-                                            else -> BorderLight
-                                        }
-                                    )
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = "${pagerState.currentPage}/2",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextMuted
-                    )
-                }
-            }
-
-            HorizontalPager(
-                state = pagerState,
-                userScrollEnabled = false,
+            Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) { page ->
-                val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
-                val clampedOffset = pageOffset.coerceIn(0f, 1f)
-                val scale = 1f - (0.06f * clampedOffset)
-                val alpha = 1f - (0.4f * clampedOffset)
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = scale
-                            scaleY = scale
-                            this.alpha = alpha
-                        }
-                ) {
-                    when (page) {
-                        // UNIFIED GATEWAY (Carousel -> Identity -> Security -> Strategy -> Accounts)
-                        0 -> {
-                            OnboardingStep0WelcomeGateway(
-                                displayName = displayName,
-                                emailAddress = emailAddress,
-                                rawDobDigits = rawDobDigits,
-                                masterPin = masterPin,
-                                confirmPin = confirmPin,
-                                isBiometricEnabled = isBiometricEnabled,
-                                selectedCountry = selectedCountry,
-                                selectedStrategy = selectedStrategy,
-                                accounts = initialAccounts,
-                                onDisplayNameChange = { displayName = it },
-                                onEmailChange = { emailAddress = it },
-                                onDobChange = { rawDobDigits = it },
-                                onMasterPinChange = { masterPin = it },
-                                onConfirmPinChange = { confirmPin = it },
-                                onBiometricToggle = { isBiometricEnabled = it },
-                                onCountrySelect = { selectedCountry = it },
-                                onStrategySelect = { newStrategy ->
-                                    selectedStrategy = newStrategy
-                                    syncAccountsForStrategy(newStrategy)
-                                },
-                                onUpdateAccountBalance = { idx, newBal ->
-                                    initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
-                                },
-                                onRemoveAccount = { idx ->
-                                    initialAccounts.removeAt(idx)
-                                },
-                                onAddAccount = {
-                                    val existingNames = initialAccounts.map { it.name }
-                                    val nextBankName = when {
-                                        "Secondary Bank" !in existingNames -> "Secondary Bank"
-                                        "Tertiary Bank" !in existingNames -> "Tertiary Bank"
-                                        else -> "Bank ${existingNames.count { it != "Cash Wallet" } + 1}"
-                                    }
-                                    val cashAcc = initialAccounts.firstOrNull { it.defaultType == "Cash" }
-                                    if (cashAcc != null) {
-                                        val insertIdx = initialAccounts.indexOf(cashAcc)
-                                        initialAccounts.add(insertIdx, InitialAccountSetup(nextBankName, "Operating", "10000"))
-                                    } else {
-                                        initialAccounts.add(InitialAccountSetup(nextBankName, "Operating", "10000"))
-                                    }
-                                },
-                                onProceedToNextStep = {
-                                    coroutineScope.launch {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        pagerState.animateScrollToPage(
-                                            page = 1,
-                                            animationSpec = tween(450, easing = FastOutSlowInEasing)
-                                        )
-                                    }
-                                },
-                                onRestoreVault = {
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        this.alpha = alpha
+                    }
+            ) {
+                when (page) {
+                    // STEP 0: UNIFIED IN-PLACE GATEWAY (Carousel -> Identity -> Security -> Strategy -> Accounts -> Commitments)
+                    0 -> {
+                        OnboardingStep0WelcomeGateway(
+                            displayName = displayName,
+                            emailAddress = emailAddress,
+                            rawDobDigits = rawDobDigits,
+                            masterPin = masterPin,
+                            confirmPin = confirmPin,
+                            isBiometricEnabled = isBiometricEnabled,
+                            selectedCountry = selectedCountry,
+                            selectedStrategy = selectedStrategy,
+                            accounts = initialAccounts,
+                            commitments = initialCommitments,
+                            onDisplayNameChange = { displayName = it },
+                            onEmailChange = { emailAddress = it },
+                            onDobChange = { rawDobDigits = it },
+                            onMasterPinChange = { masterPin = it },
+                            onConfirmPinChange = { confirmPin = it },
+                            onBiometricToggle = { isBiometricEnabled = it },
+                            onCountrySelect = { selectedCountry = it },
+                            onStrategySelect = { newStrategy ->
+                                selectedStrategy = newStrategy
+                                syncAccountsForStrategy(newStrategy)
+                            },
+                            onUpdateAccountBalance = { idx, newBal ->
+                                initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
+                            },
+                            onRemoveAccount = { idx ->
+                                initialAccounts.removeAt(idx)
+                            },
+                            onAddAccount = {
+                                val existingNames = initialAccounts.map { it.name }
+                                val nextBankName = when {
+                                    "Secondary Bank" !in existingNames -> "Secondary Bank"
+                                    "Tertiary Bank" !in existingNames -> "Tertiary Bank"
+                                    else -> "Bank ${existingNames.count { it != "Cash Wallet" } + 1}"
+                                }
+                                val cashAcc = initialAccounts.firstOrNull { it.defaultType == "Cash" }
+                                if (cashAcc != null) {
+                                    val insertIdx = initialAccounts.indexOf(cashAcc)
+                                    initialAccounts.add(insertIdx, InitialAccountSetup(nextBankName, "Operating", "10000"))
+                                } else {
+                                    initialAccounts.add(InitialAccountSetup(nextBankName, "Operating", "10000"))
+                                }
+                            },
+                            onToggleCommitment = { idx ->
+                                initialCommitments[idx] = initialCommitments[idx].copy(isSelected = !initialCommitments[idx].isSelected)
+                            },
+                            onUpdateCommitmentAmount = { idx, amt ->
+                                initialCommitments[idx] = initialCommitments[idx].copy(amountText = amt)
+                            },
+                            onProceedToNextStep = {
+                                coroutineScope.launch {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    restoreBackupLauncher.launch(arrayOf("application/json", "*/*"))
+                                    pagerState.animateScrollToPage(
+                                        page = 1,
+                                        animationSpec = tween(450, easing = FastOutSlowInEasing)
+                                    )
                                 }
-                            )
-                        }
+                            },
+                            onRestoreVault = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                restoreBackupLauncher.launch(arrayOf("application/json", "*/*"))
+                            }
+                        )
+                    }
 
-                        // STEP 2: FIXED COMMITMENTS SEEDING
-                        1 -> {
-                            OnboardingStep5Commitments(
-                                commitments = initialCommitments,
-                                currencySymbol = selectedCountry.currencySymbol,
-                                onToggleCommitment = { idx ->
-                                    initialCommitments[idx] = initialCommitments[idx].copy(isSelected = !initialCommitments[idx].isSelected)
-                                },
-                                onUpdateAmount = { idx, amt ->
-                                    initialCommitments[idx] = initialCommitments[idx].copy(amountText = amt)
-                                },
-                                onContinue = {
-                                    coroutineScope.launch {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        pagerState.animateScrollToPage(
-                                            page = 2,
-                                            animationSpec = tween(450, easing = FastOutSlowInEasing)
-                                        )
-                                    }
-                                }
-                            )
-                        }
-
-                        // STEP 3: FINAL VAULT DELIBERATION & SEALING
-                        2 -> {
-                            OnboardingStep6VaultSealing(
-                                displayName = displayName,
-                                emailAddress = emailAddress,
-                                profileImageUri = null,
-                                country = selectedCountry,
-                                strategy = selectedStrategy,
-                                totalLiquidity = initialAccounts.sumOf { it.initialBalanceText.toDoubleOrNull() ?: 0.0 },
-                                totalCommitments = initialCommitments.filter { it.isSelected }.sumOf { it.amountText.toDoubleOrNull() ?: 0.0 },
-                                remainingSeconds = remainingSeconds,
-                                onSealImmediately = { finalizeAndLaunchVault() }
-                            )
-                        }
+                    // STEP 1: FINAL DELIBERATION & VAULT SEALING COUNTDOWN
+                    1 -> {
+                        OnboardingStep6VaultSealing(
+                            displayName = displayName,
+                            emailAddress = emailAddress,
+                            profileImageUri = null,
+                            country = selectedCountry,
+                            strategy = selectedStrategy,
+                            totalLiquidity = initialAccounts.sumOf { it.initialBalanceText.toDoubleOrNull() ?: 0.0 },
+                            totalCommitments = initialCommitments.filter { it.isSelected }.sumOf { it.amountText.toDoubleOrNull() ?: 0.0 },
+                            remainingSeconds = remainingSeconds,
+                            onSealImmediately = { finalizeAndLaunchVault() }
+                        )
                     }
                 }
             }
