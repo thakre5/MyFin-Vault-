@@ -51,8 +51,8 @@ data class OnboardingCarouselSlide(
 
 val WelcomeCarouselSlides = listOf(
     OnboardingCarouselSlide(
-        title = "The Card That\nWorks Anywhere",
-        subtitle = "Create your account to trade, store,\nand grow your digital assets securely"
+        title = "Own Your Wealth\nArchitecture",
+        subtitle = "Create your offline vault to partition, store,\nand grow your capital securely"
     ),
     OnboardingCarouselSlide(
         title = "Zero-Knowledge\nLocal Security",
