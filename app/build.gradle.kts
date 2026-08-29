@@ -112,6 +112,9 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.appcompat:appcompat:1.6.1")
 
+    // Image Loading for Profile Avatars
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
     // Biometric Authentication & Hardware Keystore Encryption
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
