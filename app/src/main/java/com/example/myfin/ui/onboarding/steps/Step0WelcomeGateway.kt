@@ -26,6 +26,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -46,6 +47,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -855,7 +857,7 @@ fun OnboardingStep0WelcomeGateway(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Account Balance Input Rows
+                                // Symmetrical Account Rows (Clean Pill-in-Pill Geometry + Lock/Close Status)
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -863,38 +865,49 @@ fun OnboardingStep0WelcomeGateway(
                                     accounts.forEachIndexed { index, account ->
                                         val isCash = account.defaultType == "Cash"
                                         val isSimpleStrategy = selectedStrategy == "SIMPLE"
-                                        val canDelete = isSimpleStrategy && !isCash && accounts.count { it.defaultType != "Cash" } > 1
+                                        val canDelete = isSimpleStrategy && !isCash && accounts.count { it.defaultType != "Cash" } > 1 && index > 0
 
                                         Surface(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(50.dp),
-                                            shape = RoundedCornerShape(25.dp),
+                                                .height(54.dp),
+                                            shape = RoundedCornerShape(27.dp),
                                             color = CardWhite,
                                             border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
                                         ) {
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxSize()
-                                                    .padding(horizontal = 12.dp),
+                                                    .padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
+                                                // Left: Icon + Name + Type Tag
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.weight(1f)
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .padding(end = 8.dp)
                                                 ) {
-                                                    Icon(
-                                                        imageVector = if (isCash) Icons.Outlined.Payments else Icons.Outlined.AccountBalance,
-                                                        contentDescription = null,
-                                                        tint = AccentPurple,
-                                                        modifier = Modifier.size(17.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Column {
+                                                    Surface(
+                                                        modifier = Modifier.size(32.dp),
+                                                        shape = CircleShape,
+                                                        color = CanvasLight
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Icon(
+                                                                imageVector = if (isCash) Icons.Outlined.Payments else Icons.Outlined.AccountBalance,
+                                                                contentDescription = null,
+                                                                tint = AccentPurple,
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.width(10.dp))
+                                                    Column(verticalArrangement = Arrangement.Center) {
                                                         Text(
                                                             text = account.name,
-                                                            fontSize = 12.sp,
+                                                            fontSize = 12.5.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = TextDark,
                                                             maxLines = 1,
@@ -904,60 +917,98 @@ fun OnboardingStep0WelcomeGateway(
                                                             text = account.defaultType,
                                                             fontSize = 9.5.sp,
                                                             fontWeight = FontWeight.Medium,
-                                                            color = TealPrimary
+                                                            color = TealPrimary,
+                                                            lineHeight = 11.sp
                                                         )
                                                     }
                                                 }
 
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        text = selectedCountry.currencySymbol,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = TextMuted,
-                                                        modifier = Modifier.padding(end = 4.dp)
-                                                    )
-
-                                                    OutlinedTextField(
-                                                        value = account.initialBalanceText,
-                                                        onValueChange = { newVal ->
-                                                            onUpdateAccountBalance(index, newVal.filter { it.isDigit() || it == '.' })
-                                                        },
-                                                        singleLine = true,
-                                                        textStyle = TextStyle(
-                                                            fontSize = 12.5.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = TextDark,
-                                                            textAlign = TextAlign.End
-                                                        ),
-                                                        placeholder = {
-                                                            Text("0", fontSize = 12.5.sp, color = TextMuted, textAlign = TextAlign.End)
-                                                        },
-                                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                // Right: Nested Capsule Amount Box (4dp margin, matching curvature)
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .height(46.dp)
+                                                        .width(136.dp),
+                                                    shape = RoundedCornerShape(23.dp),
+                                                    color = CanvasLight,
+                                                    border = BorderStroke(0.8.dp, BorderLight)
+                                                ) {
+                                                    Row(
                                                         modifier = Modifier
-                                                            .width(85.dp)
-                                                            .height(48.dp),
-                                                        shape = RoundedCornerShape(19.dp),
-                                                        colors = OutlinedTextFieldDefaults.colors(
-                                                            focusedContainerColor = CanvasLight,
-                                                            unfocusedContainerColor = CanvasLight,
-                                                            focusedBorderColor = AccentPurple,
-                                                            unfocusedBorderColor = BorderLight
+                                                            .fillMaxSize()
+                                                            .padding(horizontal = 10.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            text = selectedCountry.currencySymbol,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = TextMuted
                                                         )
-                                                    )
 
-                                                    if (canDelete) {
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        IconButton(
-                                                            onClick = { onRemoveAccount(index) },
-                                                            modifier = Modifier.size(24.dp)
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .padding(horizontal = 4.dp),
+                                                            contentAlignment = Alignment.CenterEnd
                                                         ) {
-                                                            Icon(
-                                                                Icons.Default.Close,
-                                                                contentDescription = "Remove Bank",
-                                                                tint = TextMuted,
-                                                                modifier = Modifier.size(15.dp)
+                                                            if (account.initialBalanceText.isEmpty()) {
+                                                                Text(
+                                                                    text = "0",
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = TextMuted
+                                                                )
+                                                            }
+                                                            BasicTextField(
+                                                                value = account.initialBalanceText,
+                                                                onValueChange = { newVal ->
+                                                                    onUpdateAccountBalance(index, newVal.filter { it.isDigit() || it == '.' })
+                                                                },
+                                                                singleLine = true,
+                                                                textStyle = TextStyle(
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = TextDark,
+                                                                    textAlign = TextAlign.End
+                                                                ),
+                                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                                cursorBrush = SolidColor(AccentPurple),
+                                                                modifier = Modifier.fillMaxWidth()
                                                             )
+                                                        }
+
+                                                        // Trailing Icon: Close (Deletable) or Lock (Non-deletable)
+                                                        if (canDelete) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(22.dp)
+                                                                    .clip(CircleShape)
+                                                                    .clickable {
+                                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                        onRemoveAccount(index)
+                                                                    },
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.Close,
+                                                                    contentDescription = "Remove Bank",
+                                                                    tint = TextMuted,
+                                                                    modifier = Modifier.size(14.dp)
+                                                                )
+                                                            }
+                                                        } else {
+                                                            Box(
+                                                                modifier = Modifier.size(22.dp),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Outlined.Lock,
+                                                                    contentDescription = "Locked Tier",
+                                                                    tint = TextMuted.copy(alpha = 0.5f),
+                                                                    modifier = Modifier.size(13.dp)
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -983,7 +1034,9 @@ fun OnboardingStep0WelcomeGateway(
 
                                 // Informational Editable Disclaimer Note
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
