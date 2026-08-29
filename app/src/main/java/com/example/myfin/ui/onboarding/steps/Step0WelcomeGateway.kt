@@ -53,8 +53,8 @@ fun OnboardingStep0WelcomeGateway(
     onGetStarted: () -> Unit,
     onRestoreVault: () -> Unit
 ) {
-    // Continuous infinite forward scrolling carousel configuration
-    val virtualPageCount = Int.MAX_VALUE
+    // Safe virtual page count to prevent Compose Pager layout measure crash / Integer overflow
+    val virtualPageCount = 3000
     val initialPage = (virtualPageCount / 2) - ((virtualPageCount / 2) % WelcomeCarouselSlides.size)
     val carouselPagerState = rememberPagerState(
         initialPage = initialPage,
@@ -64,10 +64,13 @@ fun OnboardingStep0WelcomeGateway(
     LaunchedEffect(Unit) {
         while (true) {
             delay(3500L)
-            carouselPagerState.animateScrollToPage(
-                page = carouselPagerState.currentPage + 1,
-                animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing)
-            )
+            if (carouselPagerState.pageCount > 0) {
+                val nextPage = (carouselPagerState.currentPage + 1) % virtualPageCount
+                carouselPagerState.animateScrollToPage(
+                    page = nextPage,
+                    animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing)
+                )
+            }
         }
     }
 
