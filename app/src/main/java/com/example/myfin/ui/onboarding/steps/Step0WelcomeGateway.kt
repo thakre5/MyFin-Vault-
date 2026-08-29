@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 
 package com.example.myfin.ui.onboarding.steps
 
@@ -14,14 +14,13 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircleOutline
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.LockReset
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,7 +52,9 @@ fun OnboardingStep0WelcomeGateway(
     onGetStarted: () -> Unit,
     onRestoreVault: () -> Unit
 ) {
-    // Safe virtual page count to prevent Compose Pager layout measure crash / Integer overflow
+    var showRestoreConfirmationSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
     val virtualPageCount = 3000
     val initialPage = (virtualPageCount / 2) - ((virtualPageCount / 2) % WelcomeCarouselSlides.size)
     val carouselPagerState = rememberPagerState(
@@ -235,7 +236,7 @@ fun OnboardingStep0WelcomeGateway(
                 }
 
                 OutlinedButton(
-                    onClick = onRestoreVault,
+                    onClick = { showRestoreConfirmationSheet = true },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -249,6 +250,162 @@ fun OnboardingStep0WelcomeGateway(
                         fontSize = 14.5.sp,
                         color = TextDark
                     )
+                }
+            }
+        }
+
+        // =========================================================
+        // RESTORE VAULT CONFIRMATION BOTTOM SHEET
+        // =========================================================
+        if (showRestoreConfirmationSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showRestoreConfirmationSheet = false },
+                sheetState = sheetState,
+                shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+                containerColor = CardWhite,
+                dragHandle = { BottomSheetDefaults.DragHandle() }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp, top = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Header Icon Badge
+                    Surface(
+                        modifier = Modifier.size(60.dp),
+                        shape = CircleShape,
+                        color = AccentPurple.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.FolderOpen,
+                                contentDescription = null,
+                                tint = AccentPurple,
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Restore from Local Backup",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextDark,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Import your offline encrypted snapshot to restore your accounts, budget plans, and historical records.",
+                        fontSize = 12.5.sp,
+                        color = TextMuted,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 17.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Notice Info Box
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = CanvasLight,
+                        border = BorderStroke(0.8.dp, BorderLight)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.LockReset,
+                                    contentDescription = null,
+                                    tint = AccentPurple,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Requires the Master PIN used when creating the backup.",
+                                    fontSize = 11.5.sp,
+                                    color = TextDark,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.CheckCircleOutline,
+                                    contentDescription = null,
+                                    tint = AccentPurple,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Restores all bank accounts, taxonomies, and fixed bills.",
+                                    fontSize = 11.5.sp,
+                                    color = TextDark,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Security,
+                                    contentDescription = null,
+                                    tint = AccentPurple,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "100% offline verification with hardware keystore security.",
+                                    fontSize = 11.5.sp,
+                                    color = TextDark,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            showRestoreConfirmationSheet = false
+                            onRestoreVault()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(25.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                    ) {
+                        Text(
+                            text = "Choose Backup File (.json)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    TextButton(
+                        onClick = { showRestoreConfirmationSheet = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextMuted
+                        )
+                    }
                 }
             }
         }
