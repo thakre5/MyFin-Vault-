@@ -52,7 +52,7 @@ fun MultiStepOnboardingFlow(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { 6 })
+    val pagerState = rememberPagerState(pageCount = { 5 })
 
     // 2-Second Brand Reveal Splash State
     var showSplashReveal by remember { mutableStateOf(true) }
@@ -62,7 +62,6 @@ fun MultiStepOnboardingFlow(
         showSplashReveal = false
     }
 
-    // Initialized to empty strings so placeholders clear naturally on typing
     var displayName by remember { mutableStateOf("") }
     var emailAddress by remember { mutableStateOf("") }
     var rawDobDigits by remember { mutableStateOf("") }
@@ -70,7 +69,6 @@ fun MultiStepOnboardingFlow(
     var masterPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
     var isBiometricEnabled by remember { mutableStateOf(true) }
-    var pinEntryPhase by remember { mutableIntStateOf(1) }
 
     var selectedCountry by remember { mutableStateOf(SupportedCountries[0]) }
     var selectedStrategy by remember { mutableStateOf("3-VAULT") }
@@ -160,7 +158,7 @@ fun MultiStepOnboardingFlow(
     }
 
     LaunchedEffect(pagerState.currentPage) {
-        if (pagerState.currentPage == 5) {
+        if (pagerState.currentPage == 4) {
             remainingSeconds = 10
             while (remainingSeconds > 0) {
                 delay(1000L)
@@ -271,35 +269,26 @@ fun MultiStepOnboardingFlow(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (pagerState.currentPage < 5) {
-                        IconButton(
-                            onClick = {
-                                coroutineScope.launch {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    if (pagerState.currentPage == 1 && pinEntryPhase == 2) {
-                                        pinEntryPhase = 1
-                                        confirmPin = ""
-                                    } else {
-                                        pagerState.animateScrollToPage(
-                                            page = pagerState.currentPage - 1,
-                                            animationSpec = tween(450, easing = FastOutSlowInEasing)
-                                        )
-                                    }
-                                }
-                            },
-                            modifier = Modifier.size(36.dp).clip(CircleShape).background(CardWhite)
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextDark, modifier = Modifier.size(18.dp))
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.size(36.dp))
+                    IconButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                pagerState.animateScrollToPage(
+                                    page = pagerState.currentPage - 1,
+                                    animationSpec = tween(450, easing = FastOutSlowInEasing)
+                                )
+                            }
+                        },
+                        modifier = Modifier.size(36.dp).clip(CircleShape).background(CardWhite)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextDark, modifier = Modifier.size(18.dp))
                     }
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        repeat(5) { index ->
+                        repeat(4) { index ->
                             val activeStepIndex = pagerState.currentPage - 1
                             val isCurrent = activeStepIndex == index
                             val isPassed = activeStepIndex > index
@@ -326,7 +315,7 @@ fun MultiStepOnboardingFlow(
                     }
 
                     Text(
-                        text = "${pagerState.currentPage}/5",
+                        text = "${pagerState.currentPage}/4",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextMuted
@@ -356,18 +345,24 @@ fun MultiStepOnboardingFlow(
                         }
                 ) {
                     when (page) {
-                        // STAGE 0 & 1: Unified Interactive Gateway
+                        // STAGES 0, 1 & 2: Unified Interactive Gateway (Carousel -> Identity Form -> Security Lock)
                         0 -> {
                             OnboardingStep0WelcomeGateway(
                                 displayName = displayName,
                                 emailAddress = emailAddress,
                                 rawDobDigits = rawDobDigits,
+                                masterPin = masterPin,
+                                confirmPin = confirmPin,
+                                isBiometricEnabled = isBiometricEnabled,
                                 selectedCountry = selectedCountry,
                                 onDisplayNameChange = { displayName = it },
                                 onEmailChange = { emailAddress = it },
                                 onDobChange = { rawDobDigits = it },
+                                onMasterPinChange = { masterPin = it },
+                                onConfirmPinChange = { confirmPin = it },
+                                onBiometricToggle = { isBiometricEnabled = it },
                                 onCountrySelect = { selectedCountry = it },
-                                onProceedToSecurity = {
+                                onProceedToNextStep = {
                                     coroutineScope.launch {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         pagerState.animateScrollToPage(
@@ -383,61 +378,33 @@ fun MultiStepOnboardingFlow(
                             )
                         }
 
-                        // STEP 2: MASTER PIN SECURITY
-                        1 -> {
-                            OnboardingStep2PinSecurity(
-                                pinEntryPhase = pinEntryPhase,
-                                masterPin = masterPin,
-                                confirmPin = confirmPin,
-                                rawDobDigits = rawDobDigits,
-                                isBiometricEnabled = isBiometricEnabled,
-                                onDigitPress = { digit ->
-                                    if (pinEntryPhase == 1) {
-                                        if (masterPin.length < 4) masterPin += digit
-                                    } else {
-                                        if (confirmPin.length < 4) confirmPin += digit
-                                    }
-                                },
-                                onDeleteDigit = {
-                                    if (pinEntryPhase == 1) {
-                                        if (masterPin.isNotEmpty()) masterPin = masterPin.dropLast(1)
-                                    } else {
-                                        if (confirmPin.isNotEmpty()) confirmPin = confirmPin.dropLast(1)
-                                    }
-                                },
-                                onDobChange = { rawDobDigits = it.filter { ch -> ch.isDigit() }.take(8) },
-                                onBiometricToggle = { isBiometricEnabled = it },
-                                onProceedToConfirm = {
-                                    if (masterPin.length == 4) {
-                                        pinEntryPhase = 2
-                                    } else {
-                                        Toast.makeText(context, "Enter a 4-digit Master PIN", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                onValidateAndNext = {
-                                    if (confirmPin != masterPin) {
-                                        Toast.makeText(context, "PINs do not match. Please re-enter.", Toast.LENGTH_SHORT).show()
-                                        confirmPin = ""
-                                    } else {
-                                        coroutineScope.launch {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            pagerState.animateScrollToPage(
-                                                page = 2,
-                                                animationSpec = tween(450, easing = FastOutSlowInEasing)
-                                            )
-                                        }
-                                    }
-                                }
-                            )
-                        }
-
                         // STEP 3: VAULT STRATEGY ARCHITECTURE
-                        2 -> {
+                        1 -> {
                             OnboardingStep3CountryStrategy(
                                 selectedCountry = selectedCountry,
                                 selectedStrategy = selectedStrategy,
                                 onSelectCountry = { selectedCountry = it },
                                 onSelectStrategy = { selectedStrategy = it },
+                                onContinue = {
+                                    coroutineScope.launch {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        pagerState.animateScrollToPage(
+                                            page = 2,
+                                            animationSpec = tween(450, easing = FastOutSlowInEasing)
+                                        )
+                                    }
+                                }
+                            )
+                        }
+
+                        // STEP 4: BANK ACCOUNT OPENING BALANCES
+                        2 -> {
+                            OnboardingStep4Accounts(
+                                accounts = initialAccounts,
+                                currencySymbol = selectedCountry.currencySymbol,
+                                onUpdateAccountBalance = { idx, newBal ->
+                                    initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
+                                },
                                 onContinue = {
                                     coroutineScope.launch {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -450,28 +417,8 @@ fun MultiStepOnboardingFlow(
                             )
                         }
 
-                        // STEP 4: BANK ACCOUNT OPENING BALANCES
-                        3 -> {
-                            OnboardingStep4Accounts(
-                                accounts = initialAccounts,
-                                currencySymbol = selectedCountry.currencySymbol,
-                                onUpdateAccountBalance = { idx, newBal ->
-                                    initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
-                                },
-                                onContinue = {
-                                    coroutineScope.launch {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        pagerState.animateScrollToPage(
-                                            page = 4,
-                                            animationSpec = tween(450, easing = FastOutSlowInEasing)
-                                        )
-                                    }
-                                }
-                            )
-                        }
-
                         // STEP 5: FIXED COMMITMENTS BUFFER
-                        4 -> {
+                        3 -> {
                             OnboardingStep5Commitments(
                                 commitments = initialCommitments,
                                 currencySymbol = selectedCountry.currencySymbol,
@@ -485,7 +432,7 @@ fun MultiStepOnboardingFlow(
                                     coroutineScope.launch {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         pagerState.animateScrollToPage(
-                                            page = 5,
+                                            page = 4,
                                             animationSpec = tween(450, easing = FastOutSlowInEasing)
                                         )
                                     }
@@ -493,8 +440,8 @@ fun MultiStepOnboardingFlow(
                             )
                         }
 
-                        // STEP 6: FINAL DELIBERATION & SEALING
-                        5 -> {
+                        // STEP 6: FINAL SEALING & DASHBOARD ENTRY
+                        4 -> {
                             OnboardingStep6VaultSealing(
                                 displayName = displayName,
                                 emailAddress = emailAddress,
