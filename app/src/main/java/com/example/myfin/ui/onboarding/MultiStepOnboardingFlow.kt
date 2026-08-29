@@ -52,7 +52,7 @@ fun MultiStepOnboardingFlow(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { 5 })
+    val pagerState = rememberPagerState(pageCount = { 4 })
 
     var showSplashReveal by remember { mutableStateOf(true) }
 
@@ -67,7 +67,6 @@ fun MultiStepOnboardingFlow(
 
     var masterPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
-    // Default biometric toggle set to false
     var isBiometricEnabled by remember { mutableStateOf(false) }
 
     var selectedCountry by remember { mutableStateOf(SupportedCountries[0]) }
@@ -158,7 +157,7 @@ fun MultiStepOnboardingFlow(
     }
 
     LaunchedEffect(pagerState.currentPage) {
-        if (pagerState.currentPage == 4) {
+        if (pagerState.currentPage == 3) {
             remainingSeconds = 10
             while (remainingSeconds > 0) {
                 delay(1000L)
@@ -282,7 +281,7 @@ fun MultiStepOnboardingFlow(
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        repeat(4) { index ->
+                        repeat(3) { index ->
                             val activeStepIndex = pagerState.currentPage - 1
                             val isCurrent = activeStepIndex == index
                             val isPassed = activeStepIndex > index
@@ -309,7 +308,7 @@ fun MultiStepOnboardingFlow(
                     }
 
                     Text(
-                        text = "${pagerState.currentPage}/4",
+                        text = "${pagerState.currentPage}/3",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextMuted
@@ -339,6 +338,7 @@ fun MultiStepOnboardingFlow(
                         }
                 ) {
                     when (page) {
+                        // GATEWAY: Carousel -> Identity -> Security -> Strategy
                         0 -> {
                             OnboardingStep0WelcomeGateway(
                                 displayName = displayName,
@@ -348,6 +348,7 @@ fun MultiStepOnboardingFlow(
                                 confirmPin = confirmPin,
                                 isBiometricEnabled = isBiometricEnabled,
                                 selectedCountry = selectedCountry,
+                                selectedStrategy = selectedStrategy,
                                 onDisplayNameChange = { displayName = it },
                                 onEmailChange = { emailAddress = it },
                                 onDobChange = { rawDobDigits = it },
@@ -355,6 +356,7 @@ fun MultiStepOnboardingFlow(
                                 onConfirmPinChange = { confirmPin = it },
                                 onBiometricToggle = { isBiometricEnabled = it },
                                 onCountrySelect = { selectedCountry = it },
+                                onStrategySelect = { selectedStrategy = it },
                                 onProceedToNextStep = {
                                     coroutineScope.launch {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -371,12 +373,14 @@ fun MultiStepOnboardingFlow(
                             )
                         }
 
+                        // STEP 2: OPENING ACCOUNT BALANCES
                         1 -> {
-                            OnboardingStep3CountryStrategy(
-                                selectedCountry = selectedCountry,
-                                selectedStrategy = selectedStrategy,
-                                onSelectCountry = { selectedCountry = it },
-                                onSelectStrategy = { selectedStrategy = it },
+                            OnboardingStep4Accounts(
+                                accounts = initialAccounts,
+                                currencySymbol = selectedCountry.currencySymbol,
+                                onUpdateAccountBalance = { idx, newBal ->
+                                    initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
+                                },
                                 onContinue = {
                                     coroutineScope.launch {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -389,26 +393,8 @@ fun MultiStepOnboardingFlow(
                             )
                         }
 
+                        // STEP 3: FIXED COMMITMENTS BUFFER
                         2 -> {
-                            OnboardingStep4Accounts(
-                                accounts = initialAccounts,
-                                currencySymbol = selectedCountry.currencySymbol,
-                                onUpdateAccountBalance = { idx, newBal ->
-                                    initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
-                                },
-                                onContinue = {
-                                    coroutineScope.launch {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        pagerState.animateScrollToPage(
-                                            page = 3,
-                                            animationSpec = tween(450, easing = FastOutSlowInEasing)
-                                        )
-                                    }
-                                }
-                            )
-                        }
-
-                        3 -> {
                             OnboardingStep5Commitments(
                                 commitments = initialCommitments,
                                 currencySymbol = selectedCountry.currencySymbol,
@@ -422,7 +408,7 @@ fun MultiStepOnboardingFlow(
                                     coroutineScope.launch {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         pagerState.animateScrollToPage(
-                                            page = 4,
+                                            page = 3,
                                             animationSpec = tween(450, easing = FastOutSlowInEasing)
                                         )
                                     }
@@ -430,7 +416,8 @@ fun MultiStepOnboardingFlow(
                             )
                         }
 
-                        4 -> {
+                        // STEP 4: DELIBERATION & SEALING
+                        3 -> {
                             OnboardingStep6VaultSealing(
                                 displayName = displayName,
                                 emailAddress = emailAddress,
