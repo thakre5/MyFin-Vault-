@@ -52,7 +52,6 @@ fun MultiStepOnboardingFlow(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
-    // 3 Pages: 0 = Gateway (Stages 0-4), 1 = Commitments, 2 = Vault Sealing
     val pagerState = rememberPagerState(pageCount = { 3 })
 
     var showSplashReveal by remember { mutableStateOf(true) }
@@ -80,6 +79,29 @@ fun MultiStepOnboardingFlow(
             InitialAccountSetup("Tertiary Bank", "Fortress", "5000"),
             InitialAccountSetup("Cash Wallet", "Cash", "0")
         )
+    }
+
+    // Strategy Synchronization Helper (Preserves balance inputs across transitions)
+    fun syncAccountsForStrategy(strategy: String) {
+        val existingBalances = initialAccounts.associate { it.name to it.initialBalanceText }
+        val primaryBal = existingBalances["Primary Bank"] ?: "50000"
+        val secondaryBal = existingBalances["Secondary Bank"] ?: "25000"
+        val tertiaryBal = existingBalances["Tertiary Bank"] ?: "5000"
+        val cashBal = initialAccounts.firstOrNull { it.defaultType == "Cash" }?.initialBalanceText ?: "0"
+
+        initialAccounts.clear()
+        if (strategy == "3-VAULT") {
+            initialAccounts.add(InitialAccountSetup("Primary Bank", "Operating", primaryBal))
+            initialAccounts.add(InitialAccountSetup("Secondary Bank", "Commitments", secondaryBal))
+            initialAccounts.add(InitialAccountSetup("Tertiary Bank", "Fortress", tertiaryBal))
+            initialAccounts.add(InitialAccountSetup("Cash Wallet", "Cash", cashBal))
+        } else {
+            // Simple Unified: All banks unified to "Operating" type
+            initialAccounts.add(InitialAccountSetup("Primary Bank", "Operating", primaryBal))
+            initialAccounts.add(InitialAccountSetup("Secondary Bank", "Operating", secondaryBal))
+            initialAccounts.add(InitialAccountSetup("Tertiary Bank", "Operating", tertiaryBal))
+            initialAccounts.add(InitialAccountSetup("Cash Wallet", "Cash", cashBal))
+        }
     }
 
     val initialCommitments = remember {
@@ -339,7 +361,7 @@ fun MultiStepOnboardingFlow(
                         }
                 ) {
                     when (page) {
-                        // UNIFIED STAGE GATEWAY (Carousel -> Identity -> Security -> Strategy -> Accounts)
+                        // UNIFIED GATEWAY (Carousel -> Identity -> Security -> Strategy -> Accounts)
                         0 -> {
                             OnboardingStep0WelcomeGateway(
                                 displayName = displayName,
@@ -358,7 +380,10 @@ fun MultiStepOnboardingFlow(
                                 onConfirmPinChange = { confirmPin = it },
                                 onBiometricToggle = { isBiometricEnabled = it },
                                 onCountrySelect = { selectedCountry = it },
-                                onStrategySelect = { selectedStrategy = it },
+                                onStrategySelect = { newStrategy ->
+                                    selectedStrategy = newStrategy
+                                    syncAccountsForStrategy(newStrategy)
+                                },
                                 onUpdateAccountBalance = { idx, newBal ->
                                     initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
                                 },
@@ -366,12 +391,18 @@ fun MultiStepOnboardingFlow(
                                     initialAccounts.removeAt(idx)
                                 },
                                 onAddAccount = {
+                                    val existingNames = initialAccounts.map { it.name }
+                                    val nextBankName = when {
+                                        "Secondary Bank" !in existingNames -> "Secondary Bank"
+                                        "Tertiary Bank" !in existingNames -> "Tertiary Bank"
+                                        else -> "Bank ${existingNames.count { it != "Cash Wallet" } + 1}"
+                                    }
                                     val cashAcc = initialAccounts.firstOrNull { it.defaultType == "Cash" }
                                     if (cashAcc != null) {
                                         val insertIdx = initialAccounts.indexOf(cashAcc)
-                                        initialAccounts.add(insertIdx, InitialAccountSetup("Secondary Bank", "Operating", "10000"))
+                                        initialAccounts.add(insertIdx, InitialAccountSetup(nextBankName, "Operating", "10000"))
                                     } else {
-                                        initialAccounts.add(InitialAccountSetup("Secondary Bank", "Operating", "10000"))
+                                        initialAccounts.add(InitialAccountSetup(nextBankName, "Operating", "10000"))
                                     }
                                 },
                                 onProceedToNextStep = {
