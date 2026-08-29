@@ -66,9 +66,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.onboarding.CountryCurrencyMapping
 import com.example.myfin.ui.onboarding.CyanPrimary
 import com.example.myfin.ui.onboarding.InitialAccountSetup
+import com.example.myfin.ui.onboarding.InitialCommitmentPreset
 import com.example.myfin.ui.onboarding.PurplePrimary
 import com.example.myfin.ui.onboarding.SupportedCountries
 import com.example.myfin.ui.onboarding.TealPrimary
@@ -85,7 +87,8 @@ enum class GatewayStage {
     IDENTITY,
     SECURITY,
     STRATEGY,
-    ACCOUNTS
+    ACCOUNTS,
+    COMMITMENTS
 }
 
 @Composable
@@ -99,6 +102,7 @@ fun OnboardingStep0WelcomeGateway(
     selectedCountry: CountryCurrencyMapping,
     selectedStrategy: String,
     accounts: SnapshotStateList<InitialAccountSetup>,
+    commitments: SnapshotStateList<InitialCommitmentPreset>,
     onDisplayNameChange: (String) -> Unit,
     onEmailChange: (String) -> Unit,
     onDobChange: (String) -> Unit,
@@ -110,6 +114,8 @@ fun OnboardingStep0WelcomeGateway(
     onUpdateAccountBalance: (Int, String) -> Unit,
     onRemoveAccount: (Int) -> Unit,
     onAddAccount: () -> Unit,
+    onToggleCommitment: (Int) -> Unit,
+    onUpdateCommitmentAmount: (Int, String) -> Unit,
     onProceedToNextStep: () -> Unit,
     onRestoreVault: () -> Unit
 ) {
@@ -151,6 +157,7 @@ fun OnboardingStep0WelcomeGateway(
         focusManager.clearFocus()
         keyboardController?.hide()
         currentStage = when (currentStage) {
+            GatewayStage.COMMITMENTS -> GatewayStage.ACCOUNTS
             GatewayStage.ACCOUNTS -> GatewayStage.STRATEGY
             GatewayStage.STRATEGY -> GatewayStage.SECURITY
             GatewayStage.SECURITY -> GatewayStage.IDENTITY
@@ -188,10 +195,11 @@ fun OnboardingStep0WelcomeGateway(
     }
 
     // Responsive Hero Cards Scaling & Upward Positioning
+    val isCompactHero = currentStage == GatewayStage.ACCOUNTS || currentStage == GatewayStage.COMMITMENTS
     val heroScale by animateFloatAsState(
         targetValue = when {
             isImeVisible && currentStage != GatewayStage.CAROUSEL -> 0.52f
-            currentStage == GatewayStage.ACCOUNTS -> 0.54f
+            isCompactHero -> 0.54f
             currentStage != GatewayStage.CAROUSEL -> 0.88f
             else -> 1.0f
         },
@@ -201,7 +209,7 @@ fun OnboardingStep0WelcomeGateway(
     val heroHeight by animateDpAsState(
         targetValue = when {
             isImeVisible && currentStage != GatewayStage.CAROUSEL -> 95.dp
-            currentStage == GatewayStage.ACCOUNTS -> 95.dp
+            isCompactHero -> 95.dp
             currentStage != GatewayStage.CAROUSEL -> 195.dp
             else -> 235.dp
         },
@@ -229,6 +237,20 @@ fun OnboardingStep0WelcomeGateway(
     // Live Aggregate Liquidity Calculation
     val totalLiquidBalance = remember(accounts.map { it.initialBalanceText }) {
         accounts.sumOf { it.initialBalanceText.toDoubleOrNull() ?: 0.0 }
+    }
+
+    // Live Tri-Metric Cash Flow Totals
+    val totalIncome = remember(commitments.map { it.isSelected to it.amountText }) {
+        commitments.filter { it.isSelected && it.type == TransactionType.INCOME }
+            .sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
+    }
+    val totalExpenses = remember(commitments.map { it.isSelected to it.amountText }) {
+        commitments.filter { it.isSelected && it.type == TransactionType.EXPENSE }
+            .sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
+    }
+    val totalAssets = remember(commitments.map { it.isSelected to it.amountText }) {
+        commitments.filter { it.isSelected && it.type == TransactionType.ASSET }
+            .sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
     }
 
     Box(
@@ -263,7 +285,7 @@ fun OnboardingStep0WelcomeGateway(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Spacer(modifier = Modifier.height(if (currentStage == GatewayStage.ACCOUNTS) 48.dp else 56.dp))
+                Spacer(modifier = Modifier.height(if (isCompactHero) 48.dp else 56.dp))
 
                 // Hero Cards
                 Box(
@@ -281,7 +303,7 @@ fun OnboardingStep0WelcomeGateway(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(if (currentStage == GatewayStage.ACCOUNTS) 8.dp else 16.dp))
+                Spacer(modifier = Modifier.height(if (isCompactHero) 8.dp else 16.dp))
 
                 // Multi-Stage Animated Content
                 AnimatedContent(
@@ -530,7 +552,7 @@ fun OnboardingStep0WelcomeGateway(
                                 ) {
                                     OutlinedTextField(
                                         value = masterPin,
-                                        onValueChange = onMasterPinChange,
+                                        onMasterPinChange = onMasterPinChange,
                                         placeholder = { Text("Create Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
                                             Icon(Icons.Outlined.Lock, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
@@ -1016,7 +1038,6 @@ fun OnboardingStep0WelcomeGateway(
                                         }
                                     }
 
-                                    // Option to re-add extra bank in Simple mode if deleted
                                     if (selectedStrategy == "SIMPLE" && accounts.count { it.defaultType != "Cash" } < 3) {
                                         TextButton(
                                             onClick = onAddAccount,
@@ -1032,7 +1053,6 @@ fun OnboardingStep0WelcomeGateway(
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                // Informational Editable Disclaimer Note
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1048,6 +1068,314 @@ fun OnboardingStep0WelcomeGateway(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Note: Account names, types & balances are editable anytime in Vault Settings.",
+                                        fontSize = 10.sp,
+                                        color = TextMuted,
+                                        lineHeight = 13.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // STAGE 5: Recurring Cash Flow & AutoPay Commitments
+                        GatewayStage.COMMITMENTS -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Recurring Cash Flow",
+                                    fontSize = if (isImeVisible) 19.sp else 22.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextDark,
+                                    textAlign = TextAlign.Center,
+                                    letterSpacing = (-0.5).sp
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "Seed monthly income, essential expenses & asset transfers",
+                                    fontSize = 12.sp,
+                                    color = TextMuted,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Tri-Metric Real-Time Aggregate Cash Flow Card
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = CardWhite,
+                                    border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceEvenly
+                                    ) {
+                                        // 1. Income (Inflow)
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(6.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(0xFF10B981))
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Inflow", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextMuted)
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "${selectedCountry.currencySymbol} %,.0f".format(totalIncome),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF10B981)
+                                            )
+                                        }
+
+                                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(BorderLight))
+
+                                        // 2. Expenses (Outflow)
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(6.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(0xFFF43F5E))
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Outflow", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextMuted)
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "${selectedCountry.currencySymbol} %,.0f".format(totalExpenses),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFF43F5E)
+                                            )
+                                        }
+
+                                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(BorderLight))
+
+                                        // 3. Wealth (Assets / SIP)
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(6.dp)
+                                                        .clip(CircleShape)
+                                                        .background(AccentPurple)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Assets", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextMuted)
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "${selectedCountry.currencySymbol} %,.0f".format(totalAssets),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = AccentPurple
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // 5 AutoPay / Commitment Rows
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    commitments.forEachIndexed { index, item ->
+                                        val isSelected = item.isSelected
+                                        val typeColor = when (item.type) {
+                                            TransactionType.INCOME -> Color(0xFF10B981)
+                                            TransactionType.EXPENSE -> Color(0xFFF43F5E)
+                                            TransactionType.ASSET -> AccentPurple
+                                            else -> TextDark
+                                        }
+                                        val typeBg = when (item.type) {
+                                            TransactionType.INCOME -> Color(0xFF10B981).copy(alpha = 0.12f)
+                                            TransactionType.EXPENSE -> Color(0xFFF43F5E).copy(alpha = 0.12f)
+                                            TransactionType.ASSET -> AccentPurple.copy(alpha = 0.12f)
+                                            else -> CanvasLight
+                                        }
+
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(54.dp)
+                                                .graphicsLayer { alpha = if (isSelected) 1f else 0.45f },
+                                            shape = RoundedCornerShape(27.dp),
+                                            color = CardWhite,
+                                            border = BorderStroke(1.dp, if (isSelected) BorderLight.copy(alpha = 0.9f) else BorderLight.copy(alpha = 0.4f))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                // Left: Checkmark Toggle + Icon Badge + Name & Type Tag
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .clickable {
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            onToggleCommitment(index)
+                                                        }
+                                                        .padding(end = 6.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                                        contentDescription = "Toggle",
+                                                        tint = if (isSelected) AccentPurple else BorderLight,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+
+                                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                                    Surface(
+                                                        modifier = Modifier.size(30.dp),
+                                                        shape = CircleShape,
+                                                        color = CanvasLight
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Icon(
+                                                                imageVector = when (item.subcategoryName) {
+                                                                    "PG Rent" -> Icons.Default.Home
+                                                                    "Credit Cards & EMI" -> Icons.Default.CreditCard
+                                                                    "Mutual Funds (MF)" -> Icons.Default.TrendingUp
+                                                                    "Emergency Fund" -> Icons.Default.Shield
+                                                                    "Base Salary (Pay Slip)" -> Icons.Default.Payments
+                                                                    else -> Icons.Default.AccountBalance
+                                                                },
+                                                                contentDescription = null,
+                                                                tint = typeColor,
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        }
+                                                    }
+
+                                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                                    Column(verticalArrangement = Arrangement.Center) {
+                                                        Text(
+                                                            text = item.title,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = TextDark,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Surface(
+                                                            shape = RoundedCornerShape(4.dp),
+                                                            color = typeBg
+                                                        ) {
+                                                            Text(
+                                                                text = item.type.name,
+                                                                fontSize = 8.5.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = typeColor,
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+
+                                                // Right: Nested Capsule Amount Box (4dp margin, matching curvature)
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .height(46.dp)
+                                                        .width(115.dp),
+                                                    shape = RoundedCornerShape(23.dp),
+                                                    color = CanvasLight,
+                                                    border = BorderStroke(0.8.dp, BorderLight)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .padding(horizontal = 10.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            text = selectedCountry.currencySymbol,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = TextMuted
+                                                        )
+
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .padding(horizontal = 4.dp),
+                                                            contentAlignment = Alignment.CenterEnd
+                                                        ) {
+                                                            if (item.amountText.isEmpty()) {
+                                                                Text(
+                                                                    text = "0",
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = TextMuted
+                                                                )
+                                                            }
+                                                            BasicTextField(
+                                                                value = item.amountText,
+                                                                onValueChange = { newVal ->
+                                                                    onUpdateCommitmentAmount(index, newVal.filter { it.isDigit() || it == '.' })
+                                                                },
+                                                                singleLine = true,
+                                                                textStyle = TextStyle(
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = TextDark,
+                                                                    textAlign = TextAlign.End
+                                                                ),
+                                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                                cursorBrush = SolidColor(AccentPurple),
+                                                                modifier = Modifier.fillMaxWidth()
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = AccentPurple.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Note: Due days, frequencies & custom categories can be fine-tuned later in Vault Rules.",
                                         fontSize = 10.sp,
                                         color = TextMuted,
                                         lineHeight = 13.sp
@@ -1105,6 +1433,11 @@ fun OnboardingStep0WelcomeGateway(
                                 GatewayStage.ACCOUNTS -> {
                                     focusManager.clearFocus()
                                     keyboardController?.hide()
+                                    currentStage = GatewayStage.COMMITMENTS
+                                }
+                                GatewayStage.COMMITMENTS -> {
+                                    focusManager.clearFocus()
+                                    keyboardController?.hide()
                                     onProceedToNextStep()
                                 }
                             }
@@ -1129,6 +1462,7 @@ fun OnboardingStep0WelcomeGateway(
                                     GatewayStage.SECURITY -> "Lock Vault"
                                     GatewayStage.STRATEGY -> "Set Strategy"
                                     GatewayStage.ACCOUNTS -> "Save & Continue"
+                                    GatewayStage.COMMITMENTS -> "Seal & Lock"
                                 },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.5.sp,
