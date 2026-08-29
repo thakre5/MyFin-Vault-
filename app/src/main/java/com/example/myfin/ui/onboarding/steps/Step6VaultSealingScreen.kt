@@ -1,40 +1,55 @@
 package com.example.myfin.ui.onboarding.steps
 
-import android.net.Uri
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myfin.ui.onboarding.CoralAccent
+import androidx.compose.ui.zIndex
 import com.example.myfin.ui.onboarding.CountryCurrencyMapping
+import com.example.myfin.ui.onboarding.CyanPrimary
+import com.example.myfin.ui.onboarding.PurplePrimary
 import com.example.myfin.ui.onboarding.TealPrimary
-import com.example.myfin.ui.onboarding.components.HumanDeliberationSceneCanvas
-import com.example.myfin.ui.onboarding.components.rememberImageBitmapFromUri
-import com.example.myfin.ui.theme.AccentPurple
-import com.example.myfin.ui.theme.BorderLight
-import com.example.myfin.ui.theme.CardWhite
-import com.example.myfin.ui.theme.TextDark
-import com.example.myfin.ui.theme.TextMuted
-import java.util.Locale
+import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
+import com.example.myfin.ui.theme.*
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun OnboardingStep6VaultSealing(
     displayName: String,
     emailAddress: String,
-    profileImageUri: Uri?,
+    profileImageUri: String?,
     country: CountryCurrencyMapping,
     strategy: String,
     totalLiquidity: Double,
@@ -42,142 +57,545 @@ fun OnboardingStep6VaultSealing(
     remainingSeconds: Int,
     onSealImmediately: () -> Unit
 ) {
-    val context = LocalContext.current
-    val avatarBitmap = rememberImageBitmapFromUri(context, profileImageUri)
-    val countdownFraction = remainingSeconds / 10f
+    val haptic = LocalHapticFeedback.current
+    val scrollState = rememberScrollState()
 
-    Column(
+    // Smooth Pulsing Animation for the Encryption Status Chip
+    val infiniteTransition = rememberInfiniteTransition(label = "pulseTransition")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Text("Vault Sealed & Secured", fontSize = 20.sp, fontWeight = FontWeight.Black, color = TextDark)
-            Text("Your personal financial hub is initialized", fontSize = 12.sp, color = TextMuted)
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(3.dp, RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
-                color = CardWhite,
-                border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (avatarBitmap != null) {
-                                Image(
-                                    bitmap = avatarBitmap,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(38.dp).clip(CircleShape),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier.size(38.dp).clip(CircleShape).background(AccentPurple.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(displayName.take(1).uppercase().ifEmpty { "J" }, fontWeight = FontWeight.Black, fontSize = 16.sp, color = AccentPurple)
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(displayName, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = TextDark)
-                                Text(if (emailAddress.isNotBlank()) emailAddress else "${country.countryName} ${country.flagEmoji}", fontSize = 11.sp, color = TextMuted)
-                            }
-                        }
-
-                        Surface(shape = RoundedCornerShape(8.dp), color = TealPrimary.copy(alpha = 0.14f)) {
-                            Text(strategy, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TealPrimary, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
-                            Text("Opening Liquidity", fontSize = 10.sp, color = TextMuted)
-                            Text("${country.currencySymbol}${String.format(Locale.US, "%,.2f", totalLiquidity)}", fontWeight = FontWeight.Black, fontSize = 15.sp, color = TextDark)
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text("Monthly Commitments", fontSize = 10.sp, color = TextMuted)
-                            Text("${country.currencySymbol}${String.format(Locale.US, "%,.0f", totalCommitments)}", fontWeight = FontWeight.Black, fontSize = 15.sp, color = CoralAccent)
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            HumanDeliberationSceneCanvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(155.dp)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFF3E8FF),
+                        Color(0xFFEDE9FE).copy(alpha = 0.65f),
+                        Color(0xFFF8FAFC),
+                        CanvasLight
+                    )
+                )
             )
-        }
+    ) {
+        // =========================================================================
+        // LAYER 1: SCROLLABLE BODY
+        // =========================================================================
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val minScreenHeight = maxHeight
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(bottom = 18.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = CardWhite,
-                border = BorderStroke(0.8.dp, BorderLight)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp)
+                    .defaultMinSize(minHeight = minScreenHeight),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
+                Spacer(modifier = Modifier.height(48.dp))
+
+                // Compact Hero Cards Header
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(95.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    SolnexTiltedCardsHero(
+                        currencySymbol = country.currencySymbol,
+                        modifier = Modifier.graphicsLayer {
+                            scaleX = 0.54f
+                            scaleY = 0.54f
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Screen Headline & Subtitle
                 Column(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
+                    Text(
+                        text = "Sealing Offline Vault",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextDark,
+                        textAlign = TextAlign.Center,
+                        letterSpacing = (-0.5).sp
+                    )
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Text(
+                        text = "Encrypting local SQLite ledger with Hardware Keystore",
+                        fontSize = 12.sp,
+                        color = TextMuted,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Compact Countdown & Status Capsule (44dp)
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
+                        shape = RoundedCornerShape(22.dp),
+                        color = AccentPurple.copy(alpha = 0.08f),
+                        border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.25f))
+                    ) {
+                        Row(
                             modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(AccentPurple)
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(AccentPurple.copy(alpha = pulseAlpha))
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Auto-sealing in ${remainingSeconds}s...",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextDark
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = AccentPurple.copy(alpha = 0.15f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Lock,
+                                        contentDescription = null,
+                                        tint = AccentPurple,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "ENCRYPTING",
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AccentPurple,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Audit Rows (Harmonized 54dp Pill-in-Pill Geometry)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Row 1: Profile & Currency
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp),
+                            shape = RoundedCornerShape(27.dp),
+                            color = CardWhite,
+                            border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.size(32.dp),
+                                        shape = CircleShape,
+                                        color = CanvasLight
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Person,
+                                                contentDescription = null,
+                                                tint = AccentPurple,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(verticalArrangement = Arrangement.Center) {
+                                        Text(
+                                            text = displayName.ifBlank { "Vault User" },
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDark,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = if (emailAddress.isNotBlank()) emailAddress else "Offline Account",
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = TealPrimary,
+                                            lineHeight = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier
+                                        .height(46.dp)
+                                        .width(115.dp),
+                                    shape = RoundedCornerShape(23.dp),
+                                    color = CanvasLight,
+                                    border = BorderStroke(0.8.dp, BorderLight)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(country.flagEmoji, fontSize = 14.sp)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "${country.currencySymbol} ${country.currencyCode}",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDark
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Row 2: Strategy Architecture
+                        val is3Tier = strategy == "3-VAULT"
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp),
+                            shape = RoundedCornerShape(27.dp),
+                            color = CardWhite,
+                            border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.size(32.dp),
+                                        shape = CircleShape,
+                                        color = CanvasLight
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = if (is3Tier) Icons.Outlined.AccountBalance else Icons.Outlined.AccountBalanceWallet,
+                                                contentDescription = null,
+                                                tint = AccentPurple,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(verticalArrangement = Arrangement.Center) {
+                                        Text(
+                                            text = if (is3Tier) "Smart 3-Tier Strategy" else "Simple Unified Vault",
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDark,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = if (is3Tier) "Operating • Commitments • Fortress" else "Unified Cash Flow Ledger",
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = TealPrimary,
+                                            lineHeight = 11.sp
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier
+                                        .height(46.dp)
+                                        .width(115.dp),
+                                    shape = RoundedCornerShape(23.dp),
+                                    color = CanvasLight,
+                                    border = BorderStroke(0.8.dp, BorderLight)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Active",
+                                            tint = TealPrimary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "CONFIGURED",
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDark,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Row 3: Capital & Flow Metrics
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp),
+                            shape = RoundedCornerShape(27.dp),
+                            color = CardWhite,
+                            border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.size(32.dp),
+                                        shape = CircleShape,
+                                        color = CanvasLight
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Payments,
+                                                contentDescription = null,
+                                                tint = AccentPurple,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(verticalArrangement = Arrangement.Center) {
+                                        Text(
+                                            text = "Opening Capital",
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDark
+                                        )
+                                        Text(
+                                            text = "${country.currencySymbol} %,.0f Initial".format(totalLiquidity),
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = TealPrimary,
+                                            lineHeight = 11.sp
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier
+                                        .height(46.dp)
+                                        .width(115.dp),
+                                    shape = RoundedCornerShape(23.dp),
+                                    color = CanvasLight,
+                                    border = BorderStroke(0.8.dp, BorderLight)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 8.dp),
+                                        verticalArrangement = Arrangement.Center,
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = "AutoPay",
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = TextMuted,
+                                            lineHeight = 9.sp
+                                        )
+                                        Text(
+                                            text = "${country.currencySymbol} %,.0f".format(totalCommitments),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AccentPurple,
+                                            lineHeight = 12.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Air-Gap Security Note
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Outlined.Shield,
+                            contentDescription = null,
+                            tint = AccentPurple.copy(alpha = 0.8f),
+                            modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Auto-sealing vault in ${remainingSeconds}s...",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark
+                            text = "Note: Air-gapped active. Zero network calls or cloud telemetry leaves this device.",
+                            fontSize = 10.sp,
+                            color = TextMuted,
+                            lineHeight = 13.sp
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    LinearProgressIndicator(
-                        progress = { countdownFraction },
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Bottom Enter Vault Action Button
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onSealImmediately()
+                        },
                         modifier = Modifier
-                            .width(130.dp)
-                            .height(2.5.dp)
-                            .clip(RoundedCornerShape(2.dp)),
-                        color = AccentPurple,
-                        trackColor = BorderLight.copy(alpha = 0.5f)
-                    )
+                            .fillMaxWidth(0.58f)
+                            .height(52.dp),
+                        shape = RoundedCornerShape(26.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                    ) {
+                        Text(
+                            text = "Enter Vault Now",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.5.sp,
+                            color = Color.White
+                        )
+                    }
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Button(
-                onClick = onSealImmediately,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+        // =========================================================================
+        // LAYER 2: FLOATING PINNED HEADER
+        // =========================================================================
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .zIndex(10f)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFFF3E8FF).copy(alpha = 0.95f),
+                            Color(0xFFF3E8FF).copy(alpha = 0.60f),
+                            Color.Transparent
+                        )
+                    )
+                )
+                .statusBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Enter Dashboard Now", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Surface(
+                    shape = CircleShape,
+                    color = Color.Transparent,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(CyanPrimary, AccentPurple, PurplePrimary)
+                            )
+                        )
+                        val c = center
+                        val r = size.minDimension * 0.32f
+                        repeat(8) { i ->
+                            val angleRad = Math.toRadians((i * 45.0))
+                            val px = c.x + (r * cos(angleRad)).toFloat()
+                            val py = c.y + (r * sin(angleRad)).toFloat()
+                            drawLine(
+                                color = Color.White,
+                                start = c,
+                                end = Offset(px, py),
+                                strokeWidth = 2.4.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                        }
+                        drawCircle(color = Color.White, radius = 2.5.dp.toPx(), center = c)
+                    }
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "MyFin",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
+                    color = TextDark,
+                    letterSpacing = (-0.5).sp
+                )
             }
         }
     }
