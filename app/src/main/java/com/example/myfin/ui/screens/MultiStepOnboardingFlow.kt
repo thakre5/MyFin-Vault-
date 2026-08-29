@@ -1,5 +1,9 @@
+@file:OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+
 package com.example.myfin.ui.screens
 
+import android.content.Context
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -9,9 +13,10 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,7 +29,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.Person
@@ -33,15 +37,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -53,10 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
 import com.example.myfin.data.TransactionType
-import com.example.myfin.data.UserProfile
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
@@ -106,7 +104,6 @@ data class InitialCommitmentPreset(
     var isSelected: Boolean
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MultiStepOnboardingFlow(
     viewModel: BudgetViewModel,
@@ -127,7 +124,7 @@ fun MultiStepOnboardingFlow(
     var confirmPin by remember { mutableStateOf("") }
     var rawDobDigits by remember { mutableStateOf("") } // 8 digits (DDMMYYYY)
     var isBiometricEnabled by remember { mutableStateOf(true) }
-    var pinEntryPhase by remember { mutableStateOf(1) } // 1: Enter, 2: Confirm
+    var pinEntryPhase by remember { mutableIntStateOf(1) } // 1: Enter, 2: Confirm
 
     // Step 3 States: Country & Strategy
     var selectedCountry by remember { mutableStateOf(SupportedCountries[0]) }
@@ -209,8 +206,8 @@ fun MultiStepOnboardingFlow(
                     amount = amt,
                     category = bill.categoryName,
                     subcategory = bill.subcategoryName,
-                    accountName = initialAccounts.firstOrNull { it.defaultType == "Commitments" }?.name ?: initialAccounts.first().name,
-                    toAccountName = null,
+                    account = initialAccounts.firstOrNull { it.defaultType == "Commitments" }?.name ?: initialAccounts.first().name,
+                    toAccount = null,
                     type = bill.type,
                     dueDay = bill.defaultDueDay
                 )
@@ -308,7 +305,7 @@ fun MultiStepOnboardingFlow(
             }
 
             // =========================================================
-            // MAIN PAGER CONTAINER (NON-SWIPEABLE FOR SECURITY INTEGRITY)
+            // MAIN PAGER CONTAINER
             // =========================================================
             HorizontalPager(
                 state = pagerState,
@@ -341,7 +338,7 @@ fun MultiStepOnboardingFlow(
                         )
                     }
 
-                    // --- STEP 2: MASTER PIN & LOCAL ZERO-KNOWLEDGE SECURITY ---
+                    // --- STEP 2: MASTER PIN & LOCAL SECURITY ---
                     1 -> {
                         OnboardingStep2PinSecurity(
                             pinEntryPhase = pinEntryPhase,
@@ -410,7 +407,7 @@ fun MultiStepOnboardingFlow(
                         )
                     }
 
-                    // --- STEP 5: FIXED COMMITMENTS (TAXONOMY BOUND) ---
+                    // --- STEP 5: FIXED COMMITMENTS ---
                     4 -> {
                         OnboardingStep5Commitments(
                             commitments = initialCommitments,
@@ -427,7 +424,7 @@ fun MultiStepOnboardingFlow(
                         )
                     }
 
-                    // --- STEP 6: VAULT SEEDING & 10-SECOND AUTO-CLOSING IRIS TRANSITION ---
+                    // --- STEP 6: VAULT SEEDING & 10-SECOND AUTO-CLOSING TRANSITION ---
                     5 -> {
                         OnboardingStep6VaultSealing(
                             displayName = displayName,
@@ -460,6 +457,9 @@ private fun OnboardingStep1Identity(
     onEmailChange: (String) -> Unit,
     onContinue: () -> Unit
 ) {
+    val context = LocalContext.current
+    val avatarBitmap = rememberImageBitmapFromUri(context, profileImageUri)
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -468,7 +468,6 @@ private fun OnboardingStep1Identity(
         contentPadding = PaddingValues(top = 10.dp, bottom = 24.dp)
     ) {
         item {
-            // Interactive Particle Orb Motion Canvas
             OrbitalVaultParticlesCanvas(
                 modifier = Modifier
                     .size(120.dp)
@@ -502,9 +501,9 @@ private fun OnboardingStep1Identity(
                     .clickable(onClick = onPickPhoto),
                 contentAlignment = Alignment.Center
             ) {
-                if (profileImageUri != null) {
-                    AsyncImage(
-                        model = profileImageUri,
+                if (avatarBitmap != null) {
+                    Image(
+                        bitmap = avatarBitmap,
                         contentDescription = "Profile Photo",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -525,7 +524,6 @@ private fun OnboardingStep1Identity(
                     }
                 }
 
-                // Camera Badge
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -545,7 +543,6 @@ private fun OnboardingStep1Identity(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Name Input
             OutlinedTextField(
                 value = displayName,
                 onValueChange = onDisplayNameChange,
@@ -563,7 +560,6 @@ private fun OnboardingStep1Identity(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Email Input (Local Export Routing)
             OutlinedTextField(
                 value = emailAddress,
                 onValueChange = onEmailChange,
@@ -633,7 +629,6 @@ private fun OnboardingStep2PinSecurity(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Concentric Security Radar Pulse Canvas
         SecurityRadarPulseCanvas(
             modifier = Modifier
                 .size(70.dp)
@@ -655,7 +650,6 @@ private fun OnboardingStep2PinSecurity(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // Bouncy 4-Digit Glass Indicators
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             repeat(4) { idx ->
                 val isFilled = idx < currentPinString.length
@@ -672,7 +666,6 @@ private fun OnboardingStep2PinSecurity(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Automatic DOB Formatter Input (Recovery Fallback)
         if (pinEntryPhase == 1) {
             OutlinedTextField(
                 value = rawDobDigits,
@@ -718,7 +711,6 @@ private fun OnboardingStep2PinSecurity(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Interactive Numeric Keypad
         val keys = listOf(
             listOf("1", "2", "3"),
             listOf("4", "5", "6"),
@@ -795,7 +787,6 @@ private fun OnboardingStep3CountryStrategy(
             Text("Currencies and denomination formats are auto-bound by region", fontSize = 11.5.sp, color = TextMuted)
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Country Flag Carousel
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(SupportedCountries) { item ->
                     val isSelected = selectedCountry.countryName == item.countryName
@@ -830,7 +821,6 @@ private fun OnboardingStep3CountryStrategy(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 3-Vault Strategy Card
             val is3Vault = selectedStrategy == "3-VAULT"
             Surface(
                 modifier = Modifier
@@ -873,7 +863,6 @@ private fun OnboardingStep3CountryStrategy(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Simple Mode Card
             val isSimple = selectedStrategy == "SIMPLE"
             Surface(
                 modifier = Modifier
@@ -945,7 +934,6 @@ private fun OnboardingStep4Accounts(
             Text("Enter the current balances in your initial bank accounts", fontSize = 11.5.sp, color = TextMuted)
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Liquid Card Wave Canvas
             Surface(
                 modifier = Modifier.fillMaxWidth().shadow(2.dp, RoundedCornerShape(18.dp)),
                 shape = RoundedCornerShape(18.dp),
@@ -961,7 +949,7 @@ private fun OnboardingStep4Accounts(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            accounts.forEachIndexed { idx, acc ->
+            accounts.forEach { acc ->
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
                     shape = RoundedCornerShape(14.dp),
@@ -1006,7 +994,7 @@ private fun OnboardingStep4Accounts(
 }
 
 // -------------------------------------------------------------
-// STEP 5: FIXED COMMITMENTS (TAXONOMY BOUND)
+// STEP 5: FIXED COMMITMENTS
 // -------------------------------------------------------------
 @Composable
 private fun OnboardingStep5Commitments(
@@ -1123,6 +1111,8 @@ private fun OnboardingStep6VaultSealing(
     remainingSeconds: Int,
     onSealImmediately: () -> Unit
 ) {
+    val context = LocalContext.current
+    val avatarBitmap = rememberImageBitmapFromUri(context, profileImageUri)
     val countdownProgress = (10 - remainingSeconds) / 10f
 
     Column(
@@ -1139,7 +1129,6 @@ private fun OnboardingStep6VaultSealing(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Consolidated Passport Card
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1155,9 +1144,9 @@ private fun OnboardingStep6VaultSealing(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (profileImageUri != null) {
-                                AsyncImage(
-                                    model = profileImageUri,
+                            if (avatarBitmap != null) {
+                                Image(
+                                    bitmap = avatarBitmap,
                                     contentDescription = null,
                                     modifier = Modifier.size(42.dp).clip(CircleShape),
                                     contentScale = ContentScale.Crop
@@ -1200,7 +1189,6 @@ private fun OnboardingStep6VaultSealing(
             }
         }
 
-        // Circular 10-Second Countdown Iris Seal Shutter
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(bottom = 24.dp)
@@ -1257,8 +1245,24 @@ private fun OnboardingStep6VaultSealing(
 }
 
 // -------------------------------------------------------------
-// MOTION GRAPHICS CANVASES
+// MOTION GRAPHICS CANVASES & IMAGE UTILITIES
 // -------------------------------------------------------------
+
+@Composable
+fun rememberImageBitmapFromUri(context: Context, uri: Uri?): ImageBitmap? {
+    return remember(uri) {
+        if (uri == null) null
+        else {
+            try {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+}
 
 @Composable
 private fun OrbitalVaultParticlesCanvas(modifier: Modifier = Modifier) {
