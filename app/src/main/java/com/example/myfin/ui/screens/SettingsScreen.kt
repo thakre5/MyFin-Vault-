@@ -159,24 +159,31 @@ fun SettingsScreen(
         }
     }
 
-    // Background Async Image Saving
+    // Background Async Image Saving with Unique Timestamp & Instant Cache Invalidation
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { sourceUri ->
             coroutineScope.launch(Dispatchers.IO) {
                 try {
+                    context.filesDir.listFiles { file ->
+                        file.name.startsWith("profile_avatar_")
+                    }?.forEach { it.delete() }
+
+                    val timestamp = System.currentTimeMillis()
+                    val newFile = File(context.filesDir, "profile_avatar_$timestamp.jpg")
+
                     val inputStream = context.contentResolver.openInputStream(sourceUri)
-                    val file = File(context.filesDir, "profile_avatar.jpg")
-                    val outputStream = FileOutputStream(file)
+                    val outputStream = FileOutputStream(newFile)
                     inputStream?.use { input ->
                         outputStream.use { output ->
                             input.copyTo(output)
                         }
                     }
-                    viewModel.updateProfileImageUri(file.absolutePath)
+
+                    viewModel.updateProfileImageUri(newFile.absolutePath)
                     withContext(Dispatchers.Main) {
-                        avatarRefreshKey = System.currentTimeMillis()
+                        avatarRefreshKey = timestamp
                         Toast.makeText(context, "Profile picture updated", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
