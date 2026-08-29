@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import com.example.myfin.data.ExcelExportManager
+import com.example.myfin.data.SupportedCountries
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AppBrandingFooter
 import com.example.myfin.ui.theme.*
@@ -92,10 +93,6 @@ enum class SettingsAccordionSection {
     BACKUP,
     REPORTS
 }
-
-private val BrandGreen = Color(0xFF5BB336)
-private val BrandCharcoal = Color(0xFF1C1D21)
-private val CoralAccent = Color(0xFFFF6B6B)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -161,7 +158,7 @@ fun SettingsScreen(
         }
     }
 
-    // Copy selected image permanently to internal storage and trigger instant UI refresh via avatarRefreshKey
+    // Permanent Avatar Image Persistence
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -198,7 +195,7 @@ fun SettingsScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // ==========================================
-            // 1. PINNED PROFILE HEADER SECTION (STATIC)
+            // 1. PINNED PROFILE HEADER SECTION
             // ==========================================
             Box(
                 modifier = Modifier
@@ -210,7 +207,7 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .background(CanvasLight)
                 ) {
-                    // Purple Gradient Top Horizon Banner
+                    // Gradient Top Banner
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -266,7 +263,7 @@ fun SettingsScreen(
                             }
                         }
 
-                        // 50:50 Overlapping Avatar on the Horizon
+                        // Circular Avatar with Inset Border
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
@@ -342,7 +339,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    // User Identity Block (Scaped strictly to text bounds without grey indicator box)
+                    // User Identity Block
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -375,7 +372,7 @@ fun SettingsScreen(
                     }
                 }
 
-                // Smooth Dissolve Fade Overlay at Bottom of Pinned Header
+                // Dissolve Overlay
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -645,7 +642,7 @@ fun SettingsScreen(
                     }
                 }
 
-                // Card 8: Danger Zone (Reset Entire Vault)
+                // Card 8: Danger Zone
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -697,7 +694,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Bottom Hero Lock Button
+                // Bottom Lock Button
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -733,7 +730,6 @@ fun SettingsScreen(
                     }
                 }
 
-                // Shared Minimalist Branding Footer
                 AppBrandingFooter(
                     modifier = Modifier.fillMaxWidth(),
                     version = "v1.0.0",
@@ -749,7 +745,7 @@ fun SettingsScreen(
     // DEDICATED BOTTOM SHEETS & MODALS
     // ==========================================
 
-    // 1. Edit Personal Info Sheet
+    // 1. Edit Personal Info Sheet (DOB Sync Enabled)
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
         var nameInput by remember(userProfile.displayName) { mutableStateOf(userProfile.displayName.ifBlank { "Alex Doe" }) }
         var emailInput by remember(userProfile.email) { mutableStateOf(userProfile.email.ifBlank { "alex.doe@example.com" }) }
@@ -800,7 +796,7 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = dobInput,
                     onValueChange = { dobInput = it },
-                    label = { Text("Date of Birth (YYYY-MM-DD)") },
+                    label = { Text("Date of Birth (YYYY-MM-DD or DD/MM/YYYY)") },
                     supportingText = { Text("Your DOB serves as the immutable security key for PIN resets", fontSize = 10.5.sp) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -824,11 +820,13 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         val parsedIncome = incomeInput.toDoubleOrNull() ?: userProfile.baseMonthlyIncome
+                        val cleanDob = dobInput.trim()
+                        viewModel.updateDateOfBirth(cleanDob)
                         val updated = userProfile.copy(
                             id = 1,
                             displayName = nameInput.trim(),
                             email = emailInput.trim(),
-                            dateOfBirth = dobInput.trim(),
+                            dateOfBirth = cleanDob,
                             baseMonthlyIncome = parsedIncome
                         )
                         viewModel.saveUserProfile(updated)
@@ -879,7 +877,7 @@ fun SettingsScreen(
                     text = if (is3VaultActive) "3-Vault Strategy Active" else "Simple Mode Active",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Black,
-                    color = BrandCharcoal,
+                    color = TextDark,
                     textAlign = TextAlign.Center
                 )
 
@@ -916,7 +914,7 @@ fun SettingsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = CircleShape,
-                                color = if (is3VaultActive) AccentPurple else BrandCharcoal,
+                                color = AccentPurple,
                                 modifier = Modifier.size(38.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -947,7 +945,7 @@ fun SettingsScreen(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = BrandGreen,
+                            tint = TealPrimary,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -966,7 +964,7 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .height(52.dp),
                     shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandGreen)
+                    colors = ButtonDefaults.buttonColors(containerColor = TextDark)
                 ) {
                     Text(
                         text = if (is3VaultActive) "Switch to Simple Mode" else "Enable 3-Vault Strategy",
@@ -1086,10 +1084,10 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
-                    text = "Verify your identity",
+                    text = "Biometric Authentication",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Black,
-                    color = BrandCharcoal,
+                    color = TextDark,
                     textAlign = TextAlign.Center
                 )
 
@@ -1108,16 +1106,20 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        val newBiometricState = !userProfile.isBiometricEnabled
-                        viewModel.updateBiometricEnabled(newBiometricState)
-                        activeSheet = SettingsActiveSheet.NONE
-                        Toast.makeText(context, if (newBiometricState) "Biometrics Enabled" else "Biometrics Disabled", Toast.LENGTH_SHORT).show()
+                        val targetState = !userProfile.isBiometricEnabled
+                        if (targetState && !viewModel.securityManager.canAuthenticateWithBiometrics(context)) {
+                            Toast.makeText(context, "Biometrics not available on this device", Toast.LENGTH_SHORT).show()
+                        } else {
+                            viewModel.updateBiometricEnabled(targetState)
+                            activeSheet = SettingsActiveSheet.NONE
+                            Toast.makeText(context, if (targetState) "Biometrics Enabled" else "Biometrics Disabled", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
                     shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (userProfile.isBiometricEnabled) CoralAccent else BrandGreen)
+                    colors = ButtonDefaults.buttonColors(containerColor = if (userProfile.isBiometricEnabled) SoftRed else AccentPurple)
                 ) {
                     Text(
                         text = if (userProfile.isBiometricEnabled) "Disable Biometrics" else "Enable Biometric Unlock",
@@ -1151,14 +1153,14 @@ fun SettingsScreen(
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Modify Master PIN", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Verify your security DOB to set a new 4-digit passcode", fontSize = 12.sp, color = TextMuted)
+                Text("Verify your recovery Date of Birth to set a new 4-digit passcode", fontSize = 12.sp, color = TextMuted)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = verifyDob,
                     onValueChange = { verifyDob = it; errorMessage = null },
-                    label = { Text("Security Key (DOB: YYYY-MM-DD)") },
+                    label = { Text("Security Key (DOB: DD/MM/YYYY or YYYY-MM-DD)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -1168,8 +1170,8 @@ fun SettingsScreen(
 
                 OutlinedTextField(
                     value = newPin,
-                    onValueChange = { if (it.length <= 4) { newPin = it; errorMessage = null } },
-                    label = { Text("New 4-Digit PIN") },
+                    onValueChange = { if (it.length <= 6) { newPin = it; errorMessage = null } },
+                    label = { Text("New Master PIN") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
@@ -1181,7 +1183,7 @@ fun SettingsScreen(
 
                 OutlinedTextField(
                     value = confirmPin,
-                    onValueChange = { if (it.length <= 4) { confirmPin = it; errorMessage = null } },
+                    onValueChange = { if (it.length <= 6) { confirmPin = it; errorMessage = null } },
                     label = { Text("Confirm New PIN") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
@@ -1199,16 +1201,15 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        val cleanVerify = verifyDob.trim().replace("-", "").replace("/", "")
-                        val cleanSaved = userProfile.dateOfBirth.trim().replace("-", "").replace("/", "")
-                        if (cleanVerify != cleanSaved) {
+                        val isDobValid = viewModel.securityManager.verifyDob(verifyDob)
+                        if (!isDobValid) {
                             errorMessage = "DOB verification failed. Please enter your correct birth date."
-                        } else if (newPin.length != 4) {
-                            errorMessage = "New PIN must be exactly 4 digits."
+                        } else if (newPin.length < 4) {
+                            errorMessage = "New PIN must be at least 4 digits."
                         } else if (newPin != confirmPin) {
                             errorMessage = "PIN confirmation does not match."
                         } else {
-                            viewModel.setMasterPin(newPin, userProfile.dateOfBirth)
+                            viewModel.saveMasterPin(newPin)
                             activeSheet = SettingsActiveSheet.NONE
                             Toast.makeText(context, "Master PIN updated successfully", Toast.LENGTH_SHORT).show()
                         }
@@ -1318,19 +1319,6 @@ fun SettingsScreen(
 
     // 7. Country & Primary Currency Selector Sheet
     if (activeSheet == SettingsActiveSheet.COUNTRY_CURRENCY_PICKER || activeSheet == SettingsActiveSheet.CURRENCY) {
-        val countryCurrencies = listOf(
-            Triple("India", "₹", "INR - Indian Rupee"),
-            Triple("United States", "$", "USD - US Dollar"),
-            Triple("United Kingdom", "£", "GBP - British Pound"),
-            Triple("European Union", "€", "EUR - Euro"),
-            Triple("United Arab Emirates", "AED ", "AED - UAE Dirham"),
-            Triple("Japan", "¥", "JPY - Japanese Yen"),
-            Triple("Canada", "C$", "CAD - Canadian Dollar"),
-            Triple("Australia", "A$", "AUD - Australian Dollar"),
-            Triple("Singapore", "S$", "SGD - Singapore Dollar"),
-            Triple("Switzerland", "CHF ", "CHF - Swiss Franc")
-        )
-
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
             containerColor = CardWhite,
@@ -1354,16 +1342,16 @@ fun SettingsScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    countryCurrencies.forEach { (country, symbol, desc) ->
-                        val isSel = userProfile.currencySymbol == symbol
+                    SupportedCountries.forEach { item ->
+                        val isSel = userProfile.currencySymbol == item.currencySymbol
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable {
-                                    viewModel.updateCurrencySymbol(symbol)
+                                    viewModel.updateCurrencySymbol(item.currencySymbol)
                                     activeSheet = SettingsActiveSheet.NONE
-                                    Toast.makeText(context, "Country set to $country ($symbol)", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Country set to ${item.countryName} (${item.currencySymbol})", Toast.LENGTH_SHORT).show()
                                 },
                             shape = RoundedCornerShape(12.dp),
                             color = if (isSel) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
@@ -1376,9 +1364,13 @@ fun SettingsScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Text(country, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                    Text(desc, fontSize = 11.5.sp, color = TextMuted)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(item.flagEmoji, fontSize = 20.sp)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(item.countryName, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                        Text("${item.currencySymbol} - ${item.currencyCode}", fontSize = 11.5.sp, color = TextMuted)
+                                    }
                                 }
                                 if (isSel) {
                                     Icon(Icons.Default.Check, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
@@ -1614,14 +1606,14 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
             cubicTo(w * 0.05f, h * 0.45f, w * 0.10f, h * 0.20f, w * 0.25f, h * 0.15f)
             close()
         }
-        drawPath(blobPath, color = Color(0xFFF2EFE9))
+        drawPath(blobPath, color = Color(0xFFEDE9FE))
 
         val fpCenter = Offset(w * 0.42f, h * 0.48f)
         for (i in 1..6) {
             val rX = (i * 7.5f).dp.toPx()
             val rY = (i * 10.5f).dp.toPx()
             drawArc(
-                color = Color(0xFF2C2D30),
+                color = AccentPurple,
                 startAngle = -160f,
                 sweepAngle = 300f,
                 useCenter = false,
@@ -1637,7 +1629,7 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
         val lockH = 36.dp.toPx()
 
         drawArc(
-            color = Color(0xFF52A447),
+            color = TealPrimary,
             startAngle = 180f,
             sweepAngle = 180f,
             useCenter = false,
@@ -1647,14 +1639,14 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
         )
 
         drawRoundRect(
-            color = Color(0xFF67B044),
+            color = TealPrimary,
             topLeft = Offset(lockLeft, lockTop),
             size = Size(lockW, lockH),
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
         )
 
         drawCircle(
-            color = Color(0xFF1E3F18),
+            color = Color.White,
             radius = 3.dp.toPx(),
             center = Offset(lockLeft + (lockW / 2f), lockTop + (lockH * 0.42f))
         )
@@ -1669,13 +1661,13 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
         val cX = w / 2f
 
         drawRoundRect(
-            color = Color(0xFFC7EBC9),
+            color = AccentPurple.copy(alpha = 0.15f),
             topLeft = Offset(w * 0.15f, h * 0.50f),
             size = Size(w * 0.35f, h * 0.35f),
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
         )
         drawRoundRect(
-            color = Color(0xFFA6DDA8),
+            color = TealPrimary.copy(alpha = 0.15f),
             topLeft = Offset(w * 0.52f, h * 0.50f),
             size = Size(w * 0.35f, h * 0.35f),
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
@@ -1690,16 +1682,16 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
             lineTo(bankLeft, h * 0.35f)
             close()
         }
-        drawPath(triangle, color = Color(0xFF437A47))
+        drawPath(triangle, color = AccentPurple)
 
         drawCircle(
-            color = Color(0xFFBCE7BE),
+            color = Color.White,
             radius = 5.dp.toPx(),
             center = Offset(cX, h * 0.27f)
         )
 
         drawRect(
-            color = Color(0xFF386641),
+            color = AccentPurple.copy(alpha = 0.9f),
             topLeft = Offset(bankLeft, h * 0.35f),
             size = Size(bankW, 7.dp.toPx())
         )
@@ -1712,7 +1704,7 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
         for (i in 0..3) {
             val colX = bankLeft + (i * (columnW + colGap))
             drawRoundRect(
-                color = Color(0xFF52A447),
+                color = AccentPurple,
                 topLeft = Offset(colX, columnTop),
                 size = Size(columnW, columnH),
                 cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
@@ -1720,14 +1712,14 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
         }
 
         drawRoundRect(
-            color = Color(0xFF1C3A1D),
+            color = TextDark,
             topLeft = Offset(cX - 10.dp.toPx(), columnTop + 14.dp.toPx()),
             size = Size(20.dp.toPx(), columnH - 14.dp.toPx()),
             cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
         )
 
         drawRect(
-            color = Color(0xFF386641),
+            color = AccentPurple.copy(alpha = 0.9f),
             topLeft = Offset(bankLeft - 8.dp.toPx(), columnTop + columnH),
             size = Size(bankW + 16.dp.toPx(), 8.dp.toPx())
         )
