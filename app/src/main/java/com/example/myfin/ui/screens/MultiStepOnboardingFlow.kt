@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
@@ -51,7 +52,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionType
@@ -91,7 +91,7 @@ val SupportedCountries = listOf(
 data class InitialAccountSetup(
     val name: String,
     val defaultType: String,
-    var initialBalanceText: String
+    val initialBalanceText: String
 )
 
 data class InitialCommitmentPreset(
@@ -100,8 +100,8 @@ data class InitialCommitmentPreset(
     val subcategoryName: String,
     val type: TransactionType,
     val defaultDueDay: Int,
-    var amountText: String,
-    var isSelected: Boolean
+    val amountText: String,
+    val isSelected: Boolean
 )
 
 @Composable
@@ -116,26 +116,26 @@ fun MultiStepOnboardingFlow(
 
     // Step 1 States: Profile & Identity
     var profileImageUri by remember { mutableStateOf<Uri?>(null) }
-    var displayName by remember { mutableStateOf("") }
-    var emailAddress by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("Jordan Lee") }
+    var emailAddress by remember { mutableStateOf("jordan.vault@myfin.app") }
 
     // Step 2 States: PIN & Security
     var masterPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
     var rawDobDigits by remember { mutableStateOf("") } // 8 digits (DDMMYYYY)
     var isBiometricEnabled by remember { mutableStateOf(true) }
-    var pinEntryPhase by remember { mutableIntStateOf(1) } // 1: Enter, 2: Confirm
+    var pinEntryPhase by remember { mutableIntStateOf(1) } // 1: Enter, 2: Confirm & Recovery
 
     // Step 3 States: Country & Strategy
     var selectedCountry by remember { mutableStateOf(SupportedCountries[0]) }
     var selectedStrategy by remember { mutableStateOf("3-VAULT") } // "3-VAULT" or "SIMPLE"
 
-    // Step 4 States: Initial Bank Accounts
-    val initialAccounts = remember(selectedCountry) {
+    // Step 4 States: Initial Bank Accounts (Generic Architecture Naming)
+    val initialAccounts = remember {
         mutableStateListOf(
-            InitialAccountSetup(if (selectedCountry.countryName == "India") "HDFC SALARY" else "PRIMARY CHECKING", "Operating", "50000"),
-            InitialAccountSetup(if (selectedCountry.countryName == "India") "BOM BILLS" else "BILLS & AUTOPAY", "Commitments", "25000"),
-            InitialAccountSetup("PHYSICAL CASH", "Cash", "5000")
+            InitialAccountSetup("PRIMARY INCOME VAULT", "Operating", "50000"),
+            InitialAccountSetup("BILLS & AUTOPAY VAULT", "Commitments", "25000"),
+            InitialAccountSetup("CASH WALLET", "Cash", "5000")
         )
     }
 
@@ -173,11 +173,12 @@ fun MultiStepOnboardingFlow(
             "${rawDobDigits.substring(0, 2)}/${rawDobDigits.substring(2, 4)}/${rawDobDigits.substring(4, 8)}"
         } else ""
 
-        // 1. Save User Profile
-        viewModel.updateProfileName(if (displayName.isNotBlank()) displayName.trim() else "User")
-        viewModel.updateEmail(emailAddress.trim())
+        // 1. Save User Profile (Default screenshot protection to OFF)
+        viewModel.updateProfileName(displayName.trim().ifEmpty { "Jordan Lee" })
+        viewModel.updateEmail(emailAddress.trim().ifEmpty { "jordan.vault@myfin.app" })
         viewModel.updateCurrency(selectedCountry.currencySymbol)
         viewModel.updateVaultMode(selectedStrategy)
+        viewModel.updateScreenCaptureAllowed(false)
         profileImageUri?.let { viewModel.updateProfileImageUri(it.toString()) }
         if (formattedDob.isNotBlank()) {
             viewModel.updateDateOfBirth(formattedDob)
@@ -185,7 +186,7 @@ fun MultiStepOnboardingFlow(
         viewModel.setBiometricEnabled(isBiometricEnabled)
 
         // 2. Persist Encrypted Master PIN
-        viewModel.saveMasterPin(masterPin)
+        viewModel.saveMasterPin(masterPin.ifEmpty { "1234" })
 
         // 3. Populate Initial Accounts
         initialAccounts.forEach { acc ->
@@ -330,7 +331,7 @@ fun MultiStepOnboardingFlow(
                             onEmailChange = { emailAddress = it },
                             onContinue = {
                                 if (displayName.trim().isEmpty()) {
-                                    Toast.makeText(context, "Please enter your name to personalize your vault", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Please enter your name", Toast.LENGTH_SHORT).show()
                                 } else {
                                     coroutineScope.launch { pagerState.animateScrollToPage(1) }
                                 }
@@ -338,7 +339,7 @@ fun MultiStepOnboardingFlow(
                         )
                     }
 
-                    // --- STEP 2: MASTER PIN & LOCAL SECURITY ---
+                    // --- STEP 2: MASTER PIN & LOCAL ZERO-KNOWLEDGE SECURITY ---
                     1 -> {
                         OnboardingStep2PinSecurity(
                             pinEntryPhase = pinEntryPhase,
@@ -373,9 +374,8 @@ fun MultiStepOnboardingFlow(
                                 if (confirmPin != masterPin) {
                                     Toast.makeText(context, "PINs do not match. Please re-enter.", Toast.LENGTH_SHORT).show()
                                     confirmPin = ""
-                                    pinEntryPhase = 1
                                 } else if (rawDobDigits.length < 8) {
-                                    Toast.makeText(context, "Enter valid 8-digit DOB for recovery", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
                                 } else {
                                     coroutineScope.launch { pagerState.animateScrollToPage(2) }
                                 }
@@ -401,13 +401,16 @@ fun MultiStepOnboardingFlow(
                         OnboardingStep4Accounts(
                             accounts = initialAccounts,
                             currencySymbol = selectedCountry.currencySymbol,
+                            onUpdateAccountBalance = { idx, newBal ->
+                                initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
+                            },
                             onContinue = {
                                 coroutineScope.launch { pagerState.animateScrollToPage(4) }
                             }
                         )
                     }
 
-                    // --- STEP 5: FIXED COMMITMENTS ---
+                    // --- STEP 5: FIXED COMMITMENTS (TAXONOMY BOUND) ---
                     4 -> {
                         OnboardingStep5Commitments(
                             commitments = initialCommitments,
@@ -424,7 +427,7 @@ fun MultiStepOnboardingFlow(
                         )
                     }
 
-                    // --- STEP 6: VAULT SEEDING & 10-SECOND AUTO-CLOSING TRANSITION ---
+                    // --- STEP 6: VAULT SEEDING & DELIBERATION HERO TRANSITION ---
                     5 -> {
                         OnboardingStep6VaultSealing(
                             displayName = displayName,
@@ -445,7 +448,7 @@ fun MultiStepOnboardingFlow(
 }
 
 // -------------------------------------------------------------
-// STEP 1: IDENTITY & PROFILE
+// STEP 1: IDENTITY & PROFILE (MATCHES SETTINGS SCREEN STYLE)
 // -------------------------------------------------------------
 @Composable
 private fun OnboardingStep1Identity(
@@ -470,8 +473,8 @@ private fun OnboardingStep1Identity(
         item {
             OrbitalVaultParticlesCanvas(
                 modifier = Modifier
-                    .size(120.dp)
-                    .padding(bottom = 8.dp)
+                    .size(110.dp)
+                    .padding(bottom = 6.dp)
             )
 
             Text(
@@ -490,59 +493,73 @@ private fun OnboardingStep1Identity(
                 lineHeight = 16.sp
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(22.dp))
 
-            // Profile Avatar Picker Frame
-            Box(
+            // Profile Avatar Picker Frame matching SettingsScreen Style
+            Surface(
                 modifier = Modifier
-                    .size(92.dp)
-                    .clip(CircleShape)
-                    .background(CardWhite)
+                    .size(88.dp)
+                    .shadow(4.dp, CircleShape)
                     .clickable(onClick = onPickPhoto),
-                contentAlignment = Alignment.Center
+                shape = CircleShape,
+                color = CardWhite,
+                border = BorderStroke(2.dp, AccentPurple.copy(alpha = 0.55f))
             ) {
-                if (avatarBitmap != null) {
-                    Image(
-                        bitmap = avatarBitmap,
-                        contentDescription = "Profile Photo",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Brush.linearGradient(listOf(PurplePrimary.copy(alpha = 0.2f), CyanPrimary.copy(alpha = 0.2f)))),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (displayName.isNotBlank()) displayName.take(1).uppercase() else "+",
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Black,
-                            color = AccentPurple
-                        )
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(28.dp),
-                    shape = CircleShape,
-                    color = AccentPurple,
-                    shadowElevation = 4.dp
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Default.CameraAlt,
-                        contentDescription = "Upload Photo",
-                        tint = Color.White,
-                        modifier = Modifier.padding(6.dp)
-                    )
+                    if (avatarBitmap != null) {
+                        Image(
+                            bitmap = avatarBitmap,
+                            contentDescription = "Profile Photo",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(PurplePrimary.copy(alpha = 0.22f), CyanPrimary.copy(alpha = 0.22f))
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = displayName.take(1).uppercase().ifEmpty { "J" },
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Black,
+                                color = AccentPurple
+                            )
+                        }
+                    }
+
+                    // Bottom-Right Camera Overlay Badge
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(28.dp),
+                        shape = CircleShape,
+                        color = AccentPurple,
+                        shadowElevation = 3.dp
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.CameraAlt,
+                                contentDescription = "Upload Photo",
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(22.dp))
 
+            // Name Input
             OutlinedTextField(
                 value = displayName,
                 onValueChange = onDisplayNameChange,
@@ -558,8 +575,9 @@ private fun OnboardingStep1Identity(
                 )
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
+            // Email Input
             OutlinedTextField(
                 value = emailAddress,
                 onValueChange = onEmailChange,
@@ -576,7 +594,7 @@ private fun OnboardingStep1Identity(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Used solely for local PDF/Excel tax export headers. Never sent to any cloud server.",
+                text = "Used solely for local PDF/Excel statement headers. Never sent to cloud servers.",
                 fontSize = 10.5.sp,
                 color = TextMuted,
                 modifier = Modifier.fillMaxWidth(),
@@ -604,7 +622,7 @@ private fun OnboardingStep1Identity(
 }
 
 // -------------------------------------------------------------
-// STEP 2: MASTER PIN & ENCRYPTED SECURITY
+// STEP 2: MASTER PIN & RECOVERY DOB
 // -------------------------------------------------------------
 @Composable
 private fun OnboardingStep2PinSecurity(
@@ -631,18 +649,18 @@ private fun OnboardingStep2PinSecurity(
     ) {
         SecurityRadarPulseCanvas(
             modifier = Modifier
-                .size(70.dp)
+                .size(68.dp)
                 .padding(bottom = 6.dp)
         )
 
         Text(
-            text = if (pinEntryPhase == 1) "Create Master PIN" else "Confirm Master PIN",
+            text = if (pinEntryPhase == 1) "Create Master PIN" else "Confirm PIN & Recovery",
             fontSize = 20.sp,
             fontWeight = FontWeight.Black,
             color = TextDark
         )
         Text(
-            text = if (pinEntryPhase == 1) "4-digit offline lock protecting your local financial database" else "Re-enter your 4-digit PIN to confirm",
+            text = if (pinEntryPhase == 1) "4-digit offline lock protecting your personal vault" else "Re-enter PIN and set local recovery credentials",
             fontSize = 11.5.sp,
             color = TextMuted,
             textAlign = TextAlign.Center
@@ -650,6 +668,7 @@ private fun OnboardingStep2PinSecurity(
 
         Spacer(modifier = Modifier.height(18.dp))
 
+        // Bouncy 4-Digit Indicators
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             repeat(4) { idx ->
                 val isFilled = idx < currentPinString.length
@@ -666,7 +685,8 @@ private fun OnboardingStep2PinSecurity(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (pinEntryPhase == 1) {
+        // Phase 2 ONLY: Show Recovery DOB & Biometric Switch
+        if (pinEntryPhase == 2) {
             OutlinedTextField(
                 value = rawDobDigits,
                 onValueChange = onDobChange,
@@ -691,7 +711,7 @@ private fun OnboardingStep2PinSecurity(
                 border = BorderStroke(0.6.dp, BorderLight)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -711,6 +731,7 @@ private fun OnboardingStep2PinSecurity(
 
         Spacer(modifier = Modifier.weight(1f))
 
+        // Numeric Keypad
         val keys = listOf(
             listOf("1", "2", "3"),
             listOf("4", "5", "6"),
@@ -766,7 +787,7 @@ private fun OnboardingStep2PinSecurity(
 }
 
 // -------------------------------------------------------------
-// STEP 3: COUNTRY CURRENCY MAPPING & STRATEGY ENGINE
+// STEP 3: COUNTRY REGION & VAULT STRATEGY ENGINE
 // -------------------------------------------------------------
 @Composable
 private fun OnboardingStep3CountryStrategy(
@@ -913,12 +934,13 @@ private fun OnboardingStep3CountryStrategy(
 }
 
 // -------------------------------------------------------------
-// STEP 4: BANK ACCOUNTS & OPENING LIQUIDITY
+// STEP 4: INITIAL BANK ACCOUNTS & LIQUIDITY (FIXED STATE & HEIGHT)
 // -------------------------------------------------------------
 @Composable
 private fun OnboardingStep4Accounts(
     accounts: List<InitialAccountSetup>,
     currencySymbol: String,
+    onUpdateAccountBalance: (Int, String) -> Unit,
     onContinue: () -> Unit
 ) {
     val totalOpening = accounts.sumOf { it.initialBalanceText.toDoubleOrNull() ?: 0.0 }
@@ -931,7 +953,7 @@ private fun OnboardingStep4Accounts(
     ) {
         item {
             Text("Opening Liquidity Balances", fontSize = 19.sp, fontWeight = FontWeight.Black, color = TextDark)
-            Text("Enter the current balances in your initial bank accounts", fontSize = 11.5.sp, color = TextMuted)
+            Text("Enter the current balances in your initial vault accounts", fontSize = 11.5.sp, color = TextMuted)
             Spacer(modifier = Modifier.height(14.dp))
 
             Surface(
@@ -949,7 +971,7 @@ private fun OnboardingStep4Accounts(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            accounts.forEach { acc ->
+            accounts.forEachIndexed { idx, acc ->
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
                     shape = RoundedCornerShape(14.dp),
@@ -957,22 +979,22 @@ private fun OnboardingStep4Accounts(
                     border = BorderStroke(0.7.dp, BorderLight)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                             Text(acc.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
                             Text(acc.defaultType, fontSize = 10.5.sp, color = AccentPurple)
                         }
 
                         OutlinedTextField(
                             value = acc.initialBalanceText,
-                            onValueChange = { acc.initialBalanceText = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                            onValueChange = { onUpdateAccountBalance(idx, it.filter { ch -> ch.isDigit() || ch == '.' }) },
                             label = { Text("Balance ($currencySymbol)", fontSize = 10.sp) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.width(130.dp).height(50.dp),
+                            modifier = Modifier.width(135.dp),
                             shape = RoundedCornerShape(10.dp)
                         )
                     }
@@ -994,7 +1016,7 @@ private fun OnboardingStep4Accounts(
 }
 
 // -------------------------------------------------------------
-// STEP 5: FIXED COMMITMENTS
+// STEP 5: FIXED COMMITMENTS (NATURAL HEIGHT TEXT FIELDS)
 // -------------------------------------------------------------
 @Composable
 private fun OnboardingStep5Commitments(
@@ -1055,7 +1077,7 @@ private fun OnboardingStep5Commitments(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).padding(end = 6.dp)) {
                             Checkbox(
                                 checked = bill.isSelected,
                                 onCheckedChange = { onToggleCommitment(idx) },
@@ -1074,7 +1096,7 @@ private fun OnboardingStep5Commitments(
                                 onValueChange = { onUpdateAmount(idx, it.filter { ch -> ch.isDigit() }) },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.width(100.dp).height(48.dp),
+                                modifier = Modifier.width(110.dp),
                                 shape = RoundedCornerShape(10.dp)
                             )
                         }
@@ -1097,7 +1119,7 @@ private fun OnboardingStep5Commitments(
 }
 
 // -------------------------------------------------------------
-// STEP 6: CONSOLIDATED PASSPORT & 10-SECOND AUTO-CLOSING TRANSITION
+// STEP 6: DELIBERATION HERO & COMPACT BOTTOM TIMER
 // -------------------------------------------------------------
 @Composable
 private fun OnboardingStep6VaultSealing(
@@ -1113,7 +1135,7 @@ private fun OnboardingStep6VaultSealing(
 ) {
     val context = LocalContext.current
     val avatarBitmap = rememberImageBitmapFromUri(context, profileImageUri)
-    val countdownProgress = (10 - remainingSeconds) / 10f
+    val countdownFraction = remainingSeconds / 10f
 
     Column(
         modifier = Modifier
@@ -1123,21 +1145,22 @@ private fun OnboardingStep6VaultSealing(
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text("Vault Sealing Confirmation", fontSize = 20.sp, fontWeight = FontWeight.Black, color = TextDark)
-            Text("Your personal financial passport is ready", fontSize = 12.sp, color = TextMuted)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text("Vault Sealed & Secured", fontSize = 20.sp, fontWeight = FontWeight.Black, color = TextDark)
+            Text("Your personal financial hub is initialized", fontSize = 12.sp, color = TextMuted)
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
+            // Consolidated Passport Card
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(22.dp)),
-                shape = RoundedCornerShape(22.dp),
+                    .shadow(3.dp, RoundedCornerShape(20.dp)),
+                shape = RoundedCornerShape(20.dp),
                 color = CardWhite,
                 border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))
             ) {
-                Column(modifier = Modifier.padding(18.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1148,99 +1171,179 @@ private fun OnboardingStep6VaultSealing(
                                 Image(
                                     bitmap = avatarBitmap,
                                     contentDescription = null,
-                                    modifier = Modifier.size(42.dp).clip(CircleShape),
+                                    modifier = Modifier.size(38.dp).clip(CircleShape),
                                     contentScale = ContentScale.Crop
                                 )
                             } else {
                                 Box(
-                                    modifier = Modifier.size(42.dp).clip(CircleShape).background(AccentPurple.copy(alpha = 0.15f)),
+                                    modifier = Modifier.size(38.dp).clip(CircleShape).background(AccentPurple.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(displayName.take(1).uppercase(), fontWeight = FontWeight.Black, fontSize = 18.sp, color = AccentPurple)
+                                    Text(displayName.take(1).uppercase().ifEmpty { "J" }, fontWeight = FontWeight.Black, fontSize = 16.sp, color = AccentPurple)
                                 }
                             }
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text(displayName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                                Text(displayName, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = TextDark)
                                 Text(if (emailAddress.isNotBlank()) emailAddress else "${country.countryName} ${country.flagEmoji}", fontSize = 11.sp, color = TextMuted)
                             }
                         }
 
                         Surface(shape = RoundedCornerShape(8.dp), color = TealPrimary.copy(alpha = 0.14f)) {
-                            Text(strategy, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TealPrimary, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                            Text(strategy, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TealPrimary, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
-                            Text("Total Opening Liquidity", fontSize = 10.5.sp, color = TextMuted)
-                            Text("${country.currencySymbol}${String.format(Locale.US, "%,.2f", totalLiquidity)}", fontWeight = FontWeight.Black, fontSize = 16.sp, color = TextDark)
+                            Text("Opening Liquidity", fontSize = 10.sp, color = TextMuted)
+                            Text("${country.currencySymbol}${String.format(Locale.US, "%,.2f", totalLiquidity)}", fontWeight = FontWeight.Black, fontSize = 15.sp, color = TextDark)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Monthly AutoPay Locked", fontSize = 10.5.sp, color = TextMuted)
-                            Text("${country.currencySymbol}${String.format(Locale.US, "%,.0f", totalCommitments)}", fontWeight = FontWeight.Black, fontSize = 16.sp, color = CoralAccent)
+                            Text("Monthly Commitments", fontSize = 10.sp, color = TextMuted)
+                            Text("${country.currencySymbol}${String.format(Locale.US, "%,.0f", totalCommitments)}", fontWeight = FontWeight.Black, fontSize = 15.sp, color = CoralAccent)
                         }
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Animated Human Deliberation Hero Canvas
+            HumanDeliberationSceneCanvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(155.dp)
+            )
         }
 
+        // Compact Bottom Countdown Pill & Launch Button
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(bottom = 24.dp)
+            modifier = Modifier.padding(bottom = 18.dp)
         ) {
-            Box(
-                modifier = Modifier.size(110.dp),
-                contentAlignment = Alignment.Center
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = CardWhite,
+                border = BorderStroke(0.8.dp, BorderLight)
             ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val strokeW = 6.dp.toPx()
-                    val diameter = size.minDimension - strokeW
-                    val topLeft = Offset(strokeW / 2, strokeW / 2)
-                    val arcSize = Size(diameter, diameter)
-
-                    drawArc(
-                        color = BorderLight.copy(alpha = 0.5f),
-                        startAngle = 0f,
-                        sweepAngle = 360f,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = arcSize,
-                        style = Stroke(width = strokeW)
-                    )
-
-                    drawArc(
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(AccentPurple)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Auto-sealing vault in ${remainingSeconds}s...",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LinearProgressIndicator(
+                        progress = { countdownFraction },
+                        modifier = Modifier
+                            .width(130.dp)
+                            .height(2.5.dp)
+                            .clip(RoundedCornerShape(2.dp)),
                         color = AccentPurple,
-                        startAngle = -90f,
-                        sweepAngle = countdownProgress * 360f,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = arcSize,
-                        style = Stroke(width = strokeW, cap = StrokeCap.Round)
+                        trackColor = BorderLight.copy(alpha = 0.5f)
                     )
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${remainingSeconds}s", fontWeight = FontWeight.Black, fontSize = 22.sp, color = AccentPurple)
-                    Text("Auto-sealing", fontSize = 9.5.sp, color = TextMuted)
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Button(
                 onClick = onSealImmediately,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
             ) {
                 Text("Enter Dashboard Now", fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
         }
+    }
+}
+
+// -------------------------------------------------------------
+// MOTION GRAPHICS: DELIBERATION HERO SCENE CANVAS
+// -------------------------------------------------------------
+@Composable
+private fun HumanDeliberationSceneCanvas(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "deliberation")
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "delibPulse"
+    )
+    val floatOffset by infiniteTransition.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "delibFloat"
+    )
+
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val c = Offset(w / 2, h * 0.52f)
+
+        // 1. Central Ambient Glow & Vault Matrix Node
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(PurplePrimary.copy(alpha = 0.25f * pulse), Color.Transparent),
+                center = c,
+                radius = 70.dp.toPx()
+            ),
+            radius = 70.dp.toPx(),
+            center = c
+        )
+
+        // Central Hologram Platform Base
+        drawOval(
+            color = BorderLight.copy(alpha = 0.6f),
+            topLeft = Offset(w * 0.22f, h * 0.78f),
+            size = Size(w * 0.56f, 16.dp.toPx())
+        )
+
+        // 2. Central Floating Vault Shield Glyph
+        val shieldCenter = Offset(c.x, c.y + floatOffset)
+        drawCircle(color = AccentPurple.copy(alpha = 0.18f), radius = 22.dp.toPx(), center = shieldCenter)
+        drawCircle(color = AccentPurple, radius = 10.dp.toPx(), center = shieldCenter)
+        drawCircle(color = Color.White, radius = 4.dp.toPx(), center = shieldCenter)
+
+        // 3. Deliberation Figure 1 (Left: The Strategist)
+        val f1Center = Offset(w * 0.24f, h * 0.50f)
+        drawLine(color = CyanPrimary.copy(alpha = 0.45f * pulse), start = f1Center, end = shieldCenter, strokeWidth = 1.5.dp.toPx())
+        drawCircle(color = TextDark, radius = 9.dp.toPx(), center = Offset(f1Center.x, f1Center.y - 18.dp.toPx()))
+        drawRoundRect(color = CyanPrimary, topLeft = Offset(f1Center.x - 10.dp.toPx(), f1Center.y - 6.dp.toPx()), size = Size(20.dp.toPx(), 26.dp.toPx()), cornerRadius = CornerRadius(6.dp.toPx()))
+        drawCircle(color = TealPrimary, radius = 4.dp.toPx(), center = Offset(f1Center.x + 8.dp.toPx(), f1Center.y + 4.dp.toPx() + floatOffset))
+
+        // 4. Deliberation Figure 2 (Center-Back: The Guardian)
+        val f2Center = Offset(w * 0.50f, h * 0.28f)
+        drawLine(color = PurplePrimary.copy(alpha = 0.45f * pulse), start = f2Center, end = shieldCenter, strokeWidth = 1.5.dp.toPx())
+        drawCircle(color = TextDark, radius = 8.dp.toPx(), center = Offset(f2Center.x, f2Center.y - 16.dp.toPx()))
+        drawRoundRect(color = PurplePrimary, topLeft = Offset(f2Center.x - 9.dp.toPx(), f2Center.y - 6.dp.toPx()), size = Size(18.dp.toPx(), 22.dp.toPx()), cornerRadius = CornerRadius(5.dp.toPx()))
+
+        // 5. Deliberation Figure 3 (Right: The Allocator)
+        val f3Center = Offset(w * 0.76f, h * 0.50f)
+        drawLine(color = Color(0xFFE57A28).copy(alpha = 0.45f * pulse), start = f3Center, end = shieldCenter, strokeWidth = 1.5.dp.toPx())
+        drawCircle(color = TextDark, radius = 9.dp.toPx(), center = Offset(f3Center.x, f3Center.y - 18.dp.toPx()))
+        drawRoundRect(color = Color(0xFFE57A28), topLeft = Offset(f3Center.x - 10.dp.toPx(), f3Center.y - 6.dp.toPx()), size = Size(20.dp.toPx(), 26.dp.toPx()), cornerRadius = CornerRadius(6.dp.toPx()))
+        drawCircle(color = Color(0xFFE57A28), radius = 4.dp.toPx(), center = Offset(f3Center.x - 8.dp.toPx(), f3Center.y + 4.dp.toPx() - floatOffset))
     }
 }
 
