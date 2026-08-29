@@ -978,7 +978,8 @@ fun OnboardingStep0WelcomeGateway(
                                 GatewayStage.STRATEGY -> {
                                     focusManager.clearFocus()
                                     keyboardController?.hide()
-                                    onProceedToNextStep()
+                                    // Always trigger the detailed explanation sheet before proceeding
+                                    strategyDetailTarget = selectedStrategy
                                 }
                             }
                         },
@@ -1237,6 +1238,7 @@ fun OnboardingStep0WelcomeGateway(
                         onClick = {
                             onStrategySelect(target)
                             strategyDetailTarget = null
+                            onProceedToNextStep()
                         },
                         modifier = Modifier
                             .fillMaxWidth()
