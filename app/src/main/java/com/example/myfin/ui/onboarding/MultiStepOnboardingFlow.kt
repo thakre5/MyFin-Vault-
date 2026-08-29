@@ -27,6 +27,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -41,6 +42,7 @@ import com.example.myfin.ui.onboarding.steps.*
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.absoluteValue
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -215,7 +217,6 @@ fun MultiStepOnboardingFlow(
                     verticalArrangement = Arrangement.Center,
                     modifier = Modifier.padding(horizontal = 32.dp)
                 ) {
-                    // Radiant Logo Badge
                     Surface(
                         shape = CircleShape,
                         color = Color.White.copy(alpha = 0.15f),
@@ -270,7 +271,7 @@ fun MultiStepOnboardingFlow(
         }
 
         // =========================================================
-        // MAIN ONBOARDING FLOW & PAGER
+        // MAIN ONBOARDING FLOW & SMOOTH PAGER TRANSITIONS
         // =========================================================
         Column(modifier = Modifier.fillMaxSize()) {
             if (pagerState.currentPage > 0) {
@@ -291,7 +292,10 @@ fun MultiStepOnboardingFlow(
                                         pinEntryPhase = 1
                                         confirmPin = ""
                                     } else {
-                                        pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                                        pagerState.animateScrollToPage(
+                                            page = pagerState.currentPage - 1,
+                                            animationSpec = tween(450, easing = FastOutSlowInEasing)
+                                        )
                                     }
                                 }
                             },
@@ -311,7 +315,11 @@ fun MultiStepOnboardingFlow(
                             val activeStepIndex = pagerState.currentPage - 1
                             val isCurrent = activeStepIndex == index
                             val isPassed = activeStepIndex > index
-                            val width by animateDpAsState(if (isCurrent) 22.dp else 7.dp, label = "stepPill")
+                            val width by animateDpAsState(
+                                targetValue = if (isCurrent) 22.dp else 7.dp,
+                                animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
+                                label = "stepPill"
+                            )
 
                             Box(
                                 modifier = Modifier
@@ -345,135 +353,184 @@ fun MultiStepOnboardingFlow(
                     .weight(1f)
                     .fillMaxWidth()
             ) { page ->
-                when (page) {
-                    0 -> {
-                        OnboardingStep0WelcomeGateway(
-                            currencySymbol = selectedCountry.currencySymbol,
-                            onGetStarted = {
-                                coroutineScope.launch {
+                // Tactile Step Transition Depth & Parallax Effect
+                val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
+                val clampedOffset = pageOffset.coerceIn(0f, 1f)
+                val scale = 1f - (0.06f * clampedOffset)
+                val alpha = 1f - (0.4f * clampedOffset)
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            this.alpha = alpha
+                        }
+                ) {
+                    when (page) {
+                        0 -> {
+                            OnboardingStep0WelcomeGateway(
+                                currencySymbol = selectedCountry.currencySymbol,
+                                onGetStarted = {
+                                    coroutineScope.launch {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        pagerState.animateScrollToPage(
+                                            page = 1,
+                                            animationSpec = tween(450, easing = FastOutSlowInEasing)
+                                        )
+                                    }
+                                },
+                                onRestoreVault = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    pagerState.animateScrollToPage(1)
+                                    restoreBackupLauncher.launch(arrayOf("application/json", "*/*"))
                                 }
-                            },
-                            onRestoreVault = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                restoreBackupLauncher.launch(arrayOf("application/json", "*/*"))
-                            }
-                        )
-                    }
-                    1 -> {
-                        OnboardingStep1Identity(
-                            profileImageUri = profileImageUri,
-                            displayName = displayName,
-                            emailAddress = emailAddress,
-                            onPickPhoto = {
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            },
-                            onDisplayNameChange = { displayName = it },
-                            onEmailChange = { emailAddress = it },
-                            onContinue = {
-                                if (displayName.trim().isEmpty()) {
-                                    Toast.makeText(context, "Please enter your display name", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    coroutineScope.launch { pagerState.animateScrollToPage(2) }
+                            )
+                        }
+                        1 -> {
+                            OnboardingStep1Identity(
+                                profileImageUri = profileImageUri,
+                                displayName = displayName,
+                                emailAddress = emailAddress,
+                                onPickPhoto = {
+                                    photoPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                                onDisplayNameChange = { displayName = it },
+                                onEmailChange = { emailAddress = it },
+                                onContinue = {
+                                    if (displayName.trim().isEmpty()) {
+                                        Toast.makeText(context, "Please enter your display name", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        coroutineScope.launch {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            pagerState.animateScrollToPage(
+                                                page = 2,
+                                                animationSpec = tween(450, easing = FastOutSlowInEasing)
+                                            )
+                                        }
+                                    }
                                 }
-                            }
-                        )
-                    }
-                    2 -> {
-                        OnboardingStep2PinSecurity(
-                            pinEntryPhase = pinEntryPhase,
-                            masterPin = masterPin,
-                            confirmPin = confirmPin,
-                            rawDobDigits = rawDobDigits,
-                            isBiometricEnabled = isBiometricEnabled,
-                            onDigitPress = { digit ->
-                                if (pinEntryPhase == 1) {
-                                    if (masterPin.length < 4) masterPin += digit
-                                } else {
-                                    if (confirmPin.length < 4) confirmPin += digit
+                            )
+                        }
+                        2 -> {
+                            OnboardingStep2PinSecurity(
+                                pinEntryPhase = pinEntryPhase,
+                                masterPin = masterPin,
+                                confirmPin = confirmPin,
+                                rawDobDigits = rawDobDigits,
+                                isBiometricEnabled = isBiometricEnabled,
+                                onDigitPress = { digit ->
+                                    if (pinEntryPhase == 1) {
+                                        if (masterPin.length < 4) masterPin += digit
+                                    } else {
+                                        if (confirmPin.length < 4) confirmPin += digit
+                                    }
+                                },
+                                onDeleteDigit = {
+                                    if (pinEntryPhase == 1) {
+                                        if (masterPin.isNotEmpty()) masterPin = masterPin.dropLast(1)
+                                    } else {
+                                        if (confirmPin.isNotEmpty()) confirmPin = confirmPin.dropLast(1)
+                                    }
+                                },
+                                onDobChange = { rawDobDigits = it.filter { ch -> ch.isDigit() }.take(8) },
+                                onBiometricToggle = { isBiometricEnabled = it },
+                                onProceedToConfirm = {
+                                    if (masterPin.length == 4) {
+                                        pinEntryPhase = 2
+                                    } else {
+                                        Toast.makeText(context, "Enter a 4-digit Master PIN", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onValidateAndNext = {
+                                    if (confirmPin != masterPin) {
+                                        Toast.makeText(context, "PINs do not match. Please re-enter.", Toast.LENGTH_SHORT).show()
+                                        confirmPin = ""
+                                    } else if (rawDobDigits.length < 8) {
+                                        Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        coroutineScope.launch {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            pagerState.animateScrollToPage(
+                                                page = 3,
+                                                animationSpec = tween(450, easing = FastOutSlowInEasing)
+                                            )
+                                        }
+                                    }
                                 }
-                            },
-                            onDeleteDigit = {
-                                if (pinEntryPhase == 1) {
-                                    if (masterPin.isNotEmpty()) masterPin = masterPin.dropLast(1)
-                                } else {
-                                    if (confirmPin.isNotEmpty()) confirmPin = confirmPin.dropLast(1)
+                            )
+                        }
+                        3 -> {
+                            OnboardingStep3CountryStrategy(
+                                selectedCountry = selectedCountry,
+                                selectedStrategy = selectedStrategy,
+                                onSelectCountry = { selectedCountry = it },
+                                onSelectStrategy = { selectedStrategy = it },
+                                onContinue = {
+                                    coroutineScope.launch {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        pagerState.animateScrollToPage(
+                                            page = 4,
+                                            animationSpec = tween(450, easing = FastOutSlowInEasing)
+                                        )
+                                    }
                                 }
-                            },
-                            onDobChange = { rawDobDigits = it.filter { ch -> ch.isDigit() }.take(8) },
-                            onBiometricToggle = { isBiometricEnabled = it },
-                            onProceedToConfirm = {
-                                if (masterPin.length == 4) {
-                                    pinEntryPhase = 2
-                                } else {
-                                    Toast.makeText(context, "Enter a 4-digit Master PIN", Toast.LENGTH_SHORT).show()
+                            )
+                        }
+                        4 -> {
+                            OnboardingStep4Accounts(
+                                accounts = initialAccounts,
+                                currencySymbol = selectedCountry.currencySymbol,
+                                onUpdateAccountBalance = { idx, newBal ->
+                                    initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
+                                },
+                                onContinue = {
+                                    coroutineScope.launch {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        pagerState.animateScrollToPage(
+                                            page = 5,
+                                            animationSpec = tween(450, easing = FastOutSlowInEasing)
+                                        )
+                                    }
                                 }
-                            },
-                            onValidateAndNext = {
-                                if (confirmPin != masterPin) {
-                                    Toast.makeText(context, "PINs do not match. Please re-enter.", Toast.LENGTH_SHORT).show()
-                                    confirmPin = ""
-                                } else if (rawDobDigits.length < 8) {
-                                    Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    coroutineScope.launch { pagerState.animateScrollToPage(3) }
+                            )
+                        }
+                        5 -> {
+                            OnboardingStep5Commitments(
+                                commitments = initialCommitments,
+                                currencySymbol = selectedCountry.currencySymbol,
+                                onToggleCommitment = { idx ->
+                                    initialCommitments[idx] = initialCommitments[idx].copy(isSelected = !initialCommitments[idx].isSelected)
+                                },
+                                onUpdateAmount = { idx, amt ->
+                                    initialCommitments[idx] = initialCommitments[idx].copy(amountText = amt)
+                                },
+                                onContinue = {
+                                    coroutineScope.launch {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        pagerState.animateScrollToPage(
+                                            page = 6,
+                                            animationSpec = tween(450, easing = FastOutSlowInEasing)
+                                        )
+                                    }
                                 }
-                            }
-                        )
-                    }
-                    3 -> {
-                        OnboardingStep3CountryStrategy(
-                            selectedCountry = selectedCountry,
-                            selectedStrategy = selectedStrategy,
-                            onSelectCountry = { selectedCountry = it },
-                            onSelectStrategy = { selectedStrategy = it },
-                            onContinue = {
-                                coroutineScope.launch { pagerState.animateScrollToPage(4) }
-                            }
-                        )
-                    }
-                    4 -> {
-                        OnboardingStep4Accounts(
-                            accounts = initialAccounts,
-                            currencySymbol = selectedCountry.currencySymbol,
-                            onUpdateAccountBalance = { idx, newBal ->
-                                initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
-                            },
-                            onContinue = {
-                                coroutineScope.launch { pagerState.animateScrollToPage(5) }
-                            }
-                        )
-                    }
-                    5 -> {
-                        OnboardingStep5Commitments(
-                            commitments = initialCommitments,
-                            currencySymbol = selectedCountry.currencySymbol,
-                            onToggleCommitment = { idx ->
-                                initialCommitments[idx] = initialCommitments[idx].copy(isSelected = !initialCommitments[idx].isSelected)
-                            },
-                            onUpdateAmount = { idx, amt ->
-                                initialCommitments[idx] = initialCommitments[idx].copy(amountText = amt)
-                            },
-                            onContinue = {
-                                coroutineScope.launch { pagerState.animateScrollToPage(6) }
-                            }
-                        )
-                    }
-                    6 -> {
-                        OnboardingStep6VaultSealing(
-                            displayName = displayName,
-                            emailAddress = emailAddress,
-                            profileImageUri = profileImageUri,
-                            country = selectedCountry,
-                            strategy = selectedStrategy,
-                            totalLiquidity = initialAccounts.sumOf { it.initialBalanceText.toDoubleOrNull() ?: 0.0 },
-                            totalCommitments = initialCommitments.filter { it.isSelected }.sumOf { it.amountText.toDoubleOrNull() ?: 0.0 },
-                            remainingSeconds = remainingSeconds,
-                            onSealImmediately = { finalizeAndLaunchVault() }
-                        )
+                            )
+                        }
+                        6 -> {
+                            OnboardingStep6VaultSealing(
+                                displayName = displayName,
+                                emailAddress = emailAddress,
+                                profileImageUri = profileImageUri,
+                                country = selectedCountry,
+                                strategy = selectedStrategy,
+                                totalLiquidity = initialAccounts.sumOf { it.initialBalanceText.toDoubleOrNull() ?: 0.0 },
+                                totalCommitments = initialCommitments.filter { it.isSelected }.sumOf { it.amountText.toDoubleOrNull() ?: 0.0 },
+                                remainingSeconds = remainingSeconds,
+                                onSealImmediately = { finalizeAndLaunchVault() }
+                            )
+                        }
                     }
                 }
             }
