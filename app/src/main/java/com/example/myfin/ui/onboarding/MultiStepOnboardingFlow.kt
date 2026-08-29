@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.example.myfin.data.AccountEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.onboarding.steps.*
@@ -49,7 +50,7 @@ fun MultiStepOnboardingFlow(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
-    // 2 Pager Steps: Step 0 = Unified In-Place Gateway (Carousel -> Identity -> Security -> Strategy -> Accounts -> Commitments), Step 1 = Vault Sealing
+    // 2 Pager Steps: Step 0 = Unified In-Place Gateway, Step 1 = Vault Sealing
     val pagerState = rememberPagerState(pageCount = { 2 })
 
     var showSplashReveal by remember { mutableStateOf(true) }
@@ -100,7 +101,7 @@ fun MultiStepOnboardingFlow(
         }
     }
 
-    // 5 Mapped AutoPay Commitments (2 Expenses, 2 Assets, 1 Income)
+    // 5 Mapped AutoPay Commitments
     val initialCommitments = remember {
         mutableStateListOf(
             InitialCommitmentPreset("House / PG Rent", "Utilities & Living Bills", "PG Rent", TransactionType.EXPENSE, 5, "15000", true),
@@ -146,17 +147,21 @@ fun MultiStepOnboardingFlow(
         viewModel.setBiometricEnabled(isBiometricEnabled)
         viewModel.saveMasterPin(masterPin.ifEmpty { "1234" })
 
-        initialAccounts.forEach { acc ->
-            val bal = acc.initialBalanceText.toDoubleOrNull() ?: 0.0
-            viewModel.addAccount(
-                name = acc.name.trim().uppercase(),
-                startingBalance = bal,
-                type = acc.defaultType
+        // Atomic replacement ensures ONLY the configured accounts exist in Room
+        val accountEntities = initialAccounts.mapIndexed { index, acc ->
+            AccountEntity(
+                accountName = acc.name.trim().uppercase(),
+                startingBalance = acc.initialBalanceText.toDoubleOrNull() ?: 0.0,
+                accountType = acc.defaultType,
+                sortOrder = index
             )
         }
+        viewModel.replaceAllAccounts(accountEntities)
 
-        val commitmentsAccountName = initialAccounts.firstOrNull { it.defaultType == "Commitments" }?.name ?: initialAccounts.first().name
-        val operatingAccountName = initialAccounts.firstOrNull { it.defaultType == "Operating" }?.name ?: initialAccounts.first().name
+        val commitmentsAccountName = initialAccounts.firstOrNull { it.defaultType == "Commitments" }?.name?.uppercase()
+            ?: initialAccounts.first().name.uppercase()
+        val operatingAccountName = initialAccounts.firstOrNull { it.defaultType == "Operating" }?.name?.uppercase()
+            ?: initialAccounts.first().name.uppercase()
 
         initialCommitments.filter { it.isSelected }.forEach { bill ->
             val amt = bill.amountText.toDoubleOrNull() ?: 0.0
@@ -294,7 +299,7 @@ fun MultiStepOnboardingFlow(
                     }
             ) {
                 when (page) {
-                    // STEP 0: UNIFIED IN-PLACE GATEWAY (Carousel -> Identity -> Security -> Strategy -> Accounts -> Commitments)
+                    // STEP 0: UNIFIED IN-PLACE GATEWAY
                     0 -> {
                         OnboardingStep0WelcomeGateway(
                             displayName = displayName,
