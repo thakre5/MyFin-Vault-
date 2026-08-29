@@ -249,7 +249,6 @@ fun OnboardingStep0WelcomeGateway(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Top offset spacer matching floating header height
                 Spacer(modifier = Modifier.height(56.dp))
 
                 // Hero Cards
@@ -559,7 +558,7 @@ fun OnboardingStep0WelcomeGateway(
                                     // Row 1: Create Master Password / PIN
                                     OutlinedTextField(
                                         value = masterPin,
-                                        onMasterPinChange = onMasterPinChange,
+                                        onValueChange = onMasterPinChange,
                                         placeholder = { Text("Create Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
                                             Icon(
@@ -599,7 +598,7 @@ fun OnboardingStep0WelcomeGateway(
                                     val isPinMatching = confirmPin.isNotEmpty() && confirmPin == masterPin
                                     OutlinedTextField(
                                         value = confirmPin,
-                                        onConfirmPinChange = onConfirmPinChange,
+                                        onValueChange = onConfirmPinChange,
                                         placeholder = { Text("Confirm Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
                                             Icon(
@@ -763,7 +762,6 @@ fun OnboardingStep0WelcomeGateway(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Primary Action Button
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -821,7 +819,6 @@ fun OnboardingStep0WelcomeGateway(
                         }
                     }
 
-                    // Secondary Restore Button
                     AnimatedVisibility(
                         visible = currentStage != GatewayStage.SECURITY,
                         enter = fadeIn(tween(300)) + expandVertically(tween(300)),
