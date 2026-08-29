@@ -54,7 +54,6 @@ fun MultiStepOnboardingFlow(
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { 5 })
 
-    // 2-Second Brand Reveal Splash State
     var showSplashReveal by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
@@ -68,7 +67,8 @@ fun MultiStepOnboardingFlow(
 
     var masterPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
-    var isBiometricEnabled by remember { mutableStateOf(true) }
+    // Default biometric toggle set to false
+    var isBiometricEnabled by remember { mutableStateOf(false) }
 
     var selectedCountry by remember { mutableStateOf(SupportedCountries[0]) }
     var selectedStrategy by remember { mutableStateOf("3-VAULT") }
@@ -173,9 +173,6 @@ fun MultiStepOnboardingFlow(
             .fillMaxSize()
             .background(CanvasLight)
     ) {
-        // =========================================================
-        // 2-SECOND BRAND SPLASH REVEAL OVERLAY
-        // =========================================================
         AnimatedVisibility(
             visible = showSplashReveal,
             enter = fadeIn(),
@@ -256,9 +253,6 @@ fun MultiStepOnboardingFlow(
             }
         }
 
-        // =========================================================
-        // MAIN ONBOARDING FLOW & PAGER
-        // =========================================================
         Column(modifier = Modifier.fillMaxSize()) {
             if (pagerState.currentPage > 0) {
                 Row(
@@ -345,7 +339,6 @@ fun MultiStepOnboardingFlow(
                         }
                 ) {
                     when (page) {
-                        // STAGES 0, 1 & 2: Unified Interactive Gateway (Carousel -> Identity Form -> Security Lock)
                         0 -> {
                             OnboardingStep0WelcomeGateway(
                                 displayName = displayName,
@@ -378,7 +371,6 @@ fun MultiStepOnboardingFlow(
                             )
                         }
 
-                        // STEP 3: VAULT STRATEGY ARCHITECTURE
                         1 -> {
                             OnboardingStep3CountryStrategy(
                                 selectedCountry = selectedCountry,
@@ -397,7 +389,6 @@ fun MultiStepOnboardingFlow(
                             )
                         }
 
-                        // STEP 4: BANK ACCOUNT OPENING BALANCES
                         2 -> {
                             OnboardingStep4Accounts(
                                 accounts = initialAccounts,
@@ -417,7 +408,6 @@ fun MultiStepOnboardingFlow(
                             )
                         }
 
-                        // STEP 5: FIXED COMMITMENTS BUFFER
                         3 -> {
                             OnboardingStep5Commitments(
                                 commitments = initialCommitments,
@@ -440,7 +430,6 @@ fun MultiStepOnboardingFlow(
                             )
                         }
 
-                        // STEP 6: FINAL SEALING & DASHBOARD ENTRY
                         4 -> {
                             OnboardingStep6VaultSealing(
                                 displayName = displayName,
