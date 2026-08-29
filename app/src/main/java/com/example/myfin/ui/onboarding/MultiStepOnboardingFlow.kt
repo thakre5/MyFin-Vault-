@@ -96,15 +96,6 @@ fun MultiStepOnboardingFlow(
         )
     }
 
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) {
-            profileImageUri = uri
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-        }
-    }
-
     val restoreBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -274,7 +265,7 @@ fun MultiStepOnboardingFlow(
         // MAIN ONBOARDING FLOW & SMOOTH PAGER TRANSITIONS
         // =========================================================
         Column(modifier = Modifier.fillMaxSize()) {
-            if (pagerState.currentPage > 0) {
+            if (pagerState.currentPage > 1) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -311,8 +302,8 @@ fun MultiStepOnboardingFlow(
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        repeat(6) { index ->
-                            val activeStepIndex = pagerState.currentPage - 1
+                        repeat(5) { index ->
+                            val activeStepIndex = pagerState.currentPage - 2
                             val isCurrent = activeStepIndex == index
                             val isPassed = activeStepIndex > index
                             val width by animateDpAsState(
@@ -338,7 +329,7 @@ fun MultiStepOnboardingFlow(
                     }
 
                     Text(
-                        text = "${pagerState.currentPage}/6",
+                        text = "${pagerState.currentPage - 1}/5",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextMuted
@@ -353,7 +344,6 @@ fun MultiStepOnboardingFlow(
                     .weight(1f)
                     .fillMaxWidth()
             ) { page ->
-                // Tactile Step Transition Depth & Parallax Effect
                 val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
                 val clampedOffset = pageOffset.coerceIn(0f, 1f)
                 val scale = 1f - (0.06f * clampedOffset)
@@ -389,19 +379,19 @@ fun MultiStepOnboardingFlow(
                         }
                         1 -> {
                             OnboardingStep1Identity(
-                                profileImageUri = profileImageUri,
                                 displayName = displayName,
                                 emailAddress = emailAddress,
-                                onPickPhoto = {
-                                    photoPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
+                                rawDobDigits = rawDobDigits,
+                                selectedCountry = selectedCountry,
                                 onDisplayNameChange = { displayName = it },
                                 onEmailChange = { emailAddress = it },
-                                onContinue = {
+                                onDobChange = { rawDobDigits = it },
+                                onCountrySelect = { selectedCountry = it },
+                                onRegisterVault = {
                                     if (displayName.trim().isEmpty()) {
-                                        Toast.makeText(context, "Please enter your display name", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Please enter your username", Toast.LENGTH_SHORT).show()
+                                    } else if (rawDobDigits.length < 8) {
+                                        Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for offline recovery", Toast.LENGTH_SHORT).show()
                                     } else {
                                         coroutineScope.launch {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -411,6 +401,10 @@ fun MultiStepOnboardingFlow(
                                             )
                                         }
                                     }
+                                },
+                                onRestoreVault = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    restoreBackupLauncher.launch(arrayOf("application/json", "*/*"))
                                 }
                             )
                         }
@@ -448,8 +442,6 @@ fun MultiStepOnboardingFlow(
                                     if (confirmPin != masterPin) {
                                         Toast.makeText(context, "PINs do not match. Please re-enter.", Toast.LENGTH_SHORT).show()
                                         confirmPin = ""
-                                    } else if (rawDobDigits.length < 8) {
-                                        Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
                                     } else {
                                         coroutineScope.launch {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
