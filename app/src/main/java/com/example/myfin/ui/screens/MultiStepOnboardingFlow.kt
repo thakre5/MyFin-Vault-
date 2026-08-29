@@ -300,14 +300,13 @@ fun MultiStepOnboardingFlow(
         modifier = Modifier
             .fillMaxSize()
             .background(CanvasLight)
-            .statusBarsPadding()
-            .navigationBarsPadding()
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (pagerState.currentPage > 0) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .statusBarsPadding()
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -512,192 +511,245 @@ fun MultiStepOnboardingFlow(
 }
 
 // -------------------------------------------------------------
-// STEP 0: 1:1 WELCOME GATEWAY
+// STEP 0: 1:1 SOLNEX-STYLE WELCOME GATEWAY
 // -------------------------------------------------------------
+data class OnboardingCarouselSlide(
+    val title: String,
+    val subtitle: String
+)
+
+val WelcomeCarouselSlides = listOf(
+    OnboardingCarouselSlide(
+        title = "The Card That\nWorks Anywhere",
+        subtitle = "Create your account to trade, store,\nand grow your digital assets securely"
+    ),
+    OnboardingCarouselSlide(
+        title = "Zero-Knowledge\nLocal Security",
+        subtitle = "Your financial records stay 100% on your device\nwith hardware-backed biometric encryption"
+    ),
+    OnboardingCarouselSlide(
+        title = "Smart 3-Tier\nWealth Strategy",
+        subtitle = "Automate your capital between daily spending,\ncommitted bills, and emergency fortress"
+    )
+)
+
 @Composable
 private fun OnboardingStep0WelcomeGateway(
     currencySymbol: String,
     onGetStarted: () -> Unit,
     onRestoreVault: () -> Unit
 ) {
-    Column(
+    val carouselPagerState = rememberPagerState(pageCount = { WelcomeCarouselSlides.size })
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(3600L)
+            carouselPagerState.animateScrollToPage(
+                page = (carouselPagerState.currentPage + 1) % WelcomeCarouselSlides.size,
+                animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing)
+            )
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFF3E8FF),
-                        Color(0xFFEDE9FE).copy(alpha = 0.6f),
+                        Color(0xFFFDE8F4),
+                        Color(0xFFFBE6F2),
+                        Color(0xFFF6EEFB),
+                        Color(0xFFFBFBFD),
                         CanvasLight
                     )
                 )
             )
-            .padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp),
+                    .padding(top = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = AccentPurple.copy(alpha = 0.15f),
-                    modifier = Modifier.size(34.dp)
+                    color = Color.Transparent,
+                    modifier = Modifier.size(36.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("✦", fontSize = 16.sp, color = AccentPurple, fontWeight = FontWeight.Black)
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(Color(0xFFF472B6), Color(0xFFE11D48), Color(0xFFC026D3))
+                            )
+                        )
+                        val c = center
+                        val r = size.minDimension * 0.32f
+                        repeat(8) { i ->
+                            val angleRad = Math.toRadians((i * 45.0))
+                            val px = c.x + (r * cos(angleRad)).toFloat()
+                            val py = c.y + (r * sin(angleRad)).toFloat()
+                            drawLine(
+                                color = Color.White,
+                                start = c,
+                                end = Offset(px, py),
+                                strokeWidth = 2.4.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                        }
+                        drawCircle(color = Color.White, radius = 2.5.dp.toPx(), center = c)
                     }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "MyFin",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Black,
+                    text = "Solnex",
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold,
                     color = TextDark,
-                    letterSpacing = (-0.5).sp
+                    letterSpacing = (-0.4).sp
                 )
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.weight(0.4f))
 
             SolnexTiltedCardsHero(currencySymbol = currencySymbol)
 
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.weight(0.5f))
 
-            Text(
-                text = "The Vault That\nWorks Everywhere",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Black,
-                color = TextDark,
-                textAlign = TextAlign.Center,
-                lineHeight = 34.sp,
-                letterSpacing = (-0.6).sp
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = "Create your offline account to partition, store,\nand grow your capital securely",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = TextMuted,
-                textAlign = TextAlign.Center,
-                lineHeight = 18.sp
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(modifier = Modifier.width(18.dp).height(4.dp).clip(CircleShape).background(TextDark))
-                Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(BorderLight))
-                Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(BorderLight))
-            }
-        }
+                HorizontalPager(
+                    state = carouselPagerState,
+                    userScrollEnabled = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                ) { page ->
+                    val slide = WelcomeCarouselSlides[page]
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = slide.title,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Black,
+                            color = TextDark,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 34.sp,
+                            letterSpacing = (-0.6).sp
+                        )
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Button(
-                onClick = onGetStarted,
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Text(
+                            text = slide.subtitle,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextMuted,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(WelcomeCarouselSlides.size) { idx ->
+                        val isSelected = carouselPagerState.currentPage == idx
+                        val width by animateDpAsState(if (isSelected) 18.dp else 5.dp, label = "dotWidth")
+                        Box(
+                            modifier = Modifier
+                                .width(width)
+                                .height(4.dp)
+                                .clip(CircleShape)
+                                .background(if (isSelected) TextDark else BorderLight)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(0.4f))
+
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(26.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                    .padding(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Get Started",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.5.sp,
-                    color = Color.White
-                )
-            }
+                Button(
+                    onClick = onGetStarted,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                ) {
+                    Text(
+                        text = "Get Started",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.5.sp,
+                        color = Color.White
+                    )
+                }
 
-            OutlinedButton(
-                onClick = onRestoreVault,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(26.dp),
-                border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f)),
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = CardWhite)
-            ) {
-                Text(
-                    text = "Restore Vault",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.5.sp,
-                    color = TextDark
-                )
+                OutlinedButton(
+                    onClick = onRestoreVault,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f)),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = CardWhite)
+                ) {
+                    Text(
+                        text = "Restore Vault",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.5.sp,
+                        color = TextDark
+                    )
+                }
             }
         }
     }
 }
 
 // -------------------------------------------------------------
-// TILTED CARD STACK & SILVER COIN MEDALLIONS
+// 1:1 TILTED CARD STACK & 3D SILVER COIN MEDALLIONS
 // -------------------------------------------------------------
 @Composable
 private fun SolnexTiltedCardsHero(currencySymbol: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(220.dp),
+            .height(235.dp),
         contentAlignment = Alignment.Center
     ) {
         Surface(
             modifier = Modifier
-                .width(220.dp)
-                .height(135.dp)
+                .width(225.dp)
+                .height(140.dp)
                 .graphicsLayer {
-                    rotationZ = -14f
-                    translationX = -25f
-                    translationY = -15f
+                    rotationZ = -22f
+                    translationX = -32f
+                    translationY = -10f
                 }
-                .shadow(12.dp, RoundedCornerShape(18.dp)),
-            shape = RoundedCornerShape(18.dp),
-            color = Color.Transparent
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(Color(0xFF9333EA), Color(0xFFA855F7), Color(0xFFC084FC))
-                        )
-                    )
-                    .padding(14.dp)
-            ) {
-                Text("✦", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
-                Column(modifier = Modifier.align(Alignment.BottomStart)) {
-                    Text("Balance", fontSize = 9.sp, color = Color.White.copy(alpha = 0.7f))
-                    Text("$currencySymbol 2,597.12", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                }
-            }
-        }
-
-        Surface(
-            modifier = Modifier
-                .width(235.dp)
-                .height(145.dp)
-                .graphicsLayer {
-                    rotationZ = -5f
-                    translationX = 15f
-                    translationY = 15f
-                }
-                .shadow(18.dp, RoundedCornerShape(20.dp)),
+                .shadow(14.dp, RoundedCornerShape(20.dp)),
             shape = RoundedCornerShape(20.dp),
             color = Color.Transparent
         ) {
@@ -706,7 +758,44 @@ private fun SolnexTiltedCardsHero(currencySymbol: String) {
                     .fillMaxSize()
                     .background(
                         Brush.linearGradient(
-                            colors = listOf(Color(0xFF700934), Color(0xFFC026D3), Color(0xFFE11D48))
+                            colors = listOf(Color(0xFF8B5CF6), Color(0xFFA855F7), Color(0xFFC084FC))
+                        )
+                    )
+                    .padding(14.dp)
+            ) {
+                Text("✦", color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp)
+                Column(modifier = Modifier.align(Alignment.BottomStart)) {
+                    Text("Balance", fontSize = 9.sp, color = Color.White.copy(alpha = 0.7f))
+                    Text("$currencySymbol 2,597.12", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .width(245.dp)
+                .height(152.dp)
+                .graphicsLayer {
+                    rotationZ = -11f
+                    translationX = 14f
+                    translationY = 16f
+                }
+                .shadow(22.dp, RoundedCornerShape(22.dp)),
+            shape = RoundedCornerShape(22.dp),
+            color = Color.Transparent
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF6B052B),
+                                Color(0xFF9D174D),
+                                Color(0xFFC026D3),
+                                Color(0xFFE11D48),
+                                Color(0xFFF43F5E)
+                            )
                         )
                     )
                     .padding(16.dp)
@@ -720,41 +809,44 @@ private fun SolnexTiltedCardsHero(currencySymbol: String) {
             }
         }
 
-        Canvas(
+        Box(
             modifier = Modifier
-                .size(110.dp)
-                .align(Alignment.TopEnd)
-                .offset(x = (-20).dp, y = 5.dp)
+                .size(62.dp)
+                .align(Alignment.CenterEnd)
+                .offset(x = (-14).dp, y = (-42).dp)
+                .shadow(8.dp, CircleShape)
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color(0xFFFFFFFF), Color(0xFFE2E8F0), Color(0xFF94A3B8))
+                    )
+                ),
+            contentAlignment = Alignment.Center
         ) {
-            val c1 = Offset(size.width * 0.72f, size.height * 0.35f)
-            val r1 = 26.dp.toPx()
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawCircle(color = Color(0xFFCBD5E1), radius = size.minDimension * 0.44f, style = Stroke(width = 2.dp.toPx()))
+            }
+            Text("€", fontSize = 23.sp, fontWeight = FontWeight.Black, color = Color(0xFF64748B))
+        }
 
-            drawCircle(color = Color.Black.copy(alpha = 0.15f), radius = r1 + 3f, center = Offset(c1.x + 4f, c1.y + 4f))
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFFFFFFFF), Color(0xFFE2E8F0), Color(0xFF94A3B8)),
-                    center = c1,
-                    radius = r1
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .align(Alignment.CenterEnd)
+                .offset(x = (-46).dp, y = 6.dp)
+                .shadow(14.dp, CircleShape)
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color(0xFFFFFFFF), Color(0xFFF1F5F9), Color(0xFF64748B))
+                    )
                 ),
-                radius = r1,
-                center = c1
-            )
-            drawCircle(color = Color(0xFFCBD5E1), radius = r1 * 0.82f, center = c1, style = Stroke(width = 2.dp.toPx()))
-
-            val c2 = Offset(size.width * 0.40f, size.height * 0.65f)
-            val r2 = 30.dp.toPx()
-
-            drawCircle(color = Color.Black.copy(alpha = 0.22f), radius = r2 + 4f, center = Offset(c2.x + 4f, c2.y + 4f))
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFFFFFFFF), Color(0xFFF1F5F9), Color(0xFF64748B)),
-                    center = c2,
-                    radius = r2
-                ),
-                radius = r2,
-                center = c2
-            )
-            drawCircle(color = Color(0xFFCBD5E1), radius = r2 * 0.85f, center = c2, style = Stroke(width = 2.5.dp.toPx()))
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawCircle(color = Color(0xFFCBD5E1), radius = size.minDimension * 0.44f, style = Stroke(width = 2.5.dp.toPx()))
+            }
+            Text("₿", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color(0xFF475569))
         }
     }
 }
