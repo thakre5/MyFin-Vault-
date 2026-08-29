@@ -9,15 +9,37 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -29,33 +51,76 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.*
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
-import com.example.myfin.ui.theme.*
+import com.example.myfin.ui.theme.AccentPurple
+import com.example.myfin.ui.theme.BorderLight
+import com.example.myfin.ui.theme.CanvasLight
+import com.example.myfin.ui.theme.CardWhite
+import com.example.myfin.ui.theme.TextDark
+import com.example.myfin.ui.theme.TextMuted
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -113,23 +178,19 @@ fun MultiStepOnboardingFlow(
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { 7 })
 
-    // Step 1 States: Profile & Identity
     var profileImageUri by remember { mutableStateOf<Uri?>(null) }
     var displayName by remember { mutableStateOf("Jordan Lee") }
     var emailAddress by remember { mutableStateOf("jordan.vault@myfin.app") }
 
-    // Step 2 States: PIN & Security
     var masterPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
     var rawDobDigits by remember { mutableStateOf("") }
     var isBiometricEnabled by remember { mutableStateOf(true) }
     var pinEntryPhase by remember { mutableIntStateOf(1) }
 
-    // Step 3 States: Country & Strategy
     var selectedCountry by remember { mutableStateOf(SupportedCountries[0]) }
     var selectedStrategy by remember { mutableStateOf("3-VAULT") }
 
-    // Step 4 States: Initial Bank Accounts
     val initialAccounts = remember {
         mutableStateListOf(
             InitialAccountSetup("PRIMARY INCOME VAULT", "Operating", "50000"),
@@ -138,7 +199,6 @@ fun MultiStepOnboardingFlow(
         )
     }
 
-    // Step 5 States: Fixed Commitments Bound to Taxonomy Entities
     val initialCommitments = remember {
         mutableStateListOf(
             InitialCommitmentPreset("House Rent", "Utilities & Living Bills", "Rent", TransactionType.EXPENSE, 5, "15000", true),
@@ -150,7 +210,6 @@ fun MultiStepOnboardingFlow(
         )
     }
 
-    // Photo Picker Launcher
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
@@ -160,7 +219,6 @@ fun MultiStepOnboardingFlow(
         }
     }
 
-    // Backup Document Picker for Restore
     val restoreBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -174,7 +232,6 @@ fun MultiStepOnboardingFlow(
         }
     }
 
-    // Step 6: 10-Second Auto-Closing Countdown State
     var remainingSeconds by remember { mutableIntStateOf(10) }
     var hasSealedAndLaunched by remember { mutableStateOf(false) }
 
@@ -940,7 +997,7 @@ private fun OnboardingStep2PinSecurity(
                 value = rawDobDigits,
                 onValueChange = onDobChange,
                 label = { Text("Recovery Date of Birth (DD / MM / YYYY)", fontSize = 11.sp) },
-                visualTransformation = DateVisualTransformation(),
+                visualTransformation = OnboardingDateVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -1523,4 +1580,191 @@ private fun OnboardingStep6VaultSealing(
 }
 
 // -------------------------------------------------------------
-// MOTION GRAPHICS: DELIBERATION
+// MOTION GRAPHICS: DELIBERATION HERO SCENE CANVAS
+// -------------------------------------------------------------
+@Composable
+private fun HumanDeliberationSceneCanvas(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "deliberation")
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "delibPulse"
+    )
+    val floatOffset by infiniteTransition.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "delibFloat"
+    )
+
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val c = Offset(w / 2, h * 0.52f)
+
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(PurplePrimary.copy(alpha = 0.25f * pulse), Color.Transparent),
+                center = c,
+                radius = 70.dp.toPx()
+            ),
+            radius = 70.dp.toPx(),
+            center = c
+        )
+
+        drawOval(
+            color = BorderLight.copy(alpha = 0.6f),
+            topLeft = Offset(w * 0.22f, h * 0.78f),
+            size = Size(w * 0.56f, 16.dp.toPx())
+        )
+
+        val shieldCenter = Offset(c.x, c.y + floatOffset)
+        drawCircle(color = AccentPurple.copy(alpha = 0.18f), radius = 22.dp.toPx(), center = shieldCenter)
+        drawCircle(color = AccentPurple, radius = 10.dp.toPx(), center = shieldCenter)
+        drawCircle(color = Color.White, radius = 4.dp.toPx(), center = shieldCenter)
+
+        val f1Center = Offset(w * 0.24f, h * 0.50f)
+        drawLine(color = CyanPrimary.copy(alpha = 0.45f * pulse), start = f1Center, end = shieldCenter, strokeWidth = 1.5.dp.toPx())
+        drawCircle(color = TextDark, radius = 9.dp.toPx(), center = Offset(f1Center.x, f1Center.y - 18.dp.toPx()))
+        drawRoundRect(color = CyanPrimary, topLeft = Offset(f1Center.x - 10.dp.toPx(), f1Center.y - 6.dp.toPx()), size = Size(20.dp.toPx(), 26.dp.toPx()), cornerRadius = CornerRadius(6.dp.toPx()))
+        drawCircle(color = TealPrimary, radius = 4.dp.toPx(), center = Offset(f1Center.x + 8.dp.toPx(), f1Center.y + 4.dp.toPx() + floatOffset))
+
+        val f2Center = Offset(w * 0.50f, h * 0.28f)
+        drawLine(color = PurplePrimary.copy(alpha = 0.45f * pulse), start = f2Center, end = shieldCenter, strokeWidth = 1.5.dp.toPx())
+        drawCircle(color = TextDark, radius = 8.dp.toPx(), center = Offset(f2Center.x, f2Center.y - 16.dp.toPx()))
+        drawRoundRect(color = PurplePrimary, topLeft = Offset(f2Center.x - 9.dp.toPx(), f2Center.y - 6.dp.toPx()), size = Size(18.dp.toPx(), 22.dp.toPx()), cornerRadius = CornerRadius(5.dp.toPx()))
+
+        val f3Center = Offset(w * 0.76f, h * 0.50f)
+        drawLine(color = Color(0xFFE57A28).copy(alpha = 0.45f * pulse), start = f3Center, end = shieldCenter, strokeWidth = 1.5.dp.toPx())
+        drawCircle(color = TextDark, radius = 9.dp.toPx(), center = Offset(f3Center.x, f3Center.y - 18.dp.toPx()))
+        drawRoundRect(color = Color(0xFFE57A28), topLeft = Offset(f3Center.x - 10.dp.toPx(), f3Center.y - 6.dp.toPx()), size = Size(20.dp.toPx(), 26.dp.toPx()), cornerRadius = CornerRadius(6.dp.toPx()))
+        drawCircle(color = Color(0xFFE57A28), radius = 4.dp.toPx(), center = Offset(f3Center.x - 8.dp.toPx(), f3Center.y + 4.dp.toPx() - floatOffset))
+    }
+}
+
+// -------------------------------------------------------------
+// MOTION GRAPHICS CANVASES & IMAGE UTILITIES
+// -------------------------------------------------------------
+
+@Composable
+fun rememberImageBitmapFromUri(context: Context, uri: Uri?): ImageBitmap? {
+    return remember(uri) {
+        if (uri == null) null
+        else {
+            try {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+}
+
+@Composable
+private fun OrbitalVaultParticlesCanvas(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "orbital")
+    val angle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing)),
+        label = "angle"
+    )
+
+    Canvas(modifier = modifier) {
+        val c = center
+        val r = size.minDimension * 0.38f
+
+        drawCircle(
+            brush = Brush.radialGradient(listOf(PurplePrimary.copy(alpha = 0.35f), Color.Transparent)),
+            radius = r * 1.1f,
+            center = c
+        )
+        drawCircle(color = AccentPurple, radius = r * 0.55f, center = c)
+
+        repeat(6) { i ->
+            val particleAngle = Math.toRadians((angle + (i * 60)).toDouble())
+            val px = c.x + (r * cos(particleAngle)).toFloat()
+            val py = c.y + (r * sin(particleAngle)).toFloat()
+            drawCircle(color = if (i % 2 == 0) CyanPrimary else TealPrimary, radius = 4.dp.toPx(), center = Offset(px, py))
+        }
+    }
+}
+
+@Composable
+private fun SecurityRadarPulseCanvas(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseRatio by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pulseRatio"
+    )
+
+    Canvas(modifier = modifier) {
+        val c = center
+        val maxR = size.minDimension * 0.45f
+        drawCircle(color = AccentPurple.copy(alpha = 0.15f * (1f - pulseRatio)), radius = maxR * pulseRatio, center = c)
+        drawCircle(color = AccentPurple.copy(alpha = 0.35f), radius = maxR * 0.6f, center = c)
+        drawCircle(color = AccentPurple, radius = maxR * 0.35f, center = c)
+    }
+}
+
+@Composable
+private fun OrbitalSyncClockCanvas(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "clock")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(4000, easing = LinearEasing)),
+        label = "rot"
+    )
+
+    Canvas(modifier = modifier) {
+        val c = center
+        val r = size.minDimension * 0.42f
+
+        drawCircle(
+            color = AccentPurple.copy(alpha = 0.4f),
+            radius = r,
+            style = Stroke(width = 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), rotation))
+        )
+        drawCircle(color = AccentPurple, radius = 4.dp.toPx(), center = c)
+    }
+}
+
+// -------------------------------------------------------------
+// AUTOMATIC DOB FORMATTER (DD / MM / YYYY)
+// -------------------------------------------------------------
+class OnboardingDateVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val trimmed = if (text.text.length >= 8) text.text.substring(0..7) else text.text
+        var out = ""
+        for (i in trimmed.indices) {
+            out += trimmed[i]
+            if (i == 1 || i == 3) {
+                out += " / "
+            }
+        }
+
+        val offsetTranslator = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                if (offset <= 1) return offset
+                if (offset <= 3) return offset + 3
+                if (offset <= 8) return offset + 6
+                return 14
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                if (offset <= 2) return offset
+                if (offset <= 6) return (offset - 3).coerceAtLeast(0)
+                if (offset <= 14) return (offset - 6).coerceAtLeast(0)
+                return 8
+            }
+        }
+
+        return TransformedText(AnnotatedString(out), offsetTranslator)
+    }
+}
