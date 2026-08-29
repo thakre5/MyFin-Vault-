@@ -2,23 +2,36 @@
 
 package com.example.myfin.ui.onboarding.steps
 
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.LockReset
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.outlined.Mail
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,33 +41,60 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myfin.ui.onboarding.CountryCurrencyMapping
 import com.example.myfin.ui.onboarding.CyanPrimary
 import com.example.myfin.ui.onboarding.PurplePrimary
+import com.example.myfin.ui.onboarding.SupportedCountries
 import com.example.myfin.ui.onboarding.WelcomeCarouselSlides
+import com.example.myfin.ui.onboarding.components.OnboardingDateVisualTransformation
 import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
-import com.example.myfin.ui.theme.AccentPurple
-import com.example.myfin.ui.theme.BorderLight
-import com.example.myfin.ui.theme.CanvasLight
-import com.example.myfin.ui.theme.CardWhite
-import com.example.myfin.ui.theme.TextDark
-import com.example.myfin.ui.theme.TextMuted
+import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
 
 @Composable
 fun OnboardingStep0WelcomeGateway(
-    currencySymbol: String,
-    onGetStarted: () -> Unit,
+    displayName: String,
+    emailAddress: String,
+    rawDobDigits: String,
+    selectedCountry: CountryCurrencyMapping,
+    onDisplayNameChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
+    onDobChange: (String) -> Unit,
+    onCountrySelect: (CountryCurrencyMapping) -> Unit,
+    onProceedToSecurity: () -> Unit,
     onRestoreVault: () -> Unit
 ) {
-    var showRestoreConfirmationSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
 
+    // Stage State: False = Welcome Carousel, True = Profile Identity Form
+    var isFormMode by remember { mutableStateOf(false) }
+
+    // Intercept hardware Back to gracefully revert to the Carousel stage
+    BackHandler(enabled = isFormMode) {
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        isFormMode = false
+    }
+
+    var showCountryPickerSheet by remember { mutableStateOf(false) }
+    var showRestoreConfirmationSheet by remember { mutableStateOf(false) }
+
+    val countrySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val restoreSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Continuous Infinite Carousel Driver
     val virtualPageCount = 3000
     val initialPage = (virtualPageCount / 2) - ((virtualPageCount / 2) % WelcomeCarouselSlides.size)
     val carouselPagerState = rememberPagerState(
@@ -62,8 +102,8 @@ fun OnboardingStep0WelcomeGateway(
         pageCount = { virtualPageCount }
     )
 
-    LaunchedEffect(Unit) {
-        while (true) {
+    LaunchedEffect(isFormMode) {
+        while (!isFormMode) {
             delay(3500L)
             if (carouselPagerState.pageCount > 0) {
                 val nextPage = (carouselPagerState.currentPage + 1) % virtualPageCount
@@ -74,6 +114,18 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
     }
+
+    // Dynamic Restore Button Width & Height Interpolation
+    val restoreButtonWidthFraction by animateFloatAsState(
+        targetValue = if (isFormMode) 0.52f else 1.0f,
+        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+        label = "restoreWidth"
+    )
+    val restoreButtonHeight by animateDpAsState(
+        targetValue = if (isFormMode) 42.dp else 52.dp,
+        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+        label = "restoreHeight"
+    )
 
     Box(
         modifier = Modifier
@@ -98,7 +150,9 @@ fun OnboardingStep0WelcomeGateway(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // App Branding Header
+            // =========================================================
+            // 1. PINNED BRANDING HEADER (100% Static & Anchored)
+            // =========================================================
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -143,113 +197,397 @@ fun OnboardingStep0WelcomeGateway(
                 )
             }
 
+            Spacer(modifier = Modifier.weight(0.3f))
+
+            // =========================================================
+            // 2. PINNED 3D TILTED HERO CARDS (100% Static & Anchored)
+            // =========================================================
+            SolnexTiltedCardsHero(currencySymbol = selectedCountry.currencySymbol)
+
             Spacer(modifier = Modifier.weight(0.4f))
 
-            SolnexTiltedCardsHero(currencySymbol = currencySymbol)
-
-            Spacer(modifier = Modifier.weight(0.5f))
-
-            Column(
+            // =========================================================
+            // 3. RIGHT-TO-LEFT CHOREOGRAPHED MIDDLE CONTENT
+            // =========================================================
+            AnimatedContent(
+                targetState = isFormMode,
+                transitionSpec = {
+                    if (targetState) {
+                        (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> fullWidth } + fadeIn(tween(420)))
+                            .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeOut(tween(420)))
+                    } else {
+                        (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeIn(tween(420)))
+                            .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> fullWidth } + fadeOut(tween(420)))
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                HorizontalPager(
-                    state = carouselPagerState,
-                    userScrollEnabled = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(130.dp)
-                ) { page ->
-                    val actualIndex = page % WelcomeCarouselSlides.size
-                    val slide = WelcomeCarouselSlides[actualIndex]
+                label = "middleContentTransition"
+            ) { formActive ->
+                if (!formActive) {
+                    // STAGE 0: Continuous Text Carousel & Indexer
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = slide.title,
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextDark,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 34.sp,
-                            letterSpacing = (-0.6).sp
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Text(
-                            text = slide.subtitle,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextMuted,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 18.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Synchronized 3-Pill Indexer
-                val activeIndex = carouselPagerState.currentPage % WelcomeCarouselSlides.size
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    repeat(WelcomeCarouselSlides.size) { idx ->
-                        val isSelected = activeIndex == idx
-                        val width by animateDpAsState(if (isSelected) 18.dp else 5.dp, label = "dotWidth")
-                        Box(
+                        HorizontalPager(
+                            state = carouselPagerState,
+                            userScrollEnabled = true,
                             modifier = Modifier
-                                .width(width)
-                                .height(4.dp)
-                                .clip(CircleShape)
-                                .background(if (isSelected) TextDark else BorderLight)
+                                .fillMaxWidth()
+                                .height(130.dp)
+                        ) { page ->
+                            val actualIndex = page % WelcomeCarouselSlides.size
+                            val slide = WelcomeCarouselSlides[actualIndex]
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = slide.title,
+                                    fontSize = 28.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextDark,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 34.sp,
+                                    letterSpacing = (-0.6).sp
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Text(
+                                    text = slide.subtitle,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextMuted,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        val activeIndex = carouselPagerState.currentPage % WelcomeCarouselSlides.size
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            repeat(WelcomeCarouselSlides.size) { idx ->
+                                val isSelected = activeIndex == idx
+                                val width by animateDpAsState(if (isSelected) 18.dp else 5.dp, label = "dotWidth")
+                                Box(
+                                    modifier = Modifier
+                                        .width(width)
+                                        .height(4.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isSelected) TextDark else BorderLight)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // STAGE 1: 4 Profile Form Fields (Capsule Layout)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // 1. Username
+                        OutlinedTextField(
+                            value = displayName,
+                            onValueChange = onDisplayNameChange,
+                            placeholder = { Text("Username", fontSize = 13.5.sp, color = TextMuted) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    tint = AccentPurple,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(26.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = CardWhite,
+                                unfocusedContainerColor = CardWhite,
+                                focusedBorderColor = AccentPurple,
+                                unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                            )
                         )
+
+                        // 2. Email Address
+                        OutlinedTextField(
+                            value = emailAddress,
+                            onValueChange = onEmailChange,
+                            placeholder = { Text("Email Address (Optional)", fontSize = 13.5.sp, color = TextMuted) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Outlined.Mail,
+                                    contentDescription = null,
+                                    tint = AccentPurple,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(26.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = CardWhite,
+                                unfocusedContainerColor = CardWhite,
+                                focusedBorderColor = AccentPurple,
+                                unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                            )
+                        )
+
+                        // 3. 50:50 Split Row (DOB & Country Currency)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = rawDobDigits,
+                                onValueChange = { input ->
+                                    onDobChange(input.filter { it.isDigit() }.take(8))
+                                },
+                                placeholder = { Text("DD/MM/YYYY", fontSize = 12.5.sp, color = TextMuted) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.CalendarToday,
+                                        contentDescription = null,
+                                        tint = AccentPurple,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                },
+                                visualTransformation = OnboardingDateVisualTransformation(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(26.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(52.dp),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = CardWhite,
+                                    unfocusedContainerColor = CardWhite,
+                                    focusedBorderColor = AccentPurple,
+                                    unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                                )
+                            )
+
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(52.dp)
+                                    .clip(RoundedCornerShape(26.dp))
+                                    .clickable { showCountryPickerSheet = true },
+                                shape = RoundedCornerShape(26.dp),
+                                color = CardWhite,
+                                border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    ) {
+                                        Text(selectedCountry.flagEmoji, fontSize = 16.sp)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "${selectedCountry.currencySymbol} ${selectedCountry.currencyCode}",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDark,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    Icon(
+                                        Icons.Default.ArrowDropDown,
+                                        contentDescription = "Select Currency",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.weight(0.4f))
 
+            // =========================================================
+            // 4. SYNCHRONIZED BUTTON MORPHING & SHRINKING
+            // =========================================================
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Primary Action Button: "Get Started" -> "Register Vault"
                 Button(
-                    onClick = onGetStarted,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        if (!isFormMode) {
+                            isFormMode = true
+                        } else {
+                            if (displayName.trim().isEmpty()) {
+                                Toast.makeText(context, "Please enter your username", Toast.LENGTH_SHORT).show()
+                            } else if (rawDobDigits.length < 8) {
+                                Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
+                            } else {
+                                onProceedToSecurity()
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
                     shape = RoundedCornerShape(26.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = TextDark)
                 ) {
-                    Text(
-                        text = "Get Started",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.5.sp,
-                        color = Color.White
-                    )
+                    AnimatedContent(
+                        targetState = isFormMode,
+                        transitionSpec = {
+                            fadeIn(tween(250)).togetherWith(fadeOut(tween(250)))
+                        },
+                        label = "primaryButtonText"
+                    ) { formActive ->
+                        Text(
+                            text = if (!formActive) "Get Started" else "Register Vault",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.5.sp,
+                            color = Color.White
+                        )
+                    }
                 }
 
+                // Secondary Action Button: Smooth Width Shrink
                 OutlinedButton(
                     onClick = { showRestoreConfirmationSheet = true },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
+                        .fillMaxWidth(restoreButtonWidthFraction)
+                        .height(restoreButtonHeight),
                     shape = RoundedCornerShape(26.dp),
                     border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f)),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = CardWhite)
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = CardWhite),
+                    contentPadding = PaddingValues(horizontal = 16.dp)
                 ) {
                     Text(
                         text = "Restore Vault",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.5.sp,
-                        color = TextDark
+                        fontWeight = if (isFormMode) FontWeight.SemiBold else FontWeight.Bold,
+                        fontSize = if (isFormMode) 13.sp else 14.5.sp,
+                        color = TextDark,
+                        maxLines = 1
                     )
+                }
+            }
+        }
+
+        // =========================================================
+        // COUNTRY / CURRENCY SELECTOR SHEET
+        // =========================================================
+        if (showCountryPickerSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showCountryPickerSheet = false },
+                sheetState = countrySheetState,
+                shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+                containerColor = CardWhite,
+                dragHandle = { BottomSheetDefaults.DragHandle() }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp, top = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(38.dp),
+                            shape = CircleShape,
+                            color = AccentPurple.copy(alpha = 0.12f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Public, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Country & Currency", fontSize = 18.sp, fontWeight = FontWeight.Black, color = TextDark)
+                            Text("Select region for local denomination formats", fontSize = 11.5.sp, color = TextMuted)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(SupportedCountries) { item ->
+                            val isSelected = selectedCountry.countryName == item.countryName
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        onCountrySelect(item)
+                                        showCountryPickerSheet = false
+                                    },
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isSelected) AccentPurple.copy(alpha = 0.10f) else CanvasLight,
+                                border = BorderStroke(0.8.dp, if (isSelected) AccentPurple else BorderLight)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(item.flagEmoji, fontSize = 20.sp)
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            item.countryName,
+                                            fontSize = 13.5.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = TextDark
+                                        )
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelected) AccentPurple else CardWhite,
+                                        border = BorderStroke(0.6.dp, BorderLight)
+                                    ) {
+                                        Text(
+                                            text = "${item.currencySymbol}  (${item.currencyCode})",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) Color.White else TextDark,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -260,7 +598,7 @@ fun OnboardingStep0WelcomeGateway(
         if (showRestoreConfirmationSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showRestoreConfirmationSheet = false },
-                sheetState = sheetState,
+                sheetState = restoreSheetState,
                 shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
                 containerColor = CardWhite,
                 dragHandle = { BottomSheetDefaults.DragHandle() }
@@ -272,7 +610,6 @@ fun OnboardingStep0WelcomeGateway(
                         .padding(bottom = 32.dp, top = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Header Icon Badge
                     Surface(
                         modifier = Modifier.size(60.dp),
                         shape = CircleShape,
@@ -311,7 +648,6 @@ fun OnboardingStep0WelcomeGateway(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Notice Info Box
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -323,51 +659,19 @@ fun OnboardingStep0WelcomeGateway(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.LockReset,
-                                    contentDescription = null,
-                                    tint = AccentPurple,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Icon(Icons.Default.LockReset, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = "Requires the Master PIN used when creating the backup.",
-                                    fontSize = 11.5.sp,
-                                    color = TextDark,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Text("Requires the Master PIN used when creating the backup.", fontSize = 11.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
                             }
-
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.CheckCircleOutline,
-                                    contentDescription = null,
-                                    tint = AccentPurple,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Icon(Icons.Default.CheckCircleOutline, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = "Restores all bank accounts, taxonomies, and fixed bills.",
-                                    fontSize = 11.5.sp,
-                                    color = TextDark,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Text("Restores all bank accounts, taxonomies, and fixed bills.", fontSize = 11.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
                             }
-
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.Security,
-                                    contentDescription = null,
-                                    tint = AccentPurple,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Icon(Icons.Default.Security, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = "100% offline verification with hardware keystore security.",
-                                    fontSize = 11.5.sp,
-                                    color = TextDark,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Text("100% offline verification with hardware keystore security.", fontSize = 11.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
@@ -385,12 +689,7 @@ fun OnboardingStep0WelcomeGateway(
                         shape = RoundedCornerShape(25.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = TextDark)
                     ) {
-                        Text(
-                            text = "Choose Backup File (.json)",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = Color.White
-                        )
+                        Text("Choose Backup File (.json)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -399,12 +698,7 @@ fun OnboardingStep0WelcomeGateway(
                         onClick = { showRestoreConfirmationSheet = false },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "Cancel",
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextMuted
-                        )
+                        Text("Cancel", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = TextMuted)
                     }
                 }
             }
