@@ -29,17 +29,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CheckCircleOutline
-import androidx.compose.material.icons.filled.Fingerprint
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.LockReset
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.Person
@@ -86,7 +78,8 @@ import kotlin.math.sin
 enum class GatewayStage {
     CAROUSEL,
     IDENTITY,
-    SECURITY
+    SECURITY,
+    STRATEGY
 }
 
 @Composable
@@ -98,6 +91,7 @@ fun OnboardingStep0WelcomeGateway(
     confirmPin: String,
     isBiometricEnabled: Boolean,
     selectedCountry: CountryCurrencyMapping,
+    selectedStrategy: String,
     onDisplayNameChange: (String) -> Unit,
     onEmailChange: (String) -> Unit,
     onDobChange: (String) -> Unit,
@@ -105,6 +99,7 @@ fun OnboardingStep0WelcomeGateway(
     onConfirmPinChange: (String) -> Unit,
     onBiometricToggle: (Boolean) -> Unit,
     onCountrySelect: (CountryCurrencyMapping) -> Unit,
+    onStrategySelect: (String) -> Unit,
     onProceedToNextStep: () -> Unit,
     onRestoreVault: () -> Unit
 ) {
@@ -123,10 +118,12 @@ fun OnboardingStep0WelcomeGateway(
     var showCountryPickerSheet by remember { mutableStateOf(false) }
     var showRestoreConfirmationSheet by remember { mutableStateOf(false) }
     var showBiometricSheet by remember { mutableStateOf(false) }
+    var strategyDetailTarget by remember { mutableStateOf<String?>(null) }
 
     val countrySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val restoreSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val biometricSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val strategySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val formattedDob = remember(rawDobDigits) {
         if (rawDobDigits.length == 8) {
@@ -138,17 +135,20 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
+    // Bi-Directional Back Handler
     BackHandler(enabled = currentStage != GatewayStage.CAROUSEL) {
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         focusManager.clearFocus()
         keyboardController?.hide()
         currentStage = when (currentStage) {
+            GatewayStage.STRATEGY -> GatewayStage.SECURITY
             GatewayStage.SECURITY -> GatewayStage.IDENTITY
             GatewayStage.IDENTITY -> GatewayStage.CAROUSEL
             GatewayStage.CAROUSEL -> GatewayStage.CAROUSEL
         }
     }
 
+    // Continuous Infinite Carousel Driver
     val virtualPageCount = 3000
     val initialPage = (virtualPageCount / 2) - ((virtualPageCount / 2) % WelcomeCarouselSlides.size)
     val carouselPagerState = rememberPagerState(
@@ -176,6 +176,7 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
+    // Adaptive Hero Card Scale & Height
     val heroScale by animateFloatAsState(
         targetValue = when {
             isImeVisible && currentStage != GatewayStage.CAROUSEL -> 0.58f
@@ -195,12 +196,12 @@ fun OnboardingStep0WelcomeGateway(
         label = "heroHeight"
     )
 
+    // Dynamic Button Morphing
     val primaryButtonWidthFraction by animateFloatAsState(
-        targetValue = if (currentStage == GatewayStage.SECURITY) 0.58f else 1.0f,
+        targetValue = if (currentStage == GatewayStage.SECURITY || currentStage == GatewayStage.STRATEGY) 0.58f else 1.0f,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
         label = "primaryWidth"
     )
-
     val restoreButtonWidthFraction by animateFloatAsState(
         targetValue = if (currentStage == GatewayStage.IDENTITY) 0.52f else 1.0f,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
@@ -246,6 +247,7 @@ fun OnboardingStep0WelcomeGateway(
             ) {
                 Spacer(modifier = Modifier.height(56.dp))
 
+                // Hero Cards
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -263,6 +265,7 @@ fun OnboardingStep0WelcomeGateway(
 
                 Spacer(modifier = Modifier.height(if (isImeVisible) 6.dp else 16.dp))
 
+                // Multi-Stage Animated Content
                 AnimatedContent(
                     targetState = currentStage,
                     transitionSpec = {
@@ -279,6 +282,7 @@ fun OnboardingStep0WelcomeGateway(
                     label = "gatewayStageTransition"
                 ) { stage ->
                     when (stage) {
+                        // STAGE 0: Welcome Carousel
                         GatewayStage.CAROUSEL -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -342,6 +346,7 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
 
+                        // STAGE 1: Profile Identity
                         GatewayStage.IDENTITY -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -513,6 +518,7 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
 
+                        // STAGE 2: Security Lock
                         GatewayStage.SECURITY -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -542,7 +548,6 @@ fun OnboardingStep0WelcomeGateway(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // Row 1: Create Master Password / PIN
                                     OutlinedTextField(
                                         value = masterPin,
                                         onValueChange = onMasterPinChange,
@@ -581,7 +586,6 @@ fun OnboardingStep0WelcomeGateway(
                                         )
                                     )
 
-                                    // Row 2: Confirm Master Password / PIN
                                     val isPinMatching = confirmPin.isNotEmpty() && confirmPin == masterPin
                                     OutlinedTextField(
                                         value = confirmPin,
@@ -635,12 +639,10 @@ fun OnboardingStep0WelcomeGateway(
                                         )
                                     )
 
-                                    // Row 3: 50:50 Split (Clean Vertically Centered DOB + Biometric)
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        // Left 50%: Fixed Symmetrical DOB Badge
                                         Surface(
                                             modifier = Modifier
                                                 .weight(1f)
@@ -686,7 +688,6 @@ fun OnboardingStep0WelcomeGateway(
                                             }
                                         }
 
-                                        // Right 50%: Biometric Toggle (Direct off, sheet only when turning on)
                                         Surface(
                                             modifier = Modifier
                                                 .weight(1f)
@@ -753,12 +754,191 @@ fun OnboardingStep0WelcomeGateway(
                                 }
                             }
                         }
+
+                        // STAGE 3: Bank Strategy Selection (2 Capsule Cards)
+                        GatewayStage.STRATEGY -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Choose Vault Strategy",
+                                    fontSize = if (isImeVisible) 19.sp else 22.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextDark,
+                                    textAlign = TextAlign.Center,
+                                    letterSpacing = (-0.5).sp
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "Configure how your money flows across accounts",
+                                    fontSize = 12.sp,
+                                    color = TextMuted,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    // Strategy Card 1: 3-Tier Strategy
+                                    val is3Tier = selectedStrategy == "3-VAULT"
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(64.dp)
+                                            .clip(RoundedCornerShape(26.dp))
+                                            .clickable {
+                                                focusManager.clearFocus()
+                                                keyboardController?.hide()
+                                                strategyDetailTarget = "3-VAULT"
+                                            },
+                                        shape = RoundedCornerShape(26.dp),
+                                        color = if (is3Tier) AccentPurple.copy(alpha = 0.08f) else CardWhite,
+                                        border = BorderStroke(
+                                            width = if (is3Tier) 1.5.dp else 1.dp,
+                                            color = if (is3Tier) AccentPurple else BorderLight.copy(alpha = 0.9f)
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 16.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Surface(
+                                                    modifier = Modifier.size(36.dp),
+                                                    shape = CircleShape,
+                                                    color = if (is3Tier) AccentPurple.copy(alpha = 0.15f) else CanvasLight
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            Icons.Outlined.AccountBalance,
+                                                            contentDescription = null,
+                                                            tint = AccentPurple,
+                                                            modifier = Modifier.size(19.dp)
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Column {
+                                                    Text(
+                                                        text = "Smart 3-Tier Wealth Strategy",
+                                                        fontSize = 13.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = TextDark
+                                                    )
+                                                    Text(
+                                                        text = "Operating • Commitments • Fortress",
+                                                        fontSize = 11.sp,
+                                                        color = TextMuted
+                                                    )
+                                                }
+                                            }
+
+                                            RadioButton(
+                                                selected = is3Tier,
+                                                onClick = {
+                                                    focusManager.clearFocus()
+                                                    strategyDetailTarget = "3-VAULT"
+                                                },
+                                                colors = RadioButtonDefaults.colors(
+                                                    selectedColor = AccentPurple,
+                                                    unselectedColor = BorderLight
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    // Strategy Card 2: Simple Vault
+                                    val isSimple = selectedStrategy == "SIMPLE"
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(64.dp)
+                                            .clip(RoundedCornerShape(26.dp))
+                                            .clickable {
+                                                focusManager.clearFocus()
+                                                keyboardController?.hide()
+                                                strategyDetailTarget = "SIMPLE"
+                                            },
+                                        shape = RoundedCornerShape(26.dp),
+                                        color = if (isSimple) AccentPurple.copy(alpha = 0.08f) else CardWhite,
+                                        border = BorderStroke(
+                                            width = if (isSimple) 1.5.dp else 1.dp,
+                                            color = if (isSimple) AccentPurple else BorderLight.copy(alpha = 0.9f)
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 16.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Surface(
+                                                    modifier = Modifier.size(36.dp),
+                                                    shape = CircleShape,
+                                                    color = if (isSimple) AccentPurple.copy(alpha = 0.15f) else CanvasLight
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            Icons.Outlined.AccountBalanceWallet,
+                                                            contentDescription = null,
+                                                            tint = AccentPurple,
+                                                            modifier = Modifier.size(19.dp)
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Column {
+                                                    Text(
+                                                        text = "Simple Unified Vault",
+                                                        fontSize = 13.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = TextDark
+                                                    )
+                                                    Text(
+                                                        text = "Single ledger for all cash flow",
+                                                        fontSize = 11.sp,
+                                                        color = TextMuted
+                                                    )
+                                                }
+                                            }
+
+                                            RadioButton(
+                                                selected = isSimple,
+                                                onClick = {
+                                                    focusManager.clearFocus()
+                                                    strategyDetailTarget = "SIMPLE"
+                                                },
+                                                colors = RadioButtonDefaults.colors(
+                                                    selectedColor = AccentPurple,
+                                                    unselectedColor = BorderLight
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(if (isImeVisible) 10.dp else 16.dp))
 
-                // Bottom Buttons
+                // Bottom Action Buttons
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -792,8 +972,13 @@ fun OnboardingStep0WelcomeGateway(
                                     } else {
                                         focusManager.clearFocus()
                                         keyboardController?.hide()
-                                        onProceedToNextStep()
+                                        currentStage = GatewayStage.STRATEGY
                                     }
+                                }
+                                GatewayStage.STRATEGY -> {
+                                    focusManager.clearFocus()
+                                    keyboardController?.hide()
+                                    onProceedToNextStep()
                                 }
                             }
                         },
@@ -815,6 +1000,7 @@ fun OnboardingStep0WelcomeGateway(
                                     GatewayStage.CAROUSEL -> "Get Started"
                                     GatewayStage.IDENTITY -> "Register Vault"
                                     GatewayStage.SECURITY -> "Lock Vault"
+                                    GatewayStage.STRATEGY -> "Set Strategy"
                                 },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.5.sp,
@@ -824,7 +1010,7 @@ fun OnboardingStep0WelcomeGateway(
                     }
 
                     AnimatedVisibility(
-                        visible = currentStage != GatewayStage.SECURITY,
+                        visible = currentStage == GatewayStage.CAROUSEL || currentStage == GatewayStage.IDENTITY,
                         enter = fadeIn(tween(300)) + expandVertically(tween(300)),
                         exit = fadeOut(tween(300)) + shrinkVertically(tween(300))
                     ) {
@@ -915,6 +1101,166 @@ fun OnboardingStep0WelcomeGateway(
                     color = TextDark,
                     letterSpacing = (-0.5).sp
                 )
+            }
+        }
+
+        // =========================================================
+        // STRATEGY DETAIL & CONFIRMATION BOTTOM SHEET
+        // =========================================================
+        strategyDetailTarget?.let { target ->
+            ModalBottomSheet(
+                onDismissRequest = { strategyDetailTarget = null },
+                sheetState = strategySheetState,
+                shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+                containerColor = CardWhite,
+                dragHandle = { BottomSheetDefaults.DragHandle() }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp, top = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Surface(
+                        modifier = Modifier.size(60.dp),
+                        shape = CircleShape,
+                        color = AccentPurple.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (target == "3-VAULT") Icons.Outlined.AccountBalance else Icons.Outlined.AccountBalanceWallet,
+                                contentDescription = null,
+                                tint = AccentPurple,
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = if (target == "3-VAULT") "Smart 3-Tier Wealth Strategy" else "Simple Unified Vault",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextDark,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = if (target == "3-VAULT")
+                            "Automates cash flow between daily spending, bills, and emergency reserves with zero leakage."
+                        else
+                            "Classic single-account ledger for all income and daily expense tracking.",
+                        fontSize = 12.5.sp,
+                        color = TextMuted,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 17.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    if (target == "3-VAULT") {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = CanvasLight,
+                            border = BorderStroke(0.8.dp, BorderLight)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CreditCard, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text("Primary Operating Vault", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                        Text("Daily liquid spending, UPI, groceries, and leisure.", fontSize = 11.sp, color = TextMuted)
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Shield, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text("Bills & Autopay Commitments", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                        Text("Ring-fenced funds for rent, EMIs, utilities & SIPs.", fontSize = 11.sp, color = TextMuted)
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Security, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text("Emergency Fortress", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                        Text("High-security untouchable reserve cushion.", fontSize = 11.sp, color = TextMuted)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = CanvasLight,
+                            border = BorderStroke(0.8.dp, BorderLight)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text("Unified Cash Flow", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                        Text("All incoming income and expenses live in a single ledger.", fontSize = 11.sp, color = TextMuted)
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CheckCircleOutline, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text("Zero Transfer Management", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                        Text("No need to allocate money across separate sub-vaults.", fontSize = 11.sp, color = TextMuted)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            onStrategySelect(target)
+                            strategyDetailTarget = null
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(25.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                    ) {
+                        Text(
+                            text = if (target == "3-VAULT") "Apply 3-Tier Strategy" else "Apply Simple Strategy",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    TextButton(
+                        onClick = { strategyDetailTarget = null },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cancel", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = TextMuted)
+                    }
+                }
             }
         }
 
