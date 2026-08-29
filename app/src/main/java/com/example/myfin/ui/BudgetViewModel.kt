@@ -520,16 +520,31 @@ class BudgetViewModel(
     }
 
     suspend fun seedDefaultAccountsIfEmpty() = withContext(Dispatchers.IO) {
+        val isCompleted = dao.getUserProfile().first()?.isOnboardingCompleted ?: false
         val count = dao.getAccountCount()
-        if (count == 0) {
+        // Do not pre-populate dummy accounts if onboarding is not yet completed
+        if (count == 0 && isCompleted) {
             dao.insertAccounts(
                 listOf(
-                    AccountEntity(accountName = "Operating Account", startingBalance = 0.0, accountType = "Operating", sortOrder = 0),
-                    AccountEntity(accountName = "Commitments Account", startingBalance = 0.0, accountType = "Commitments", sortOrder = 1),
-                    AccountEntity(accountName = "Fortress Account", startingBalance = 0.0, accountType = "Fortress", sortOrder = 2),
-                    AccountEntity(accountName = "Cash Wallet", startingBalance = 0.0, accountType = "Cash", sortOrder = 3)
+                    AccountEntity(accountName = "PRIMARY BANK", startingBalance = 0.0, accountType = "Operating", sortOrder = 0),
+                    AccountEntity(accountName = "SECONDARY BANK", startingBalance = 0.0, accountType = "Commitments", sortOrder = 1),
+                    AccountEntity(accountName = "TERTIARY BANK", startingBalance = 0.0, accountType = "Fortress", sortOrder = 2),
+                    AccountEntity(accountName = "CASH WALLET", startingBalance = 0.0, accountType = "Cash", sortOrder = 3)
                 )
             )
+        }
+    }
+
+    fun replaceAllAccounts(accounts: List<AccountEntity>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.clearAllAccounts()
+            dao.insertAccounts(accounts)
+        }
+    }
+
+    fun clearAllAccounts() {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.clearAllAccounts()
         }
     }
 
