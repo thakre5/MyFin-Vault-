@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -79,7 +80,7 @@ fun OnboardingStep0WelcomeGateway(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
-    // Stage State: False = Welcome Carousel, True = Profile Identity Form
+    // Stage State: False = Carousel, True = Profile Identity Form
     var isFormMode by remember { mutableStateOf(false) }
 
     // Intercept hardware Back to gracefully revert to the Carousel stage
@@ -197,14 +198,14 @@ fun OnboardingStep0WelcomeGateway(
                 )
             }
 
-            Spacer(modifier = Modifier.weight(0.3f))
+            Spacer(modifier = Modifier.weight(0.2f))
 
             // =========================================================
             // 2. PINNED 3D TILTED HERO CARDS (100% Static & Anchored)
             // =========================================================
             SolnexTiltedCardsHero(currencySymbol = selectedCountry.currencySymbol)
 
-            Spacer(modifier = Modifier.weight(0.4f))
+            Spacer(modifier = Modifier.weight(0.25f))
 
             // =========================================================
             // 3. RIGHT-TO-LEFT CHOREOGRAPHED MIDDLE CONTENT
@@ -286,91 +287,55 @@ fun OnboardingStep0WelcomeGateway(
                         }
                     }
                 } else {
-                    // STAGE 1: 4 Profile Form Fields (Capsule Layout)
+                    // STAGE 1: Title + 4 Profile Form Fields (Capsule Layout)
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // 1. Username
-                        OutlinedTextField(
-                            value = displayName,
-                            onValueChange = onDisplayNameChange,
-                            placeholder = { Text("Username", fontSize = 13.5.sp, color = TextMuted) },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Outlined.Person,
-                                    contentDescription = null,
-                                    tint = AccentPurple,
-                                    modifier = Modifier.size(19.dp)
-                                )
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(26.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp),
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = CardWhite,
-                                unfocusedContainerColor = CardWhite,
-                                focusedBorderColor = AccentPurple,
-                                unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
-                            )
+                        // Section Title & Subtitle
+                        Text(
+                            text = "Create Vault Account",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Black,
+                            color = TextDark,
+                            textAlign = TextAlign.Center,
+                            letterSpacing = (-0.5).sp
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = "Enter your offline profile credentials",
+                            fontSize = 12.sp,
+                            color = TextMuted,
+                            textAlign = TextAlign.Center
                         )
 
-                        // 2. Email Address
-                        OutlinedTextField(
-                            value = emailAddress,
-                            onValueChange = onEmailChange,
-                            placeholder = { Text("Email Address (Optional)", fontSize = 13.5.sp, color = TextMuted) },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Outlined.Mail,
-                                    contentDescription = null,
-                                    tint = AccentPurple,
-                                    modifier = Modifier.size(19.dp)
-                                )
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(26.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = CardWhite,
-                                unfocusedContainerColor = CardWhite,
-                                focusedBorderColor = AccentPurple,
-                                unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
-                            )
-                        )
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                        // 3. 50:50 Split Row (DOB & Country Currency)
-                        Row(
+                        // Form Boxes
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            // 1. Username
                             OutlinedTextField(
-                                value = rawDobDigits,
-                                onValueChange = { input ->
-                                    onDobChange(input.filter { it.isDigit() }.take(8))
-                                },
-                                placeholder = { Text("DD/MM/YYYY", fontSize = 12.5.sp, color = TextMuted) },
+                                value = displayName,
+                                onValueChange = onDisplayNameChange,
+                                placeholder = { Text("Username", fontSize = 13.5.sp, color = TextMuted) },
                                 leadingIcon = {
                                     Icon(
-                                        Icons.Default.CalendarToday,
+                                        Icons.Outlined.Person,
                                         contentDescription = null,
                                         tint = AccentPurple,
-                                        modifier = Modifier.size(17.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 },
-                                visualTransformation = OnboardingDateVisualTransformation(),
                                 singleLine = true,
+                                textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                 shape = RoundedCornerShape(26.dp),
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    .fillMaxWidth()
+                                    .height(50.dp),
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedContainerColor = CardWhite,
                                     unfocusedContainerColor = CardWhite,
@@ -379,44 +344,113 @@ fun OnboardingStep0WelcomeGateway(
                                 )
                             )
 
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp)
-                                    .clip(RoundedCornerShape(26.dp))
-                                    .clickable { showCountryPickerSheet = true },
+                            // 2. Email Address
+                            OutlinedTextField(
+                                value = emailAddress,
+                                onValueChange = onEmailChange,
+                                placeholder = { Text("Email Address", fontSize = 13.5.sp, color = TextMuted) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Outlined.Mail,
+                                        contentDescription = null,
+                                        tint = AccentPurple,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                singleLine = true,
+                                textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                 shape = RoundedCornerShape(26.dp),
-                                color = CardWhite,
-                                border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = CardWhite,
+                                    unfocusedContainerColor = CardWhite,
+                                    focusedBorderColor = AccentPurple,
+                                    unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                                )
+                            )
+
+                            // 3. 50:50 Split Row (DOB & Country Currency)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Row(
+                                OutlinedTextField(
+                                    value = rawDobDigits,
+                                    onValueChange = { input ->
+                                        onDobChange(input.filter { it.isDigit() }.take(8))
+                                    },
+                                    placeholder = { Text("DD/MM/YYYY", fontSize = 12.sp, color = TextMuted) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.CalendarToday,
+                                            contentDescription = null,
+                                            tint = AccentPurple,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    },
+                                    visualTransformation = OnboardingDateVisualTransformation(),
+                                    singleLine = true,
+                                    textStyle = TextStyle(
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextDark,
+                                        letterSpacing = 0.5.sp
+                                    ),
+                                    shape = RoundedCornerShape(26.dp),
                                     modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                        .weight(1f)
+                                        .height(50.dp),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = CardWhite,
+                                        unfocusedContainerColor = CardWhite,
+                                        focusedBorderColor = AccentPurple,
+                                        unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                                    )
+                                )
+
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(50.dp)
+                                        .clip(RoundedCornerShape(26.dp))
+                                        .clickable { showCountryPickerSheet = true },
+                                    shape = RoundedCornerShape(26.dp),
+                                    color = CardWhite,
+                                    border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
                                 ) {
                                     Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f, fill = false)
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text(selectedCountry.flagEmoji, fontSize = 16.sp)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "${selectedCountry.currencySymbol} ${selectedCountry.currencyCode}",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = TextDark,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        ) {
+                                            Text(selectedCountry.flagEmoji, fontSize = 15.sp)
+                                            Spacer(modifier = Modifier.width(5.dp))
+                                            Text(
+                                                text = "${selectedCountry.currencySymbol} ${selectedCountry.currencyCode}",
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextDark,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        Icon(
+                                            Icons.Default.ArrowDropDown,
+                                            contentDescription = "Select Currency",
+                                            tint = TextMuted,
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
-                                    Icon(
-                                        Icons.Default.ArrowDropDown,
-                                        contentDescription = "Select Currency",
-                                        tint = TextMuted,
-                                        modifier = Modifier.size(20.dp)
-                                    )
                                 }
                             }
                         }
@@ -424,7 +458,7 @@ fun OnboardingStep0WelcomeGateway(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.4f))
+            Spacer(modifier = Modifier.weight(0.3f))
 
             // =========================================================
             // 4. SYNCHRONIZED BUTTON MORPHING & SHRINKING
