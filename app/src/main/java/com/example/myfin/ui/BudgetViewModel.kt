@@ -376,6 +376,10 @@ class BudgetViewModel(
         securityManager.setPin(pin)
     }
 
+    fun saveMasterPin(pin: String) {
+        savePin(pin)
+    }
+
     fun updateProfileImageUri(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
@@ -397,11 +401,34 @@ class BudgetViewModel(
         }
     }
 
+    fun updateProfileName(name: String) {
+        updateDisplayName(name)
+    }
+
+    fun updateEmail(email: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = userProfile.value
+            dao.saveUserProfile(current.copy(id = 1, email = email.trim()))
+        }
+    }
+
+    fun updateDateOfBirth(dob: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            securityManager.setRecoveryDob(dob)
+            val current = userProfile.value
+            dao.saveUserProfile(current.copy(id = 1, dateOfBirth = dob.trim()))
+        }
+    }
+
     fun updateCurrencySymbol(symbol: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
             dao.saveUserProfile(current.copy(id = 1, currencySymbol = symbol))
         }
+    }
+
+    fun updateCurrency(symbol: String) {
+        updateCurrencySymbol(symbol)
     }
 
     fun updateFortressThreshold(newThreshold: Double) {
@@ -416,6 +443,10 @@ class BudgetViewModel(
             val current = userProfile.value
             dao.saveUserProfile(current.copy(id = 1, isBiometricEnabled = enabled))
         }
+    }
+
+    fun setBiometricEnabled(enabled: Boolean) {
+        updateBiometricEnabled(enabled)
     }
 
     fun updateScreenCaptureAllowed(allowed: Boolean) {
@@ -442,6 +473,14 @@ class BudgetViewModel(
             } else {
                 ReminderScheduler.cancelReminder(context.applicationContext)
             }
+        }
+    }
+
+    fun completeOnboarding() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = userProfile.value
+            dao.saveUserProfile(current.copy(id = 1, isOnboardingCompleted = true))
+            isAppUnlocked.value = true
         }
     }
 
