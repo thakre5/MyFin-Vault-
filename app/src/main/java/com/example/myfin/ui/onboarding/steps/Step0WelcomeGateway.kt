@@ -34,9 +34,11 @@ import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Mail
+import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,7 +81,8 @@ enum class GatewayStage {
     CAROUSEL,
     IDENTITY,
     SECURITY,
-    STRATEGY
+    STRATEGY,
+    ACCOUNTS
 }
 
 @Composable
@@ -92,6 +95,7 @@ fun OnboardingStep0WelcomeGateway(
     isBiometricEnabled: Boolean,
     selectedCountry: CountryCurrencyMapping,
     selectedStrategy: String,
+    accounts: SnapshotStateList<InitialAccountSetup>,
     onDisplayNameChange: (String) -> Unit,
     onEmailChange: (String) -> Unit,
     onDobChange: (String) -> Unit,
@@ -100,6 +104,9 @@ fun OnboardingStep0WelcomeGateway(
     onBiometricToggle: (Boolean) -> Unit,
     onCountrySelect: (CountryCurrencyMapping) -> Unit,
     onStrategySelect: (String) -> Unit,
+    onUpdateAccountBalance: (Int, String) -> Unit,
+    onRemoveAccount: (Int) -> Unit,
+    onAddAccount: () -> Unit,
     onProceedToNextStep: () -> Unit,
     onRestoreVault: () -> Unit
 ) {
@@ -135,12 +142,13 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Bi-Directional Back Handler
+    // Bi-Directional Hardware Back Navigation
     BackHandler(enabled = currentStage != GatewayStage.CAROUSEL) {
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         focusManager.clearFocus()
         keyboardController?.hide()
         currentStage = when (currentStage) {
+            GatewayStage.ACCOUNTS -> GatewayStage.STRATEGY
             GatewayStage.STRATEGY -> GatewayStage.SECURITY
             GatewayStage.SECURITY -> GatewayStage.IDENTITY
             GatewayStage.IDENTITY -> GatewayStage.CAROUSEL
@@ -148,7 +156,7 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Continuous Infinite Carousel Driver
+    // Carousel Auto-Scroll Loop
     val virtualPageCount = 3000
     val initialPage = (virtualPageCount / 2) - ((virtualPageCount / 2) % WelcomeCarouselSlides.size)
     val carouselPagerState = rememberPagerState(
@@ -176,10 +184,11 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Adaptive Hero Card Scale & Height
+    // Responsive Hero Cards Scaling & Upward Positioning
     val heroScale by animateFloatAsState(
         targetValue = when {
-            isImeVisible && currentStage != GatewayStage.CAROUSEL -> 0.58f
+            isImeVisible && currentStage != GatewayStage.CAROUSEL -> 0.52f
+            currentStage == GatewayStage.ACCOUNTS -> 0.54f
             currentStage != GatewayStage.CAROUSEL -> 0.88f
             else -> 1.0f
         },
@@ -188,7 +197,8 @@ fun OnboardingStep0WelcomeGateway(
     )
     val heroHeight by animateDpAsState(
         targetValue = when {
-            isImeVisible && currentStage != GatewayStage.CAROUSEL -> 115.dp
+            isImeVisible && currentStage != GatewayStage.CAROUSEL -> 95.dp
+            currentStage == GatewayStage.ACCOUNTS -> 95.dp
             currentStage != GatewayStage.CAROUSEL -> 195.dp
             else -> 235.dp
         },
@@ -198,7 +208,7 @@ fun OnboardingStep0WelcomeGateway(
 
     // Dynamic Button Morphing
     val primaryButtonWidthFraction by animateFloatAsState(
-        targetValue = if (currentStage == GatewayStage.SECURITY || currentStage == GatewayStage.STRATEGY) 0.58f else 1.0f,
+        targetValue = if (currentStage == GatewayStage.CAROUSEL || currentStage == GatewayStage.IDENTITY) 1.0f else 0.58f,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
         label = "primaryWidth"
     )
@@ -212,6 +222,11 @@ fun OnboardingStep0WelcomeGateway(
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
         label = "restoreHeight"
     )
+
+    // Live Aggregate Liquidity Calculation
+    val totalLiquidBalance = remember(accounts.map { it.initialBalanceText }) {
+        accounts.sumOf { it.initialBalanceText.toDoubleOrNull() ?: 0.0 }
+    }
 
     Box(
         modifier = Modifier
@@ -245,9 +260,9 @@ fun OnboardingStep0WelcomeGateway(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Spacer(modifier = Modifier.height(56.dp))
+                Spacer(modifier = Modifier.height(if (currentStage == GatewayStage.ACCOUNTS) 48.dp else 56.dp))
 
-                // Hero Cards
+                // Hero Cards (Pins neatly at top center in Accounts mode)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -263,7 +278,7 @@ fun OnboardingStep0WelcomeGateway(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(if (isImeVisible) 6.dp else 16.dp))
+                Spacer(modifier = Modifier.height(if (currentStage == GatewayStage.ACCOUNTS) 8.dp else 16.dp))
 
                 // Multi-Stage Animated Content
                 AnimatedContent(
@@ -381,19 +396,12 @@ fun OnboardingStep0WelcomeGateway(
                                         onValueChange = onDisplayNameChange,
                                         placeholder = { Text("Username", fontSize = 13.5.sp, color = TextMuted) },
                                         leadingIcon = {
-                                            Icon(
-                                                Icons.Outlined.Person,
-                                                contentDescription = null,
-                                                tint = AccentPurple,
-                                                modifier = Modifier.size(18.dp)
-                                            )
+                                            Icon(Icons.Outlined.Person, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                                         },
                                         singleLine = true,
                                         textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                         shape = RoundedCornerShape(26.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(50.dp),
+                                        modifier = Modifier.fillMaxWidth().height(50.dp),
                                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
@@ -408,19 +416,12 @@ fun OnboardingStep0WelcomeGateway(
                                         onValueChange = onEmailChange,
                                         placeholder = { Text("Email Address", fontSize = 13.5.sp, color = TextMuted) },
                                         leadingIcon = {
-                                            Icon(
-                                                Icons.Outlined.Mail,
-                                                contentDescription = null,
-                                                tint = AccentPurple,
-                                                modifier = Modifier.size(18.dp)
-                                            )
+                                            Icon(Icons.Outlined.Mail, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                                         },
                                         singleLine = true,
                                         textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                         shape = RoundedCornerShape(26.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(50.dp),
+                                        modifier = Modifier.fillMaxWidth().height(50.dp),
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
@@ -436,30 +437,16 @@ fun OnboardingStep0WelcomeGateway(
                                     ) {
                                         OutlinedTextField(
                                             value = rawDobDigits,
-                                            onValueChange = { input ->
-                                                onDobChange(input.filter { it.isDigit() }.take(8))
-                                            },
+                                            onValueChange = { input -> onDobChange(input.filter { it.isDigit() }.take(8)) },
                                             placeholder = { Text("DD/MM/YYYY", fontSize = 12.sp, color = TextMuted) },
                                             leadingIcon = {
-                                                Icon(
-                                                    Icons.Default.CalendarToday,
-                                                    contentDescription = null,
-                                                    tint = AccentPurple,
-                                                    modifier = Modifier.size(15.dp)
-                                                )
+                                                Icon(Icons.Default.CalendarToday, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(15.dp))
                                             },
                                             visualTransformation = OnboardingDateVisualTransformation(),
                                             singleLine = true,
-                                            textStyle = TextStyle(
-                                                fontSize = 12.5.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = TextDark,
-                                                letterSpacing = 0.5.sp
-                                            ),
+                                            textStyle = TextStyle(fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = TextDark, letterSpacing = 0.5.sp),
                                             shape = RoundedCornerShape(26.dp),
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(50.dp),
+                                            modifier = Modifier.weight(1f).height(50.dp),
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedContainerColor = CardWhite,
@@ -484,16 +471,11 @@ fun OnboardingStep0WelcomeGateway(
                                             border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
                                         ) {
                                             Row(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .padding(horizontal = 12.dp),
+                                                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.weight(1f, fill = false)
-                                                ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
                                                     Text(selectedCountry.flagEmoji, fontSize = 15.sp)
                                                     Spacer(modifier = Modifier.width(5.dp))
                                                     Text(
@@ -505,12 +487,7 @@ fun OnboardingStep0WelcomeGateway(
                                                         overflow = TextOverflow.Ellipsis
                                                     )
                                                 }
-                                                Icon(
-                                                    Icons.Default.ArrowDropDown,
-                                                    contentDescription = "Select Currency",
-                                                    tint = TextMuted,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
+                                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Select Currency", tint = TextMuted, modifier = Modifier.size(18.dp))
                                             }
                                         }
                                     }
@@ -553,12 +530,7 @@ fun OnboardingStep0WelcomeGateway(
                                         onValueChange = onMasterPinChange,
                                         placeholder = { Text("Create Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
-                                            Icon(
-                                                Icons.Outlined.Lock,
-                                                contentDescription = null,
-                                                tint = AccentPurple,
-                                                modifier = Modifier.size(18.dp)
-                                            )
+                                            Icon(Icons.Outlined.Lock, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                                         },
                                         trailingIcon = {
                                             IconButton(onClick = { showMasterPassword = !showMasterPassword }) {
@@ -574,9 +546,7 @@ fun OnboardingStep0WelcomeGateway(
                                         singleLine = true,
                                         textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                         shape = RoundedCornerShape(26.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(50.dp),
+                                        modifier = Modifier.fillMaxWidth().height(50.dp),
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
@@ -592,25 +562,12 @@ fun OnboardingStep0WelcomeGateway(
                                         onValueChange = onConfirmPinChange,
                                         placeholder = { Text("Confirm Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
-                                            Icon(
-                                                Icons.Outlined.Lock,
-                                                contentDescription = null,
-                                                tint = if (isPinMatching) TealPrimary else AccentPurple,
-                                                modifier = Modifier.size(18.dp)
-                                            )
+                                            Icon(Icons.Outlined.Lock, contentDescription = null, tint = if (isPinMatching) TealPrimary else AccentPurple, modifier = Modifier.size(18.dp))
                                         },
                                         trailingIcon = {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.padding(end = 4.dp)
-                                            ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp)) {
                                                 if (isPinMatching) {
-                                                    Icon(
-                                                        Icons.Default.CheckCircle,
-                                                        contentDescription = "Matched",
-                                                        tint = TealPrimary,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
+                                                    Icon(Icons.Default.CheckCircle, contentDescription = "Matched", tint = TealPrimary, modifier = Modifier.size(18.dp))
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                 }
                                                 IconButton(onClick = { showConfirmPassword = !showConfirmPassword }) {
@@ -627,9 +584,7 @@ fun OnboardingStep0WelcomeGateway(
                                         singleLine = true,
                                         textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                         shape = RoundedCornerShape(26.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(50.dp),
+                                        modifier = Modifier.fillMaxWidth().height(50.dp),
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
@@ -644,46 +599,20 @@ fun OnboardingStep0WelcomeGateway(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Surface(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(50.dp),
+                                            modifier = Modifier.weight(1f).height(50.dp),
                                             shape = RoundedCornerShape(26.dp),
                                             color = CardWhite,
                                             border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
                                         ) {
                                             Row(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .padding(horizontal = 12.dp),
+                                                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Icon(
-                                                    Icons.Default.CalendarToday,
-                                                    contentDescription = null,
-                                                    tint = AccentPurple,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
+                                                Icon(Icons.Default.CalendarToday, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(16.dp))
                                                 Spacer(modifier = Modifier.width(8.dp))
-                                                Column(
-                                                    modifier = Modifier.weight(1f),
-                                                    verticalArrangement = Arrangement.Center
-                                                ) {
-                                                    Text(
-                                                        text = formattedDob,
-                                                        fontSize = 12.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = TextDark,
-                                                        lineHeight = 15.sp,
-                                                        maxLines = 1
-                                                    )
-                                                    Text(
-                                                        text = "Recovery Key Bound",
-                                                        fontSize = 9.sp,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = TealPrimary,
-                                                        lineHeight = 11.sp,
-                                                        maxLines = 1
-                                                    )
+                                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                                                    Text(text = formattedDob, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextDark, lineHeight = 15.sp, maxLines = 1)
+                                                    Text(text = "Recovery Key Bound", fontSize = 9.sp, fontWeight = FontWeight.Medium, color = TealPrimary, lineHeight = 11.sp, maxLines = 1)
                                                 }
                                             }
                                         }
@@ -708,26 +637,14 @@ fun OnboardingStep0WelcomeGateway(
                                             border = BorderStroke(1.dp, if (isBiometricEnabled) AccentPurple.copy(alpha = 0.6f) else BorderLight.copy(alpha = 0.9f))
                                         ) {
                                             Row(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .padding(horizontal = 12.dp),
+                                                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(
-                                                        Icons.Default.Fingerprint,
-                                                        contentDescription = null,
-                                                        tint = if (isBiometricEnabled) AccentPurple else TextMuted,
-                                                        modifier = Modifier.size(17.dp)
-                                                    )
+                                                    Icon(Icons.Default.Fingerprint, contentDescription = null, tint = if (isBiometricEnabled) AccentPurple else TextMuted, modifier = Modifier.size(17.dp))
                                                     Spacer(modifier = Modifier.width(5.dp))
-                                                    Text(
-                                                        text = "Biometric",
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = TextDark
-                                                    )
+                                                    Text(text = "Biometric", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                                 }
                                                 Switch(
                                                     checked = isBiometricEnabled,
@@ -742,11 +659,7 @@ fun OnboardingStep0WelcomeGateway(
                                                         }
                                                     },
                                                     modifier = Modifier.scale(0.7f),
-                                                    colors = SwitchDefaults.colors(
-                                                        checkedThumbColor = Color.White,
-                                                        checkedTrackColor = AccentPurple,
-                                                        uncheckedTrackColor = CanvasLight
-                                                    )
+                                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = AccentPurple, uncheckedTrackColor = CanvasLight)
                                                 )
                                             }
                                         }
@@ -755,7 +668,7 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
 
-                        // STAGE 3: Bank Strategy Selection (2 Capsule Cards)
+                        // STAGE 3: Strategy Selection
                         GatewayStage.STRATEGY -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -783,7 +696,6 @@ fun OnboardingStep0WelcomeGateway(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    // Strategy Card 1: 3-Tier Strategy
                                     val is3Tier = selectedStrategy == "3-VAULT"
                                     Surface(
                                         modifier = Modifier
@@ -803,61 +715,37 @@ fun OnboardingStep0WelcomeGateway(
                                         )
                                     ) {
                                         Row(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(horizontal = 16.dp),
+                                            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.weight(1f)
-                                            ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                                 Surface(
                                                     modifier = Modifier.size(36.dp),
                                                     shape = CircleShape,
                                                     color = if (is3Tier) AccentPurple.copy(alpha = 0.15f) else CanvasLight
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
-                                                        Icon(
-                                                            Icons.Outlined.AccountBalance,
-                                                            contentDescription = null,
-                                                            tint = AccentPurple,
-                                                            modifier = Modifier.size(19.dp)
-                                                        )
+                                                        Icon(Icons.Outlined.AccountBalance, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(19.dp))
                                                     }
                                                 }
                                                 Spacer(modifier = Modifier.width(12.dp))
                                                 Column {
-                                                    Text(
-                                                        text = "Smart 3-Tier Wealth Strategy",
-                                                        fontSize = 13.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = TextDark
-                                                    )
-                                                    Text(
-                                                        text = "Operating • Commitments • Fortress",
-                                                        fontSize = 11.sp,
-                                                        color = TextMuted
-                                                    )
+                                                    Text(text = "Smart 3-Tier Wealth Strategy", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                                    Text(text = "Operating • Commitments • Fortress", fontSize = 11.sp, color = TextMuted)
                                                 }
                                             }
-
                                             RadioButton(
                                                 selected = is3Tier,
                                                 onClick = {
                                                     focusManager.clearFocus()
                                                     strategyDetailTarget = "3-VAULT"
                                                 },
-                                                colors = RadioButtonDefaults.colors(
-                                                    selectedColor = AccentPurple,
-                                                    unselectedColor = BorderLight
-                                                )
+                                                colors = RadioButtonDefaults.colors(selectedColor = AccentPurple, unselectedColor = BorderLight)
                                             )
                                         }
                                     }
 
-                                    // Strategy Card 2: Simple Vault
                                     val isSimple = selectedStrategy == "SIMPLE"
                                     Surface(
                                         modifier = Modifier
@@ -877,59 +765,240 @@ fun OnboardingStep0WelcomeGateway(
                                         )
                                     ) {
                                         Row(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(horizontal = 16.dp),
+                                            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.weight(1f)
-                                            ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                                 Surface(
                                                     modifier = Modifier.size(36.dp),
                                                     shape = CircleShape,
                                                     color = if (isSimple) AccentPurple.copy(alpha = 0.15f) else CanvasLight
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
-                                                        Icon(
-                                                            Icons.Outlined.AccountBalanceWallet,
-                                                            contentDescription = null,
-                                                            tint = AccentPurple,
-                                                            modifier = Modifier.size(19.dp)
-                                                        )
+                                                        Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(19.dp))
                                                     }
                                                 }
                                                 Spacer(modifier = Modifier.width(12.dp))
                                                 Column {
-                                                    Text(
-                                                        text = "Simple Unified Vault",
-                                                        fontSize = 13.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = TextDark
-                                                    )
-                                                    Text(
-                                                        text = "Single ledger for all cash flow",
-                                                        fontSize = 11.sp,
-                                                        color = TextMuted
-                                                    )
+                                                    Text(text = "Simple Unified Vault", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                                    Text(text = "Single ledger for all cash flow", fontSize = 11.sp, color = TextMuted)
                                                 }
                                             }
-
                                             RadioButton(
                                                 selected = isSimple,
                                                 onClick = {
                                                     focusManager.clearFocus()
                                                     strategyDetailTarget = "SIMPLE"
                                                 },
-                                                colors = RadioButtonDefaults.colors(
-                                                    selectedColor = AccentPurple,
-                                                    unselectedColor = BorderLight
-                                                )
+                                                colors = RadioButtonDefaults.colors(selectedColor = AccentPurple, unselectedColor = BorderLight)
                                             )
                                         }
                                     }
+                                }
+                            }
+                        }
+
+                        // STAGE 4: Configure Accounts & Opening Balances
+                        GatewayStage.ACCOUNTS -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Configure Accounts",
+                                    fontSize = if (isImeVisible) 19.sp else 22.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextDark,
+                                    textAlign = TextAlign.Center,
+                                    letterSpacing = (-0.5).sp
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "Set initial balances for your active vaults",
+                                    fontSize = 12.sp,
+                                    color = TextMuted,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Live Total Liquid Balance Aggregate Banner
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = AccentPurple.copy(alpha = 0.09f),
+                                    border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.25f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Total Liquid Balance",
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = TextDark
+                                        )
+                                        Text(
+                                            text = "${selectedCountry.currencySymbol} %,.2f".format(totalLiquidBalance),
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = AccentPurple
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Account Balance Input Rows
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    accounts.forEachIndexed { index, account ->
+                                        val isCash = account.defaultType == "Cash"
+                                        val isSimpleStrategy = selectedStrategy == "SIMPLE"
+                                        val canDelete = isSimpleStrategy && !isCash && accounts.count { it.defaultType != "Cash" } > 1
+
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(50.dp),
+                                            shape = RoundedCornerShape(25.dp),
+                                            color = CardWhite,
+                                            border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(horizontal = 12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (isCash) Icons.Outlined.Payments else Icons.Outlined.AccountBalance,
+                                                        contentDescription = null,
+                                                        tint = AccentPurple,
+                                                        modifier = Modifier.size(17.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Column {
+                                                        Text(
+                                                            text = account.name,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = TextDark,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Text(
+                                                            text = account.defaultType,
+                                                            fontSize = 9.5.sp,
+                                                            fontWeight = FontWeight.Medium,
+                                                            color = TealPrimary
+                                                        )
+                                                    }
+                                                }
+
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = selectedCountry.currencySymbol,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = TextMuted,
+                                                        modifier = Modifier.padding(end = 4.dp)
+                                                    )
+
+                                                    OutlinedTextField(
+                                                        value = account.initialBalanceText,
+                                                        onValueChange = { newVal ->
+                                                            onUpdateAccountBalance(index, newVal.filter { it.isDigit() || it == '.' })
+                                                        },
+                                                        singleLine = true,
+                                                        textStyle = TextStyle(
+                                                            fontSize = 12.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = TextDark,
+                                                            textAlign = TextAlign.End
+                                                        ),
+                                                        placeholder = {
+                                                            Text("0", fontSize = 12.5.sp, color = TextMuted, textAlign = TextAlign.End)
+                                                        },
+                                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                        modifier = Modifier
+                                                            .width(85.dp)
+                                                            .height(38.dp),
+                                                        shape = RoundedCornerShape(19.dp),
+                                                        colors = OutlinedTextFieldDefaults.colors(
+                                                            focusedContainerColor = CanvasLight,
+                                                            unfocusedContainerColor = CanvasLight,
+                                                            focusedBorderColor = AccentPurple,
+                                                            unfocusedBorderColor = BorderLight
+                                                        ),
+                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                                    )
+
+                                                    if (canDelete) {
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        IconButton(
+                                                            onClick = { onRemoveAccount(index) },
+                                                            modifier = Modifier.size(24.dp)
+                                                        ) {
+                                                            Icon(
+                                                                Icons.Default.Close,
+                                                                contentDescription = "Remove Bank",
+                                                                tint = TextMuted,
+                                                                modifier = Modifier.size(15.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Option to re-add extra bank in Simple mode if deleted
+                                    if (selectedStrategy == "SIMPLE" && accounts.count { it.defaultType != "Cash" } < 3) {
+                                        TextButton(
+                                            onClick = onAddAccount,
+                                            modifier = Modifier.align(Alignment.End),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(15.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("+ Add Bank", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Informational Editable Disclaimer Note
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = AccentPurple.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Note: Account names, types & balances are editable anytime in Vault Settings.",
+                                        fontSize = 10.sp,
+                                        color = TextMuted,
+                                        lineHeight = 13.sp
+                                    )
                                 }
                             }
                         }
@@ -978,8 +1047,12 @@ fun OnboardingStep0WelcomeGateway(
                                 GatewayStage.STRATEGY -> {
                                     focusManager.clearFocus()
                                     keyboardController?.hide()
-                                    // Always trigger the detailed explanation sheet before proceeding
                                     strategyDetailTarget = selectedStrategy
+                                }
+                                GatewayStage.ACCOUNTS -> {
+                                    focusManager.clearFocus()
+                                    keyboardController?.hide()
+                                    onProceedToNextStep()
                                 }
                             }
                         },
@@ -1002,6 +1075,7 @@ fun OnboardingStep0WelcomeGateway(
                                     GatewayStage.IDENTITY -> "Register Vault"
                                     GatewayStage.SECURITY -> "Lock Vault"
                                     GatewayStage.STRATEGY -> "Set Strategy"
+                                    GatewayStage.ACCOUNTS -> "Save & Continue"
                                 },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.5.sp,
@@ -1238,7 +1312,8 @@ fun OnboardingStep0WelcomeGateway(
                         onClick = {
                             onStrategySelect(target)
                             strategyDetailTarget = null
-                            onProceedToNextStep()
+                            // Transition seamlessly into the bank account configuration stage
+                            currentStage = GatewayStage.ACCOUNTS
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1283,15 +1358,8 @@ fun OnboardingStep0WelcomeGateway(
                         .padding(horizontal = 24.dp)
                         .padding(bottom = 32.dp, top = 8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(38.dp),
-                            shape = CircleShape,
-                            color = AccentPurple.copy(alpha = 0.12f)
-                        ) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(modifier = Modifier.size(38.dp), shape = CircleShape, color = AccentPurple.copy(alpha = 0.12f)) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(Icons.Default.Public, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(20.dp))
                             }
@@ -1305,10 +1373,7 @@ fun OnboardingStep0WelcomeGateway(
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    LazyColumn(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(SupportedCountries) { item ->
                             val isSelected = selectedCountry.countryName == item.countryName
                             Surface(
@@ -1324,23 +1389,15 @@ fun OnboardingStep0WelcomeGateway(
                                 border = BorderStroke(0.8.dp, if (isSelected) AccentPurple else BorderLight)
                             ) {
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(item.flagEmoji, fontSize = 20.sp)
                                         Spacer(modifier = Modifier.width(10.dp))
-                                        Text(
-                                            item.countryName,
-                                            fontSize = 13.5.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            color = TextDark
-                                        )
+                                        Text(item.countryName, fontSize = 13.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = TextDark)
                                     }
-
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
                                         color = if (isSelected) AccentPurple else CardWhite,
@@ -1374,60 +1431,21 @@ fun OnboardingStep0WelcomeGateway(
                 dragHandle = { BottomSheetDefaults.DragHandle() }
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 32.dp, top = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp, top = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(
-                        modifier = Modifier.size(60.dp),
-                        shape = CircleShape,
-                        color = AccentPurple.copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))
-                    ) {
+                    Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = AccentPurple.copy(alpha = 0.12f), border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.FolderOpen,
-                                contentDescription = null,
-                                tint = AccentPurple,
-                                modifier = Modifier.size(30.dp)
-                            )
+                            Icon(Icons.Default.FolderOpen, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(30.dp))
                         }
                     }
-
                     Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = "Restore from Local Backup",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextDark,
-                        textAlign = TextAlign.Center
-                    )
-
+                    Text("Restore from Local Backup", fontSize = 20.sp, fontWeight = FontWeight.Black, color = TextDark, textAlign = TextAlign.Center)
                     Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "Import your offline encrypted snapshot to restore your accounts, budget plans, and historical records.",
-                        fontSize = 12.5.sp,
-                        color = TextMuted,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 17.sp
-                    )
-
+                    Text("Import your offline encrypted snapshot to restore your accounts, budget plans, and historical records.", fontSize = 12.5.sp, color = TextMuted, textAlign = TextAlign.Center, lineHeight = 17.sp)
                     Spacer(modifier = Modifier.height(20.dp))
-
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        color = CanvasLight,
-                        border = BorderStroke(0.8.dp, BorderLight)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
+                    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = CanvasLight, border = BorderStroke(0.8.dp, BorderLight)) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.LockReset, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(10.dp))
@@ -1438,36 +1456,22 @@ fun OnboardingStep0WelcomeGateway(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text("Restores all bank accounts, taxonomies, and fixed bills.", fontSize = 11.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Security, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text("100% offline verification with hardware keystore security.", fontSize = 11.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
-                            }
                         }
                     }
-
                     Spacer(modifier = Modifier.height(24.dp))
-
                     Button(
                         onClick = {
                             showRestoreConfirmationSheet = false
                             onRestoreVault()
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
                         shape = RoundedCornerShape(25.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = TextDark)
                     ) {
                         Text("Choose Backup File (.json)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                     }
-
                     Spacer(modifier = Modifier.height(8.dp))
-
-                    TextButton(
-                        onClick = { showRestoreConfirmationSheet = false },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                    TextButton(onClick = { showRestoreConfirmationSheet = false }, modifier = Modifier.fillMaxWidth()) {
                         Text("Cancel", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = TextMuted)
                     }
                 }
@@ -1486,100 +1490,39 @@ fun OnboardingStep0WelcomeGateway(
                 dragHandle = { BottomSheetDefaults.DragHandle() }
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 32.dp, top = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp, top = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(
-                        modifier = Modifier.size(60.dp),
-                        shape = CircleShape,
-                        color = AccentPurple.copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))
-                    ) {
+                    Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = AccentPurple.copy(alpha = 0.12f), border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Fingerprint,
-                                contentDescription = null,
-                                tint = AccentPurple,
-                                modifier = Modifier.size(32.dp)
-                            )
+                            Icon(Icons.Default.Fingerprint, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(32.dp))
                         }
                     }
-
                     Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = "Biometric Authentication",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextDark,
-                        textAlign = TextAlign.Center
-                    )
-
+                    Text("Biometric Authentication", fontSize = 20.sp, fontWeight = FontWeight.Black, color = TextDark, textAlign = TextAlign.Center)
                     Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "Unlock your offline personal ledger instantly using your device's biometric sensor (Fingerprint / Face ID).",
-                        fontSize = 12.5.sp,
-                        color = TextMuted,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 17.sp
-                    )
-
+                    Text("Unlock your offline personal ledger instantly using your device's biometric sensor (Fingerprint / Face ID).", fontSize = 12.5.sp, color = TextMuted, textAlign = TextAlign.Center, lineHeight = 17.sp)
                     Spacer(modifier = Modifier.height(18.dp))
-
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        color = CanvasLight,
-                        border = BorderStroke(0.8.dp, BorderLight)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Security,
-                                contentDescription = null,
-                                tint = AccentPurple,
-                                modifier = Modifier.size(20.dp)
-                            )
+                    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = CanvasLight, border = BorderStroke(0.8.dp, BorderLight)) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Security, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Protected by Android Hardware Keystore. Biometrics never leave your physical device.",
-                                fontSize = 11.5.sp,
-                                color = TextDark,
-                                fontWeight = FontWeight.Medium,
-                                lineHeight = 15.sp
-                            )
+                            Text("Protected by Android Hardware Keystore. Biometrics never leave your physical device.", fontSize = 11.5.sp, color = TextDark, fontWeight = FontWeight.Medium, lineHeight = 15.sp)
                         }
                     }
-
                     Spacer(modifier = Modifier.height(24.dp))
-
                     Button(
                         onClick = {
                             onBiometricToggle(true)
                             showBiometricSheet = false
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
                         shape = RoundedCornerShape(25.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = TextDark)
                     ) {
-                        Text(
-                            text = "Enable Biometric Unlock",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = Color.White
-                        )
+                        Text("Enable Biometric Unlock", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                     }
-
                     Spacer(modifier = Modifier.height(8.dp))
-
                     TextButton(
                         onClick = {
                             onBiometricToggle(false)
@@ -1587,12 +1530,7 @@ fun OnboardingStep0WelcomeGateway(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "Keep PIN Only",
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextMuted
-                        )
+                        Text("Keep PIN Only", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = TextMuted)
                     }
                 }
             }
