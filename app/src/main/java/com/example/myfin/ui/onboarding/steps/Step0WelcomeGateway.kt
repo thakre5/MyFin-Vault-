@@ -50,7 +50,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -86,15 +88,17 @@ fun OnboardingStep0WelcomeGateway(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
 
     var isFormMode by remember { mutableStateOf(false) }
-
-    // Dynamic keyboard visibility detection
     val isImeVisible = WindowInsets.isImeVisible
 
     BackHandler(enabled = isFormMode) {
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        focusManager.clearFocus()
+        keyboardController?.hide()
         isFormMode = false
     }
 
@@ -124,18 +128,16 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Smoothly scroll down when keyboard appears to keep focused inputs visible
     LaunchedEffect(isImeVisible) {
         if (isImeVisible && isFormMode) {
-            delay(100L)
+            delay(120L)
             scrollState.animateScrollTo(scrollState.maxValue)
         }
     }
 
-    // Adaptive Hero Card Scale & Height
     val heroScale by animateFloatAsState(
         targetValue = when {
-            isImeVisible && isFormMode -> 0.62f
+            isImeVisible && isFormMode -> 0.58f
             isFormMode -> 0.88f
             else -> 1.0f
         },
@@ -144,7 +146,7 @@ fun OnboardingStep0WelcomeGateway(
     )
     val heroHeight by animateDpAsState(
         targetValue = when {
-            isImeVisible && isFormMode -> 125.dp
+            isImeVisible && isFormMode -> 115.dp
             isFormMode -> 195.dp
             else -> 235.dp
         },
@@ -152,7 +154,6 @@ fun OnboardingStep0WelcomeGateway(
         label = "heroHeight"
     )
 
-    // Dynamic Restore Button Width & Height
     val restoreButtonWidthFraction by animateFloatAsState(
         targetValue = if (isFormMode) 0.52f else 1.0f,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
@@ -178,73 +179,75 @@ fun OnboardingStep0WelcomeGateway(
                 )
             )
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val minScreenHeight = maxHeight
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+        ) {
+            // =========================================================
+            // 1. PINNED FIXED BRANDING HEADER (Always Visible on Screen)
+            // =========================================================
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = Color.Transparent,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(CyanPrimary, AccentPurple, PurplePrimary)
+                            )
+                        )
+                        val c = center
+                        val r = size.minDimension * 0.32f
+                        repeat(8) { i ->
+                            val angleRad = Math.toRadians((i * 45.0))
+                            val px = c.x + (r * cos(angleRad)).toFloat()
+                            val py = c.y + (r * sin(angleRad)).toFloat()
+                            drawLine(
+                                color = Color.White,
+                                start = c,
+                                end = Offset(px, py),
+                                strokeWidth = 2.4.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                        }
+                        drawCircle(color = Color.White, radius = 2.5.dp.toPx(), center = c)
+                    }
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "MyFin",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
+                    color = TextDark,
+                    letterSpacing = (-0.5).sp
+                )
+            }
 
+            // =========================================================
+            // 2. SCROLLABLE BODY WITH DYNAMIC IME KEYBOARD PADDING
+            // =========================================================
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
+                    .fillMaxWidth()
                     .verticalScroll(scrollState)
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
                     .imePadding()
-                    .padding(horizontal = 24.dp)
-                    .defaultMinSize(minHeight = minScreenHeight),
+                    .padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // =========================================================
-                // 1. PINNED BRANDING HEADER
-                // =========================================================
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.Transparent,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    colors = listOf(CyanPrimary, AccentPurple, PurplePrimary)
-                                )
-                            )
-                            val c = center
-                            val r = size.minDimension * 0.32f
-                            repeat(8) { i ->
-                                val angleRad = Math.toRadians((i * 45.0))
-                                val px = c.x + (r * cos(angleRad)).toFloat()
-                                val py = c.y + (r * sin(angleRad)).toFloat()
-                                drawLine(
-                                    color = Color.White,
-                                    start = c,
-                                    end = Offset(px, py),
-                                    strokeWidth = 2.4.dp.toPx(),
-                                    cap = StrokeCap.Round
-                                )
-                            }
-                            drawCircle(color = Color.White, radius = 2.5.dp.toPx(), center = c)
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "MyFin",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextDark,
-                        letterSpacing = (-0.5).sp
-                    )
-                }
+                Spacer(modifier = Modifier.height(if (isImeVisible) 2.dp else 8.dp))
 
-                Spacer(modifier = Modifier.height(if (isImeVisible) 4.dp else 12.dp))
-
-                // =========================================================
-                // 2. RESPONSIVE HERO CARDS (Smoothly scales when keyboard opens)
-                // =========================================================
+                // Hero Cards (Scales down smoothly when typing)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -262,9 +265,7 @@ fun OnboardingStep0WelcomeGateway(
 
                 Spacer(modifier = Modifier.height(if (isImeVisible) 6.dp else 16.dp))
 
-                // =========================================================
-                // 3. MIDDLE CONTENT (Carousel OR Form)
-                // =========================================================
+                // Middle Content Transition: Carousel to 4 Form Fields
                 AnimatedContent(
                     targetState = isFormMode,
                     transitionSpec = {
@@ -342,7 +343,7 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
                     } else {
-                        // STAGE 1: Title + 4 Profile Form Fields
+                        // STAGE 1: Title + 4 Form Fields
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -472,7 +473,11 @@ fun OnboardingStep0WelcomeGateway(
                                             .weight(1f)
                                             .height(50.dp)
                                             .clip(RoundedCornerShape(26.dp))
-                                            .clickable { showCountryPickerSheet = true },
+                                            .clickable {
+                                                focusManager.clearFocus()
+                                                keyboardController?.hide()
+                                                showCountryPickerSheet = true
+                                            },
                                         shape = RoundedCornerShape(26.dp),
                                         color = CardWhite,
                                         border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
@@ -515,9 +520,7 @@ fun OnboardingStep0WelcomeGateway(
 
                 Spacer(modifier = Modifier.height(if (isImeVisible) 10.dp else 16.dp))
 
-                // =========================================================
-                // 4. ACTION BUTTONS
-                // =========================================================
+                // Bottom Buttons
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -536,6 +539,8 @@ fun OnboardingStep0WelcomeGateway(
                                 } else if (rawDobDigits.length < 8) {
                                     Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
                                 } else {
+                                    focusManager.clearFocus()
+                                    keyboardController?.hide()
                                     onProceedToSecurity()
                                 }
                             }
@@ -563,7 +568,11 @@ fun OnboardingStep0WelcomeGateway(
                     }
 
                     OutlinedButton(
-                        onClick = { showRestoreConfirmationSheet = true },
+                        onClick = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                            showRestoreConfirmationSheet = true
+                        },
                         modifier = Modifier
                             .fillMaxWidth(restoreButtonWidthFraction)
                             .height(restoreButtonHeight),
