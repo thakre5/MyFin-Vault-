@@ -24,6 +24,7 @@ import com.example.myfin.data.ReminderScheduler
 import com.example.myfin.data.SecurityManager
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
+import com.example.myfin.ui.onboarding.MultiStepOnboardingFlow
 import com.example.myfin.ui.screens.*
 import com.example.myfin.ui.screens.SettingsActiveSheet
 import com.example.myfin.ui.theme.MyfinTheme
@@ -73,7 +74,6 @@ class MainActivity : FragmentActivity() {
 
                 val isFirstLaunch = !userProfile.isOnboardingCompleted || storedPin.isBlank()
 
-                // Allow screenshots during onboarding; engage FLAG_SECURE protection once onboarding completes
                 LaunchedEffect(userProfile.isScreenCaptureAllowed, isFirstLaunch) {
                     if (isFirstLaunch || userProfile.isScreenCaptureAllowed) {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
