@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.ui.onboarding.CountryCurrencyMapping
 import com.example.myfin.ui.onboarding.CyanPrimary
+import com.example.myfin.ui.onboarding.InitialAccountSetup
 import com.example.myfin.ui.onboarding.PurplePrimary
 import com.example.myfin.ui.onboarding.SupportedCountries
 import com.example.myfin.ui.onboarding.TealPrimary
@@ -262,7 +263,7 @@ fun OnboardingStep0WelcomeGateway(
             ) {
                 Spacer(modifier = Modifier.height(if (currentStage == GatewayStage.ACCOUNTS) 48.dp else 56.dp))
 
-                // Hero Cards (Pins neatly at top center in Accounts mode)
+                // Hero Cards
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -935,15 +936,14 @@ fun OnboardingStep0WelcomeGateway(
                                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                                         modifier = Modifier
                                                             .width(85.dp)
-                                                            .height(38.dp),
+                                                            .height(48.dp),
                                                         shape = RoundedCornerShape(19.dp),
                                                         colors = OutlinedTextFieldDefaults.colors(
                                                             focusedContainerColor = CanvasLight,
                                                             unfocusedContainerColor = CanvasLight,
                                                             focusedBorderColor = AccentPurple,
                                                             unfocusedBorderColor = BorderLight
-                                                        ),
-                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                                        )
                                                     )
 
                                                     if (canDelete) {
@@ -1312,7 +1312,6 @@ fun OnboardingStep0WelcomeGateway(
                         onClick = {
                             onStrategySelect(target)
                             strategyDetailTarget = null
-                            // Transition seamlessly into the bank account configuration stage
                             currentStage = GatewayStage.ACCOUNTS
                         },
                         modifier = Modifier
