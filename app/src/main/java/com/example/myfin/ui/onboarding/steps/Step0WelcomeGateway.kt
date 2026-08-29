@@ -33,8 +33,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myfin.ui.onboarding.CyanPrimary
+import com.example.myfin.ui.onboarding.PurplePrimary
 import com.example.myfin.ui.onboarding.WelcomeCarouselSlides
 import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
+import com.example.myfin.ui.theme.AccentPurple
 import com.example.myfin.ui.theme.BorderLight
 import com.example.myfin.ui.theme.CanvasLight
 import com.example.myfin.ui.theme.CardWhite
@@ -50,13 +53,19 @@ fun OnboardingStep0WelcomeGateway(
     onGetStarted: () -> Unit,
     onRestoreVault: () -> Unit
 ) {
-    val carouselPagerState = rememberPagerState(pageCount = { WelcomeCarouselSlides.size })
+    // Continuous infinite forward scrolling carousel configuration
+    val virtualPageCount = Int.MAX_VALUE
+    val initialPage = (virtualPageCount / 2) - ((virtualPageCount / 2) % WelcomeCarouselSlides.size)
+    val carouselPagerState = rememberPagerState(
+        initialPage = initialPage,
+        pageCount = { virtualPageCount }
+    )
 
     LaunchedEffect(Unit) {
         while (true) {
-            delay(3600L)
+            delay(3500L)
             carouselPagerState.animateScrollToPage(
-                page = (carouselPagerState.currentPage + 1) % WelcomeCarouselSlides.size,
+                page = carouselPagerState.currentPage + 1,
                 animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing)
             )
         }
@@ -68,10 +77,9 @@ fun OnboardingStep0WelcomeGateway(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFFDE8F4),
-                        Color(0xFFFBE6F2),
-                        Color(0xFFF6EEFB),
-                        Color(0xFFFBFBFD),
+                        Color(0xFFF3E8FF),
+                        Color(0xFFEDE9FE).copy(alpha = 0.65f),
+                        Color(0xFFF8FAFC),
                         CanvasLight
                     )
                 )
@@ -86,6 +94,7 @@ fun OnboardingStep0WelcomeGateway(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
+            // App Branding Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -100,7 +109,7 @@ fun OnboardingStep0WelcomeGateway(
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         drawCircle(
                             brush = Brush.radialGradient(
-                                colors = listOf(Color(0xFFF472B6), Color(0xFFE11D48), Color(0xFFC026D3))
+                                colors = listOf(CyanPrimary, AccentPurple, PurplePrimary)
                             )
                         )
                         val c = center
@@ -122,11 +131,11 @@ fun OnboardingStep0WelcomeGateway(
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "Solnex",
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
+                    text = "MyFin",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
                     color = TextDark,
-                    letterSpacing = (-0.4).sp
+                    letterSpacing = (-0.5).sp
                 )
             }
 
@@ -147,7 +156,8 @@ fun OnboardingStep0WelcomeGateway(
                         .fillMaxWidth()
                         .height(130.dp)
                 ) { page ->
-                    val slide = WelcomeCarouselSlides[page]
+                    val actualIndex = page % WelcomeCarouselSlides.size
+                    val slide = WelcomeCarouselSlides[actualIndex]
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -177,12 +187,14 @@ fun OnboardingStep0WelcomeGateway(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
+                // Synchronized 3-Pill Indexer
+                val activeIndex = carouselPagerState.currentPage % WelcomeCarouselSlides.size
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     repeat(WelcomeCarouselSlides.size) { idx ->
-                        val isSelected = carouselPagerState.currentPage == idx
+                        val isSelected = activeIndex == idx
                         val width by animateDpAsState(if (isSelected) 18.dp else 5.dp, label = "dotWidth")
                         Box(
                             modifier = Modifier
