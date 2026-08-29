@@ -62,12 +62,13 @@ fun MultiStepOnboardingFlow(
         showSplashReveal = false
     }
 
-    var displayName by remember { mutableStateOf("Jordan Lee") }
-    var emailAddress by remember { mutableStateOf("jordan.vault@myfin.app") }
+    // Initialized to empty strings so placeholders clear naturally on typing
+    var displayName by remember { mutableStateOf("") }
+    var emailAddress by remember { mutableStateOf("") }
+    var rawDobDigits by remember { mutableStateOf("") }
 
     var masterPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
-    var rawDobDigits by remember { mutableStateOf("") }
     var isBiometricEnabled by remember { mutableStateOf(true) }
     var pinEntryPhase by remember { mutableIntStateOf(1) }
 
@@ -117,8 +118,8 @@ fun MultiStepOnboardingFlow(
             "${rawDobDigits.substring(0, 2)}/${rawDobDigits.substring(2, 4)}/${rawDobDigits.substring(4, 8)}"
         } else ""
 
-        viewModel.updateProfileName(displayName.trim().ifEmpty { "Jordan Lee" })
-        viewModel.updateEmail(emailAddress.trim().ifEmpty { "jordan.vault@myfin.app" })
+        viewModel.updateProfileName(displayName.trim().ifEmpty { "Vault User" })
+        viewModel.updateEmail(emailAddress.trim())
         viewModel.updateCurrency(selectedCountry.currencySymbol)
         viewModel.updateVaultMode(selectedStrategy)
         viewModel.updateScreenCaptureAllowed(false)
@@ -355,7 +356,7 @@ fun MultiStepOnboardingFlow(
                         }
                 ) {
                     when (page) {
-                        // STAGE 0 & 1: Unified Interactive Gateway (Carousel -> Right-to-Left Form -> Shrinking Restore)
+                        // STAGE 0 & 1: Unified Interactive Gateway
                         0 -> {
                             OnboardingStep0WelcomeGateway(
                                 displayName = displayName,
