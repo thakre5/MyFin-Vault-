@@ -552,7 +552,7 @@ fun OnboardingStep0WelcomeGateway(
                                 ) {
                                     OutlinedTextField(
                                         value = masterPin,
-                                        onMasterPinChange = onMasterPinChange,
+                                        onValueChange = onMasterPinChange,
                                         placeholder = { Text("Create Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
                                             Icon(Icons.Outlined.Lock, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
