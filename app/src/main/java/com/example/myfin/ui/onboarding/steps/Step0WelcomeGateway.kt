@@ -138,7 +138,6 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Hardware Back Interception for In-Place Reversal
     BackHandler(enabled = currentStage != GatewayStage.CAROUSEL) {
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         focusManager.clearFocus()
@@ -150,7 +149,6 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Continuous Infinite Carousel Driver
     val virtualPageCount = 3000
     val initialPage = (virtualPageCount / 2) - ((virtualPageCount / 2) % WelcomeCarouselSlides.size)
     val carouselPagerState = rememberPagerState(
@@ -178,7 +176,6 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Adaptive Hero Card Scale & Height
     val heroScale by animateFloatAsState(
         targetValue = when {
             isImeVisible && currentStage != GatewayStage.CAROUSEL -> 0.58f
@@ -198,14 +195,12 @@ fun OnboardingStep0WelcomeGateway(
         label = "heroHeight"
     )
 
-    // Primary Button Width Transformation
     val primaryButtonWidthFraction by animateFloatAsState(
         targetValue = if (currentStage == GatewayStage.SECURITY) 0.58f else 1.0f,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
         label = "primaryWidth"
     )
 
-    // Restore Button Dynamic Sizing
     val restoreButtonWidthFraction by animateFloatAsState(
         targetValue = if (currentStage == GatewayStage.IDENTITY) 0.52f else 1.0f,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
@@ -232,7 +227,7 @@ fun OnboardingStep0WelcomeGateway(
             )
     ) {
         // =========================================================================
-        // LAYER 1: FULL-SCREEN SCROLLABLE BODY (Passes Under Floating Header)
+        // LAYER 1: SCROLLABLE BODY
         // =========================================================================
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val minScreenHeight = maxHeight
@@ -251,7 +246,6 @@ fun OnboardingStep0WelcomeGateway(
             ) {
                 Spacer(modifier = Modifier.height(56.dp))
 
-                // Hero Cards
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -269,7 +263,6 @@ fun OnboardingStep0WelcomeGateway(
 
                 Spacer(modifier = Modifier.height(if (isImeVisible) 6.dp else 16.dp))
 
-                // Middle Content Animated 3-Stage Transition
                 AnimatedContent(
                     targetState = currentStage,
                     transitionSpec = {
@@ -286,7 +279,6 @@ fun OnboardingStep0WelcomeGateway(
                     label = "gatewayStageTransition"
                 ) { stage ->
                     when (stage) {
-                        // STAGE 0: Welcome Carousel & Indexer
                         GatewayStage.CAROUSEL -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -350,7 +342,6 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
 
-                        // STAGE 1: Profile Identity (4 Form Fields)
                         GatewayStage.IDENTITY -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -380,7 +371,6 @@ fun OnboardingStep0WelcomeGateway(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // 1. Username
                                     OutlinedTextField(
                                         value = displayName,
                                         onValueChange = onDisplayNameChange,
@@ -408,7 +398,6 @@ fun OnboardingStep0WelcomeGateway(
                                         )
                                     )
 
-                                    // 2. Email Address
                                     OutlinedTextField(
                                         value = emailAddress,
                                         onValueChange = onEmailChange,
@@ -436,7 +425,6 @@ fun OnboardingStep0WelcomeGateway(
                                         )
                                     )
 
-                                    // 3. 50:50 Split Row (DOB & Country Currency)
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -525,7 +513,6 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
 
-                        // STAGE 2: Vault Security Lock
                         GatewayStage.SECURITY -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -648,11 +635,12 @@ fun OnboardingStep0WelcomeGateway(
                                         )
                                     )
 
-                                    // Row 3: 50:50 Split (Pre-filled DOB Note + Biometric Switch)
+                                    // Row 3: 50:50 Split (Clean Vertically Centered DOB + Biometric)
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
+                                        // Left 50%: Fixed Symmetrical DOB Badge
                                         Surface(
                                             modifier = Modifier
                                                 .weight(1f)
@@ -671,26 +659,34 @@ fun OnboardingStep0WelcomeGateway(
                                                     Icons.Default.CalendarToday,
                                                     contentDescription = null,
                                                     tint = AccentPurple,
-                                                    modifier = Modifier.size(15.dp)
+                                                    modifier = Modifier.size(16.dp)
                                                 )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Column(verticalArrangement = Arrangement.Center) {
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.Center
+                                                ) {
                                                     Text(
                                                         text = formattedDob,
-                                                        fontSize = 12.sp,
+                                                        fontSize = 12.5.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = TextDark
+                                                        color = TextDark,
+                                                        lineHeight = 15.sp,
+                                                        maxLines = 1
                                                     )
                                                     Text(
                                                         text = "Recovery Key Bound",
                                                         fontSize = 9.sp,
                                                         fontWeight = FontWeight.Medium,
-                                                        color = TealPrimary
+                                                        color = TealPrimary,
+                                                        lineHeight = 11.sp,
+                                                        maxLines = 1
                                                     )
                                                 }
                                             }
                                         }
 
+                                        // Right 50%: Biometric Toggle (Direct off, sheet only when turning on)
                                         Surface(
                                             modifier = Modifier
                                                 .weight(1f)
@@ -699,7 +695,12 @@ fun OnboardingStep0WelcomeGateway(
                                                 .clickable {
                                                     focusManager.clearFocus()
                                                     keyboardController?.hide()
-                                                    showBiometricSheet = true
+                                                    if (!isBiometricEnabled) {
+                                                        showBiometricSheet = true
+                                                    } else {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                        onBiometricToggle(false)
+                                                    }
                                                 },
                                             shape = RoundedCornerShape(26.dp),
                                             color = CardWhite,
@@ -729,10 +730,15 @@ fun OnboardingStep0WelcomeGateway(
                                                 }
                                                 Switch(
                                                     checked = isBiometricEnabled,
-                                                    onCheckedChange = {
+                                                    onCheckedChange = { checked ->
                                                         focusManager.clearFocus()
                                                         keyboardController?.hide()
-                                                        showBiometricSheet = true
+                                                        if (checked) {
+                                                            showBiometricSheet = true
+                                                        } else {
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            onBiometricToggle(false)
+                                                        }
                                                     },
                                                     modifier = Modifier.scale(0.7f),
                                                     colors = SwitchDefaults.colors(
@@ -752,9 +758,7 @@ fun OnboardingStep0WelcomeGateway(
 
                 Spacer(modifier = Modifier.height(if (isImeVisible) 10.dp else 16.dp))
 
-                // =========================================================
-                // BOTTOM ACTION BUTTONS
-                // =========================================================
+                // Bottom Buttons
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -852,7 +856,7 @@ fun OnboardingStep0WelcomeGateway(
         }
 
         // =========================================================================
-        // LAYER 2: FLOATING TRANSPARENT BRANDING HEADER (Pinned with Soft Gradient)
+        // LAYER 2: FLOATING PINNED HEADER
         // =========================================================================
         Box(
             modifier = Modifier
