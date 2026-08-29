@@ -71,8 +71,11 @@ class MainActivity : FragmentActivity() {
                 val isUnlocked by viewModel.isAppUnlocked.collectAsState()
                 val storedPin = remember(isUnlocked) { securityManager.getStoredPin().orEmpty() }
 
-                LaunchedEffect(userProfile.isScreenCaptureAllowed) {
-                    if (userProfile.isScreenCaptureAllowed) {
+                val isFirstLaunch = !userProfile.isOnboardingCompleted || storedPin.isBlank()
+
+                // Allow screenshots during onboarding; engage FLAG_SECURE protection once onboarding completes
+                LaunchedEffect(userProfile.isScreenCaptureAllowed, isFirstLaunch) {
+                    if (isFirstLaunch || userProfile.isScreenCaptureAllowed) {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
                     } else {
                         window.setFlags(
@@ -81,8 +84,6 @@ class MainActivity : FragmentActivity() {
                         )
                     }
                 }
-
-                val isFirstLaunch = !userProfile.isOnboardingCompleted || storedPin.isBlank()
 
                 val notificationPermissionLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.RequestPermission()
