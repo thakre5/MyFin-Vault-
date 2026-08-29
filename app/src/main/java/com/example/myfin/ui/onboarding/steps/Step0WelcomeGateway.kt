@@ -31,11 +31,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CheckCircleOutline
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.LockReset
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
@@ -43,6 +48,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -57,6 +63,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,6 +73,7 @@ import com.example.myfin.ui.onboarding.CountryCurrencyMapping
 import com.example.myfin.ui.onboarding.CyanPrimary
 import com.example.myfin.ui.onboarding.PurplePrimary
 import com.example.myfin.ui.onboarding.SupportedCountries
+import com.example.myfin.ui.onboarding.TealPrimary
 import com.example.myfin.ui.onboarding.WelcomeCarouselSlides
 import com.example.myfin.ui.onboarding.components.OnboardingDateVisualTransformation
 import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
@@ -73,17 +82,29 @@ import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
 
+enum class GatewayStage {
+    CAROUSEL,
+    IDENTITY,
+    SECURITY
+}
+
 @Composable
 fun OnboardingStep0WelcomeGateway(
     displayName: String,
     emailAddress: String,
     rawDobDigits: String,
+    masterPin: String,
+    confirmPin: String,
+    isBiometricEnabled: Boolean,
     selectedCountry: CountryCurrencyMapping,
     onDisplayNameChange: (String) -> Unit,
     onEmailChange: (String) -> Unit,
     onDobChange: (String) -> Unit,
+    onMasterPinChange: (String) -> Unit,
+    onConfirmPinChange: (String) -> Unit,
+    onBiometricToggle: (Boolean) -> Unit,
     onCountrySelect: (CountryCurrencyMapping) -> Unit,
-    onProceedToSecurity: () -> Unit,
+    onProceedToNextStep: () -> Unit,
     onRestoreVault: () -> Unit
 ) {
     val context = LocalContext.current
@@ -92,22 +113,43 @@ fun OnboardingStep0WelcomeGateway(
     val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
 
-    var isFormMode by remember { mutableStateOf(false) }
+    var currentStage by remember { mutableStateOf(GatewayStage.CAROUSEL) }
     val isImeVisible = WindowInsets.isImeVisible
 
-    BackHandler(enabled = isFormMode) {
-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-        focusManager.clearFocus()
-        keyboardController?.hide()
-        isFormMode = false
-    }
+    var showMasterPassword by remember { mutableStateOf(false) }
+    var showConfirmPassword by remember { mutableStateOf(false) }
 
     var showCountryPickerSheet by remember { mutableStateOf(false) }
     var showRestoreConfirmationSheet by remember { mutableStateOf(false) }
+    var showBiometricSheet by remember { mutableStateOf(false) }
 
     val countrySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val restoreSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val biometricSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    val formattedDob = remember(rawDobDigits) {
+        if (rawDobDigits.length == 8) {
+            "${rawDobDigits.substring(0, 2)}/${rawDobDigits.substring(2, 4)}/${rawDobDigits.substring(4, 8)}"
+        } else if (rawDobDigits.isNotBlank()) {
+            rawDobDigits
+        } else {
+            "DD/MM/YYYY"
+        }
+    }
+
+    // Hardware Back Interception for In-Place Reversal
+    BackHandler(enabled = currentStage != GatewayStage.CAROUSEL) {
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        focusManager.clearFocus()
+        keyboardController?.hide()
+        currentStage = when (currentStage) {
+            GatewayStage.SECURITY -> GatewayStage.IDENTITY
+            GatewayStage.IDENTITY -> GatewayStage.CAROUSEL
+            GatewayStage.CAROUSEL -> GatewayStage.CAROUSEL
+        }
+    }
+
+    // Carousel Setup
     val virtualPageCount = 3000
     val initialPage = (virtualPageCount / 2) - ((virtualPageCount / 2) % WelcomeCarouselSlides.size)
     val carouselPagerState = rememberPagerState(
@@ -115,8 +157,8 @@ fun OnboardingStep0WelcomeGateway(
         pageCount = { virtualPageCount }
     )
 
-    LaunchedEffect(isFormMode) {
-        while (!isFormMode) {
+    LaunchedEffect(currentStage) {
+        while (currentStage == GatewayStage.CAROUSEL) {
             delay(3500L)
             if (carouselPagerState.pageCount > 0) {
                 val nextPage = (carouselPagerState.currentPage + 1) % virtualPageCount
@@ -129,16 +171,17 @@ fun OnboardingStep0WelcomeGateway(
     }
 
     LaunchedEffect(isImeVisible) {
-        if (isImeVisible && isFormMode) {
+        if (isImeVisible && currentStage != GatewayStage.CAROUSEL) {
             delay(120L)
             scrollState.animateScrollTo(scrollState.maxValue)
         }
     }
 
+    // Adaptive Hero Card Scale & Height
     val heroScale by animateFloatAsState(
         targetValue = when {
-            isImeVisible && isFormMode -> 0.58f
-            isFormMode -> 0.88f
+            isImeVisible && currentStage != GatewayStage.CAROUSEL -> 0.58f
+            currentStage != GatewayStage.CAROUSEL -> 0.88f
             else -> 1.0f
         },
         animationSpec = tween(350, easing = FastOutSlowInEasing),
@@ -146,21 +189,29 @@ fun OnboardingStep0WelcomeGateway(
     )
     val heroHeight by animateDpAsState(
         targetValue = when {
-            isImeVisible && isFormMode -> 115.dp
-            isFormMode -> 195.dp
+            isImeVisible && currentStage != GatewayStage.CAROUSEL -> 115.dp
+            currentStage != GatewayStage.CAROUSEL -> 195.dp
             else -> 235.dp
         },
         animationSpec = tween(350, easing = FastOutSlowInEasing),
         label = "heroHeight"
     )
 
+    // Primary Button Width Transformation
+    val primaryButtonWidthFraction by animateFloatAsState(
+        targetValue = if (currentStage == GatewayStage.SECURITY) 0.58f else 1.0f,
+        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+        label = "primaryWidth"
+    )
+
+    // Restore Button Dynamic Sizing
     val restoreButtonWidthFraction by animateFloatAsState(
-        targetValue = if (isFormMode) 0.52f else 1.0f,
+        targetValue = if (currentStage == GatewayStage.IDENTITY) 0.52f else 1.0f,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
         label = "restoreWidth"
     )
     val restoreButtonHeight by animateDpAsState(
-        targetValue = if (isFormMode) 42.dp else 52.dp,
+        targetValue = if (currentStage == GatewayStage.IDENTITY) 42.dp else 52.dp,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
         label = "restoreHeight"
     )
@@ -186,7 +237,7 @@ fun OnboardingStep0WelcomeGateway(
                 .navigationBarsPadding()
         ) {
             // =========================================================
-            // 1. PINNED FIXED BRANDING HEADER (Always Visible on Screen)
+            // 1. PINNED FIXED BRANDING HEADER
             // =========================================================
             Row(
                 modifier = Modifier
@@ -247,7 +298,7 @@ fun OnboardingStep0WelcomeGateway(
             ) {
                 Spacer(modifier = Modifier.height(if (isImeVisible) 2.dp else 8.dp))
 
-                // Hero Cards (Scales down smoothly when typing)
+                // Hero Cards
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -265,11 +316,12 @@ fun OnboardingStep0WelcomeGateway(
 
                 Spacer(modifier = Modifier.height(if (isImeVisible) 6.dp else 16.dp))
 
-                // Middle Content Transition: Carousel to 4 Form Fields
+                // Middle Content Animated 3-Stage Transition
                 AnimatedContent(
-                    targetState = isFormMode,
+                    targetState = currentStage,
                     transitionSpec = {
-                        if (targetState) {
+                        val isForward = targetState.ordinal > initialState.ordinal
+                        if (isForward) {
                             (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> fullWidth } + fadeIn(tween(420)))
                                 .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeOut(tween(420)))
                         } else {
@@ -278,188 +330,123 @@ fun OnboardingStep0WelcomeGateway(
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    label = "middleContentTransition"
-                ) { formActive ->
-                    if (!formActive) {
-                        // STAGE 0: Carousel & Indexer
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            HorizontalPager(
-                                state = carouselPagerState,
-                                userScrollEnabled = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(130.dp)
-                            ) { page ->
-                                val actualIndex = page % WelcomeCarouselSlides.size
-                                val slide = WelcomeCarouselSlides[actualIndex]
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = slide.title,
-                                        fontSize = 28.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = TextDark,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = 34.sp,
-                                        letterSpacing = (-0.6).sp
-                                    )
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    Text(
-                                        text = slide.subtitle,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = TextMuted,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = 18.sp
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            val activeIndex = carouselPagerState.currentPage % WelcomeCarouselSlides.size
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                    label = "gatewayStageTransition"
+                ) { stage ->
+                    when (stage) {
+                        // STAGE 0: Welcome Carousel & Indexer
+                        GatewayStage.CAROUSEL -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                repeat(WelcomeCarouselSlides.size) { idx ->
-                                    val isSelected = activeIndex == idx
-                                    val width by animateDpAsState(if (isSelected) 18.dp else 5.dp, label = "dotWidth")
-                                    Box(
-                                        modifier = Modifier
-                                            .width(width)
-                                            .height(4.dp)
-                                            .clip(CircleShape)
-                                            .background(if (isSelected) TextDark else BorderLight)
-                                    )
+                                HorizontalPager(
+                                    state = carouselPagerState,
+                                    userScrollEnabled = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(130.dp)
+                                ) { page ->
+                                    val actualIndex = page % WelcomeCarouselSlides.size
+                                    val slide = WelcomeCarouselSlides[actualIndex]
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = slide.title,
+                                            fontSize = 28.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = TextDark,
+                                            textAlign = TextAlign.Center,
+                                            lineHeight = 34.sp,
+                                            letterSpacing = (-0.6).sp
+                                        )
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        Text(
+                                            text = slide.subtitle,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = TextMuted,
+                                            textAlign = TextAlign.Center,
+                                            lineHeight = 18.sp
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                val activeIndex = carouselPagerState.currentPage % WelcomeCarouselSlides.size
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    repeat(WelcomeCarouselSlides.size) { idx ->
+                                        val isSelected = activeIndex == idx
+                                        val width by animateDpAsState(if (isSelected) 18.dp else 5.dp, label = "dotWidth")
+                                        Box(
+                                            modifier = Modifier
+                                                .width(width)
+                                                .height(4.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isSelected) TextDark else BorderLight)
+                                        )
+                                    }
                                 }
                             }
                         }
-                    } else {
-                        // STAGE 1: Title + 4 Form Fields
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Create Vault Account",
-                                fontSize = if (isImeVisible) 19.sp else 22.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextDark,
-                                textAlign = TextAlign.Center,
-                                letterSpacing = (-0.5).sp
-                            )
-                            if (!isImeVisible) {
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Text(
-                                    text = "Enter your offline profile credentials",
-                                    fontSize = 12.sp,
-                                    color = TextMuted,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
 
-                            Spacer(modifier = Modifier.height(if (isImeVisible) 8.dp else 14.dp))
-
+                        // STAGE 1: Profile Identity (4 Form Fields)
+                        GatewayStage.IDENTITY -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                // 1. Username
-                                OutlinedTextField(
-                                    value = displayName,
-                                    onValueChange = onDisplayNameChange,
-                                    placeholder = { Text("Username", fontSize = 13.5.sp, color = TextMuted) },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Outlined.Person,
-                                            contentDescription = null,
-                                            tint = AccentPurple,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    },
-                                    singleLine = true,
-                                    textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
-                                    shape = RoundedCornerShape(26.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(50.dp),
-                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedContainerColor = CardWhite,
-                                        unfocusedContainerColor = CardWhite,
-                                        focusedBorderColor = AccentPurple,
-                                        unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
-                                    )
+                                Text(
+                                    text = "Create Vault Account",
+                                    fontSize = if (isImeVisible) 19.sp else 22.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextDark,
+                                    textAlign = TextAlign.Center,
+                                    letterSpacing = (-0.5).sp
                                 )
-
-                                // 2. Email Address
-                                OutlinedTextField(
-                                    value = emailAddress,
-                                    onValueChange = onEmailChange,
-                                    placeholder = { Text("Email Address", fontSize = 13.5.sp, color = TextMuted) },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Outlined.Mail,
-                                            contentDescription = null,
-                                            tint = AccentPurple,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    },
-                                    singleLine = true,
-                                    textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
-                                    shape = RoundedCornerShape(26.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(50.dp),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedContainerColor = CardWhite,
-                                        unfocusedContainerColor = CardWhite,
-                                        focusedBorderColor = AccentPurple,
-                                        unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                                if (!isImeVisible) {
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = "Enter your offline profile credentials",
+                                        fontSize = 12.sp,
+                                        color = TextMuted,
+                                        textAlign = TextAlign.Center
                                     )
-                                )
+                                }
 
-                                // 3. 50:50 Split Row (DOB & Country Currency)
-                                Row(
+                                Spacer(modifier = Modifier.height(if (isImeVisible) 8.dp else 14.dp))
+
+                                Column(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
+                                    // 1. Username
                                     OutlinedTextField(
-                                        value = rawDobDigits,
-                                        onValueChange = { input ->
-                                            onDobChange(input.filter { it.isDigit() }.take(8))
-                                        },
-                                        placeholder = { Text("DD/MM/YYYY", fontSize = 12.sp, color = TextMuted) },
+                                        value = displayName,
+                                        onValueChange = onDisplayNameChange,
+                                        placeholder = { Text("Username", fontSize = 13.5.sp, color = TextMuted) },
                                         leadingIcon = {
                                             Icon(
-                                                Icons.Default.CalendarToday,
+                                                Icons.Outlined.Person,
                                                 contentDescription = null,
                                                 tint = AccentPurple,
-                                                modifier = Modifier.size(15.dp)
+                                                modifier = Modifier.size(18.dp)
                                             )
                                         },
-                                        visualTransformation = OnboardingDateVisualTransformation(),
                                         singleLine = true,
-                                        textStyle = TextStyle(
-                                            fontSize = 12.5.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = TextDark,
-                                            letterSpacing = 0.5.sp
-                                        ),
+                                        textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                         shape = RoundedCornerShape(26.dp),
                                         modifier = Modifier
-                                            .weight(1f)
+                                            .fillMaxWidth()
                                             .height(50.dp),
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
                                             unfocusedContainerColor = CardWhite,
@@ -468,48 +455,342 @@ fun OnboardingStep0WelcomeGateway(
                                         )
                                     )
 
-                                    Surface(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(50.dp)
-                                            .clip(RoundedCornerShape(26.dp))
-                                            .clickable {
-                                                focusManager.clearFocus()
-                                                keyboardController?.hide()
-                                                showCountryPickerSheet = true
-                                            },
-                                        shape = RoundedCornerShape(26.dp),
-                                        color = CardWhite,
-                                        border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(horizontal = 12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.weight(1f, fill = false)
-                                            ) {
-                                                Text(selectedCountry.flagEmoji, fontSize = 15.sp)
-                                                Spacer(modifier = Modifier.width(5.dp))
-                                                Text(
-                                                    text = "${selectedCountry.currencySymbol} ${selectedCountry.currencyCode}",
-                                                    fontSize = 12.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = TextDark,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
+                                    // 2. Email Address
+                                    OutlinedTextField(
+                                        value = emailAddress,
+                                        onValueChange = onEmailChange,
+                                        placeholder = { Text("Email Address", fontSize = 13.5.sp, color = TextMuted) },
+                                        leadingIcon = {
                                             Icon(
-                                                Icons.Default.ArrowDropDown,
-                                                contentDescription = "Select Currency",
-                                                tint = TextMuted,
+                                                Icons.Outlined.Mail,
+                                                contentDescription = null,
+                                                tint = AccentPurple,
                                                 modifier = Modifier.size(18.dp)
                                             )
+                                        },
+                                        singleLine = true,
+                                        textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
+                                        shape = RoundedCornerShape(26.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(50.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = CardWhite,
+                                            unfocusedContainerColor = CardWhite,
+                                            focusedBorderColor = AccentPurple,
+                                            unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                                        )
+                                    )
+
+                                    // 3. 50:50 Split Row (DOB & Country Currency)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = rawDobDigits,
+                                            onValueChange = { input ->
+                                                onDobChange(input.filter { it.isDigit() }.take(8))
+                                            },
+                                            placeholder = { Text("DD/MM/YYYY", fontSize = 12.sp, color = TextMuted) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Default.CalendarToday,
+                                                    contentDescription = null,
+                                                    tint = AccentPurple,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            },
+                                            visualTransformation = OnboardingDateVisualTransformation(),
+                                            singleLine = true,
+                                            textStyle = TextStyle(
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = TextDark,
+                                                letterSpacing = 0.5.sp
+                                            ),
+                                            shape = RoundedCornerShape(26.dp),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(50.dp),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedContainerColor = CardWhite,
+                                                unfocusedContainerColor = CardWhite,
+                                                focusedBorderColor = AccentPurple,
+                                                unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                                            )
+                                        )
+
+                                        Surface(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(50.dp)
+                                                .clip(RoundedCornerShape(26.dp))
+                                                .clickable {
+                                                    focusManager.clearFocus()
+                                                    keyboardController?.hide()
+                                                    showCountryPickerSheet = true
+                                                },
+                                            shape = RoundedCornerShape(26.dp),
+                                            color = CardWhite,
+                                            border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(horizontal = 12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f, fill = false)
+                                                ) {
+                                                    Text(selectedCountry.flagEmoji, fontSize = 15.sp)
+                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                    Text(
+                                                        text = "${selectedCountry.currencySymbol} ${selectedCountry.currencyCode}",
+                                                        fontSize = 12.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = TextDark,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                                Icon(
+                                                    Icons.Default.ArrowDropDown,
+                                                    contentDescription = "Select Currency",
+                                                    tint = TextMuted,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // STAGE 2: Vault Security Lock
+                        GatewayStage.SECURITY -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Vault Security Lock",
+                                    fontSize = if (isImeVisible) 19.sp else 22.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextDark,
+                                    textAlign = TextAlign.Center,
+                                    letterSpacing = (-0.5).sp
+                                )
+                                if (!isImeVisible) {
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = "Set your offline access & recovery keys",
+                                        fontSize = 12.sp,
+                                        color = TextMuted,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(if (isImeVisible) 8.dp else 14.dp))
+
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // Row 1: Create Master Password / PIN
+                                    OutlinedTextField(
+                                        value = masterPin,
+                                        onValueChange = onMasterPinChange,
+                                        placeholder = { Text("Create Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Outlined.Lock,
+                                                contentDescription = null,
+                                                tint = AccentPurple,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        trailingIcon = {
+                                            IconButton(onClick = { showMasterPassword = !showMasterPassword }) {
+                                                Icon(
+                                                    imageVector = if (showMasterPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                    contentDescription = if (showMasterPassword) "Hide PIN" else "Show PIN",
+                                                    tint = TextMuted,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        },
+                                        visualTransformation = if (showMasterPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                                        singleLine = true,
+                                        textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
+                                        shape = RoundedCornerShape(26.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(50.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = CardWhite,
+                                            unfocusedContainerColor = CardWhite,
+                                            focusedBorderColor = AccentPurple,
+                                            unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                                        )
+                                    )
+
+                                    // Row 2: Confirm Master Password / PIN
+                                    val isPinMatching = confirmPin.isNotEmpty() && confirmPin == masterPin
+                                    OutlinedTextField(
+                                        value = confirmPin,
+                                        onValueChange = onConfirmPinChange,
+                                        placeholder = { Text("Confirm Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Outlined.Lock,
+                                                contentDescription = null,
+                                                tint = if (isPinMatching) TealPrimary else AccentPurple,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        trailingIcon = {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(end = 4.dp)
+                                            ) {
+                                                if (isPinMatching) {
+                                                    Icon(
+                                                        Icons.Default.CheckCircle,
+                                                        contentDescription = "Matched",
+                                                        tint = TealPrimary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                }
+                                                IconButton(onClick = { showConfirmPassword = !showConfirmPassword }) {
+                                                    Icon(
+                                                        imageVector = if (showConfirmPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                        contentDescription = if (showConfirmPassword) "Hide PIN" else "Show PIN",
+                                                        tint = TextMuted,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        visualTransformation = if (showConfirmPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                                        singleLine = true,
+                                        textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
+                                        shape = RoundedCornerShape(26.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(50.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = CardWhite,
+                                            unfocusedContainerColor = CardWhite,
+                                            focusedBorderColor = if (isPinMatching) TealPrimary else AccentPurple,
+                                            unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
+                                        )
+                                    )
+
+                                    // Row 3: 50:50 Split (Pre-filled DOB Note + Biometric Switch)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        // Left 50%: Pre-filled DOB chip
+                                        Surface(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(50.dp),
+                                            shape = RoundedCornerShape(26.dp),
+                                            color = CardWhite,
+                                            border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(horizontal = 12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.CalendarToday,
+                                                    contentDescription = null,
+                                                    tint = AccentPurple,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Column(verticalArrangement = Arrangement.Center) {
+                                                    Text(
+                                                        text = formattedDob,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = TextDark
+                                                    )
+                                                    Text(
+                                                        text = "Recovery Key Bound",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = TealPrimary
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Right 50%: Biometric pill
+                                        Surface(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(50.dp)
+                                                .clip(RoundedCornerShape(26.dp))
+                                                .clickable {
+                                                    focusManager.clearFocus()
+                                                    keyboardController?.hide()
+                                                    showBiometricSheet = true
+                                                },
+                                            shape = RoundedCornerShape(26.dp),
+                                            color = CardWhite,
+                                            border = BorderStroke(1.dp, if (isBiometricEnabled) AccentPurple.copy(alpha = 0.6f) else BorderLight.copy(alpha = 0.9f))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(horizontal = 12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        Icons.Default.Fingerprint,
+                                                        contentDescription = null,
+                                                        tint = if (isBiometricEnabled) AccentPurple else TextMuted,
+                                                        modifier = Modifier.size(17.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                    Text(
+                                                        text = "Biometric",
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = TextDark
+                                                    )
+                                                }
+                                                Switch(
+                                                    checked = isBiometricEnabled,
+                                                    onCheckedChange = {
+                                                        focusManager.clearFocus()
+                                                        keyboardController?.hide()
+                                                        showBiometricSheet = true
+                                                    },
+                                                    modifier = Modifier.scale(0.7f),
+                                                    colors = SwitchDefaults.colors(
+                                                        checkedThumbColor = Color.White,
+                                                        checkedTrackColor = AccentPurple,
+                                                        uncheckedTrackColor = CanvasLight
+                                                    )
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -520,7 +801,9 @@ fun OnboardingStep0WelcomeGateway(
 
                 Spacer(modifier = Modifier.height(if (isImeVisible) 10.dp else 16.dp))
 
-                // Bottom Buttons
+                // =========================================================
+                // 3. SYNCHRONIZED ACTION BUTTONS
+                // =========================================================
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -528,38 +811,57 @@ fun OnboardingStep0WelcomeGateway(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    // Primary Action Button (Morphs label and shrinks in Stage 2)
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            if (!isFormMode) {
-                                isFormMode = true
-                            } else {
-                                if (displayName.trim().isEmpty()) {
-                                    Toast.makeText(context, "Please enter your username", Toast.LENGTH_SHORT).show()
-                                } else if (rawDobDigits.length < 8) {
-                                    Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    focusManager.clearFocus()
-                                    keyboardController?.hide()
-                                    onProceedToSecurity()
+                            when (currentStage) {
+                                GatewayStage.CAROUSEL -> {
+                                    currentStage = GatewayStage.IDENTITY
+                                }
+                                GatewayStage.IDENTITY -> {
+                                    if (displayName.trim().isEmpty()) {
+                                        Toast.makeText(context, "Please enter your username", Toast.LENGTH_SHORT).show()
+                                    } else if (rawDobDigits.length < 8) {
+                                        Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        focusManager.clearFocus()
+                                        keyboardController?.hide()
+                                        currentStage = GatewayStage.SECURITY
+                                    }
+                                }
+                                GatewayStage.SECURITY -> {
+                                    if (masterPin.trim().length < 4) {
+                                        Toast.makeText(context, "Password/PIN must be at least 4 characters", Toast.LENGTH_SHORT).show()
+                                    } else if (confirmPin != masterPin) {
+                                        Toast.makeText(context, "Passwords do not match. Please re-enter.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        focusManager.clearFocus()
+                                        keyboardController?.hide()
+                                        onProceedToNextStep()
+                                    }
                                 }
                             }
                         },
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxWidth(primaryButtonWidthFraction)
                             .height(52.dp),
                         shape = RoundedCornerShape(26.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = TextDark)
                     ) {
                         AnimatedContent(
-                            targetState = isFormMode,
+                            targetState = currentStage,
                             transitionSpec = {
                                 fadeIn(tween(250)).togetherWith(fadeOut(tween(250)))
                             },
                             label = "primaryButtonText"
-                        ) { formActive ->
+                        ) { stage ->
                             Text(
-                                text = if (!formActive) "Get Started" else "Register Vault",
+                                text = when (stage) {
+                                    GatewayStage.CAROUSEL -> "Get Started"
+                                    GatewayStage.IDENTITY -> "Register Vault"
+                                    GatewayStage.SECURITY -> "Lock Vault"
+                                },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.5.sp,
                                 color = Color.White
@@ -567,27 +869,34 @@ fun OnboardingStep0WelcomeGateway(
                         }
                     }
 
-                    OutlinedButton(
-                        onClick = {
-                            focusManager.clearFocus()
-                            keyboardController?.hide()
-                            showRestoreConfirmationSheet = true
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth(restoreButtonWidthFraction)
-                            .height(restoreButtonHeight),
-                        shape = RoundedCornerShape(26.dp),
-                        border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f)),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = CardWhite),
-                        contentPadding = PaddingValues(horizontal = 16.dp)
+                    // Secondary Restore Button (Collapses and disappears in Stage 2)
+                    AnimatedVisibility(
+                        visible = currentStage != GatewayStage.SECURITY,
+                        enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                        exit = fadeOut(tween(300)) + shrinkVertically(tween(300))
                     ) {
-                        Text(
-                            text = "Restore Vault",
-                            fontWeight = if (isFormMode) FontWeight.SemiBold else FontWeight.Bold,
-                            fontSize = if (isFormMode) 13.sp else 14.5.sp,
-                            color = TextDark,
-                            maxLines = 1
-                        )
+                        OutlinedButton(
+                            onClick = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                showRestoreConfirmationSheet = true
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth(restoreButtonWidthFraction)
+                                .height(restoreButtonHeight),
+                            shape = RoundedCornerShape(26.dp),
+                            border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f)),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = CardWhite),
+                            contentPadding = PaddingValues(horizontal = 16.dp)
+                        ) {
+                            Text(
+                                text = "Restore Vault",
+                                fontWeight = if (currentStage == GatewayStage.IDENTITY) FontWeight.SemiBold else FontWeight.Bold,
+                                fontSize = if (currentStage == GatewayStage.IDENTITY) 13.sp else 14.5.sp,
+                                color = TextDark,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
@@ -796,6 +1105,130 @@ fun OnboardingStep0WelcomeGateway(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Cancel", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = TextMuted)
+                    }
+                }
+            }
+        }
+
+        // =========================================================
+        // BIOMETRIC CONFIRMATION BOTTOM SHEET
+        // =========================================================
+        if (showBiometricSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showBiometricSheet = false },
+                sheetState = biometricSheetState,
+                shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+                containerColor = CardWhite,
+                dragHandle = { BottomSheetDefaults.DragHandle() }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp, top = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Surface(
+                        modifier = Modifier.size(60.dp),
+                        shape = CircleShape,
+                        color = AccentPurple.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Fingerprint,
+                                contentDescription = null,
+                                tint = AccentPurple,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Biometric Authentication",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextDark,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Unlock your offline personal ledger instantly using your device's biometric sensor (Fingerprint / Face ID).",
+                        fontSize = 12.5.sp,
+                        color = TextMuted,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 17.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = CanvasLight,
+                        border = BorderStroke(0.8.dp, BorderLight)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Security,
+                                contentDescription = null,
+                                tint = AccentPurple,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Protected by Android Hardware Keystore. Biometrics never leave your physical device.",
+                                fontSize = 11.5.sp,
+                                color = TextDark,
+                                fontWeight = FontWeight.Medium,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            onBiometricToggle(true)
+                            showBiometricSheet = false
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(25.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                    ) {
+                        Text(
+                            text = "Enable Biometric Unlock",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    TextButton(
+                        onClick = {
+                            onBiometricToggle(false)
+                            showBiometricSheet = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Keep PIN Only",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextMuted
+                        )
                     }
                 }
             }
