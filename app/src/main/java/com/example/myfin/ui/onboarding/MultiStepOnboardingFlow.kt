@@ -7,7 +7,9 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -21,18 +23,26 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.onboarding.steps.*
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun MultiStepOnboardingFlow(
@@ -43,6 +53,14 @@ fun MultiStepOnboardingFlow(
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { 7 })
+
+    // 2-Second Brand Reveal Splash State
+    var showSplashReveal by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        delay(2000L)
+        showSplashReveal = false
+    }
 
     var profileImageUri by remember { mutableStateOf<Uri?>(null) }
     var displayName by remember { mutableStateOf("Jordan Lee") }
@@ -167,6 +185,93 @@ fun MultiStepOnboardingFlow(
             .fillMaxSize()
             .background(CanvasLight)
     ) {
+        // =========================================================
+        // 2-SECOND FULL-SCREEN BRAND SPLASH REVEAL OVERLAY
+        // =========================================================
+        AnimatedVisibility(
+            visible = showSplashReveal,
+            enter = fadeIn(),
+            exit = fadeOut(animationSpec = tween(500, easing = FastOutSlowInEasing)),
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(10f)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF4C1D95),
+                                AccentPurple,
+                                PurplePrimary
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                ) {
+                    // Radiant Logo Badge
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.15f),
+                        modifier = Modifier.size(76.dp)
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(Color.White, CyanPrimary, AccentPurple)
+                                )
+                            )
+                            val c = center
+                            val r = size.minDimension * 0.32f
+                            repeat(8) { i ->
+                                val angleRad = Math.toRadians((i * 45.0))
+                                val px = c.x + (r * cos(angleRad)).toFloat()
+                                val py = c.y + (r * sin(angleRad)).toFloat()
+                                drawLine(
+                                    color = Color.White,
+                                    start = c,
+                                    end = Offset(px, py),
+                                    strokeWidth = 3.5.dp.toPx(),
+                                    cap = StrokeCap.Round
+                                )
+                            }
+                            drawCircle(color = Color.White, radius = 4.dp.toPx(), center = c)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Text(
+                        text = "MyFin",
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        letterSpacing = (-0.8).sp
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Your Wealth. Your Rules. Zero Cloud.",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White.copy(alpha = 0.85f),
+                        textAlign = TextAlign.Center,
+                        letterSpacing = 0.2.sp
+                    )
+                }
+            }
+        }
+
+        // =========================================================
+        // MAIN ONBOARDING FLOW & PAGER
+        // =========================================================
         Column(modifier = Modifier.fillMaxSize()) {
             if (pagerState.currentPage > 0) {
                 Row(
