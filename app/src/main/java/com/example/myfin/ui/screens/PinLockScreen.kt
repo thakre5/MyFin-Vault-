@@ -1,6 +1,5 @@
 package com.example.myfin.ui.screens
 
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -17,7 +16,6 @@ import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockReset
-import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,8 +24,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -35,10 +35,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.example.myfin.data.SecurityManager
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
+import java.io.File
 
 @Composable
 fun PinLockScreen(
@@ -50,6 +51,7 @@ fun PinLockScreen(
     onResetPasswordOnly: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val activity = context as? FragmentActivity
     val securityManager = remember { SecurityManager(context) }
 
@@ -76,17 +78,6 @@ fun PinLockScreen(
     LaunchedEffect(Unit) {
         delay(300L)
         triggerBiometricPrompt()
-    }
-
-    fun verifyEnteredPin(pin: String) {
-        if (securityManager.verifyPin(pin)) {
-            onUnlockSuccess()
-        } else {
-            if (pin.length >= 6) {
-                Toast.makeText(context, "Incorrect PIN", Toast.LENGTH_SHORT).show()
-                enteredPin = ""
-            }
-        }
     }
 
     Box(
@@ -119,7 +110,7 @@ fun PinLockScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Profile & Lock Emblem Section (Clean Inset Circular Shape - Zero Edge Clipping)
+            // Profile & Lock Emblem Section
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.padding(top = 28.dp)
@@ -138,12 +129,34 @@ fun PinLockScreen(
                             .clip(CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (!profileImageUri.isNullOrBlank()) {
-                            AsyncImage(
-                                model = Uri.parse(profileImageUri),
+                        val imageModel = remember(profileImageUri) {
+                            if (!profileImageUri.isNullOrBlank()) {
+                                File(profileImageUri).takeIf { it.exists() } ?: profileImageUri
+                            } else null
+                        }
+
+                        if (imageModel != null) {
+                            SubcomposeAsyncImage(
+                                model = imageModel,
                                 contentDescription = "Profile Avatar",
                                 modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
+                                contentScale = ContentScale.Crop,
+                                error = {
+                                    Surface(
+                                        modifier = Modifier.fillMaxSize(),
+                                        shape = CircleShape,
+                                        color = AccentPurple.copy(alpha = 0.12f)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = profileName.take(1).uppercase().ifBlank { "M" },
+                                                fontSize = 28.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = AccentPurple
+                                            )
+                                        }
+                                    }
+                                }
                             )
                         } else {
                             Surface(
@@ -235,6 +248,7 @@ fun PinLockScreen(
                                 "DEL" -> {
                                     IconButton(
                                         onClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             if (enteredPin.isNotEmpty()) enteredPin = enteredPin.dropLast(1)
                                         },
                                         modifier = Modifier
@@ -252,7 +266,10 @@ fun PinLockScreen(
                                 "BIO" -> {
                                     if (isBiometricEnabled) {
                                         IconButton(
-                                            onClick = { triggerBiometricPrompt() },
+                                            onClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                triggerBiometricPrompt()
+                                            },
                                             modifier = Modifier
                                                 .size(64.dp)
                                                 .clip(CircleShape)
@@ -274,14 +291,16 @@ fun PinLockScreen(
                                             .size(64.dp)
                                             .shadow(2.dp, CircleShape)
                                             .clickable {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 if (enteredPin.length < 6) {
                                                     val newPin = enteredPin + key
                                                     enteredPin = newPin
-                                                    // Immediately check valid PIN combinations
+                                                    // Immediately test PIN validity
                                                     if (securityManager.verifyPin(newPin)) {
                                                         onUnlockSuccess()
                                                     } else if (newPin.length >= 6) {
-                                                        verifyEnteredPin(newPin)
+                                                        Toast.makeText(context, "Incorrect PIN", Toast.LENGTH_SHORT).show()
+                                                        enteredPin = ""
                                                     }
                                                 }
                                             },
@@ -308,6 +327,7 @@ fun PinLockScreen(
             // Forgot PIN In-Place Password Recovery Trigger
             TextButton(
                 onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     recoveryStep = 1
                     recoveryDobInput = ""
                     newMasterPinInput = ""
@@ -326,7 +346,7 @@ fun PinLockScreen(
         }
 
         // =========================================================================
-        // NON-DESTRUCTIVE IN-PLACE PASSWORD RESET DIALOG (DOES NOT WIPE ACCOUNTS)
+        // NON-DESTRUCTIVE IN-PLACE PASSWORD RESET DIALOG
         // =========================================================================
         if (showResetDialog) {
             AlertDialog(
@@ -381,11 +401,11 @@ fun PinLockScreen(
                             )
                             OutlinedTextField(
                                 value = newMasterPinInput,
-                                onValueChange = { newMasterPinInput = it },
+                                onValueChange = { if (it.length <= 6) newMasterPinInput = it },
                                 placeholder = { Text("New Master PIN", fontSize = 12.5.sp) },
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -395,11 +415,11 @@ fun PinLockScreen(
                             )
                             OutlinedTextField(
                                 value = confirmNewPinInput,
-                                onValueChange = { confirmNewPinInput = it },
+                                onValueChange = { if (it.length <= 6) confirmNewPinInput = it },
                                 placeholder = { Text("Confirm New Master PIN", fontSize = 12.5.sp) },
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -414,10 +434,8 @@ fun PinLockScreen(
                     Button(
                         onClick = {
                             if (recoveryStep == 1) {
-                                val cleanInput = recoveryDobInput.filter { it.isDigit() }
-                                val cleanStored = recoveryDob.filter { it.isDigit() }
                                 val isDobMatched = securityManager.verifyDob(recoveryDobInput) ||
-                                        (cleanInput.isNotEmpty() && cleanInput == cleanStored)
+                                        (recoveryDob.isNotBlank() && recoveryDobInput.filter { it.isDigit() } == recoveryDob.filter { it.isDigit() })
 
                                 if (isDobMatched) {
                                     recoveryStep = 2
@@ -430,7 +448,6 @@ fun PinLockScreen(
                                 } else if (newMasterPinInput != confirmNewPinInput) {
                                     Toast.makeText(context, "PINs do not match", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    // Save new PIN only; All accounts/transactions remain untouched
                                     securityManager.setPin(newMasterPinInput)
                                     onResetPasswordOnly(newMasterPinInput)
                                     Toast.makeText(context, "Master PIN updated successfully", Toast.LENGTH_SHORT).show()
