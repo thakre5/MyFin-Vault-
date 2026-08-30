@@ -610,9 +610,15 @@ fun MasterDataSetScreen(
 
                     Button(
                         onClick = {
-                            if (newCategoryName.isNotBlank()) {
-                                viewModel.addCategory(newCategoryName.trim(), selectedSegment)
-                                showAddCategorySheet = false
+                            val trimmedName = newCategoryName.trim()
+                            if (trimmedName.isNotBlank()) {
+                                val alreadyExists = segmentCategories.any { it.name.equals(trimmedName, ignoreCase = true) }
+                                if (alreadyExists) {
+                                    Toast.makeText(context, "Category '$trimmedName' already exists", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    viewModel.addCategory(trimmedName, selectedSegment)
+                                    showAddCategorySheet = false
+                                }
                             }
                         },
                         enabled = newCategoryName.isNotBlank(),
@@ -629,7 +635,9 @@ fun MasterDataSetScreen(
 
         // Sheet: Add Subcategory
         if (showAddSubcategorySheet) {
-            var selectedParent by remember { mutableStateOf(segmentCategories.firstOrNull()?.name.orEmpty()) }
+            var selectedParent by remember(selectedSegment, segmentCategories) {
+                mutableStateOf(segmentCategories.firstOrNull()?.name.orEmpty())
+            }
             var newSubName by remember { mutableStateOf("") }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -707,9 +715,17 @@ fun MasterDataSetScreen(
 
                     Button(
                         onClick = {
-                            if (newSubName.isNotBlank() && selectedParent.isNotBlank()) {
-                                viewModel.addSubcategory(selectedParent, newSubName.trim(), selectedSegment)
-                                showAddSubcategorySheet = false
+                            val trimmedSub = newSubName.trim()
+                            if (trimmedSub.isNotBlank() && selectedParent.isNotBlank()) {
+                                val alreadyExists = segmentSubcategories.any {
+                                    it.parentCategory == selectedParent && it.name.equals(trimmedSub, ignoreCase = true)
+                                }
+                                if (alreadyExists) {
+                                    Toast.makeText(context, "Subcategory '$trimmedSub' already exists under $selectedParent", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    viewModel.addSubcategory(selectedParent, trimmedSub, selectedSegment)
+                                    showAddSubcategorySheet = false
+                                }
                             }
                         },
                         enabled = newSubName.isNotBlank() && selectedParent.isNotBlank(),
@@ -772,8 +788,9 @@ fun MasterDataSetScreen(
 
                     Button(
                         onClick = {
-                            if (renameText.isNotBlank() && renameText.trim() != cat.name) {
-                                viewModel.updateCategory(cat, renameText.trim())
+                            val trimmedNew = renameText.trim()
+                            if (trimmedNew.isNotBlank() && trimmedNew != cat.name) {
+                                viewModel.updateCategory(cat, trimmedNew)
                             }
                             categoryToEdit = null
                         },
@@ -837,8 +854,9 @@ fun MasterDataSetScreen(
 
                     Button(
                         onClick = {
-                            if (renameText.isNotBlank() && renameText.trim() != sub.name) {
-                                viewModel.updateSubcategory(sub, renameText.trim())
+                            val trimmedNew = renameText.trim()
+                            if (trimmedNew.isNotBlank() && trimmedNew != sub.name) {
+                                viewModel.updateSubcategory(sub, trimmedNew)
                             }
                             subcategoryToEdit = null
                         },
