@@ -143,22 +143,38 @@ fun VaultStrategyScreen(
         displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.CASH }.sumOf { it.currentBalance }
     }
 
-    val activeAccountTxs = remember(uiState.groupedTransactions, activeAccount?.accountName) {
-        val name = activeAccount?.accountName.orEmpty()
-        uiState.groupedTransactions.values.flatten().filter { it.accountName.equals(name, ignoreCase = true) }
+    val allFlattenedTxs = remember(uiState.groupedTransactions) {
+        uiState.groupedTransactions.values.flatten()
     }
 
-    val activeExpenses = remember(activeAccountTxs) {
-        activeAccountTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+    val activeAccountTxs = remember(allFlattenedTxs, activeAccount?.accountName) {
+        val name = activeAccount?.accountName.orEmpty()
+        allFlattenedTxs.filter {
+            it.accountName.equals(name, ignoreCase = true) ||
+                    (it.type == TransactionType.TRANSFER && it.toAccountName.equals(name, ignoreCase = true))
+        }
     }
-    val activeIncome = remember(activeAccountTxs) {
-        activeAccountTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+
+    val activeExpenses = remember(activeAccountTxs, activeAccount?.accountName) {
+        val name = activeAccount?.accountName.orEmpty()
+        activeAccountTxs.filter { it.type == TransactionType.EXPENSE && it.accountName.equals(name, ignoreCase = true) }.sumOf { it.amount }
     }
-    val activeTransfersOut = remember(activeAccountTxs) {
-        activeAccountTxs.filter { it.type == TransactionType.TRANSFER && it.accountName.equals(activeAccount?.accountName, ignoreCase = true) }.sumOf { it.amount }
+    val activeIncome = remember(activeAccountTxs, activeAccount?.accountName) {
+        val name = activeAccount?.accountName.orEmpty()
+        activeAccountTxs.filter {
+            (it.type == TransactionType.INCOME && it.accountName.equals(name, ignoreCase = true)) ||
+                    (it.type == TransactionType.TRANSFER && it.toAccountName.equals(name, ignoreCase = true))
+        }.sumOf { it.amount }
+    }
+    val activeTransfersOut = remember(activeAccountTxs, activeAccount?.accountName) {
+        val name = activeAccount?.accountName.orEmpty()
+        activeAccountTxs.filter { it.type == TransactionType.TRANSFER && it.accountName.equals(name, ignoreCase = true) }.sumOf { it.amount }
     }
 
     val daysElapsed = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH).coerceAtLeast(1) }
+    val totalDaysInMonth = remember { Calendar.getInstance().getActualMaximum(Calendar.DAY_OF_MONTH) }
+    val remainingDays = remember(daysElapsed, totalDaysInMonth) { max(1, totalDaysInMonth - daysElapsed) }
+
     val dailyBurnRate = remember(activeExpenses, daysElapsed) {
         if (activeExpenses > 0) activeExpenses / daysElapsed else 0.0
     }
@@ -175,9 +191,8 @@ fun VaultStrategyScreen(
         pendingBillsForAccount.sumOf { it.amount }
     }
 
-    val calculatedSweepSurplus = remember(activeAccount?.currentBalance, totalPendingBillsAmount, dailyBurnRate) {
+    val calculatedSweepSurplus = remember(activeAccount?.currentBalance, totalPendingBillsAmount, dailyBurnRate, remainingDays) {
         val bal = activeAccount?.currentBalance ?: 0.0
-        val remainingDays = max(1, 30 - daysElapsed)
         val safetyBuffer = dailyBurnRate * remainingDays
         (bal - totalPendingBillsAmount - safetyBuffer).coerceAtLeast(0.0)
     }
@@ -567,7 +582,7 @@ fun VaultStrategyScreen(
 
                                     Spacer(modifier = Modifier.width(12.dp))
 
-                                    val netDelta = activeIncome - activeExpenses
+                                    val netDelta = activeIncome - activeExpenses - activeTransfersOut
                                     MatrixMetricCell(
                                         title = "Net Cashflow",
                                         value = "${if (netDelta >= 0) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(netDelta))}",
