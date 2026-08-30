@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -32,17 +33,20 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.ExcelExportManager
+import com.example.myfin.data.MonthlySummary
 import com.example.myfin.data.TransactionType
+import com.example.myfin.data.YearlyCategoryRollup
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
@@ -52,15 +56,10 @@ import java.util.*
 import kotlin.math.cos
 import kotlin.math.sin
 
-private val CyanPrimary = Color(0xFF00D2EE)
-private val PurplePrimary = Color(0xFF6C5CE7)
-private val TealPrimary = Color(0xFF10B981)
-private val CoralAccent = Color(0xFFFF6B6B)
-
 private val HeroDarkGradient = Brush.verticalGradient(
     colors = listOf(
-        Color(0xFF1B1D2E),
-        Color(0xFF121320)
+        Color(0xFF1E1F30),
+        Color(0xFF131422)
     )
 )
 
@@ -92,33 +91,36 @@ fun YearlyScreen(
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
+    // 12-Month Synthetic Flow & Category Rollup Flows
+    val yearlySummaryFlow by produceState<List<MonthlySummary>>(initialValue = emptyList(), uiState.selectedYear) {
+        viewModel.getYearlySummary(uiState.selectedYear).collect { value = it }
+    }
+    val yearlyBreakdownFlow by produceState<List<YearlyCategoryRollup>>(initialValue = emptyList(), uiState.selectedYear) {
+        viewModel.getYearlyCategoryBreakdown(uiState.selectedYear).collect { value = it }
+    }
+
     val pagerState = rememberPagerState(pageCount = { 3 })
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
-    val pageTitles = remember { listOf("Summary", "12 Months", "Audit") }
+    val pageTitles = remember { listOf("Executive", "12 Months", "Audit") }
 
     val monthNames = remember {
         listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
     }
 
-    // Prepare 12-Month Aggregation
-    val currentCal = Calendar.getInstance()
+    // Relative Calendar Timeline Checks
+    val currentCal = remember { Calendar.getInstance() }
     val thisYear = currentCal.get(Calendar.YEAR)
     val thisMonth = currentCal.get(Calendar.MONTH) + 1
 
-    val yearlyMonthsData = remember(uiState.groupedTransactions, uiState.selectedYear) {
-        val allTx = uiState.groupedTransactions.values.flatten()
-        val txCal = Calendar.getInstance()
-
+    val yearlyMonthsData = remember(yearlySummaryFlow, uiState.selectedYear) {
+        val summaryMap = yearlySummaryFlow.associateBy { it.month }
         (1..12).map { m ->
             val isFutureMonth = (uiState.selectedYear == thisYear && m > thisMonth) || (uiState.selectedYear > thisYear)
-            val monthTxs = allTx.filter { tx ->
-                txCal.timeInMillis = tx.date
-                txCal.get(Calendar.YEAR) == uiState.selectedYear && (txCal.get(Calendar.MONTH) + 1) == m
-            }
+            val summary = summaryMap[m]
 
-            val inc = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-            val exp = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-            val ast = monthTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
+            val inc = summary?.totalActualIncome ?: 0.0
+            val exp = summary?.totalActualExpense ?: 0.0
+            val ast = summary?.totalAsset ?: 0.0
             val net = inc - exp - ast
 
             MonthDataSummary(
@@ -139,14 +141,14 @@ fun YearlyScreen(
     val annualNetSurplus = annualIncome - annualExpenses - annualAssets
     val annualSavingsRate = if (annualIncome > 0) ((annualNetSurplus / annualIncome) * 100).coerceIn(0.0, 100.0) else 0.0
 
-    // Export Launchers
+    // Export Statement Launchers
     val xlsxExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     ) { uri ->
         uri?.let {
             coroutineScope.launch {
                 val ok = ExcelExportManager.exportToUri(context, it, userProfile.currencySymbol)
-                Toast.makeText(context, if (ok) "Annual Statement (.xlsx) generated!" else "Export failed", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, if (ok) "Annual Statement (.xlsx) saved!" else "Export failed", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -162,11 +164,11 @@ fun YearlyScreen(
         }
     }
 
-    val fabActions = remember {
+    val fabActions = remember(uiState.selectedYear) {
         listOf(
             DockFabAction(
                 icon = Icons.Default.TableChart,
-                label = "Export Report (.xlsx)",
+                label = "Export Statement (.xlsx)",
                 onClick = {
                     val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
                     xlsxExportLauncher.launch("MyFin_Annual_${uiState.selectedYear}_$timeStamp.xlsx")
@@ -174,7 +176,7 @@ fun YearlyScreen(
             ),
             DockFabAction(
                 icon = Icons.Default.ReceiptLong,
-                label = "Tax Statement (.csv)",
+                label = "Tax Ledger (.csv)",
                 onClick = {
                     val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
                     csvExportLauncher.launch("MyFin_Tax_Ledger_${uiState.selectedYear}_$timeStamp.csv")
@@ -191,7 +193,7 @@ fun YearlyScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // =========================================================
-            // 1. PINNED TOP HEADER WITH YEAR PICKER CAPSULE & DISSOLVE
+            // 1. PINNED TOP BAR (WITH YEAR PICKER CAPSULE & DISSOLVE)
             // =========================================================
             Column(
                 modifier = Modifier
@@ -229,7 +231,7 @@ fun YearlyScreen(
                         shadowElevation = 2.dp
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(
@@ -245,7 +247,7 @@ fun YearlyScreen(
                             Text(
                                 text = "Year ${uiState.selectedYear}",
                                 fontWeight = FontWeight.Black,
-                                fontSize = 14.sp,
+                                fontSize = 13.5.sp,
                                 color = TextDark,
                                 modifier = Modifier.padding(horizontal = 6.dp)
                             )
@@ -263,7 +265,7 @@ fun YearlyScreen(
                     }
                 }
 
-                // Smooth Dissolve Shelf Placed Below Top Header
+                // Smooth Downward Dissolve Shelf
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -280,7 +282,7 @@ fun YearlyScreen(
             }
 
             // =========================================================
-            // 2. FULL-SCREEN HORIZONTAL PAGER (SWIPEABLE SUB-SCREENS)
+            // 2. FULL-SCREEN HORIZONTAL PAGER
             // =========================================================
             HorizontalPager(
                 state = pagerState,
@@ -289,7 +291,7 @@ fun YearlyScreen(
                     .fillMaxWidth()
             ) { page ->
                 when (page) {
-                    // --- PAGE 0: EXECUTIVE SUMMARY ---
+                    // --- SUB-SCREEN 0: EXECUTIVE SUMMARY ---
                     0 -> {
                         LazyColumn(
                             modifier = Modifier
@@ -297,15 +299,15 @@ fun YearlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            // Dark Topography Spline Wave Hero Card
+                            // Dark Spline Topography Hero Card
                             item {
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .shadow(8.dp, RoundedCornerShape(26.dp)),
                                     shape = RoundedCornerShape(26.dp),
-                                    color = Color(0xFF151624),
-                                    border = BorderStroke(0.8.dp, Color(0xFF2C2D44))
+                                    color = Color(0xFF171827),
+                                    border = BorderStroke(0.8.dp, Color(0xFF2E3048))
                                 ) {
                                     Column(
                                         modifier = Modifier
@@ -330,15 +332,15 @@ fun YearlyScreen(
                                                     text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", annualNetSurplus)}",
                                                     fontSize = 30.sp,
                                                     fontWeight = FontWeight.Black,
-                                                    color = if (annualNetSurplus >= 0) Color.White else CoralAccent,
+                                                    color = if (annualNetSurplus >= 0) Color.White else SoftRed,
                                                     letterSpacing = (-0.5).sp
                                                 )
                                             }
 
                                             Surface(
                                                 shape = RoundedCornerShape(12.dp),
-                                                color = TealPrimary.copy(alpha = 0.18f),
-                                                border = BorderStroke(0.6.dp, TealPrimary.copy(alpha = 0.4f))
+                                                color = SoftTeal.copy(alpha = 0.18f),
+                                                border = BorderStroke(0.6.dp, SoftTeal.copy(alpha = 0.4f))
                                             ) {
                                                 Row(
                                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -347,13 +349,13 @@ fun YearlyScreen(
                                                     Icon(
                                                         imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                                                         contentDescription = null,
-                                                        tint = TealPrimary,
+                                                        tint = SoftTeal,
                                                         modifier = Modifier.size(14.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                     Text(
                                                         text = "${annualSavingsRate.toInt()}% Saved",
-                                                        color = TealPrimary,
+                                                        color = SoftTeal,
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
@@ -377,17 +379,17 @@ fun YearlyScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(TealPrimary))
+                                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SoftGreen))
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(text = "Inflow ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualIncome)}", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
                                             }
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(CyanPrimary))
+                                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SoftTeal))
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(text = "Assets ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualAssets)}", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
                                             }
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(PurplePrimary))
+                                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(AccentPurple))
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(text = "Burn ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualExpenses)}", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
                                             }
@@ -395,10 +397,10 @@ fun YearlyScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(20.dp))
+                                Spacer(modifier = Modifier.height(18.dp))
                             }
 
-                            // Liquid Target Wave Goal Capsule
+                            // Wealth Goal Execution Capsule
                             item {
                                 Surface(
                                     modifier = Modifier
@@ -413,7 +415,7 @@ fun YearlyScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Box(
-                                            modifier = Modifier.size(92.dp),
+                                            modifier = Modifier.size(86.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             LiquidGoalPillCanvas(
@@ -423,7 +425,7 @@ fun YearlyScreen(
                                             Text(
                                                 text = "${annualSavingsRate.toInt()}%",
                                                 fontWeight = FontWeight.Black,
-                                                fontSize = 17.sp,
+                                                fontSize = 16.sp,
                                                 color = Color.White
                                             )
                                         }
@@ -431,10 +433,10 @@ fun YearlyScreen(
                                         Spacer(modifier = Modifier.width(16.dp))
 
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text(text = "Annual Wealth Goal Execution", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                            Text(text = "Annual Wealth Accumulation", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(
-                                                text = "Accumulated ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualAssets + annualNetSurplus)} towards annual compounding reserve target.",
+                                                text = "Accumulated ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualAssets + annualNetSurplus)} towards annual compounding reserves.",
                                                 fontSize = 11.5.sp,
                                                 color = TextMuted,
                                                 lineHeight = 16.sp
@@ -443,33 +445,36 @@ fun YearlyScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(20.dp))
+                                Spacer(modifier = Modifier.height(18.dp))
                             }
 
                             // Macro Metrics Row
                             item {
+                                val activeMonthsCount = if (uiState.selectedYear == thisYear) thisMonth.coerceAtLeast(1) else 12
+                                val avgMonthlyBurn = annualExpenses / activeMonthsCount
+                                val avgDailyBurn = annualExpenses / (activeMonthsCount * 30).coerceAtLeast(1)
+
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    val avgMonthlyBurn = annualExpenses / (thisMonth.coerceAtLeast(1))
                                     YearlyPillarPill(
                                         modifier = Modifier.weight(1f),
                                         title = "Avg Monthly Burn",
                                         amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgMonthlyBurn)}",
-                                        tint = PurplePrimary
+                                        tint = AccentPurple
                                     )
                                     YearlyPillarPill(
                                         modifier = Modifier.weight(1f),
                                         title = "Avg Daily Spend",
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualExpenses / (thisMonth * 30).coerceAtLeast(1))}",
-                                        tint = CoralAccent
+                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgDailyBurn)}",
+                                        tint = SoftRed
                                     )
                                     YearlyPillarPill(
                                         modifier = Modifier.weight(1f),
                                         title = "SIP Investment",
                                         amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualAssets)}",
-                                        tint = CyanPrimary
+                                        tint = SoftTeal
                                     )
                                 }
 
@@ -478,7 +483,7 @@ fun YearlyScreen(
                         }
                     }
 
-                    // --- PAGE 1: 12 MONTHS TIMELINE GRID ---
+                    // --- SUB-SCREEN 1: 12 MONTHS TIMELINE GRID ---
                     1 -> {
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(2),
@@ -489,12 +494,12 @@ fun YearlyScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(yearlyMonthsData.size) { index ->
-                                val mData = yearlyMonthsData[index]
+                            items(yearlyMonthsData, key = { it.monthIndex }) { mData ->
                                 MonthGridTimelineCard(
                                     data = mData,
                                     currencySymbol = userProfile.currencySymbol,
                                     onTapMonth = {
+                                        viewModel.selectMonth(mData.monthIndex)
                                         onNavigateToMonth(uiState.selectedYear, mData.monthIndex)
                                     }
                                 )
@@ -502,21 +507,10 @@ fun YearlyScreen(
                         }
                     }
 
-                    // --- PAGE 2: ANNUAL AUDIT & CATEGORY SPECTRUM ---
+                    // --- SUB-SCREEN 2: ANNUAL AUDIT & CATEGORY SPECTRUM ---
                     2 -> {
-                        val allTx = remember(uiState.groupedTransactions, uiState.selectedYear) {
-                            val txCal = Calendar.getInstance()
-                            uiState.groupedTransactions.values.flatten().filter {
-                                txCal.timeInMillis = it.date
-                                txCal.get(Calendar.YEAR) == uiState.selectedYear && it.type == TransactionType.EXPENSE
-                            }
-                        }
-
-                        val categoryRoster = remember(allTx) {
-                            allTx.groupBy { it.category }
-                                .mapValues { entry -> entry.value.sumOf { it.amount } }
-                                .toList()
-                                .sortedByDescending { it.second }
+                        val expenseBreakdown = remember(yearlyBreakdownFlow) {
+                            yearlyBreakdownFlow.filter { it.type == TransactionType.EXPENSE }
                         }
 
                         LazyColumn(
@@ -526,9 +520,9 @@ fun YearlyScreen(
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
                             item {
-                                Text(text = "Annual Category Pareto", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                                Text(text = "Annual Category Pareto", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
                                 Text(text = "Cumulative spend distribution across entire year", fontSize = 11.5.sp, color = TextMuted)
-                                Spacer(modifier = Modifier.height(16.dp))
+                                Spacer(modifier = Modifier.height(14.dp))
 
                                 Surface(
                                     modifier = Modifier
@@ -546,7 +540,7 @@ fun YearlyScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         AnnualRadarSpiderCanvas(
-                                            categorySums = categoryRoster.map { it.second }
+                                            categorySums = expenseBreakdown.map { it.totalActualAmount }
                                         )
                                     }
                                 }
@@ -559,7 +553,7 @@ fun YearlyScreen(
                                 Spacer(modifier = Modifier.height(10.dp))
                             }
 
-                            if (categoryRoster.isEmpty()) {
+                            if (expenseBreakdown.isEmpty()) {
                                 item {
                                     Surface(
                                         modifier = Modifier.fillMaxWidth(),
@@ -572,9 +566,10 @@ fun YearlyScreen(
                                     }
                                 }
                             } else {
-                                items(categoryRoster.size) { idx ->
-                                    val (cat, sum) = categoryRoster[idx]
-                                    val ratio = if (annualExpenses > 0) (sum / annualExpenses).toFloat() else 0f
+                                items(expenseBreakdown.size) { idx ->
+                                    val item = expenseBreakdown[idx]
+                                    val ratio = if (annualExpenses > 0) (item.totalActualAmount / annualExpenses).toFloat() else 0f
+
                                     Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -589,12 +584,12 @@ fun YearlyScreen(
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text(text = cat, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                                                Text(text = item.category, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
                                                 Text(
-                                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", sum)} (${(ratio * 100).toInt()}%)",
+                                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", item.totalActualAmount)} (${(ratio * 100).toInt()}%)",
                                                     fontWeight = FontWeight.Black,
                                                     fontSize = 13.sp,
-                                                    color = PurplePrimary
+                                                    color = AccentPurple
                                                 )
                                             }
                                             Spacer(modifier = Modifier.height(6.dp))
@@ -604,7 +599,7 @@ fun YearlyScreen(
                                                     .fillMaxWidth()
                                                     .height(5.dp)
                                                     .clip(RoundedCornerShape(3.dp)),
-                                                color = PurplePrimary,
+                                                color = AccentPurple,
                                                 trackColor = BorderLight.copy(alpha = 0.5f)
                                             )
                                         }
@@ -618,7 +613,7 @@ fun YearlyScreen(
         }
 
         // =========================================================
-        // 3. BOTTOM GRADIENT SCRIM
+        // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
         // =========================================================
         Box(
             modifier = Modifier
@@ -675,9 +670,9 @@ fun YearlyScreen(
     }
 }
 
-// -------------------------------------------------------------
-// CANVASES & VISUAL GRAPH COMPONENTS
-// -------------------------------------------------------------
+// =========================================================
+// VECTOR CANVASES & TIMELINE COMPONENTS
+// =========================================================
 
 @Composable
 private fun AnnualTopographyWaveCanvas(
@@ -715,28 +710,28 @@ private fun AnnualTopographyWaveCanvas(
         val expensePath = createSplinePath(yearlyData.map { it.expenses })
         val assetsPath = createSplinePath(yearlyData.map { it.assets })
 
-        // Income Fill
+        // Income Underfill
         val incomeFill = Path().apply {
             addPath(incomePath)
             lineTo(w, h)
             lineTo(0f, h)
             close()
         }
-        drawPath(incomeFill, brush = Brush.verticalGradient(listOf(TealPrimary.copy(alpha = 0.25f), Color.Transparent)))
-        drawPath(incomePath, color = TealPrimary, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+        drawPath(incomeFill, brush = Brush.verticalGradient(listOf(SoftGreen.copy(alpha = 0.25f), Color.Transparent)))
+        drawPath(incomePath, color = SoftGreen, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
 
-        // Expense Fill
+        // Expense Underfill
         val expenseFill = Path().apply {
             addPath(expensePath)
             lineTo(w, h)
             lineTo(0f, h)
             close()
         }
-        drawPath(expenseFill, brush = Brush.verticalGradient(listOf(PurplePrimary.copy(alpha = 0.25f), Color.Transparent)))
-        drawPath(expensePath, color = PurplePrimary, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+        drawPath(expenseFill, brush = Brush.verticalGradient(listOf(AccentPurple.copy(alpha = 0.25f), Color.Transparent)))
+        drawPath(expensePath, color = AccentPurple, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
 
         // Assets Line
-        drawPath(assetsPath, color = CyanPrimary, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
+        drawPath(assetsPath, color = SoftTeal, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
     }
 }
 
@@ -751,7 +746,7 @@ private fun LiquidGoalPillCanvas(
         val cornerRadius = CornerRadius(w / 2f, w / 2f)
 
         drawRoundRect(
-            color = BorderLight.copy(alpha = 0.4f),
+            color = BorderLight.copy(alpha = 0.35f),
             size = Size(w, h),
             cornerRadius = cornerRadius
         )
@@ -761,7 +756,7 @@ private fun LiquidGoalPillCanvas(
 
         drawRoundRect(
             brush = Brush.verticalGradient(
-                listOf(PurplePrimary, Color(0xFF8B5CF6))
+                listOf(AccentPurple, Color(0xFF8B5CF6))
             ),
             topLeft = Offset(0f, fillTop),
             size = Size(w, fillH),
@@ -805,8 +800,8 @@ private fun AnnualRadarSpiderCanvas(
         }
         polyPath.close()
 
-        drawPath(polyPath, color = PurplePrimary.copy(alpha = 0.25f))
-        drawPath(polyPath, color = PurplePrimary, style = Stroke(width = 2.dp.toPx()))
+        drawPath(polyPath, color = AccentPurple.copy(alpha = 0.22f))
+        drawPath(polyPath, color = AccentPurple, style = Stroke(width = 2.dp.toPx()))
     }
 }
 
@@ -823,6 +818,7 @@ private fun MonthGridTimelineCard(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(2.dp, RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onTapMonth),
         shape = RoundedCornerShape(18.dp),
         color = CardWhite,
@@ -869,9 +865,9 @@ private fun MonthGridTimelineCard(
                     .clip(CircleShape)
                     .background(BorderLight.copy(alpha = 0.4f))
             ) {
-                Box(modifier = Modifier.weight((data.income / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(TealPrimary))
-                Box(modifier = Modifier.weight((data.expenses / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(PurplePrimary))
-                Box(modifier = Modifier.weight((data.assets / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(CyanPrimary))
+                Box(modifier = Modifier.weight((data.income / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(SoftGreen))
+                Box(modifier = Modifier.weight((data.expenses / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(AccentPurple))
+                Box(modifier = Modifier.weight((data.assets / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(SoftTeal))
             }
         }
     }
