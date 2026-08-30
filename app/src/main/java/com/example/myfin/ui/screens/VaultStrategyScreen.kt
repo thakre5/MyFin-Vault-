@@ -203,8 +203,15 @@ fun VaultStrategyScreen(
         selectedTier == VaultTier.COMMITMENTS && ((activeAccount?.currentBalance ?: 0.0) < totalPendingBillsAmount)
     }
 
-    val totalMonthlyExpenses = remember(allFlattenedTxs) {
-        allFlattenedTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }.coerceAtLeast(1.0)
+    // Benchmark base monthly expenses: uses actual expenses, falls back to planned budget or fixed commitments
+    val effectiveMonthlyExpenses = remember(allFlattenedTxs, uiState.metrics.plannedExpenses, uiState.metrics.fixedCommitmentsTotal) {
+        val actual = allFlattenedTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        when {
+            actual > 0 -> actual
+            uiState.metrics.plannedExpenses > 0 -> uiState.metrics.plannedExpenses
+            uiState.metrics.fixedCommitmentsTotal > 0 -> uiState.metrics.fixedCommitmentsTotal
+            else -> 0.0
+        }
     }
 
     val fabActions = remember {
@@ -684,9 +691,12 @@ fun VaultStrategyScreen(
                         // Emergency Fund Runway Milestone Card (Shown on Fortress Vault Account)
                         if (selectedTier == VaultTier.FORTRESS) {
                             val curBal = acc.currentBalance
-                            val m3Target = totalMonthlyExpenses * 3
-                            val m6Target = totalMonthlyExpenses * 6
-                            val m12Target = totalMonthlyExpenses * 12
+                            val hasExpenseBenchmark = effectiveMonthlyExpenses > 0
+                            val monthsCovered = if (hasExpenseBenchmark) (curBal / effectiveMonthlyExpenses) else 0.0
+
+                            val m3Target = if (hasExpenseBenchmark) effectiveMonthlyExpenses * 3 else 10000.0
+                            val m6Target = if (hasExpenseBenchmark) effectiveMonthlyExpenses * 6 else 25000.0
+                            val m12Target = if (hasExpenseBenchmark) effectiveMonthlyExpenses * 12 else 50000.0
 
                             Surface(
                                 modifier = Modifier
@@ -702,26 +712,41 @@ fun VaultStrategyScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.Security, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(17.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(text = "Emergency Runway Milestones", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(Icons.Default.Security, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Emergency Runway Milestones",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.5.sp,
+                                                color = TextDark,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
                                         }
 
-                                        Surface(shape = RoundedCornerShape(6.dp), color = SoftTeal.copy(alpha = 0.12f)) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = SoftTeal.copy(alpha = 0.12f)
+                                        ) {
                                             Text(
-                                                text = "${(curBal / totalMonthlyExpenses).toInt()} Mo Covered",
-                                                fontSize = 10.sp,
+                                                text = if (!hasExpenseBenchmark) "-- Mo Covered" else "${String.format(Locale.US, "%.1f", monthsCovered)} Mo Covered",
+                                                fontSize = 10.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = SoftTeal,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                             )
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Spacer(modifier = Modifier.height(14.dp))
 
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                         RunwayMilestoneRow(
                                             title = "3 Months Essential Buffer",
                                             target = m3Target,
@@ -1598,8 +1623,8 @@ private fun RunwayMilestoneRow(
     currencySymbol: String,
     isDiscreet: Boolean
 ) {
-    val progress = (current / target).toFloat().coerceIn(0f, 1f)
-    val isComplete = current >= target
+    val progress = if (target > 0) (current / target).toFloat().coerceIn(0f, 1f) else 0f
+    val isComplete = current >= target && target > 0
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -1763,7 +1788,7 @@ private fun BankAccountPhysicalCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = if (isDiscreet) "••••••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
+                text = if (isDiscreetMode) "••••••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
                 color = if (account.currentBalance >= 0) TextDark else SoftRed
