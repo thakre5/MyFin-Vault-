@@ -5,8 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
@@ -16,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,8 +42,9 @@ fun AddTransactionBottomSheet(
     val isEditing = editingTransaction != null
     var selectedType by remember { mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE) }
     var title by remember { mutableStateOf(editingTransaction?.title.orEmpty()) }
-    var amountText by remember { mutableStateOf(editingTransaction?.amount?.toString().orEmpty()) }
-    var selectedAccount by remember {
+    var amountText by remember { mutableStateOf(editingTransaction?.amount?.let { if (it > 0) it.toString() else "" }.orEmpty()) }
+    
+    var selectedAccount by remember(accountList) {
         mutableStateOf(editingTransaction?.accountName ?: accountList.firstOrNull().orEmpty())
     }
 
@@ -59,6 +63,8 @@ fun AddTransactionBottomSheet(
     }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
+    val isInputValid = parsedAmount > 0.0
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -69,8 +75,11 @@ fun AddTransactionBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp)
+                .padding(bottom = 28.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -145,7 +154,11 @@ fun AddTransactionBottomSheet(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AccentPurple,
+                    unfocusedBorderColor = BorderLight
+                )
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -154,9 +167,14 @@ fun AddTransactionBottomSheet(
                 value = title,
                 onValueChange = { title = it },
                 label = { Text("Title / Merchant (Optional)") },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AccentPurple,
+                    unfocusedBorderColor = BorderLight
+                )
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -166,15 +184,20 @@ fun AddTransactionBottomSheet(
             Spacer(modifier = Modifier.height(6.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(availableCategories) { cat ->
+                    val isSelected = selectedCategory == cat
                     FilterChip(
-                        selected = selectedCategory == cat,
+                        selected = isSelected,
                         onClick = {
                             selectedCategory = cat
                             val subs = masterSubcategories.filter { it.parentCategory == cat }.map { it.name }
                             selectedSubcategory = subs.firstOrNull().orEmpty()
                         },
                         label = { Text(cat, fontSize = 11.5.sp) },
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentPurpleLight,
+                            selectedLabelColor = AccentPurple
+                        )
                     )
                 }
             }
@@ -187,11 +210,16 @@ fun AddTransactionBottomSheet(
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(availableSubcategories) { sub ->
+                        val isSelected = selectedSubcategory == sub
                         FilterChip(
-                            selected = selectedSubcategory == sub,
+                            selected = isSelected,
                             onClick = { selectedSubcategory = sub },
                             label = { Text(sub, fontSize = 11.5.sp) },
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = AccentPurpleLight,
+                                selectedLabelColor = AccentPurple
+                            )
                         )
                     }
                 }
@@ -203,11 +231,16 @@ fun AddTransactionBottomSheet(
             Spacer(modifier = Modifier.height(6.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(accountList) { acc ->
+                    val isSelected = selectedAccount == acc
                     FilterChip(
-                        selected = selectedAccount == acc,
+                        selected = isSelected,
                         onClick = { selectedAccount = acc },
                         label = { Text(acc, fontSize = 11.5.sp) },
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentPurpleLight,
+                            selectedLabelColor = AccentPurple
+                        )
                     )
                 }
             }
@@ -216,12 +249,11 @@ fun AddTransactionBottomSheet(
 
             Button(
                 onClick = {
-                    val amount = amountText.toDoubleOrNull() ?: 0.0
-                    if (amount > 0.0) {
+                    if (isInputValid) {
                         onSave(
                             editingTransaction?.id ?: 0L,
                             title.trim(),
-                            amount,
+                            parsedAmount,
                             selectedCategory.ifBlank { "General" },
                             selectedSubcategory.ifBlank { "General" },
                             selectedAccount.ifBlank { accountList.firstOrNull().orEmpty() },
@@ -231,6 +263,7 @@ fun AddTransactionBottomSheet(
                         onDismiss()
                     }
                 },
+                enabled = isInputValid,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
