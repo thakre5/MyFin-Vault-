@@ -144,127 +144,136 @@ class BudgetViewModel(
     }
 
     val monthlyUiState: StateFlow<MonthlyUiState> = combine(
-        currentMonth, currentYear, filterCriteria
-    ) { month, year, filter -> Triple(month, year, filter) }
-        .flatMapLatest { (month, year, filter) ->
-            val coreDataFlow = combine(
-                dao.getTransactionsForMonth(month, year),
-                dao.getFixedBillsForMonth(month, year),
-                dao.getAccountBalances()
-            ) { transactions, fixedBills, accounts ->
-                Triple(transactions, fixedBills, accounts)
-            }
+        currentMonth, currentYear, filterCriteria, userProfile
+    ) { month, year, filter, profile ->
+        Tuple4(month, year, filter, profile)
+    }.flatMapLatest { (month, year, filter, profile) ->
+        val coreDataFlow = combine(
+            dao.getTransactionsForMonth(month, year),
+            dao.getFixedBillsForMonth(month, year),
+            dao.getAccountBalances()
+        ) { transactions, fixedBills, accounts ->
+            Triple(transactions, fixedBills, accounts)
+        }
 
-            val metadataFlow = combine(
-                dao.getBudgetPlansForMonth(month, year),
-                dao.getAllCategories(),
-                dao.getAllSubcategories()
-            ) { plans, masterCats, masterSubcats ->
-                Triple(plans, masterCats, masterSubcats)
-            }
+        val metadataFlow = combine(
+            dao.getBudgetPlansForMonth(month, year),
+            dao.getAllCategories(),
+            dao.getAllSubcategories()
+        ) { plans, masterCats, masterSubcats ->
+            Triple(plans, masterCats, masterSubcats)
+        }
 
-            combine(coreDataFlow, metadataFlow) { coreData, metaData ->
-                val (transactions, fixedBills, accounts) = coreData
-                val (plans, masterCats, masterSubcats) = metaData
+        combine(coreDataFlow, metadataFlow) { coreData, metaData ->
+            val (transactions, fixedBills, accounts) = coreData
+            val (plans, masterCats, masterSubcats) = metaData
 
-                val regularTxs = transactions.filter { it.type != TransactionType.TRANSFER }
+            val regularTxs = transactions.filter { it.type != TransactionType.TRANSFER }
 
-                val actualIncome = regularTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-                val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-                val actualAssets = regularTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
+            val actualIncome = regularTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+            val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+            val actualAssets = regularTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
 
-                val allCategoryNames = (masterCats.map { it.name to it.type } +
-                        plans.map { it.category to it.type } +
-                        fixedBills.map { it.category to it.type } +
-                        regularTxs.map { it.category to it.type }).distinct()
+            val allCategoryNames = (masterCats.map { it.name to it.type } +
+                    plans.map { it.category to it.type } +
+                    fixedBills.map { it.category to it.type } +
+                    regularTxs.map { it.category to it.type }).distinct()
 
-                val matrixList = allCategoryNames.mapNotNull { (catName, catType) ->
-                    if (catType == TransactionType.TRANSFER) return@mapNotNull null
+            val matrixList = allCategoryNames.mapNotNull { (catName, catType) ->
+                if (catType == TransactionType.TRANSFER) return@mapNotNull null
 
-                    val catTxs = regularTxs.filter { it.category == catName && it.type == catType }
-                    val actualTotal = catTxs.sumOf { it.amount }
+                val catTxs = regularTxs.filter { it.category == catName && it.type == catType }
+                val actualTotal = catTxs.sumOf { it.amount }
 
-                    val manualPlan = plans.find { it.category == catName && it.type == catType }?.plannedAmount ?: 0.0
-                    val fixedForCat = fixedBills.filter { it.category == catName && it.type == catType }.sumOf { it.amount }
-                    val effectivePlanned = if (manualPlan > 0.0) max(manualPlan, fixedForCat) else fixedForCat
+                val manualPlan = plans.find { it.category == catName && it.type == catType }?.plannedAmount ?: 0.0
+                val fixedForCat = fixedBills.filter { it.category == catName && it.type == catType }.sumOf { it.amount }
+                val effectivePlanned = if (manualPlan > 0.0) max(manualPlan, fixedForCat) else fixedForCat
 
-                    if (actualTotal == 0.0 && effectivePlanned == 0.0) return@mapNotNull null
+                if (actualTotal == 0.0 && effectivePlanned == 0.0) return@mapNotNull null
 
-                    val activeSubs = catTxs.groupBy { it.subcategory }
-                        .map { (subName, txs) -> SubcategoryPerformance(subName, txs.sumOf { it.amount }) }
-                        .filter { it.amount != 0.0 }
+                val activeSubs = catTxs.groupBy { it.subcategory }
+                    .map { (subName, txs) -> SubcategoryPerformance(subName, txs.sumOf { it.amount }) }
+                    .filter { it.amount != 0.0 }
 
-                    CategoryPerformance(
-                        category = catName,
-                        type = catType,
-                        plannedAmount = effectivePlanned,
-                        actualAmount = actualTotal,
-                        activeSubcategories = activeSubs
-                    )
-                }
-
-                val plannedIncome = matrixList.filter { it.type == TransactionType.INCOME }.sumOf { it.plannedAmount }
-                val plannedExpenses = matrixList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.plannedAmount }
-                val plannedAssets = matrixList.filter { it.type == TransactionType.ASSET }.sumOf { it.plannedAmount }
-
-                val fixedExpenseTotal = fixedBills.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-                val baseIncome = max(plannedIncome, actualIncome)
-                val commitments = fixedExpenseTotal + actualAssets
-                val rawSafeToSpend = baseIncome - commitments - actualExpenses
-                val safeToSpend = if (baseIncome > 0) rawSafeToSpend.coerceAtLeast(0.0) else 0.0
-
-                val safeToSpendPercentage = if (baseIncome > 0) {
-                    ((safeToSpend / baseIncome) * 100).toInt().coerceIn(0, 100)
-                } else 0
-
-                val isOverBudget = rawSafeToSpend < 0.0 || (plannedExpenses > 0 && actualExpenses > plannedExpenses)
-                val netSaved = (actualIncome - actualExpenses) - actualAssets
-                val totalVault = accounts.sumOf { it.currentBalance }
-                val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
-
-                val filtered = transactions.filter { tx ->
-                    val matchesQuery = filter.query.isBlank() ||
-                            tx.title.contains(filter.query, ignoreCase = true) ||
-                            tx.category.contains(filter.query, ignoreCase = true) ||
-                            tx.subcategory.contains(filter.query, ignoreCase = true)
-                    val matchesType = filter.type == null || tx.type == filter.type
-                    val matchesAccount = filter.account == "ALL" || tx.accountName == filter.account || tx.toAccountName == filter.account
-                    val matchesDate = (filter.startDate == null || tx.date >= filter.startDate) &&
-                            (filter.endDate == null || tx.date <= filter.endDate)
-
-                    matchesQuery && matchesType && matchesAccount && matchesDate
-                }
-
-                val grouped = filtered.groupBy { formatDateHeader(it.date) }
-
-                MonthlyUiState(
-                    selectedMonth = month,
-                    selectedYear = year,
-                    metrics = DashboardMetrics(
-                        plannedIncome = plannedIncome,
-                        actualIncome = actualIncome,
-                        plannedExpenses = plannedExpenses,
-                        actualExpenses = actualExpenses,
-                        plannedAssets = plannedAssets,
-                        actualAssets = actualAssets,
-                        fixedCommitmentsTotal = fixedBills.sumOf { it.amount },
-                        safeToSpend = safeToSpend,
-                        safeToSpendPercentage = safeToSpendPercentage,
-                        netSavedAfterInvest = netSaved,
-                        totalVaultBalance = totalVault,
-                        isOverBudget = isOverBudget,
-                        dailyExpensePoints = dailyPoints
-                    ),
-                    accounts = accounts,
-                    fixedBills = fixedBills,
-                    categories = matrixList,
-                    masterCategories = masterCats,
-                    masterSubcategories = masterSubcats,
-                    groupedTransactions = grouped,
-                    budgetPlans = plans
+                CategoryPerformance(
+                    category = catName,
+                    type = catType,
+                    plannedAmount = effectivePlanned,
+                    actualAmount = actualTotal,
+                    activeSubcategories = activeSubs
                 )
             }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthlyUiState())
+
+            val plannedIncome = matrixList.filter { it.type == TransactionType.INCOME }.sumOf { it.plannedAmount }
+            val plannedExpenses = matrixList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.plannedAmount }
+            val plannedAssets = matrixList.filter { it.type == TransactionType.ASSET }.sumOf { it.plannedAmount }
+
+            val fixedExpenseTotal = fixedBills.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+            
+            // Determine effective base inflow: planned, actual, or profile baseline
+            val baseIncome = when {
+                max(plannedIncome, actualIncome) > 0.0 -> max(plannedIncome, actualIncome)
+                profile.baseMonthlyIncome > 0.0 -> profile.baseMonthlyIncome
+                else -> 0.0
+            }
+
+            val commitments = fixedExpenseTotal + actualAssets
+            val variableExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE && it.linkedFixedBillId == null }.sumOf { it.amount }
+            val rawSafeToSpend = baseIncome - commitments - variableExpenses
+            val safeToSpend = if (baseIncome > 0) rawSafeToSpend.coerceAtLeast(0.0) else 0.0
+
+            val safeToSpendPercentage = if (baseIncome > 0) {
+                ((safeToSpend / baseIncome) * 100).toInt().coerceIn(0, 100)
+            } else 0
+
+            val isOverBudget = rawSafeToSpend < 0.0 || (plannedExpenses > 0 && actualExpenses > plannedExpenses)
+            val netSaved = (actualIncome - actualExpenses) - actualAssets
+            val totalVault = accounts.sumOf { it.currentBalance }
+            val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
+
+            val filtered = transactions.filter { tx ->
+                val matchesQuery = filter.query.isBlank() ||
+                        tx.title.contains(filter.query, ignoreCase = true) ||
+                        tx.category.contains(filter.query, ignoreCase = true) ||
+                        tx.subcategory.contains(filter.query, ignoreCase = true)
+                val matchesType = filter.type == null || tx.type == filter.type
+                val matchesAccount = filter.account == "ALL" || tx.accountName == filter.account || tx.toAccountName == filter.account
+                val matchesDate = (filter.startDate == null || tx.date >= filter.startDate) &&
+                        (filter.endDate == null || tx.date <= filter.endDate)
+
+                matchesQuery && matchesType && matchesAccount && matchesDate
+            }
+
+            val grouped = filtered.groupBy { formatDateHeader(it.date) }
+
+            MonthlyUiState(
+                selectedMonth = month,
+                selectedYear = year,
+                metrics = DashboardMetrics(
+                    plannedIncome = plannedIncome,
+                    actualIncome = actualIncome,
+                    plannedExpenses = plannedExpenses,
+                    actualExpenses = actualExpenses,
+                    plannedAssets = plannedAssets,
+                    actualAssets = actualAssets,
+                    fixedCommitmentsTotal = fixedBills.sumOf { it.amount },
+                    safeToSpend = safeToSpend,
+                    safeToSpendPercentage = safeToSpendPercentage,
+                    netSavedAfterInvest = netSaved,
+                    totalVaultBalance = totalVault,
+                    isOverBudget = isOverBudget,
+                    dailyExpensePoints = dailyPoints
+                ),
+                accounts = accounts,
+                fixedBills = fixedBills,
+                categories = matrixList,
+                masterCategories = masterCats,
+                masterSubcategories = masterSubcats,
+                groupedTransactions = grouped,
+                budgetPlans = plans
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthlyUiState())
 
     val yearlyUiState: StateFlow<YearlyUiState> = currentYear
         .flatMapLatest { year ->
@@ -1389,3 +1398,5 @@ class BudgetViewModel(
         }
     }
 }
+
+private data class Tuple4<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
