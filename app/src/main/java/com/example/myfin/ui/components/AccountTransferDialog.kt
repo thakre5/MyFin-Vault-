@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -22,13 +23,16 @@ fun AccountTransferDialog(
     onDismiss: () -> Unit,
     onTransfer: (from: String, to: String, amount: Double, note: String) -> Unit
 ) {
-    var fromAccount by remember { mutableStateOf(accounts.firstOrNull().orEmpty()) }
-    var toAccount by remember { mutableStateOf(accounts.getOrNull(1) ?: accounts.firstOrNull().orEmpty()) }
+    var fromAccount by remember(accounts) { mutableStateOf(accounts.firstOrNull().orEmpty()) }
+    var toAccount by remember(accounts) { mutableStateOf(accounts.getOrNull(1) ?: accounts.firstOrNull().orEmpty()) }
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
 
     var fromExpanded by remember { mutableStateOf(false) }
     var toExpanded by remember { mutableStateOf(false) }
+
+    val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
+    val isTransferValid = parsedAmount > 0.0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount != toAccount
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -126,6 +130,7 @@ fun AccountTransferDialog(
                     value = noteText,
                     onValueChange = { noteText = it },
                     label = { Text("Transfer Note (Optional)") },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
@@ -140,12 +145,12 @@ fun AccountTransferDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            val amt = amountText.toDoubleOrNull() ?: 0.0
-                            if (amt > 0.0 && fromAccount != toAccount) {
-                                onTransfer(fromAccount, toAccount, amt, noteText.trim())
+                            if (isTransferValid) {
+                                onTransfer(fromAccount, toAccount, parsedAmount, noteText.trim())
                                 onDismiss()
                             }
                         },
+                        enabled = isTransferValid,
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
                         shape = RoundedCornerShape(10.dp)
                     ) {
