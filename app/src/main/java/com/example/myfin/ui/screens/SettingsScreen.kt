@@ -260,10 +260,10 @@ fun SettingsScreen(
                                         .background(Color.White.copy(alpha = 0.22f))
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.ChevronLeft,
-                                        contentDescription = "Back / Menu",
+                                        imageVector = Icons.Default.Menu,
+                                        contentDescription = "Drawer",
                                         tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(22.dp)
                                     )
                                 }
 
@@ -783,6 +783,7 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
+                    .imePadding()
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Personal Information", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
@@ -1014,6 +1015,7 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
+                    .imePadding()
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Fortress Safety Net Target", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
@@ -1170,6 +1172,7 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
+                    .imePadding()
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Modify Master PIN", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
@@ -1262,6 +1265,7 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
+                    .imePadding()
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Daily Expense Review", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
