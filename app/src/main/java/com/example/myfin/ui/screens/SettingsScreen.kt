@@ -975,10 +975,10 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        val targetMode = if (is3VaultActive) "SIMPLE" else "3_VAULT"
+                        val targetMode = if (is3VaultActive) "SIMPLE" else "3-VAULT"
                         viewModel.updateVaultMode(targetMode)
                         activeSheet = SettingsActiveSheet.NONE
-                        Toast.makeText(context, if (targetMode == "3_VAULT") "Switched to 3-Vault Strategy" else "Switched to Simple Mode", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, if (targetMode == "3-VAULT") "Switched to 3-Vault Strategy" else "Switched to Simple Mode", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
