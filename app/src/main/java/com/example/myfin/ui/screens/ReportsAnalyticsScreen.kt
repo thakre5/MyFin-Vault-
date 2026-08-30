@@ -906,7 +906,8 @@ private fun SummaryAnalyticsTabContent(
                             breakdown = "Fixed AutoPay commitments: $userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)} | Variable spent: $userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}.",
                             advice = "Keeping Fixed AutoPay commitments under 50% guarantees ample safe-to-spend buffer for unpredicted costs."
                         )
-                    },
+                    )
+                },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -1391,45 +1392,6 @@ private fun InteractiveDualGlowWaveCanvas(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SummaryHealthIndicatorPill(
-    modifier: Modifier,
-    title: String,
-    value: String,
-    badgeText: String,
-    accentColor: Color
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = CardWhite,
-        border = BorderStroke(0.7.dp, BorderLight)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(title, fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(accentColor)
-                )
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(value, fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = TextDark)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(badgeText, fontSize = 9.sp, color = accentColor, fontWeight = FontWeight.Bold)
         }
     }
 }
