@@ -45,13 +45,16 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private class DatabaseCallback : RoomDatabase.Callback() {
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                super.onOpen(db)
+                // Enforce SQLite Foreign Key constraints
+                db.execSQL("PRAGMA foreign_keys = ON;")
+            }
+
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                // Seed the 4 baseline strategic vault accounts directly into SQLite
-                db.execSQL("INSERT OR IGNORE INTO accounts (accountName, startingBalance, accountType, sortOrder) VALUES ('Operating Account', 0.0, 'Operating', 0)")
-                db.execSQL("INSERT OR IGNORE INTO accounts (accountName, startingBalance, accountType, sortOrder) VALUES ('Commitments Account', 0.0, 'Commitments', 1)")
-                db.execSQL("INSERT OR IGNORE INTO accounts (accountName, startingBalance, accountType, sortOrder) VALUES ('Fortress Account', 0.0, 'Fortress', 2)")
-                db.execSQL("INSERT OR IGNORE INTO accounts (accountName, startingBalance, accountType, sortOrder) VALUES ('Cash Wallet', 0.0, 'Cash', 3)")
+                // Default accounts are seeded dynamically post-onboarding in BudgetViewModel
+                // to prevent raw dummy accounts from conflicting with user configuration during onboarding.
             }
         }
     }
