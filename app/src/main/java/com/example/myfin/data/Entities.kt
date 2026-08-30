@@ -8,8 +8,11 @@ import androidx.room.PrimaryKey
     tableName = "transactions",
     indices = [
         Index(value = ["month", "year"]),
+        Index(value = ["date"]),
         Index(value = ["accountName"]),
         Index(value = ["toAccountName"]),
+        Index(value = ["category"]),
+        Index(value = ["type"]),
         Index(value = ["linkedFixedBillId"])
     ]
 )
@@ -32,7 +35,9 @@ data class TransactionEntity(
 @Entity(
     tableName = "fixed_bills",
     indices = [
-        Index(value = ["month", "year"])
+        Index(value = ["month", "year"]),
+        Index(value = ["accountName"]),
+        Index(value = ["category"])
     ]
 )
 data class FixedBillEntity(
@@ -67,7 +72,13 @@ data class BudgetPlanEntity(
     val year: Int
 )
 
-@Entity(tableName = "accounts")
+@Entity(
+    tableName = "accounts",
+    indices = [
+        Index(value = ["sortOrder"]),
+        Index(value = ["accountType"])
+    ]
+)
 data class AccountEntity(
     @PrimaryKey
     val accountName: String,
