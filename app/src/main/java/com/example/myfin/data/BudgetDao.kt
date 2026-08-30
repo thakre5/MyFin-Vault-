@@ -112,6 +112,23 @@ interface BudgetDao {
     """)
     fun getAccountBalances(): Flow<List<AccountBalanceResult>>
 
+    @Query("""
+        SELECT COALESCE(SUM(currentBalance), 0.0) 
+        FROM (
+            SELECT 
+                (a.startingBalance 
+                 + COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.accountName = a.accountName AND t.type = 'INCOME') OR (t.toAccountName = a.accountName AND t.type = 'TRANSFER')), 0.0)
+                 - COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.accountName = a.accountName AND (t.type = 'EXPENSE' OR t.type = 'ASSET' OR t.type = 'TRANSFER'))), 0.0)
+                ) AS currentBalance
+            FROM accounts a
+            WHERE a.accountType = 'Fortress' AND a.accountName NOT LIKE '%(FD)%' AND a.accountName NOT LIKE '%FD%'
+        )
+    """)
+    fun getLiquidFortressBalance(): Flow<Double>
+
+    @Query("SELECT * FROM accounts WHERE accountType = 'Fortress' AND (accountName LIKE '%(FD)%' OR accountName LIKE '%FD%') ORDER BY sortOrder ASC")
+    fun getFixedDepositAccounts(): Flow<List<AccountEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAccount(account: AccountEntity)
 
