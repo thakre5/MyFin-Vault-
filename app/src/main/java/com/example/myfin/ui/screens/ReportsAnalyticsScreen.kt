@@ -40,6 +40,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,6 +80,14 @@ data class DailySpendData(
     val totalAmount: Double
 )
 
+data class ChartMetricInfo(
+    val title: String,
+    val subtitle: String,
+    val formula: String,
+    val breakdown: String,
+    val advice: String
+)
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsAnalyticsScreen(
@@ -104,6 +113,7 @@ fun ReportsAnalyticsScreen(
     var selectedVelocityRange by remember { mutableStateOf(VelocityRange.M) }
     var showTimeRangeMenu by remember { mutableStateOf(false) }
     var showStrategyInfoSheet by remember { mutableStateOf(false) }
+    var activeChartMetricInfo by remember { mutableStateOf<ChartMetricInfo?>(null) }
     var isDiscreetMode by remember { mutableStateOf(false) }
 
     val csvExportLauncher = rememberLauncherForActivityResult(
@@ -199,44 +209,73 @@ fun ReportsAnalyticsScreen(
     }
     val netSurplus = totalIncome - totalExpenses - totalAssets
 
-    val weeklySpendBuckets = remember(allTransactions) {
-        val days = listOf("M", "T", "W", "T", "F", "S", "S")
+    val dynamicSpendBuckets = remember(filteredTransactions, selectedTimeRange) {
         val calendar = Calendar.getInstance()
-        val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
-        val offset = (dayOfWeek + 5) % 7
-        calendar.add(Calendar.DAY_OF_MONTH, -offset)
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-        val startOfWeek = calendar.timeInMillis
-        calendar.add(Calendar.DAY_OF_MONTH, 7)
-        val endOfWeek = calendar.timeInMillis
+        when (selectedTimeRange) {
+            TimeRangeFilter.THIS_WEEK -> {
+                val days = listOf("M", "T", "W", "T", "F", "S", "S")
+                val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+                val offset = (dayOfWeek + 5) % 7
+                calendar.add(Calendar.DAY_OF_MONTH, -offset)
+                calendar.set(Calendar.HOUR_OF_DAY, 0)
+                calendar.set(Calendar.MINUTE, 0)
+                calendar.set(Calendar.SECOND, 0)
+                calendar.set(Calendar.MILLISECOND, 0)
+                val startOfWeek = calendar.timeInMillis
+                calendar.add(Calendar.DAY_OF_MONTH, 7)
+                val endOfWeek = calendar.timeInMillis
 
-        val thisWeekTxs = allTransactions.filter { it.date in startOfWeek until endOfWeek && it.type == TransactionType.EXPENSE }
+                val weekTxs = filteredTransactions.filter { it.date in startOfWeek until endOfWeek && it.type == TransactionType.EXPENSE }
+                val essentialSums = DoubleArray(7) { 0.0 }
+                val discretionarySums = DoubleArray(7) { 0.0 }
+                val dayCal = Calendar.getInstance()
 
-        val essentialSums = DoubleArray(7) { 0.0 }
-        val discretionarySums = DoubleArray(7) { 0.0 }
+                for (tx in weekTxs) {
+                    dayCal.timeInMillis = tx.date
+                    val txDay = dayCal.get(Calendar.DAY_OF_WEEK)
+                    val dayIndex = (txDay + 5) % 7
+                    if (tx.linkedFixedBillId != null) {
+                        essentialSums[dayIndex] += tx.amount
+                    } else {
+                        discretionarySums[dayIndex] += tx.amount
+                    }
+                }
 
-        val dayCal = Calendar.getInstance()
-        for (tx in thisWeekTxs) {
-            dayCal.timeInMillis = tx.date
-            val txDay = dayCal.get(Calendar.DAY_OF_WEEK)
-            val dayIndex = (txDay + 5) % 7
-            if (tx.linkedFixedBillId != null) {
-                essentialSums[dayIndex] += tx.amount
-            } else {
-                discretionarySums[dayIndex] += tx.amount
+                days.mapIndexed { index, label ->
+                    DailySpendData(
+                        dayLabel = label,
+                        essentialAmount = essentialSums[index],
+                        discretionaryAmount = discretionarySums[index],
+                        totalAmount = essentialSums[index] + discretionarySums[index]
+                    )
+                }
             }
-        }
+            TimeRangeFilter.THIS_MONTH, TimeRangeFilter.LAST_MONTH -> {
+                val weeks = listOf("W1", "W2", "W3", "W4")
+                val essentialSums = DoubleArray(4) { 0.0 }
+                val discretionarySums = DoubleArray(4) { 0.0 }
+                val dayCal = Calendar.getInstance()
 
-        days.mapIndexed { index, label ->
-            DailySpendData(
-                dayLabel = label,
-                essentialAmount = essentialSums[index],
-                discretionaryAmount = discretionarySums[index],
-                totalAmount = essentialSums[index] + discretionarySums[index]
-            )
+                for (tx in filteredTransactions.filter { it.type == TransactionType.EXPENSE }) {
+                    dayCal.timeInMillis = tx.date
+                    val day = dayCal.get(Calendar.DAY_OF_MONTH)
+                    val weekIdx = ((day - 1) / 7).coerceIn(0, 3)
+                    if (tx.linkedFixedBillId != null) {
+                        essentialSums[weekIdx] += tx.amount
+                    } else {
+                        discretionarySums[weekIdx] += tx.amount
+                    }
+                }
+
+                weeks.mapIndexed { index, label ->
+                    DailySpendData(
+                        dayLabel = label,
+                        essentialAmount = essentialSums[index],
+                        discretionaryAmount = discretionarySums[index],
+                        totalAmount = essentialSums[index] + discretionarySums[index]
+                    )
+                }
+            }
         }
     }
 
@@ -421,9 +460,10 @@ fun ReportsAnalyticsScreen(
                             onSelectTimeRange = { selectedTimeRange = it },
                             plannedBudget = uiState.metrics.plannedExpenses,
                             safeToSpend = uiState.metrics.safeToSpend,
-                            weeklySpendData = weeklySpendBuckets,
+                            spendData = dynamicSpendBuckets,
                             allTransactions = allTransactions,
-                            isDiscreet = isDiscreetMode
+                            isDiscreet = isDiscreetMode,
+                            onOpenMetricInfo = { activeChartMetricInfo = it }
                         )
                     }
                     1 -> {
@@ -433,7 +473,8 @@ fun ReportsAnalyticsScreen(
                             totalAssets = totalAssets,
                             transactions = filteredTransactions,
                             allTransactions = allTransactions,
-                            isDiscreet = isDiscreetMode
+                            isDiscreet = isDiscreetMode,
+                            onOpenMetricInfo = { activeChartMetricInfo = it }
                         )
                     }
                     2 -> {
@@ -445,7 +486,8 @@ fun ReportsAnalyticsScreen(
                             totalExpenses = totalExpenses,
                             accounts = uiState.accounts,
                             transactions = allTransactions,
-                            isDiscreet = isDiscreetMode
+                            isDiscreet = isDiscreetMode,
+                            onOpenMetricInfo = { activeChartMetricInfo = it }
                         )
                     }
                 }
@@ -625,6 +667,69 @@ fun ReportsAnalyticsScreen(
                 }
             }
         }
+
+        // Dedicated Bottom Information Sheet for Graph Titles
+        activeChartMetricInfo?.let { info ->
+            ModalBottomSheet(
+                onDismissRequest = { activeChartMetricInfo = null },
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp)
+                        .navigationBarsPadding()
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(info.title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                            Text(info.subtitle, fontSize = 12.sp, color = TextMuted)
+                        }
+                        IconButton(onClick = { activeChartMetricInfo = null }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text("Mathematical Formula", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = AccentPurple.copy(alpha = 0.08f),
+                        border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.25f))
+                    ) {
+                        Text(
+                            text = info.formula,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = AccentPurple,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text("Current Contribution", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(info.breakdown, fontSize = 12.5.sp, color = TextDark, lineHeight = 17.sp)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text("Optimization Insight", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(info.advice, fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
+                }
+            }
+        }
     }
 }
 
@@ -673,16 +778,17 @@ private fun SummaryAnalyticsTabContent(
     onSelectTimeRange: (TimeRangeFilter) -> Unit,
     plannedBudget: Double,
     safeToSpend: Double,
-    weeklySpendData: List<DailySpendData>,
+    spendData: List<DailySpendData>,
     allTransactions: List<TransactionEntity>,
-    isDiscreet: Boolean
+    isDiscreet: Boolean,
+    onOpenMetricInfo: (ChartMetricInfo) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     var showLocalVelocityMenu by remember { mutableStateOf(false) }
 
     val totalOutflow = fixedOutflow + variableOutflow
-    val totalWeeklyExpenses = weeklySpendData.sumOf { it.totalAmount }
-    val dailyBurn = totalWeeklyExpenses / 7.0
+    val totalPeriodExpenses = spendData.sumOf { it.totalAmount }
+    val dailyBurn = if (selectedTimeRange == TimeRangeFilter.THIS_WEEK) (totalPeriodExpenses / 7.0) else (totalPeriodExpenses / 30.0)
     val totalBudget = if (plannedBudget > 0) plannedBudget else (totalIncome.takeIf { it > 0 } ?: (totalOutflow * 1.25).coerceAtLeast(1.0))
     val retentionRate = if (totalIncome > 0) ((netSurplus / totalIncome) * 100).coerceIn(0.0, 100.0) else 0.0
     val commitmentLoad = if (totalBudget > 0) ((fixedOutflow / totalBudget) * 100).coerceIn(0.0, 100.0) else 0.0
@@ -698,7 +804,18 @@ private fun SummaryAnalyticsTabContent(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(3.dp, RoundedCornerShape(24.dp)),
+                .shadow(3.dp, RoundedCornerShape(24.dp))
+                .clickable {
+                    onOpenMetricInfo(
+                        ChartMetricInfo(
+                            title = "Capital Retention",
+                            subtitle = "Net Saved vs Inflow Rate",
+                            formula = "Retention_% = ((I_actual - E_actual - A_actual) / I_actual) * 100",
+                            breakdown = "Current realized Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome)} | Net Retained: $userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} (${String.format(Locale.US, "%.1f", retentionRate)}%).",
+                            advice = "Higher retention builds your emergency buffer and compounds investment capacity faster."
+                        )
+                    )
+                },
             shape = RoundedCornerShape(24.dp),
             color = CardWhite,
             border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
@@ -719,13 +836,17 @@ private fun SummaryAnalyticsTabContent(
                         letterSpacing = (-0.6).sp
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "CAPITAL RETENTION",
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextMuted,
-                        letterSpacing = 0.6.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "CAPITAL RETENTION",
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Black,
+                            color = TextMuted,
+                            letterSpacing = 0.6.sp
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(11.dp))
+                    }
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = if (isDiscreet) "•••• retained" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} retained",
@@ -743,7 +864,7 @@ private fun SummaryAnalyticsTabContent(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     InteractiveDualGlowWaveCanvas(
-                        weeklySpendData = weeklySpendData,
+                        spendData = spendData,
                         currencySymbol = userProfileCurrency,
                         isDiscreet = isDiscreet,
                         modifier = Modifier
@@ -757,9 +878,9 @@ private fun SummaryAnalyticsTabContent(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        listOf("01", "02", "03", "04", "05", "06").forEach { step ->
+                        spendData.forEach { step ->
                             Text(
-                                text = step,
+                                text = step.dayLabel,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextMuted.copy(alpha = 0.7f)
@@ -772,17 +893,41 @@ private fun SummaryAnalyticsTabContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = "Allocation Breakdown",
-            fontWeight = FontWeight.Bold,
-            fontSize = 17.sp,
-            color = TextDark
-        )
-        Text(
-            text = "Commitments load vs. active safe-to-spend reserve",
-            fontSize = 11.5.sp,
-            color = TextMuted
-        )
+        // Allocation Breakdown Section
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onOpenMetricInfo(
+                        ChartMetricInfo(
+                            title = "Allocation Breakdown",
+                            subtitle = "Fixed Obligations vs Discretionary Pacing",
+                            formula = "Commitment_Load_% = (C_fixed / Planned_Budget) * 100",
+                            breakdown = "Fixed AutoPay commitments: $userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)} | Variable spent: $userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}.",
+                            advice = "Keeping Fixed AutoPay commitments under 50% guarantees ample safe-to-spend buffer for unpredicted costs."
+                        )
+                    },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Allocation Breakdown",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+                }
+                Text(
+                    text = "Commitments load vs. active safe-to-spend reserve",
+                    fontSize = 11.5.sp,
+                    color = TextMuted
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -889,13 +1034,29 @@ private fun SummaryAnalyticsTabContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = "Outflow Velocity",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
-                    color = TextDark
-                )
+            Column(
+                modifier = Modifier.clickable {
+                    onOpenMetricInfo(
+                        ChartMetricInfo(
+                            title = "Outflow Velocity",
+                            subtitle = "Daily & Weekly Burn Rates",
+                            formula = "Daily_Burn = (Σ Period_Outflow) / Total_Days",
+                            breakdown = "Active cycle burn: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}/day across $selectedTimeRange.",
+                            advice = "Track spike days to isolate discretionary surges before they exceed planned thresholds."
+                        )
+                    )
+                }
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Outflow Velocity",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+                }
                 Text(
                     text = "Daily burn velocity distribution",
                     fontSize = 11.5.sp,
@@ -948,7 +1109,11 @@ private fun SummaryAnalyticsTabContent(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        StackedOutflowBarsCanvas(weeklySpendData = weeklySpendData)
+        StackedOutflowBarsCanvas(
+            spendData = spendData,
+            currencySymbol = userProfileCurrency,
+            isDiscreet = isDiscreet
+        )
 
         Spacer(modifier = Modifier.height(26.dp))
 
@@ -1004,8 +1169,10 @@ private fun SummaryAnalyticsTabContent(
         Spacer(modifier = Modifier.height(10.dp))
 
         DualTrajectoryLineCanvas(
-            weeklySpendData = weeklySpendData,
-            plannedBudget = plannedBudget
+            spendData = spendData,
+            plannedBudget = plannedBudget,
+            currencySymbol = userProfileCurrency,
+            isDiscreet = isDiscreet
         )
 
         Spacer(modifier = Modifier.height(26.dp))
@@ -1049,39 +1216,51 @@ private fun SummaryAnalyticsTabContent(
 
 @Composable
 private fun InteractiveDualGlowWaveCanvas(
-    weeklySpendData: List<DailySpendData>,
+    spendData: List<DailySpendData>,
     currencySymbol: String,
     isDiscreet: Boolean,
     modifier: Modifier = Modifier
 ) {
-    var touchX by remember { mutableStateOf<Float?>(null) }
+    var touchIndex by remember { mutableStateOf<Int?>(null) }
     val haptic = LocalHapticFeedback.current
 
     Box(
-        modifier = modifier.pointerInput(Unit) {
-            detectDragGestures(
-                onDragStart = { offset ->
-                    touchX = offset.x
+        modifier = modifier
+            .pointerInput(spendData) {
+                detectTapGestures { offset ->
+                    val segmentW = size.width / spendData.size.coerceAtLeast(1)
+                    val idx = (offset.x / segmentW).toInt().coerceIn(0, spendData.lastIndex)
+                    touchIndex = if (touchIndex == idx) null else idx
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                },
-                onDrag = { change, _ ->
-                    touchX = change.position.x
-                },
-                onDragEnd = { touchX = null },
-                onDragCancel = { touchX = null }
-            )
-        }
+                }
+            }
+            .pointerInput(spendData) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val segmentW = size.width / spendData.size.coerceAtLeast(1)
+                        touchIndex = (offset.x / segmentW).toInt().coerceIn(0, spendData.lastIndex)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    },
+                    onDrag = { change, _ ->
+                        val segmentW = size.width / spendData.size.coerceAtLeast(1)
+                        touchIndex = (change.position.x / segmentW).toInt().coerceIn(0, spendData.lastIndex)
+                    },
+                    onDragEnd = { touchIndex = null },
+                    onDragCancel = { touchIndex = null }
+                )
+            }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
 
-            val maxSpend = weeklySpendData.maxOfOrNull { it.totalAmount }?.coerceAtLeast(1.0) ?: 1.0
-            val hasData = weeklySpendData.any { it.totalAmount > 0 }
+            val maxSpend = spendData.maxOfOrNull { it.totalAmount }?.coerceAtLeast(1.0) ?: 1.0
+            val hasData = spendData.any { it.totalAmount > 0 }
+            val count = spendData.size.coerceAtLeast(2)
 
             val ptsWave1 = if (hasData) {
-                weeklySpendData.take(6).mapIndexed { idx, d ->
-                    val x = (idx.toFloat() / 5f) * w
+                spendData.mapIndexed { idx, d ->
+                    val x = (idx.toFloat() / (count - 1)) * w
                     val normY = 1f - (d.totalAmount / maxSpend).toFloat().coerceIn(0.15f, 0.85f)
                     val y = (h * 0.15f) + (normY * h * 0.70f)
                     Offset(x, y)
@@ -1098,8 +1277,8 @@ private fun InteractiveDualGlowWaveCanvas(
             }
 
             val ptsWave2 = if (hasData) {
-                weeklySpendData.take(6).mapIndexed { idx, d ->
-                    val x = (idx.toFloat() / 5f) * w
+                spendData.mapIndexed { idx, d ->
+                    val x = (idx.toFloat() / (count - 1)) * w
                     val essNorm = 1f - (d.essentialAmount / maxSpend).toFloat().coerceIn(0.10f, 0.90f)
                     val y = (h * 0.20f) + (essNorm * h * 0.65f)
                     Offset(x, y)
@@ -1176,15 +1355,41 @@ private fun InteractiveDualGlowWaveCanvas(
             )
 
             // Touch Inspection Marker
-            touchX?.let { tx ->
-                val clampedX = tx.coerceIn(0f, w)
-                drawLine(
-                    color = AccentPurple.copy(alpha = 0.6f),
-                    start = Offset(clampedX, 0f),
-                    end = Offset(clampedX, h),
-                    strokeWidth = 1.dp.toPx()
-                )
-                drawCircle(color = AccentPurple, radius = 3.dp.toPx(), center = Offset(clampedX, h * 0.5f))
+            touchIndex?.let { idx ->
+                val pt = ptsWave1.getOrNull(idx)
+                if (pt != null) {
+                    drawLine(
+                        color = AccentPurple.copy(alpha = 0.6f),
+                        start = Offset(pt.x, 0f),
+                        end = Offset(pt.x, h),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                    drawCircle(color = AccentPurple, radius = 3.5.dp.toPx(), center = pt)
+                }
+            }
+        }
+
+        // Live Tooltip Overlay
+        touchIndex?.let { idx ->
+            val data = spendData.getOrNull(idx)
+            if (data != null) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = CardWhite,
+                    border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.3f)),
+                    shadowElevation = 4.dp,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 2.dp)
+                ) {
+                    Text(
+                        text = if (isDiscreet) "${data.dayLabel}: ••••" else "${data.dayLabel}: $currencySymbol${String.format(Locale.US, "%,.0f", data.totalAmount)}",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
         }
     }
@@ -1236,7 +1441,8 @@ private fun CategoriesAnalyticsTabContent(
     totalAssets: Double,
     transactions: List<TransactionEntity>,
     allTransactions: List<TransactionEntity>,
-    isDiscreet: Boolean
+    isDiscreet: Boolean,
+    onOpenMetricInfo: (ChartMetricInfo) -> Unit
 ) {
     val categoryExpenses = remember(transactions) {
         transactions
@@ -1293,17 +1499,41 @@ private fun CategoriesAnalyticsTabContent(
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
-        Text(
-            text = "Spending Matrix",
-            fontWeight = FontWeight.Bold,
-            fontSize = 17.sp,
-            color = TextDark
-        )
-        Text(
-            text = "Target Benchmark vs. Actual Outflow",
-            fontSize = 11.5.sp,
-            color = TextMuted
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onOpenMetricInfo(
+                        ChartMetricInfo(
+                            title = "Spending Matrix Radar",
+                            subtitle = "Multi-Axis Category Allocation",
+                            formula = "Axis_Ratio = (Category_Total / Max_Category_Sum) * 100",
+                            breakdown = "Evaluates expense density spread across top categories in the active timeframe.",
+                            advice = "A balanced hexagonal shape prevents over-reliance or unmanaged spikes in any single category."
+                        )
+                    )
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Spending Matrix",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+                }
+                Text(
+                    text = "Target Benchmark vs. Actual Outflow",
+                    fontSize = 11.5.sp,
+                    color = TextMuted
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -1320,17 +1550,42 @@ private fun CategoriesAnalyticsTabContent(
 
         Spacer(modifier = Modifier.height(26.dp))
 
-        Text(
-            text = "Cashflow Stream Split",
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            color = TextDark
-        )
-        Text(
-            text = "Needs (50%) • Wants (30%) • SIP Assets (20%)",
-            fontSize = 11.sp,
-            color = TextMuted
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onOpenMetricInfo(
+                        ChartMetricInfo(
+                            title = "50 / 30 / 20 Cashflow Split",
+                            subtitle = "Macro Budget Health Model",
+                            formula = "Needs (50%) + Wants (30%) + SIP Wealth (20%)",
+                            breakdown = "Needs: $userProfileCurrency${String.format(Locale.US, "%,.0f", needsSum)} | Wants: $userProfileCurrency${String.format(Locale.US, "%,.0f", wantsSum)} | Assets: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalAssets)}.",
+                            advice = "Aim to contain essential survival costs within 50% to maximize monthly wealth compounding."
+                        )
+                    )
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Cashflow Stream Split",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+                }
+                Text(
+                    text = "Needs (50%) • Wants (30%) • SIP Assets (20%)",
+                    fontSize = 11.sp,
+                    color = TextMuted
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(14.dp))
         SymmetricalFunnelRibbonCanvas(
             needsAmount = needsSum,
@@ -1486,7 +1741,8 @@ private fun WealthAnalyticsTabContent(
     totalExpenses: Double,
     accounts: List<AccountBalanceResult>,
     transactions: List<TransactionEntity>,
-    isDiscreet: Boolean
+    isDiscreet: Boolean,
+    onOpenMetricInfo: (ChartMetricInfo) -> Unit
 ) {
     val totalLiquid = remember(accounts) { accounts.sumOf { it.currentBalance } }
     val currentMonthExpenses = remember(transactions) {
@@ -1513,17 +1769,33 @@ private fun WealthAnalyticsTabContent(
         Spacer(modifier = Modifier.height(6.dp))
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onOpenMetricInfo(
+                        ChartMetricInfo(
+                            title = "Net Capital Trajectory",
+                            subtitle = "Liquid Reserves vs. Wealth Assets",
+                            formula = "Net_Worth = Total_Liquid_Vaults + Total_SIP_Assets",
+                            breakdown = "Liquid Vaults: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)} | Invested Assets: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalAssets)}.",
+                            advice = "Visualizes your liquid defensive buffer alongside appreciating capital."
+                        )
+                    )
+                },
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(
-                    text = "Net Capital Trajectory",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
-                    color = TextDark
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Net Capital Trajectory",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+                }
                 Text(
                     text = "Liquid Reserves + SIP Assets Accumulation",
                     fontSize = 11.5.sp,
@@ -1585,12 +1857,37 @@ private fun WealthAnalyticsTabContent(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        Text(
-            text = "Emergency Buffer Runway",
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            color = TextDark
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onOpenMetricInfo(
+                        ChartMetricInfo(
+                            title = "Emergency Buffer Runway",
+                            subtitle = "Financial Survival Duration",
+                            formula = "Runway_Months = Liquid_Vaults / max(1.0, Monthly_Burn_Rate)",
+                            breakdown = "Liquid Reserves: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)} | Monthly Burn: $userProfileCurrency${String.format(Locale.US, "%,.0f", monthlyBurnRate)}.",
+                            advice = "Maintaining a 6-month buffer covers unexpected emergencies without forcing liquidations."
+                        )
+                    )
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Emergency Buffer Runway",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(10.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1732,50 +2029,94 @@ private fun ConcentricRingsDonutCanvas(
 
 @Composable
 private fun StackedOutflowBarsCanvas(
-    weeklySpendData: List<DailySpendData>
+    spendData: List<DailySpendData>,
+    currencySymbol: String,
+    isDiscreet: Boolean
 ) {
+    var selectedBarIndex by remember { mutableStateOf<Int?>(null) }
+    val haptic = LocalHapticFeedback.current
+
     Column(modifier = Modifier.fillMaxWidth()) {
-        Canvas(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(130.dp)
+                .pointerInput(spendData) {
+                    detectTapGestures { offset ->
+                        val count = spendData.size
+                        val barWidth = 14.dp.toPx()
+                        val spacing = (size.width - (count * barWidth)) / (count - 1).coerceAtLeast(1)
+                        val idx = (offset.x / (barWidth + spacing)).toInt().coerceIn(0, spendData.lastIndex)
+                        selectedBarIndex = if (selectedBarIndex == idx) null else idx
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                }
         ) {
-            val count = weeklySpendData.size
-            val availableWidth = size.width
-            val barWidth = 14.dp.toPx()
-            val totalBarsWidth = count * barWidth
-            val spacing = (availableWidth - totalBarsWidth) / (count - 1).coerceAtLeast(1)
-            val cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx())
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val count = spendData.size
+                val availableWidth = size.width
+                val barWidth = 14.dp.toPx()
+                val totalBarsWidth = count * barWidth
+                val spacing = (availableWidth - totalBarsWidth) / (count - 1).coerceAtLeast(1)
+                val cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx())
 
-            val maxSpend = weeklySpendData.maxOfOrNull { it.totalAmount }?.coerceAtLeast(1.0) ?: 1.0
+                val maxSpend = spendData.maxOfOrNull { it.totalAmount }?.coerceAtLeast(1.0) ?: 1.0
 
-            for (i in 0 until count) {
-                val data = weeklySpendData[i]
-                val x = i * (barWidth + spacing)
+                for (i in 0 until count) {
+                    val data = spendData[i]
+                    val x = i * (barWidth + spacing)
 
-                val heightRatio = if (data.totalAmount > 0) {
-                    (data.totalAmount / maxSpend).toFloat().coerceIn(0.12f, 0.95f)
-                } else 0.06f
+                    val heightRatio = if (data.totalAmount > 0) {
+                        (data.totalAmount / maxSpend).toFloat().coerceIn(0.12f, 0.95f)
+                    } else 0.06f
 
-                val totalH = size.height * heightRatio
-                val essentialRatio = if (data.totalAmount > 0) (data.essentialAmount / data.totalAmount).toFloat() else 0.5f
-                val redH = totalH * essentialRatio
-                val barTop = size.height - totalH
+                    val totalH = size.height * heightRatio
+                    val essentialRatio = if (data.totalAmount > 0) (data.essentialAmount / data.totalAmount).toFloat() else 0.5f
+                    val redH = totalH * essentialRatio
+                    val barTop = size.height - totalH
 
-                drawRoundRect(
-                    color = if (data.totalAmount > 0) AccentPurple else BorderLight.copy(alpha = 0.4f),
-                    topLeft = Offset(x, barTop),
-                    size = Size(barWidth, totalH),
-                    cornerRadius = cornerRadius
-                )
+                    val isSelected = selectedBarIndex == i
 
-                if (redH > 0f && data.totalAmount > 0) {
                     drawRoundRect(
-                        color = SoftRed,
-                        topLeft = Offset(x, size.height - redH),
-                        size = Size(barWidth, redH),
+                        color = if (data.totalAmount > 0) {
+                            if (isSelected) AccentPurple.copy(alpha = 0.8f) else AccentPurple
+                        } else BorderLight.copy(alpha = 0.4f),
+                        topLeft = Offset(x, barTop),
+                        size = Size(barWidth, totalH),
                         cornerRadius = cornerRadius
                     )
+
+                    if (redH > 0f && data.totalAmount > 0) {
+                        drawRoundRect(
+                            color = SoftRed,
+                            topLeft = Offset(x, size.height - redH),
+                            size = Size(barWidth, redH),
+                            cornerRadius = cornerRadius
+                        )
+                    }
+                }
+            }
+
+            selectedBarIndex?.let { idx ->
+                val data = spendData.getOrNull(idx)
+                if (data != null) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.6.dp, BorderLight),
+                        shadowElevation = 3.dp,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 2.dp)
+                    ) {
+                        Text(
+                            text = if (isDiscreet) "${data.dayLabel}: ••••" else "${data.dayLabel}: $currencySymbol${String.format(Locale.US, "%,.0f", data.totalAmount)}",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
         }
@@ -1786,7 +2127,7 @@ private fun StackedOutflowBarsCanvas(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            weeklySpendData.forEach { data ->
+            spendData.forEach { data ->
                 Box(
                     modifier = Modifier.width(14.dp),
                     contentAlignment = Alignment.Center
@@ -1846,11 +2187,15 @@ private fun MicroFrequencyStripCanvas(transactions: List<TransactionEntity>) {
 
 @Composable
 private fun DualTrajectoryLineCanvas(
-    weeklySpendData: List<DailySpendData>,
-    plannedBudget: Double
+    spendData: List<DailySpendData>,
+    plannedBudget: Double,
+    currencySymbol: String,
+    isDiscreet: Boolean
 ) {
-    val days = weeklySpendData.map { it.dayLabel }
+    val days = spendData.map { it.dayLabel }
     val maxDailyBudget = plannedBudget.coerceAtLeast(100.0)
+    var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    val haptic = LocalHapticFeedback.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -1875,83 +2220,114 @@ private fun DualTrajectoryLineCanvas(
                 }
             }
 
-            Canvas(
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .height(110.dp)
+                    .pointerInput(spendData) {
+                        detectTapGestures { offset ->
+                            val count = spendData.size.coerceAtLeast(2)
+                            val idx = ((offset.x / size.width) * (count - 1)).toInt().coerceIn(0, spendData.lastIndex)
+                            selectedIndex = if (selectedIndex == idx) null else idx
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                    }
             ) {
-                val w = size.width
-                val h = size.height
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
 
-                for (step in 1..3) {
-                    val yLine = h * (step / 4f)
-                    drawLine(
-                        color = BorderLight.copy(alpha = 0.5f),
-                        start = Offset(0f, yLine),
-                        end = Offset(w, yLine),
-                        strokeWidth = 0.8.dp.toPx()
+                    for (step in 1..3) {
+                        val yLine = h * (step / 4f)
+                        drawLine(
+                            color = BorderLight.copy(alpha = 0.5f),
+                            start = Offset(0f, yLine),
+                            end = Offset(w, yLine),
+                            strokeWidth = 0.8.dp.toPx()
+                        )
+                    }
+
+                    val count = spendData.size.coerceAtLeast(2)
+                    val targetPoints = (0 until count).map { i ->
+                        val x = (i.toFloat() / (count - 1).coerceAtLeast(1)) * w
+                        val targetProgress = (i + 1).toFloat() / count
+                        val y = h * (1f - (targetProgress * 0.7f).coerceIn(0.15f, 0.85f))
+                        Offset(x, y)
+                    }
+
+                    val targetPath = Path().apply {
+                        moveTo(targetPoints[0].x, targetPoints[0].y)
+                        for (i in 0 until targetPoints.size - 1) {
+                            val p0 = targetPoints[i]
+                            val p1 = targetPoints[i + 1]
+                            val cx = (p0.x + p1.x) / 2
+                            cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                        }
+                    }
+
+                    drawPath(
+                        path = targetPath,
+                        color = SoftTeal,
+                        style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
                     )
-                }
+                    val targetCenter = targetPoints[count / 2]
+                    drawCircle(color = SoftTeal, radius = 3.5.dp.toPx(), center = targetCenter)
 
-                val count = weeklySpendData.size
-                val targetPoints = (0 until count).map { i ->
-                    val x = (i.toFloat() / (count - 1).coerceAtLeast(1)) * w
-                    val targetProgress = (i + 1).toFloat() / count
-                    val y = h * (1f - (targetProgress * 0.7f).coerceIn(0.15f, 0.85f))
-                    Offset(x, y)
-                }
+                    var runningCumulative = 0.0
+                    val actualPoints = (0 until count).map { i ->
+                        runningCumulative += spendData.getOrNull(i)?.totalAmount ?: 0.0
+                        val x = (i.toFloat() / (count - 1).coerceAtLeast(1)) * w
+                        val spendRatio = (runningCumulative / maxDailyBudget).toFloat().coerceIn(0f, 1f)
+                        val y = h * (1f - (spendRatio * 0.80f + 0.10f))
+                        Offset(x, y)
+                    }
 
-                val targetPath = Path().apply {
-                    moveTo(targetPoints[0].x, targetPoints[0].y)
-                    for (i in 0 until targetPoints.size - 1) {
-                        val p0 = targetPoints[i]
-                        val p1 = targetPoints[i + 1]
-                        val cx = (p0.x + p1.x) / 2
-                        cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                    val actualPath = Path().apply {
+                        moveTo(actualPoints[0].x, actualPoints[0].y)
+                        for (i in 0 until actualPoints.size - 1) {
+                            val p0 = actualPoints[i]
+                            val p1 = actualPoints[i + 1]
+                            val cx = (p0.x + p1.x) / 2
+                            cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                        }
+                    }
+
+                    drawPath(
+                        path = actualPath,
+                        color = AccentPurple,
+                        style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+                    )
+
+                    if (actualPoints.size >= 4) {
+                        val dot1 = actualPoints[1]
+                        drawCircle(color = CardWhite, radius = 4.dp.toPx(), center = dot1)
+                        drawCircle(color = AccentPurple, radius = 3.dp.toPx(), center = dot1)
+
+                        val dot2 = actualPoints[actualPoints.size - 2]
+                        drawCircle(color = CardWhite, radius = 4.dp.toPx(), center = dot2)
+                        drawCircle(color = AccentPurple, radius = 3.dp.toPx(), center = dot2)
                     }
                 }
 
-                drawPath(
-                    path = targetPath,
-                    color = SoftTeal,
-                    style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
-                )
-                val targetCenter = targetPoints[count / 2]
-                drawCircle(color = SoftTeal, radius = 3.5.dp.toPx(), center = targetCenter)
-
-                var runningCumulative = 0.0
-                val actualPoints = (0 until count).map { i ->
-                    runningCumulative += weeklySpendData[i].totalAmount
-                    val x = (i.toFloat() / (count - 1).coerceAtLeast(1)) * w
-                    val spendRatio = (runningCumulative / maxDailyBudget).toFloat().coerceIn(0f, 1f)
-                    val y = h * (1f - (spendRatio * 0.80f + 0.10f))
-                    Offset(x, y)
-                }
-
-                val actualPath = Path().apply {
-                    moveTo(actualPoints[0].x, actualPoints[0].y)
-                    for (i in 0 until actualPoints.size - 1) {
-                        val p0 = actualPoints[i]
-                        val p1 = actualPoints[i + 1]
-                        val cx = (p0.x + p1.x) / 2
-                        cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                selectedIndex?.let { idx ->
+                    val data = spendData.getOrNull(idx)
+                    if (data != null) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = CardWhite,
+                            border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.3f)),
+                            shadowElevation = 3.dp,
+                            modifier = Modifier.align(Alignment.TopCenter)
+                        ) {
+                            Text(
+                                text = if (isDiscreet) "${data.dayLabel}: ••••" else "${data.dayLabel}: $currencySymbol${String.format(Locale.US, "%,.0f", data.totalAmount)}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
-                }
-
-                drawPath(
-                    path = actualPath,
-                    color = AccentPurple,
-                    style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
-                )
-
-                if (actualPoints.size >= 4) {
-                    val dot1 = actualPoints[1]
-                    drawCircle(color = CardWhite, radius = 4.dp.toPx(), center = dot1)
-                    drawCircle(color = AccentPurple, radius = 3.dp.toPx(), center = dot1)
-
-                    val dot2 = actualPoints[actualPoints.size - 2]
-                    drawCircle(color = CardWhite, radius = 4.dp.toPx(), center = dot2)
-                    drawCircle(color = AccentPurple, radius = 3.dp.toPx(), center = dot2)
                 }
             }
         }
