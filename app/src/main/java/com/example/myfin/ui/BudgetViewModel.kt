@@ -588,7 +588,7 @@ class BudgetViewModel(
             dao.clearAllSubcategories()
             seedFullExcelTaxonomyIfEmpty()
             seedDefaultAccountsIfEmpty()
-            securityManager.setPin("")
+            securityManager.clearAll()
             isAppUnlocked.value = false
             withContext(Dispatchers.Main) {
                 onComplete()
@@ -1283,12 +1283,17 @@ class BudgetViewModel(
                 val p = root.getJSONObject("userProfile")
                 val parsedProfileImg = if (p.isNull("profileImageUri")) null else p.optString("profileImageUri").takeIf { it.isNotBlank() }
                 val parsedCoverImg = if (p.isNull("coverImageUri")) null else p.optString("coverImageUri").takeIf { it.isNotBlank() }
+                val restoredDob = p.optString("dateOfBirth", updatedProfile.dateOfBirth)
+
+                if (restoredDob.isNotBlank()) {
+                    securityManager.setRecoveryDob(restoredDob)
+                }
 
                 updatedProfile = updatedProfile.copy(
                     id = 1,
                     displayName = p.optString("displayName", updatedProfile.displayName),
                     email = p.optString("email", updatedProfile.email),
-                    dateOfBirth = p.optString("dateOfBirth", updatedProfile.dateOfBirth),
+                    dateOfBirth = restoredDob,
                     baseMonthlyIncome = p.optDouble("baseMonthlyIncome", updatedProfile.baseMonthlyIncome),
                     currencySymbol = p.optString("currencySymbol", updatedProfile.currencySymbol),
                     profileImageUri = parsedProfileImg ?: updatedProfile.profileImageUri,
@@ -1313,15 +1318,25 @@ class BudgetViewModel(
     }
 
     private suspend fun checkAndRolloverRecurringBills(month: Int, year: Int) = withContext(Dispatchers.IO) {
-        val count = dao.getFixedBillCount(month, year)
-        if (count == 0) {
-            val historicalBills = dao.getLatestHistoricalFixedBills(month, year)
-            if (historicalBills.isNotEmpty()) {
-                val latestMonth = historicalBills.first().month
-                val latestYear = historicalBills.first().year
-                val billsToClone = historicalBills.filter { it.month == latestMonth && it.year == latestYear }
+        val currentBills = dao.getFixedBillsForMonth(month, year).first()
+        val historicalBills = dao.getLatestHistoricalFixedBills(month, year)
 
-                val cloned = billsToClone.distinctBy { it.title }.map {
+        if (historicalBills.isNotEmpty()) {
+            val latestMonth = historicalBills.first().month
+            val latestYear = historicalBills.first().year
+            val billsToClone = historicalBills.filter { it.month == latestMonth && it.year == latestYear }
+
+            val existingKeys = currentBills.map {
+                "${it.title.trim().lowercase()}_${it.category.trim().lowercase()}_${it.type.name}"
+            }.toSet()
+
+            val missingBills = billsToClone.filter { bill ->
+                val key = "${bill.title.trim().lowercase()}_${bill.category.trim().lowercase()}_${bill.type.name}"
+                key !in existingKeys
+            }.distinctBy { "${it.title.trim().lowercase()}_${it.category.trim().lowercase()}_${it.type.name}" }
+
+            if (missingBills.isNotEmpty()) {
+                val cloned = missingBills.map {
                     FixedBillEntity(
                         title = it.title,
                         amount = it.amount,
