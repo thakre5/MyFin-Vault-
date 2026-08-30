@@ -149,9 +149,7 @@ fun MonthlyScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // =========================================================
             // 1. PINNED TOP BAR (WITH DOWNWARD DISSOLVE SHELF)
-            // =========================================================
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -172,7 +170,7 @@ fun MonthlyScreen(
                             .clip(CircleShape)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ChevronLeft,
+                            imageVector = Icons.Default.Menu,
                             contentDescription = "Drawer / Navigation",
                             tint = TextDark,
                             modifier = Modifier.size(24.dp)
@@ -237,9 +235,7 @@ fun MonthlyScreen(
                 )
             }
 
-            // =========================================================
             // 2. FULL-SCREEN HORIZONTAL PAGER
-            // =========================================================
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
@@ -262,7 +258,7 @@ fun MonthlyScreen(
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        // 1. Clone / Rollover Banner (3-Line Readable Structure)
+                                        // 1. Clone / Rollover Banner
                                         if (showRollover) {
                                             Surface(
                                                 modifier = Modifier
@@ -340,7 +336,7 @@ fun MonthlyScreen(
                                             }
                                         }
 
-                                        // 2. Payday Waterfall Split Prompt (3-Line Readable Structure)
+                                        // 2. Payday Waterfall Split Prompt
                                         if (showWaterfallPrompt) {
                                             Surface(
                                                 modifier = Modifier
@@ -1318,9 +1314,7 @@ fun MonthlyScreen(
             }
         }
 
-        // =========================================================
         // 3. BOTTOM GRADIENT SCRIM
-        // =========================================================
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1338,9 +1332,7 @@ fun MonthlyScreen(
                 .zIndex(2.5f)
         )
 
-        // =========================================================
         // 4. FLOATING PAGER INDICATOR PILL
-        // =========================================================
         FloatingPagerIndicator(
             pagerState = pagerState,
             pageTitles = pageTitles,
@@ -1352,9 +1344,7 @@ fun MonthlyScreen(
                 .zIndex(3.5f)
         )
 
-        // =========================================================
         // 5. FLOATING BOTTOM NAVIGATION DOCK WITH FAB
-        // =========================================================
         AppBottomDock(
             currentSelection = NavigationTarget.MONTHLY_VIEW,
             onSelectTarget = { target ->
@@ -1374,9 +1364,7 @@ fun MonthlyScreen(
                 .zIndex(4f)
         )
 
-        // =========================================================
         // 6. MODALS, BOTTOM SHEETS & CONFIRMATION DIALOGS
-        // =========================================================
 
         // Transaction Detail Bottom Sheet
         viewingTx?.let { tx ->
@@ -1567,6 +1555,7 @@ fun MonthlyScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 8.dp)
                 ) {
                     Text(text = "Transfer Funds", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
@@ -1773,6 +1762,7 @@ fun MonthlyScreen(
         // Add AutoPay Dialog
         if (showAddFixedBill) {
             AddEditFixedBillDialog(
+                currencySymbol = userProfile.currencySymbol,
                 accountList = accountsList,
                 masterCategories = uiState.masterCategories,
                 masterSubcategories = uiState.masterSubcategories,
@@ -1789,6 +1779,7 @@ fun MonthlyScreen(
         editingFixedBill?.let { bill ->
             AddEditFixedBillDialog(
                 initialBill = bill,
+                currencySymbol = userProfile.currencySymbol,
                 accountList = accountsList,
                 masterCategories = uiState.masterCategories,
                 masterSubcategories = uiState.masterSubcategories,
