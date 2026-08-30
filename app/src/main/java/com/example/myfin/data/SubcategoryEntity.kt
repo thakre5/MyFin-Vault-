@@ -14,6 +14,7 @@ data class SubcategoryEntity(
     companion object {
         val defaultSubcategories = listOf(
             // Utilities & Living Bills (Expense)
+            SubcategoryEntity("Utilities & Living Bills", "Rent & Housing", TransactionType.EXPENSE),
             SubcategoryEntity("Utilities & Living Bills", "PG Rent", TransactionType.EXPENSE),
             SubcategoryEntity("Utilities & Living Bills", "Electricity & Water", TransactionType.EXPENSE),
             SubcategoryEntity("Utilities & Living Bills", "Phone & Internet", TransactionType.EXPENSE),
@@ -26,7 +27,7 @@ data class SubcategoryEntity(
             SubcategoryEntity("Everyday Living", "Daily Transit & Fuel", TransactionType.EXPENSE),
             SubcategoryEntity("Everyday Living", "Personal Care & Grooming", TransactionType.EXPENSE),
             SubcategoryEntity("Everyday Living", "Clothing & Apparel", TransactionType.EXPENSE),
-            SubcategoryEntity("Everyday Living", "Chai & Snacks", TransactionType.EXPENSE),
+            SubcategoryEntity("Everyday Living", "Coffee, Tea & Snacks", TransactionType.EXPENSE),
             SubcategoryEntity("Everyday Living", "General", TransactionType.EXPENSE),
 
             // Leisure, Trips & Media (Expense)
@@ -44,6 +45,7 @@ data class SubcategoryEntity(
             SubcategoryEntity("Health & Medical", "General", TransactionType.EXPENSE),
 
             // Family & Home Support (Expense)
+            SubcategoryEntity("Family & Home Support", "Parents Support", TransactionType.EXPENSE),
             SubcategoryEntity("Family & Home Support", "Mom", TransactionType.EXPENSE),
             SubcategoryEntity("Family & Home Support", "Grandma", TransactionType.EXPENSE),
             SubcategoryEntity("Family & Home Support", "Life & General Insurance", TransactionType.EXPENSE),
@@ -83,11 +85,14 @@ data class SubcategoryEntity(
             SubcategoryEntity("Passive & Capital Drawdowns", "Interest & Dividends", TransactionType.INCOME),
             SubcategoryEntity("Passive & Capital Drawdowns", "Capital Gains / Realization", TransactionType.INCOME),
             SubcategoryEntity("Passive & Capital Drawdowns", "Emergency Fund Drawdown", TransactionType.INCOME),
+            SubcategoryEntity("Passive & Capital Drawdowns", "FD / Deposit Maturity", TransactionType.INCOME),
             SubcategoryEntity("Passive & Capital Drawdowns", "General", TransactionType.INCOME),
 
             // Investments & Wealth (Asset / SIP)
             SubcategoryEntity("Investments & Wealth", "Mutual Funds (MF)", TransactionType.ASSET),
-            SubcategoryEntity("Investments & Wealth", "Digital Gold (Digii.Gold)", TransactionType.ASSET),
+            SubcategoryEntity("Investments & Wealth", "Fixed Deposits (FD)", TransactionType.ASSET),
+            SubcategoryEntity("Investments & Wealth", "Recurring Deposits (RD)", TransactionType.ASSET),
+            SubcategoryEntity("Investments & Wealth", "Digital Gold & Commodities", TransactionType.ASSET),
             SubcategoryEntity("Investments & Wealth", "Bonds & Securities", TransactionType.ASSET),
             SubcategoryEntity("Investments & Wealth", "PMS & Equity", TransactionType.ASSET),
             SubcategoryEntity("Investments & Wealth", "General", TransactionType.ASSET),
