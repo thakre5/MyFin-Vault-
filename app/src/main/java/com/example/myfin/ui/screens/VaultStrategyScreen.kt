@@ -85,9 +85,9 @@ private fun getVaultTier(accountType: String, accountName: String): VaultTier {
         else -> {
             val name = accountName.uppercase()
             when {
-                name.contains("CASH") || name.contains("WALLET") -> VaultTier.CASH
-                name.contains("COMMITMENT") || name.contains("BILL") || name.contains("BOM") || name.contains("EMI") -> VaultTier.COMMITMENTS
-                name.contains("FORTRESS") || name.contains("EMERGENCY") || name.contains("FD") || name.contains("RESERVE") || name.contains("INDUSIND") -> VaultTier.FORTRESS
+                name.contains("CASH") || name.contains("WALLET") || name.contains("PETTY") -> VaultTier.CASH
+                name.contains("COMMITMENT") || name.contains("BILL") || name.contains("EMI") || name.contains("AUTOPAY") || name.contains("OBLIGATION") -> VaultTier.COMMITMENTS
+                name.contains("FORTRESS") || name.contains("EMERGENCY") || name.contains("FD") || name.contains("RESERVE") || name.contains("DEPOSIT") || name.contains("SAVING") -> VaultTier.FORTRESS
                 else -> VaultTier.OPERATING
             }
         }
@@ -1620,7 +1620,7 @@ fun VaultStrategyScreen(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text(text = "Account Name (e.g., HDFC Salary, ICICI Bills)", fontSize = 12.sp) },
+                        label = { Text(text = "Account Name (e.g., Primary Checking, Bills Vault)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
