@@ -8,6 +8,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -1918,7 +1919,7 @@ private fun SymmetricalFunnelRibbonCanvas(
             moveTo(0f, h * 0.65f)
             cubicTo(w * 0.35f, h * 0.65f, w * 0.65f, band2Bottom, w, band2Bottom)
             lineTo(w, h)
-            lineTo(0f, h)
+            cubicTo(w * 0.65f, h, w * 0.35f, h, 0f, h)
             close()
         }
         drawPath(path3, color = SoftTeal.copy(alpha = 0.85f))
