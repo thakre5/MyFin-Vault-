@@ -12,6 +12,7 @@ import java.util.Calendar
 object ReminderScheduler {
 
     const val CHANNEL_ID_REMINDERS = "myfin_daily_reminders"
+    const val ACTION_DAILY_REMINDER = "com.example.myfin.ACTION_DAILY_REMINDER"
     private const val REMINDER_REQUEST_CODE = 9001
 
     fun createNotificationChannels(context: Context) {
@@ -24,15 +25,16 @@ object ReminderScheduler {
                 enableLights(true)
                 enableVibration(true)
             }
-            val notificationManager: NotificationManager =
-                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
     }
 
     fun scheduleDailyReminder(context: Context, hour: Int, minute: Int) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        val intent = Intent(context, ReminderReceiver::class.java)
+        val intent = Intent(context, ReminderReceiver::class.java).apply {
+            action = ACTION_DAILY_REMINDER
+        }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             REMINDER_REQUEST_CODE,
@@ -52,14 +54,29 @@ object ReminderScheduler {
         }
 
         try {
-            alarmManager.setRepeating(
-                AlarmManager.RTC_WAKEUP,
-                calendar.timeInMillis,
-                AlarmManager.INTERVAL_DAY,
-                pendingIntent
-            )
-        } catch (e: SecurityException) {
-            // Fallback for Android 12+ if exact alarms are restricted
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        calendar.timeInMillis,
+                        pendingIntent
+                    )
+                } else {
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        calendar.timeInMillis,
+                        pendingIntent
+                    )
+                }
+            } else {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            }
+        } catch (_: SecurityException) {
+            // Safe fallback if exact alarm permission is revoked at runtime
             alarmManager.set(
                 AlarmManager.RTC_WAKEUP,
                 calendar.timeInMillis,
@@ -70,7 +87,9 @@ object ReminderScheduler {
 
     fun cancelReminder(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        val intent = Intent(context, ReminderReceiver::class.java)
+        val intent = Intent(context, ReminderReceiver::class.java).apply {
+            action = ACTION_DAILY_REMINDER
+        }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             REMINDER_REQUEST_CODE,
