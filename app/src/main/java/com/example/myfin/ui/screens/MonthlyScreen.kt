@@ -179,48 +179,45 @@ fun MonthlyScreen(
                         )
                     }
 
-                    Row(
-                        modifier = Modifier.align(Alignment.Center),
-                        verticalAlignment = Alignment.CenterVertically
+                    // Centered Month Selector
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable { showMonthPicker = true },
+                        shape = RoundedCornerShape(20.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                        shadowElevation = 2.dp
                     ) {
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .clickable { showMonthPicker = true },
-                            shape = RoundedCornerShape(20.dp),
-                            color = CardWhite,
-                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
-                            shadowElevation = 2.dp
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = TextDark
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        // Discreet Privacy Toggle
-                        IconButton(
-                            onClick = { isDiscreetMode = !isDiscreetMode },
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = "Toggle Balance Privacy",
-                                tint = if (isDiscreetMode) AccentPurple else TextMuted,
-                                modifier = Modifier.size(19.dp)
+                            Text(
+                                text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = TextDark
                             )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                         }
+                    }
+
+                    // Discreet Privacy Toggle placed at Far Right
+                    IconButton(
+                        onClick = { isDiscreetMode = !isDiscreetMode },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .size(38.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = "Toggle Balance Privacy",
+                            tint = if (isDiscreetMode) AccentPurple else TextMuted,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
 
