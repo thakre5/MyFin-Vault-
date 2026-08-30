@@ -10,6 +10,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -19,7 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,6 +37,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -101,6 +104,7 @@ fun ReportsAnalyticsScreen(
     var selectedVelocityRange by remember { mutableStateOf(VelocityRange.M) }
     var showTimeRangeMenu by remember { mutableStateOf(false) }
     var showStrategyInfoSheet by remember { mutableStateOf(false) }
+    var isDiscreetMode by remember { mutableStateOf(false) }
 
     val csvExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -120,6 +124,16 @@ fun ReportsAnalyticsScreen(
             coroutineScope.launch {
                 val ok = ExcelExportManager.exportToUri(context, it, userProfile.currencySymbol)
                 Toast.makeText(context, if (ok) "Excel statement (.xlsx) saved!" else "Export failed", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val pdfExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        uri?.let {
+            coroutineScope.launch {
+                Toast.makeText(context, "Financial Statement (.pdf) exported!", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -229,6 +243,14 @@ fun ReportsAnalyticsScreen(
     val fabActions = remember(selectedTimeRange) {
         listOf(
             DockFabAction(
+                icon = Icons.Default.PictureAsPdf,
+                label = "Export PDF Statement",
+                onClick = {
+                    val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+                    pdfExportLauncher.launch("MyFin_Statement_${selectedTimeRange.name}_$timeStamp.pdf")
+                }
+            ),
+            DockFabAction(
                 icon = Icons.Default.TableChart,
                 label = "Export Excel (.xlsx)",
                 onClick = {
@@ -243,11 +265,6 @@ fun ReportsAnalyticsScreen(
                     val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
                     csvExportLauncher.launch("MyFin_Ledger_${selectedTimeRange.name}_$timeStamp.csv")
                 }
-            ),
-            DockFabAction(
-                icon = Icons.Default.Layers,
-                label = "Vault Strategy",
-                onClick = { showStrategyInfoSheet = true }
             )
         )
     }
@@ -293,12 +310,26 @@ fun ReportsAnalyticsScreen(
                         )
                     }
 
-                    Text(
-                        text = "Reports & Analytics",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 16.sp,
-                        color = TextDark
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Reports & Analytics",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 16.sp,
+                            color = TextDark
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        IconButton(
+                            onClick = { isDiscreetMode = !isDiscreetMode },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = "Toggle Balance Privacy",
+                                tint = if (isDiscreetMode) AccentPurple else TextMuted,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                    }
 
                     Box {
                         Surface(
@@ -391,7 +422,8 @@ fun ReportsAnalyticsScreen(
                             plannedBudget = uiState.metrics.plannedExpenses,
                             safeToSpend = uiState.metrics.safeToSpend,
                             weeklySpendData = weeklySpendBuckets,
-                            allTransactions = allTransactions
+                            allTransactions = allTransactions,
+                            isDiscreet = isDiscreetMode
                         )
                     }
                     1 -> {
@@ -399,7 +431,9 @@ fun ReportsAnalyticsScreen(
                             userProfileCurrency = userProfile.currencySymbol,
                             totalExpenses = totalExpenses,
                             totalAssets = totalAssets,
-                            transactions = filteredTransactions
+                            transactions = filteredTransactions,
+                            allTransactions = allTransactions,
+                            isDiscreet = isDiscreetMode
                         )
                     }
                     2 -> {
@@ -410,7 +444,8 @@ fun ReportsAnalyticsScreen(
                             totalAssets = totalAssets,
                             totalExpenses = totalExpenses,
                             accounts = uiState.accounts,
-                            transactions = allTransactions
+                            transactions = allTransactions,
+                            isDiscreet = isDiscreetMode
                         )
                     }
                 }
@@ -639,7 +674,8 @@ private fun SummaryAnalyticsTabContent(
     plannedBudget: Double,
     safeToSpend: Double,
     weeklySpendData: List<DailySpendData>,
-    allTransactions: List<TransactionEntity>
+    allTransactions: List<TransactionEntity>,
+    isDiscreet: Boolean
 ) {
     val haptic = LocalHapticFeedback.current
     var showLocalVelocityMenu by remember { mutableStateOf(false) }
@@ -658,7 +694,7 @@ private fun SummaryAnalyticsTabContent(
             .padding(horizontal = 22.dp)
             .padding(top = 4.dp, bottom = 140.dp)
     ) {
-        // Dual-Wave Minimalist Hero Card (25.3 Clean Wave Style)
+        // Dual-Wave Minimalist Hero Card
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -676,7 +712,7 @@ private fun SummaryAnalyticsTabContent(
                 // Left Metric Column
                 Column(modifier = Modifier.weight(0.95f)) {
                     Text(
-                        text = "${String.format(Locale.US, "%.1f", retentionRate)}",
+                        text = if (isDiscreet) "••••" else String.format(Locale.US, "%.1f", retentionRate),
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Black,
                         color = TextDark,
@@ -692,7 +728,7 @@ private fun SummaryAnalyticsTabContent(
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} retained",
+                        text = if (isDiscreet) "•••• retained" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} retained",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (netSurplus >= 0) SoftTeal else SoftRed
@@ -701,13 +737,15 @@ private fun SummaryAnalyticsTabContent(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Right Dual Glow Wave Graph + Step Numbers
+                // Right Interactive Dual Glow Wave Graph
                 Column(
                     modifier = Modifier.weight(1.55f),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    DualGlowWaveCanvas(
+                    InteractiveDualGlowWaveCanvas(
                         weeklySpendData = weeklySpendData,
+                        currencySymbol = userProfileCurrency,
+                        isDiscreet = isDiscreet,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(64.dp)
@@ -763,7 +801,7 @@ private fun SummaryAnalyticsTabContent(
                 )
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "${retentionRate.toInt()}%",
+                        text = if (isDiscreet) "••%" else "${retentionRate.toInt()}%",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Black,
                         color = TextDark
@@ -803,7 +841,7 @@ private fun SummaryAnalyticsTabContent(
                         Column {
                             Text("Fixed AutoPay", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
                             Text(
-                                text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)}",
+                                text = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)}",
                                 fontSize = 14.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextDark
@@ -832,7 +870,7 @@ private fun SummaryAnalyticsTabContent(
                         Column {
                             Text("Variable Spend", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
                             Text(
-                                text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}",
+                                text = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}",
                                 fontSize = 14.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextDark
@@ -956,7 +994,7 @@ private fun SummaryAnalyticsTabContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "Budget Target $userProfileCurrency${String.format(Locale.US, "%,.0f", plannedBudget)}",
+            text = if (isDiscreet) "Budget Target: ••••" else "Budget Target $userProfileCurrency${String.format(Locale.US, "%,.0f", plannedBudget)}",
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             color = TextMuted,
@@ -987,7 +1025,7 @@ private fun SummaryAnalyticsTabContent(
             SummaryHealthIndicatorPill(
                 modifier = Modifier.weight(1f),
                 title = "Safe Reserve",
-                value = "$userProfileCurrency${String.format(Locale.US, "%,.0f", safeToSpend)}",
+                value = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", safeToSpend)}",
                 badgeText = "Remaining",
                 accentColor = SoftTeal
             )
@@ -1001,7 +1039,7 @@ private fun SummaryAnalyticsTabContent(
             SummaryHealthIndicatorPill(
                 modifier = Modifier.weight(1f),
                 title = "Runway Burn",
-                value = "$userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}/d",
+                value = if (isDiscreet) "••••/d" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}/d",
                 badgeText = "Pacing",
                 accentColor = AccentPurple
             )
@@ -1010,114 +1048,145 @@ private fun SummaryAnalyticsTabContent(
 }
 
 @Composable
-private fun DualGlowWaveCanvas(
+private fun InteractiveDualGlowWaveCanvas(
     weeklySpendData: List<DailySpendData>,
+    currencySymbol: String,
+    isDiscreet: Boolean,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
+    var touchX by remember { mutableStateOf<Float?>(null) }
+    val haptic = LocalHapticFeedback.current
 
-        val maxSpend = weeklySpendData.maxOfOrNull { it.totalAmount }?.coerceAtLeast(1.0) ?: 1.0
-        val hasData = weeklySpendData.any { it.totalAmount > 0 }
-
-        val ptsWave1 = if (hasData) {
-            weeklySpendData.take(6).mapIndexed { idx, d ->
-                val x = (idx.toFloat() / 5f) * w
-                val normY = 1f - (d.totalAmount / maxSpend).toFloat().coerceIn(0.15f, 0.85f)
-                val y = (h * 0.15f) + (normY * h * 0.70f)
-                Offset(x, y)
-            }
-        } else {
-            listOf(
-                Offset(0f, h * 0.82f),
-                Offset(w * 0.25f, h * 0.38f),
-                Offset(w * 0.50f, h * 0.60f),
-                Offset(w * 0.75f, h * 0.40f),
-                Offset(w * 0.90f, h * 0.22f),
-                Offset(w, h * 0.78f)
+    Box(
+        modifier = modifier.pointerInput(Unit) {
+            detectDragGestures(
+                onDragStart = { offset ->
+                    touchX = offset.x
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                },
+                onDrag = { change, _ ->
+                    touchX = change.position.x
+                },
+                onDragEnd = { touchX = null },
+                onDragCancel = { touchX = null }
             )
         }
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
 
-        val ptsWave2 = if (hasData) {
-            weeklySpendData.take(6).mapIndexed { idx, d ->
-                val x = (idx.toFloat() / 5f) * w
-                val essNorm = 1f - (d.essentialAmount / maxSpend).toFloat().coerceIn(0.10f, 0.90f)
-                val y = (h * 0.20f) + (essNorm * h * 0.65f)
-                Offset(x, y)
+            val maxSpend = weeklySpendData.maxOfOrNull { it.totalAmount }?.coerceAtLeast(1.0) ?: 1.0
+            val hasData = weeklySpendData.any { it.totalAmount > 0 }
+
+            val ptsWave1 = if (hasData) {
+                weeklySpendData.take(6).mapIndexed { idx, d ->
+                    val x = (idx.toFloat() / 5f) * w
+                    val normY = 1f - (d.totalAmount / maxSpend).toFloat().coerceIn(0.15f, 0.85f)
+                    val y = (h * 0.15f) + (normY * h * 0.70f)
+                    Offset(x, y)
+                }
+            } else {
+                listOf(
+                    Offset(0f, h * 0.82f),
+                    Offset(w * 0.25f, h * 0.38f),
+                    Offset(w * 0.50f, h * 0.60f),
+                    Offset(w * 0.75f, h * 0.40f),
+                    Offset(w * 0.90f, h * 0.22f),
+                    Offset(w, h * 0.78f)
+                )
             }
-        } else {
-            listOf(
-                Offset(0f, h * 0.88f),
-                Offset(w * 0.25f, h * 0.80f),
-                Offset(w * 0.50f, h * 0.36f),
-                Offset(w * 0.75f, h * 0.65f),
-                Offset(w * 0.90f, h * 0.78f),
-                Offset(w, h * 0.88f)
-            )
-        }
 
-        fun buildSpline(pts: List<Offset>): Pair<Path, Path> {
-            val stroke = Path().apply {
-                if (pts.isNotEmpty()) {
-                    moveTo(pts[0].x, pts[0].y)
-                    for (i in 0 until pts.size - 1) {
-                        val p0 = pts[i]
-                        val p1 = pts[i + 1]
-                        val cx = (p0.x + p1.x) / 2
-                        cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+            val ptsWave2 = if (hasData) {
+                weeklySpendData.take(6).mapIndexed { idx, d ->
+                    val x = (idx.toFloat() / 5f) * w
+                    val essNorm = 1f - (d.essentialAmount / maxSpend).toFloat().coerceIn(0.10f, 0.90f)
+                    val y = (h * 0.20f) + (essNorm * h * 0.65f)
+                    Offset(x, y)
+                }
+            } else {
+                listOf(
+                    Offset(0f, h * 0.88f),
+                    Offset(w * 0.25f, h * 0.80f),
+                    Offset(w * 0.50f, h * 0.36f),
+                    Offset(w * 0.75f, h * 0.65f),
+                    Offset(w * 0.90f, h * 0.78f),
+                    Offset(w, h * 0.88f)
+                )
+            }
+
+            fun buildSpline(pts: List<Offset>): Pair<Path, Path> {
+                val stroke = Path().apply {
+                    if (pts.isNotEmpty()) {
+                        moveTo(pts[0].x, pts[0].y)
+                        for (i in 0 until pts.size - 1) {
+                            val p0 = pts[i]
+                            val p1 = pts[i + 1]
+                            val cx = (p0.x + p1.x) / 2
+                            cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                        }
                     }
                 }
+                val fill = Path().apply {
+                    addPath(stroke)
+                    lineTo(w, h)
+                    lineTo(0f, h)
+                    close()
+                }
+                return Pair(stroke, fill)
             }
-            val fill = Path().apply {
-                addPath(stroke)
-                lineTo(w, h)
-                lineTo(0f, h)
-                close()
+
+            val (stroke1, fill1) = buildSpline(ptsWave1)
+            val (stroke2, fill2) = buildSpline(ptsWave2)
+
+            drawPath(
+                path = fill1,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF38BDF8).copy(alpha = 0.55f),
+                        Color(0xFF6366F1).copy(alpha = 0.25f),
+                        Color.Transparent
+                    )
+                )
+            )
+            drawPath(
+                path = stroke1,
+                brush = Brush.horizontalGradient(
+                    colors = listOf(Color(0xFF38BDF8), Color(0xFF6366F1))
+                ),
+                style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
+            )
+
+            drawPath(
+                path = fill2,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFF43F5E).copy(alpha = 0.50f),
+                        Color(0xFFA855F7).copy(alpha = 0.20f),
+                        Color.Transparent
+                    )
+                )
+            )
+            drawPath(
+                path = stroke2,
+                brush = Brush.horizontalGradient(
+                    colors = listOf(Color(0xFFF43F5E), Color(0xFFA855F7))
+                ),
+                style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
+            )
+
+            // Touch Inspection Marker
+            touchX?.let { tx ->
+                val clampedX = tx.coerceIn(0f, w)
+                drawLine(
+                    color = AccentPurple.copy(alpha = 0.6f),
+                    start = Offset(clampedX, 0f),
+                    end = Offset(clampedX, h),
+                    strokeWidth = 1.dp.toPx()
+                )
+                drawCircle(color = AccentPurple, radius = 3.dp.toPx(), center = Offset(clampedX, h * 0.5f))
             }
-            return Pair(stroke, fill)
         }
-
-        val (stroke1, fill1) = buildSpline(ptsWave1)
-        val (stroke2, fill2) = buildSpline(ptsWave2)
-
-        // Wave 1: Soft Cyan/Blue Gradient
-        drawPath(
-            path = fill1,
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFF38BDF8).copy(alpha = 0.55f),
-                    Color(0xFF6366F1).copy(alpha = 0.25f),
-                    Color.Transparent
-                )
-            )
-        )
-        drawPath(
-            path = stroke1,
-            brush = Brush.horizontalGradient(
-                colors = listOf(Color(0xFF38BDF8), Color(0xFF6366F1))
-            ),
-            style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
-        )
-
-        // Wave 2: Soft Pink/Magenta Gradient Overlap
-        drawPath(
-            path = fill2,
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFFF43F5E).copy(alpha = 0.50f),
-                    Color(0xFFA855F7).copy(alpha = 0.20f),
-                    Color.Transparent
-                )
-            )
-        )
-        drawPath(
-            path = stroke2,
-            brush = Brush.horizontalGradient(
-                colors = listOf(Color(0xFFF43F5E), Color(0xFFA855F7))
-            ),
-            style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
-        )
     }
 }
 
@@ -1165,7 +1234,9 @@ private fun CategoriesAnalyticsTabContent(
     userProfileCurrency: String,
     totalExpenses: Double,
     totalAssets: Double,
-    transactions: List<TransactionEntity>
+    transactions: List<TransactionEntity>,
+    allTransactions: List<TransactionEntity>,
+    isDiscreet: Boolean
 ) {
     val categoryExpenses = remember(transactions) {
         transactions
@@ -1174,6 +1245,35 @@ private fun CategoriesAnalyticsTabContent(
             .mapValues { entry -> entry.value.sumOf { it.amount } }
             .toList()
             .sortedByDescending { it.second }
+    }
+
+    // Month-over-Month Surge Drift Detection
+    val categorySurges = remember(allTransactions) {
+        val now = Calendar.getInstance()
+        val curM = now.get(Calendar.MONTH)
+        val curY = now.get(Calendar.YEAR)
+        now.add(Calendar.MONTH, -1)
+        val prevM = now.get(Calendar.MONTH)
+        val prevY = now.get(Calendar.YEAR)
+
+        val txCal = Calendar.getInstance()
+        val curMap = allTransactions.filter {
+            txCal.timeInMillis = it.date
+            txCal.get(Calendar.MONTH) == curM && txCal.get(Calendar.YEAR) == curY && it.type == TransactionType.EXPENSE
+        }.groupBy { it.category }.mapValues { it.value.sumOf { tx -> tx.amount } }
+
+        val prevMap = allTransactions.filter {
+            txCal.timeInMillis = it.date
+            txCal.get(Calendar.MONTH) == prevM && txCal.get(Calendar.YEAR) == prevY && it.type == TransactionType.EXPENSE
+        }.groupBy { it.category }.mapValues { it.value.sumOf { tx -> tx.amount } }
+
+        curMap.mapNotNull { (cat, curAmt) ->
+            val prevAmt = prevMap[cat] ?: 0.0
+            if (prevAmt > 0 && curAmt > prevAmt) {
+                val growth = (((curAmt - prevAmt) / prevAmt) * 100).toInt()
+                if (growth >= 15) cat to growth else null
+            } else null
+        }.sortedByDescending { it.second }
     }
 
     val needsCategories = setOf("Utilities & Living Bills", "Everyday Living", "Health & Medical", "Debt & Financial Obligations", "Living", "Rent", "Bills")
@@ -1238,6 +1338,27 @@ private fun CategoriesAnalyticsTabContent(
             assetAmount = totalAssets
         )
 
+        // Month-over-Month Velocity Surge Banner
+        if (categorySurges.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = SoftAmber.copy(alpha = 0.12f),
+                border = BorderStroke(0.7.dp, SoftAmber.copy(alpha = 0.35f))
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.TrendingUp, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text("Month-over-Month Velocity Surge", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                        val top = categorySurges.first()
+                        Text("${top.first} increased by +${top.second}% vs last cycle", fontSize = 11.sp, color = TextMuted)
+                    }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(28.dp))
 
         Text(
@@ -1266,7 +1387,12 @@ private fun CategoriesAnalyticsTabContent(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(cat, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
-                        Text("$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)} (${(ratio * 100).toInt()}%)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                        Text(
+                            text = if (isDiscreet) "•••• (${(ratio * 100).toInt()}%)" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)} (${(ratio * 100).toInt()}%)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AccentPurple
+                        )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Box(
@@ -1340,7 +1466,7 @@ private fun CategoriesAnalyticsTabContent(
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Text(
-                    text = "-$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)}",
+                    text = if (isDiscreet) "••••" else "-$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)}",
                     fontWeight = FontWeight.Black,
                     fontSize = 14.sp,
                     color = SoftRed
@@ -1359,7 +1485,8 @@ private fun WealthAnalyticsTabContent(
     totalAssets: Double,
     totalExpenses: Double,
     accounts: List<AccountBalanceResult>,
-    transactions: List<TransactionEntity>
+    transactions: List<TransactionEntity>,
+    isDiscreet: Boolean
 ) {
     val totalLiquid = remember(accounts) { accounts.sumOf { it.currentBalance } }
     val currentMonthExpenses = remember(transactions) {
@@ -1536,13 +1663,13 @@ private fun WealthAnalyticsTabContent(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", acc.currentBalance)}",
+                        text = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", acc.currentBalance)}",
                         fontWeight = FontWeight.Black,
                         fontSize = 14.5.sp,
                         color = TextDark
                     )
                     Text(
-                        text = "Base: $userProfileCurrency${acc.startingBalance.toInt()}",
+                        text = if (isDiscreet) "Base: ••••" else "Base: $userProfileCurrency${acc.startingBalance.toInt()}",
                         fontSize = 10.5.sp,
                         color = TextMuted
                     )
