@@ -140,7 +140,7 @@ class SecurityManager(context: Context) {
 
             override fun onAuthenticationFailed() {
                 super.onAuthenticationFailed()
-                onError("Biometric authentication failed")
+                // BiometricPrompt UI remains visible and prompts user to retry naturally
             }
         }
 
