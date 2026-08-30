@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -26,7 +27,10 @@ fun PerspectiveDrawer(
     drawerContent: @Composable () -> Unit,
     mainContent: @Composable () -> Unit
 ) {
-    val density = LocalDensity.current.density
+    val density = LocalDensity.current
+    val shiftPx = with(density) { 260.dp.toPx() }
+    val menuEntranceOffsetPx = with(density) { (-80).dp.toPx() }
+
     val transitionProgress by animateFloatAsState(
         targetValue = if (isDrawerOpen) 1f else 0f,
         animationSpec = tween(durationMillis = 320),
@@ -38,7 +42,7 @@ fun PerspectiveDrawer(
             .fillMaxSize()
             .background(SoftPurpleDrawerBg)
     ) {
-        // Drawer Menu Layer (Isolated & active only when open)
+        // Drawer Menu Layer (Active and visible when open or animating)
         if (isDrawerOpen || transitionProgress > 0f) {
             Box(
                 modifier = Modifier
@@ -46,22 +50,23 @@ fun PerspectiveDrawer(
                     .width(250.dp)
                     .graphicsLayer {
                         alpha = transitionProgress
-                        translationX = (1f - transitionProgress) * -80f
+                        translationX = (1f - transitionProgress) * menuEntranceOffsetPx
                     }
             ) {
                 drawerContent()
             }
         }
 
-        // Pushed Main Content Layer
+        // Perspective-Shifted Main Content Layer
         val scale = 1f - (transitionProgress * 0.15f)
-        val translationX = transitionProgress * 260f * density
+        val translationX = transitionProgress * shiftPx
         val cornerRadius = (transitionProgress * 28).dp
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
+                    this.transformOrigin = TransformOrigin(0.5f, 0.5f)
                     this.scaleX = scale
                     this.scaleY = scale
                     this.translationX = translationX
@@ -72,13 +77,16 @@ fun PerspectiveDrawer(
         ) {
             mainContent()
 
-            if (isDrawerOpen) {
+            // Tap-outside overlay to close drawer
+            if (isDrawerOpen || transitionProgress > 0.01f) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.18f * transitionProgress))
-                        .pointerInput(Unit) {
-                            detectTapGestures { onCloseDrawer() }
+                        .pointerInput(isDrawerOpen) {
+                            if (isDrawerOpen) {
+                                detectTapGestures { onCloseDrawer() }
+                            }
                         }
                 )
             }
