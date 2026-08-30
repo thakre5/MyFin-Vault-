@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -77,15 +76,11 @@ data class DailySpendData(
     val totalAmount: Double
 )
 
-private val CyanPrimary = Color(0xFF00D2EE)
-private val PurplePrimary = Color(0xFF6C5CE7)
-private val TealPrimary = Color(0xFF10B981)
-private val CoralAccent = Color(0xFFFF6B6B)
-
-private val FallbackHeroGradient = Brush.verticalGradient(
+private val HeroLightGradient = Brush.verticalGradient(
     colors = listOf(
-        Color(0xFFF6F8FF),
-        Color(0xFFEDE9FE).copy(alpha = 0.45f)
+        Color(0xFFFFFFFF),
+        Color(0xFFFCFAFF),
+        AccentPurple.copy(alpha = 0.05f)
     )
 )
 
@@ -113,7 +108,6 @@ fun ReportsAnalyticsScreen(
     var selectedTimeRange by remember { mutableStateOf(TimeRangeFilter.THIS_WEEK) }
     var selectedVelocityRange by remember { mutableStateOf(VelocityRange.M) }
     var showTimeRangeMenu by remember { mutableStateOf(false) }
-    var showExportBottomSheet by remember { mutableStateOf(false) }
     var showStrategyInfoSheet by remember { mutableStateOf(false) }
 
     val csvExportLauncher = rememberLauncherForActivityResult(
@@ -240,7 +234,7 @@ fun ReportsAnalyticsScreen(
         }
     }
 
-    val fabActions = remember {
+    val fabActions = remember(selectedTimeRange) {
         listOf(
             DockFabAction(
                 icon = Icons.Default.TableChart,
@@ -260,7 +254,7 @@ fun ReportsAnalyticsScreen(
             ),
             DockFabAction(
                 icon = Icons.Default.Layers,
-                label = "Vault Architecture",
+                label = "Vault Strategy",
                 onClick = { showStrategyInfoSheet = true }
             )
         )
@@ -274,7 +268,7 @@ fun ReportsAnalyticsScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // =========================================================
-            // 1. PINNED TOP BAR (WITH DOWNWARD GRADIENT DISSOLVE SHELF)
+            // 1. PINNED TOP BAR (WITH DOWNWARD DISSOLVE SHELF)
             // =========================================================
             Column(
                 modifier = Modifier
@@ -301,7 +295,7 @@ fun ReportsAnalyticsScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.ChevronLeft,
-                            contentDescription = "Drawer / Navigation",
+                            contentDescription = "Drawer",
                             tint = TextDark,
                             modifier = Modifier.size(24.dp)
                         )
@@ -411,7 +405,6 @@ fun ReportsAnalyticsScreen(
                     1 -> {
                         CategoriesAnalyticsTabContent(
                             userProfileCurrency = userProfile.currencySymbol,
-                            totalIncome = totalIncome,
                             totalExpenses = totalExpenses,
                             totalAssets = totalAssets,
                             transactions = filteredTransactions
@@ -453,7 +446,7 @@ fun ReportsAnalyticsScreen(
         )
 
         // =========================================================
-        // 4. FLOATING PAGER INDICATOR PILL (ANCHORED LEFT ABOVE ACTIVE TAB)
+        // 4. FLOATING PAGER INDICATOR PILL (ANCHORED LEFT ABOVE DOCK)
         // =========================================================
         FloatingPagerIndicator(
             pagerState = pagerState,
@@ -487,95 +480,6 @@ fun ReportsAnalyticsScreen(
                 .fillMaxSize()
                 .zIndex(4f)
         )
-
-        // =========================================================
-        // 6. MODALS, SHEETS & CONFIRMATION DIALOGS
-        // =========================================================
-
-        // Export Statement Bottom Sheet
-        if (showExportBottomSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showExportBottomSheet = false },
-                containerColor = CardWhite,
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 32.dp)
-                        .navigationBarsPadding()
-                ) {
-                    Text("Export Statement Report", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                    Text("Scope: ${selectedTimeRange.label} (${filteredTransactions.size} records)", fontSize = 12.sp, color = TextMuted)
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-                                xlsxExportLauncher.launch("MyFin_Report_${selectedTimeRange.name}_$timeStamp.xlsx")
-                                showExportBottomSheet = false
-                            },
-                        color = CanvasLight
-                    ) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(SoftGreen.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.TableChart, contentDescription = null, tint = SoftGreen, modifier = Modifier.size(22.dp))
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Excel Workbook (.xlsx)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                Text("Multi-tab formatted statement with category sums", fontSize = 11.sp, color = TextMuted)
-                            }
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = BorderLight)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-                                csvExportLauncher.launch("MyFin_Ledger_${selectedTimeRange.name}_$timeStamp.csv")
-                                showExportBottomSheet = false
-                            },
-                        color = CanvasLight
-                    ) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(AccentPurple.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Description, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(22.dp))
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Universal Flat Ledger (.csv)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                Text("Lightweight comma-delimited raw accounting table", fontSize = 11.sp, color = TextMuted)
-                            }
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = BorderLight)
-                        }
-                    }
-                }
-            }
-        }
 
         // Strategy Architecture Information Sheet
         if (showStrategyInfoSheet) {
@@ -630,13 +534,13 @@ fun ReportsAnalyticsScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             StrategyTierInfoRow(
                                 icon = Icons.Default.AccountBalance,
-                                color = Color(0xFFE57A28),
+                                color = AccentPurple,
                                 title = "Operating Vault Tier",
                                 desc = "Covers everyday groceries and variable daily lifestyle spend."
                             )
                             StrategyTierInfoRow(
                                 icon = Icons.Default.CreditCard,
-                                color = AccentPurple,
+                                color = SoftRed,
                                 title = "Commitments Vault Tier",
                                 desc = "Dedicated lockbox protecting AutoPay bills and EMI obligations."
                             )
@@ -776,9 +680,11 @@ private fun SummaryAnalyticsTabContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .shadow(4.dp, RoundedCornerShape(26.dp))
                 .clip(RoundedCornerShape(26.dp))
-                .background(FallbackHeroGradient)
-                .padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 12.dp)
+                .background(HeroLightGradient)
+                .border(BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f)), RoundedCornerShape(26.dp))
+                .padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -797,13 +703,13 @@ private fun SummaryAnalyticsTabContent(
                         text = "$userProfileCurrency${String.format(Locale.US, "%,.2f", netSurplus)}",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Black,
-                        color = if (netSurplus >= 0) TextDark else CoralAccent
+                        color = if (netSurplus >= 0) TextDark else SoftRed
                     )
                 }
 
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = if (netSurplus >= 0) TealPrimary.copy(alpha = 0.14f) else CoralAccent.copy(alpha = 0.14f)
+                    color = if (netSurplus >= 0) SoftTeal.copy(alpha = 0.14f) else SoftRed.copy(alpha = 0.14f)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -812,7 +718,7 @@ private fun SummaryAnalyticsTabContent(
                         Icon(
                             imageVector = if (netSurplus >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.Default.TrendingDown,
                             contentDescription = null,
-                            tint = if (netSurplus >= 0) TealPrimary else CoralAccent,
+                            tint = if (netSurplus >= 0) SoftTeal else SoftRed,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -820,7 +726,7 @@ private fun SummaryAnalyticsTabContent(
                             text = "${String.format(Locale.US, "%.1f", retentionRate)}% Saved",
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (netSurplus >= 0) TealPrimary else CoralAccent
+                            color = if (netSurplus >= 0) SoftTeal else SoftRed
                         )
                     }
                 }
@@ -839,25 +745,25 @@ private fun SummaryAnalyticsTabContent(
                 Text(
                     text = "Daily Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyInflow)}",
                     fontSize = 11.sp,
-                    color = TealPrimary,
+                    color = SoftGreen,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = "Daily Burn: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}",
                     fontSize = 11.sp,
-                    color = PurplePrimary,
+                    color = AccentPurple,
                     fontWeight = FontWeight.SemiBold
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             text = "Allocation Breakdown",
             fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = Color(0xFF1E202E)
+            fontSize = 17.sp,
+            color = TextDark
         )
         Text(
             text = "Commitments load vs. active safe-to-spend reserve",
@@ -865,7 +771,7 @@ private fun SummaryAnalyticsTabContent(
             color = TextMuted
         )
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -873,7 +779,7 @@ private fun SummaryAnalyticsTabContent(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Box(
-                modifier = Modifier.size(154.dp),
+                modifier = Modifier.size(148.dp),
                 contentAlignment = Alignment.Center
             ) {
                 ConcentricRingsDonutCanvas(
@@ -885,7 +791,7 @@ private fun SummaryAnalyticsTabContent(
                         text = "${retentionRate.toInt()}%",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFF1E202E)
+                        color = TextDark
                     )
                     Text(
                         text = "Protected",
@@ -899,12 +805,13 @@ private fun SummaryAnalyticsTabContent(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .padding(start = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = CanvasLight,
+                    color = CardWhite,
+                    border = BorderStroke(0.7.dp, BorderLight),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -915,7 +822,7 @@ private fun SummaryAnalyticsTabContent(
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(PurplePrimary)
+                                .background(SoftRed)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
@@ -924,7 +831,7 @@ private fun SummaryAnalyticsTabContent(
                                 text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)}",
                                 fontSize = 14.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E202E)
+                                color = TextDark
                             )
                         }
                     }
@@ -932,7 +839,8 @@ private fun SummaryAnalyticsTabContent(
 
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = CanvasLight,
+                    color = CardWhite,
+                    border = BorderStroke(0.7.dp, BorderLight),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -943,7 +851,7 @@ private fun SummaryAnalyticsTabContent(
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(CyanPrimary)
+                                .background(AccentPurple)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
@@ -952,7 +860,7 @@ private fun SummaryAnalyticsTabContent(
                                 text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}",
                                 fontSize = 14.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E202E)
+                                color = TextDark
                             )
                         }
                     }
@@ -960,7 +868,7 @@ private fun SummaryAnalyticsTabContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
         // Outflow Velocity Header
         Row(
@@ -972,8 +880,8 @@ private fun SummaryAnalyticsTabContent(
                 Text(
                     text = "Outflow Velocity",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = Color(0xFF1E202E)
+                    fontSize = 17.sp,
+                    color = TextDark
                 )
                 Text(
                     text = "Daily burn velocity distribution",
@@ -1025,22 +933,22 @@ private fun SummaryAnalyticsTabContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         StackedOutflowBarsCanvas(weeklySpendData = weeklySpendData)
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(26.dp))
 
         Text(
             text = "Velocity Density",
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(10.dp))
         MicroFrequencyStripCanvas(transactions = allTransactions)
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1052,7 +960,7 @@ private fun SummaryAnalyticsTabContent(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) PurplePrimary else Color.Transparent)
+                        .background(if (isSelected) AccentPurple else Color.Transparent)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onSelectVelocityRange(range)
@@ -1087,13 +995,13 @@ private fun SummaryAnalyticsTabContent(
             plannedBudget = plannedBudget
         )
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(26.dp))
 
         Text(
             text = "Health Indicators",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -1106,21 +1014,21 @@ private fun SummaryAnalyticsTabContent(
                 title = "Safe Reserve",
                 value = "$userProfileCurrency${String.format(Locale.US, "%,.0f", safeToSpend)}",
                 badgeText = "Remaining",
-                accentColor = TealPrimary
+                accentColor = SoftTeal
             )
             SummaryHealthIndicatorPill(
                 modifier = Modifier.weight(1f),
                 title = "AutoPay Load",
                 value = "${commitmentLoad.toInt()}%",
                 badgeText = "Committed",
-                accentColor = PurplePrimary
+                accentColor = SoftRed
             )
             SummaryHealthIndicatorPill(
                 modifier = Modifier.weight(1f),
                 title = "Runway Burn",
                 value = "$userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}/d",
                 badgeText = "Pacing",
-                accentColor = CyanPrimary
+                accentColor = AccentPurple
             )
         }
     }
@@ -1165,13 +1073,13 @@ private fun SummaryHeroSplineWave(weeklySpendData: List<DailySpendData>) {
             drawPath(
                 path = fillPath,
                 brush = Brush.verticalGradient(
-                    listOf(PurplePrimary.copy(alpha = 0.22f), Color.Transparent)
+                    listOf(AccentPurple.copy(alpha = 0.22f), Color.Transparent)
                 )
             )
 
             drawPath(
                 path = path,
-                color = PurplePrimary,
+                color = AccentPurple,
                 style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
             )
 
@@ -1186,7 +1094,7 @@ private fun SummaryHeroSplineWave(weeklySpendData: List<DailySpendData>) {
             if (highestVal > 0) {
                 val apex = points[peakIndex]
                 drawCircle(color = CardWhite, radius = 5.5.dp.toPx(), center = apex)
-                drawCircle(color = PurplePrimary, radius = 3.5.dp.toPx(), center = apex)
+                drawCircle(color = AccentPurple, radius = 3.5.dp.toPx(), center = apex)
             }
         }
     }
@@ -1203,7 +1111,8 @@ private fun SummaryHealthIndicatorPill(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        color = CanvasLight
+        color = CardWhite,
+        border = BorderStroke(0.7.dp, BorderLight)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -1223,7 +1132,7 @@ private fun SummaryHealthIndicatorPill(
                 )
             }
             Spacer(modifier = Modifier.height(6.dp))
-            Text(value, fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = Color(0xFF1E202E))
+            Text(value, fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = TextDark)
             Spacer(modifier = Modifier.height(2.dp))
             Text(badgeText, fontSize = 9.sp, color = accentColor, fontWeight = FontWeight.Bold)
         }
@@ -1233,7 +1142,6 @@ private fun SummaryHealthIndicatorPill(
 @Composable
 private fun CategoriesAnalyticsTabContent(
     userProfileCurrency: String,
-    totalIncome: Double,
     totalExpenses: Double,
     totalAssets: Double,
     transactions: List<TransactionEntity>
@@ -1267,8 +1175,8 @@ private fun CategoriesAnalyticsTabContent(
         Text(
             text = "Spending Matrix",
             fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = Color(0xFF1E202E)
+            fontSize = 17.sp,
+            color = TextDark
         )
         Text(
             text = "Target Benchmark vs. Actual Outflow",
@@ -1285,18 +1193,17 @@ private fun CategoriesAnalyticsTabContent(
             contentAlignment = Alignment.Center
         ) {
             CategoryRadarWebCanvas(
-                categoryList = categoryExpenses.map { it.first },
                 categorySums = categoryExpenses.map { it.second }
             )
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(26.dp))
 
         Text(
             text = "Cashflow Stream Split",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Text(
             text = "Needs (50%) • Wants (30%) • SIP Assets (20%)",
@@ -1310,13 +1217,13 @@ private fun CategoriesAnalyticsTabContent(
             assetAmount = totalAssets
         )
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
         Text(
             text = "Budget Consumption",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -1338,7 +1245,7 @@ private fun CategoriesAnalyticsTabContent(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(cat, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
-                        Text("$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)} (${(ratio * 100).toInt()}%)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PurplePrimary)
+                        Text("$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)} (${(ratio * 100).toInt()}%)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Box(
@@ -1353,7 +1260,7 @@ private fun CategoriesAnalyticsTabContent(
                                 .fillMaxWidth(ratio.coerceIn(0.05f, 1f))
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Brush.horizontalGradient(listOf(CyanPrimary, PurplePrimary)))
+                                .background(Brush.horizontalGradient(listOf(SoftTeal, AccentPurple)))
                         )
                     }
                 }
@@ -1366,7 +1273,7 @@ private fun CategoriesAnalyticsTabContent(
             text = "Itemized Category Roster",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -1399,13 +1306,13 @@ private fun CategoriesAnalyticsTabContent(
                             val py = size.height * (1f - (tx.amount / maxCatTx).toFloat().coerceIn(0.1f, 0.9f))
                             if (i == 0) p.moveTo(px, py) else p.lineTo(px, py)
                         }
-                        drawPath(p, color = PurplePrimary, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
+                        drawPath(p, color = AccentPurple, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
                     } else {
                         val p = Path().apply {
                             moveTo(0f, size.height * 0.75f)
                             lineTo(size.width, size.height * 0.4f)
                         }
-                        drawPath(p, color = PurplePrimary, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
+                        drawPath(p, color = AccentPurple, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
                     }
                 }
 
@@ -1466,8 +1373,8 @@ private fun WealthAnalyticsTabContent(
                 Text(
                     text = "Net Capital Trajectory",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = Color(0xFF1E202E)
+                    fontSize = 17.sp,
+                    color = TextDark
                 )
                 Text(
                     text = "Liquid Reserves + SIP Assets Accumulation",
@@ -1509,8 +1416,7 @@ private fun WealthAnalyticsTabContent(
 
         LayeredMountainAreaChartCanvas(
             liquidTotal = totalLiquid,
-            assetTotal = totalAssets,
-            transactions = transactions
+            assetTotal = totalAssets
         )
 
         Spacer(modifier = Modifier.height(28.dp))
@@ -1519,7 +1425,7 @@ private fun WealthAnalyticsTabContent(
             text = "Capital Distribution",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(14.dp))
         ThreeBubbleAllocationCanvas(
@@ -1535,7 +1441,7 @@ private fun WealthAnalyticsTabContent(
             text = "Emergency Buffer Runway",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(10.dp))
         Row(
@@ -1548,21 +1454,21 @@ private fun WealthAnalyticsTabContent(
                     text = "${String.format(Locale.US, "%.1f", runwayMonths)} Months",
                     fontWeight = FontWeight.Black,
                     fontSize = 24.sp,
-                    color = TealPrimary
+                    color = SoftTeal
                 )
                 Text("Living expenses secured in vaults", fontSize = 11.5.sp, color = TextMuted)
             }
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .background(TealPrimary.copy(alpha = 0.12f))
+                    .background(SoftTeal.copy(alpha = 0.12f))
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
                     text = if (runwayMonths >= 6) "Healthy Cushion" else "Building Buffer",
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp,
-                    color = TealPrimary
+                    color = SoftTeal
                 )
             }
         }
@@ -1573,7 +1479,7 @@ private fun WealthAnalyticsTabContent(
             text = if (is3Vault) "Strategic Vaults Status" else "Vaults Liquidity Status",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF1E202E)
+            color = TextDark
         )
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -1590,13 +1496,13 @@ private fun WealthAnalyticsTabContent(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (acc.accountType.equals("Cash", true)) TealPrimary.copy(alpha = 0.12f) else PurplePrimary.copy(alpha = 0.12f)),
+                            .background(if (acc.accountType.equals("Cash", true)) SoftTeal.copy(alpha = 0.12f) else AccentPurple.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = if (acc.accountType.equals("Cash", true)) Icons.Default.Payments else Icons.Default.AccountBalance,
                             contentDescription = null,
-                            tint = if (acc.accountType.equals("Cash", true)) TealPrimary else PurplePrimary,
+                            tint = if (acc.accountType.equals("Cash", true)) SoftTeal else AccentPurple,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -1612,7 +1518,7 @@ private fun WealthAnalyticsTabContent(
                         text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", acc.currentBalance)}",
                         fontWeight = FontWeight.Black,
                         fontSize = 14.5.sp,
-                        color = Color(0xFF1E202E)
+                        color = TextDark
                     )
                     Text(
                         text = "Base: $userProfileCurrency${acc.startingBalance.toInt()}",
@@ -1637,7 +1543,7 @@ private fun ConcentricRingsDonutCanvas(
 
         val outerRadius = (diameter / 2f) - (strokeWidth / 2f)
         drawCircle(
-            color = CyanPrimary.copy(alpha = 0.12f),
+            color = AccentPurple.copy(alpha = 0.12f),
             radius = outerRadius,
             center = center,
             style = Stroke(width = strokeWidth)
@@ -1646,7 +1552,7 @@ private fun ConcentricRingsDonutCanvas(
         val total = (fixedAmount + variableAmount).coerceAtLeast(1.0)
         val variableSweep = ((variableAmount / total) * 360f).toFloat().coerceIn(10f, 340f)
         drawArc(
-            color = CyanPrimary,
+            color = AccentPurple,
             startAngle = -90f,
             sweepAngle = variableSweep,
             useCenter = false,
@@ -1657,7 +1563,7 @@ private fun ConcentricRingsDonutCanvas(
 
         val innerRadius = outerRadius - strokeWidth - 10.dp.toPx()
         drawCircle(
-            color = PurplePrimary.copy(alpha = 0.12f),
+            color = SoftRed.copy(alpha = 0.12f),
             radius = innerRadius,
             center = center,
             style = Stroke(width = strokeWidth)
@@ -1665,7 +1571,7 @@ private fun ConcentricRingsDonutCanvas(
 
         val fixedSweep = ((fixedAmount / total) * 360f).toFloat().coerceIn(10f, 340f)
         drawArc(
-            color = PurplePrimary,
+            color = SoftRed,
             startAngle = 40f,
             sweepAngle = fixedSweep,
             useCenter = false,
@@ -1705,21 +1611,21 @@ private fun StackedOutflowBarsCanvas(
 
                 val totalH = size.height * heightRatio
                 val essentialRatio = if (data.totalAmount > 0) (data.essentialAmount / data.totalAmount).toFloat() else 0.5f
-                val purpleH = totalH * essentialRatio
+                val redH = totalH * essentialRatio
                 val barTop = size.height - totalH
 
                 drawRoundRect(
-                    color = if (data.totalAmount > 0) CyanPrimary else BorderLight.copy(alpha = 0.4f),
+                    color = if (data.totalAmount > 0) AccentPurple else BorderLight.copy(alpha = 0.4f),
                     topLeft = Offset(x, barTop),
                     size = Size(barWidth, totalH),
                     cornerRadius = cornerRadius
                 )
 
-                if (purpleH > 0f && data.totalAmount > 0) {
+                if (redH > 0f && data.totalAmount > 0) {
                     drawRoundRect(
-                        color = PurplePrimary,
-                        topLeft = Offset(x, size.height - purpleH),
-                        size = Size(barWidth, purpleH),
+                        color = SoftRed,
+                        topLeft = Offset(x, size.height - redH),
+                        size = Size(barWidth, redH),
                         cornerRadius = cornerRadius
                     )
                 }
@@ -1780,7 +1686,7 @@ private fun MicroFrequencyStripCanvas(transactions: List<TransactionEntity>) {
             val barH = size.height * hRatio
             drawRoundRect(
                 color = if (count > 0) {
-                    if (i % 3 == 0) CyanPrimary else PurplePrimary.copy(alpha = 0.85f)
+                    if (i % 3 == 0) SoftTeal else AccentPurple.copy(alpha = 0.85f)
                 } else BorderLight.copy(alpha = 0.45f),
                 topLeft = Offset(i * spacing, size.height - barH),
                 size = Size(barW, barH),
@@ -1847,7 +1753,7 @@ private fun DualTrajectoryLineCanvas(
                     Offset(x, y)
                 }
 
-                val cyanPath = Path().apply {
+                val targetPath = Path().apply {
                     moveTo(targetPoints[0].x, targetPoints[0].y)
                     for (i in 0 until targetPoints.size - 1) {
                         val p0 = targetPoints[i]
@@ -1858,12 +1764,12 @@ private fun DualTrajectoryLineCanvas(
                 }
 
                 drawPath(
-                    path = cyanPath,
-                    color = CyanPrimary,
+                    path = targetPath,
+                    color = SoftTeal,
                     style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
                 )
                 val targetCenter = targetPoints[count / 2]
-                drawCircle(color = CyanPrimary, radius = 3.5.dp.toPx(), center = targetCenter)
+                drawCircle(color = SoftTeal, radius = 3.5.dp.toPx(), center = targetCenter)
 
                 var runningCumulative = 0.0
                 val actualPoints = (0 until count).map { i ->
@@ -1874,7 +1780,7 @@ private fun DualTrajectoryLineCanvas(
                     Offset(x, y)
                 }
 
-                val purplePath = Path().apply {
+                val actualPath = Path().apply {
                     moveTo(actualPoints[0].x, actualPoints[0].y)
                     for (i in 0 until actualPoints.size - 1) {
                         val p0 = actualPoints[i]
@@ -1885,19 +1791,19 @@ private fun DualTrajectoryLineCanvas(
                 }
 
                 drawPath(
-                    path = purplePath,
-                    color = PurplePrimary,
+                    path = actualPath,
+                    color = AccentPurple,
                     style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
                 )
 
                 if (actualPoints.size >= 4) {
                     val dot1 = actualPoints[1]
                     drawCircle(color = CardWhite, radius = 4.dp.toPx(), center = dot1)
-                    drawCircle(color = PurplePrimary, radius = 3.dp.toPx(), center = dot1)
+                    drawCircle(color = AccentPurple, radius = 3.dp.toPx(), center = dot1)
 
                     val dot2 = actualPoints[actualPoints.size - 2]
                     drawCircle(color = CardWhite, radius = 4.dp.toPx(), center = dot2)
-                    drawCircle(color = PurplePrimary, radius = 3.dp.toPx(), center = dot2)
+                    drawCircle(color = AccentPurple, radius = 3.dp.toPx(), center = dot2)
                 }
             }
         }
@@ -1924,7 +1830,6 @@ private fun DualTrajectoryLineCanvas(
 
 @Composable
 private fun CategoryRadarWebCanvas(
-    categoryList: List<String>,
     categorySums: List<Double>
 ) {
     Canvas(modifier = Modifier.fillMaxSize()) {
@@ -1965,8 +1870,8 @@ private fun CategoryRadarWebCanvas(
         }
         polyPath.close()
 
-        drawPath(polyPath, color = PurplePrimary.copy(alpha = 0.22f))
-        drawPath(polyPath, color = PurplePrimary, style = Stroke(width = 2.dp.toPx()))
+        drawPath(polyPath, color = AccentPurple.copy(alpha = 0.22f))
+        drawPath(polyPath, color = AccentPurple, style = Stroke(width = 2.dp.toPx()))
     }
 }
 
@@ -1998,7 +1903,7 @@ private fun SymmetricalFunnelRibbonCanvas(
             cubicTo(w * 0.65f, band1Bottom, w * 0.35f, h * 0.35f, 0f, h * 0.35f)
             close()
         }
-        drawPath(path1, color = PurplePrimary.copy(alpha = 0.85f))
+        drawPath(path1, color = SoftRed.copy(alpha = 0.85f))
 
         val path2 = Path().apply {
             moveTo(0f, h * 0.35f)
@@ -2007,24 +1912,23 @@ private fun SymmetricalFunnelRibbonCanvas(
             cubicTo(w * 0.65f, band2Bottom, w * 0.35f, h * 0.65f, 0f, h * 0.65f)
             close()
         }
-        drawPath(path2, color = CyanPrimary.copy(alpha = 0.85f))
+        drawPath(path2, color = AccentPurple.copy(alpha = 0.85f))
 
         val path3 = Path().apply {
             moveTo(0f, h * 0.65f)
             cubicTo(w * 0.35f, h * 0.65f, w * 0.65f, band2Bottom, w, band2Bottom)
             lineTo(w, h)
-            cubicTo(w * 0.65f, h, w * 0.35f, h, 0f, h)
+            lineTo(0f, h)
             close()
         }
-        drawPath(path3, color = TealPrimary.copy(alpha = 0.85f))
+        drawPath(path3, color = SoftTeal.copy(alpha = 0.85f))
     }
 }
 
 @Composable
 private fun LayeredMountainAreaChartCanvas(
     liquidTotal: Double,
-    assetTotal: Double,
-    transactions: List<TransactionEntity>
+    assetTotal: Double
 ) {
     Canvas(
         modifier = Modifier
@@ -2046,7 +1950,7 @@ private fun LayeredMountainAreaChartCanvas(
         }
         drawPath(
             p1,
-            brush = Brush.verticalGradient(listOf(PurplePrimary.copy(alpha = 0.45f), PurplePrimary.copy(alpha = 0.05f)))
+            brush = Brush.verticalGradient(listOf(AccentPurple.copy(alpha = 0.45f), AccentPurple.copy(alpha = 0.05f)))
         )
 
         val p2 = Path().apply {
@@ -2058,7 +1962,7 @@ private fun LayeredMountainAreaChartCanvas(
         }
         drawPath(
             p2,
-            brush = Brush.verticalGradient(listOf(CyanPrimary.copy(alpha = 0.55f), CyanPrimary.copy(alpha = 0.05f)))
+            brush = Brush.verticalGradient(listOf(SoftTeal.copy(alpha = 0.55f), SoftTeal.copy(alpha = 0.05f)))
         )
     }
 }
@@ -2081,7 +1985,7 @@ private fun ThreeBubbleAllocationCanvas(
             modifier = Modifier
                 .size(86.dp)
                 .clip(CircleShape)
-                .background(PurplePrimary.copy(alpha = 0.88f)),
+                .background(AccentPurple.copy(alpha = 0.88f)),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2094,7 +1998,7 @@ private fun ThreeBubbleAllocationCanvas(
             modifier = Modifier
                 .size(72.dp)
                 .clip(CircleShape)
-                .background(CyanPrimary.copy(alpha = 0.88f)),
+                .background(SoftTeal.copy(alpha = 0.88f)),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2107,7 +2011,7 @@ private fun ThreeBubbleAllocationCanvas(
             modifier = Modifier
                 .size(60.dp)
                 .clip(CircleShape)
-                .background(TealPrimary.copy(alpha = 0.88f)),
+                .background(SoftGreen.copy(alpha = 0.88f)),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
