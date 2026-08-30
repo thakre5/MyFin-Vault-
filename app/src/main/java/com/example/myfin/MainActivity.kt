@@ -73,8 +73,11 @@ class MainActivity : FragmentActivity() {
 
                 val isFirstLaunch = !userProfile.isOnboardingCompleted
 
-                LaunchedEffect(userProfile.isScreenCaptureAllowed, isFirstLaunch) {
-                    if (isFirstLaunch || userProfile.isScreenCaptureAllowed) {
+                // Enforce FLAG_SECURE whenever app is locked (!isUnlocked)
+                // Screen capture is only permitted when actively unlocked AND explicitly allowed in settings
+                LaunchedEffect(userProfile.isScreenCaptureAllowed, isFirstLaunch, isUnlocked) {
+                    val allowCapture = isFirstLaunch || (isUnlocked && userProfile.isScreenCaptureAllowed)
+                    if (allowCapture) {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
                     } else {
                         window.setFlags(
@@ -88,15 +91,18 @@ class MainActivity : FragmentActivity() {
                     contract = ActivityResultContracts.RequestPermission()
                 ) { }
 
-                LaunchedEffect(Unit) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        val hasPermission = ContextCompat.checkSelfPermission(
-                            this@MainActivity,
-                            Manifest.permission.POST_NOTIFICATIONS
-                        ) == PackageManager.PERMISSION_GRANTED
+                // Request notification permission contextually once onboarding is completed
+                LaunchedEffect(isFirstLaunch, userProfile.reminderEnabled, userProfile.isAutoPayReminderEnabled) {
+                    if (!isFirstLaunch && (userProfile.reminderEnabled || userProfile.isAutoPayReminderEnabled)) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            val hasPermission = ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                Manifest.permission.POST_NOTIFICATIONS
+                            ) == PackageManager.PERMISSION_GRANTED
 
-                        if (!hasPermission) {
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            if (!hasPermission) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
                         }
                     }
                 }
