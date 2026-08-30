@@ -22,13 +22,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -36,12 +36,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import coil.compose.SubcomposeAsyncImage
 import com.example.myfin.ui.onboarding.CountryCurrencyMapping
 import com.example.myfin.ui.onboarding.CyanPrimary
 import com.example.myfin.ui.onboarding.PurplePrimary
 import com.example.myfin.ui.onboarding.TealPrimary
 import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
 import com.example.myfin.ui.theme.*
+import java.io.File
+import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -241,13 +244,36 @@ fun OnboardingStep6VaultSealing(
                                         shape = CircleShape,
                                         color = CanvasLight
                                     ) {
+                                        val imageModel = remember(profileImageUri) {
+                                            if (!profileImageUri.isNullOrBlank()) {
+                                                File(profileImageUri).takeIf { it.exists() } ?: profileImageUri
+                                            } else null
+                                        }
+
                                         Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Person,
-                                                contentDescription = null,
-                                                tint = AccentPurple,
-                                                modifier = Modifier.size(16.dp)
-                                            )
+                                            if (imageModel != null) {
+                                                SubcomposeAsyncImage(
+                                                    model = imageModel,
+                                                    contentDescription = "Profile Picture",
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop,
+                                                    error = {
+                                                        Icon(
+                                                            imageVector = Icons.Outlined.Person,
+                                                            contentDescription = null,
+                                                            tint = AccentPurple,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
+                                                )
+                                            } else {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.Person,
+                                                    contentDescription = null,
+                                                    tint = AccentPurple,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
                                         }
                                     }
                                     Spacer(modifier = Modifier.width(10.dp))
@@ -436,7 +462,7 @@ fun OnboardingStep6VaultSealing(
                                             color = TextDark
                                         )
                                         Text(
-                                            text = "${country.currencySymbol} %,.0f Initial".format(totalLiquidity),
+                                            text = String.format(Locale.US, "%s %,.0f Initial", country.currencySymbol, totalLiquidity),
                                             fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = TealPrimary,
@@ -468,7 +494,7 @@ fun OnboardingStep6VaultSealing(
                                             lineHeight = 9.sp
                                         )
                                         Text(
-                                            text = "${country.currencySymbol} %,.0f".format(totalCommitments),
+                                            text = String.format(Locale.US, "%s %,.0f", country.currencySymbol, totalCommitments),
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = AccentPurple,
