@@ -256,7 +256,7 @@ class BudgetViewModel(
                     actualExpenses = actualExpenses,
                     plannedAssets = plannedAssets,
                     actualAssets = actualAssets,
-                    fixedCommitmentsTotal = fixedBills.sumOf { it.amount },
+                    fixedCommitmentsTotal = fixedBills.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount },
                     safeToSpend = safeToSpend,
                     safeToSpendPercentage = safeToSpendPercentage,
                     netSavedAfterInvest = netSaved,
