@@ -110,6 +110,7 @@ fun VaultStrategyScreen(
 
     var showHelpDialog by remember { mutableStateOf(false) }
     var receiptPayload by remember { mutableStateOf<SuccessReceiptPayload?>(null) }
+    var isDiscreetMode by remember { mutableStateOf(false) }
 
     var showTransferSheet by remember { mutableStateOf(false) }
     var showAddAccountSheet by remember { mutableStateOf(false) }
@@ -197,6 +198,15 @@ fun VaultStrategyScreen(
         (bal - totalPendingBillsAmount - safetyBuffer).coerceAtLeast(0.0)
     }
 
+    val selectedTier = activeAccount?.let { getVaultTier(it.accountType, it.accountName) } ?: VaultTier.OPERATING
+    val isOverdraftRisk = remember(activeAccount?.currentBalance, totalPendingBillsAmount, selectedTier) {
+        selectedTier == VaultTier.COMMITMENTS && ((activeAccount?.currentBalance ?: 0.0) < totalPendingBillsAmount)
+    }
+
+    val totalMonthlyExpenses = remember(allFlattenedTxs) {
+        allFlattenedTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }.coerceAtLeast(1.0)
+    }
+
     val fabActions = remember {
         listOf(
             DockFabAction(
@@ -249,14 +259,30 @@ fun VaultStrategyScreen(
                         )
                     }
 
-                    Text(
-                        text = "3-Vault Strategy",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 17.sp,
-                        color = TextDark,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
+                    Row(
+                        modifier = Modifier.align(Alignment.Center),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "3-Vault Strategy",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 17.sp,
+                            color = TextDark,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        IconButton(
+                            onClick = { isDiscreetMode = !isDiscreetMode },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = "Toggle Balance Privacy",
+                                tint = if (isDiscreetMode) AccentPurple else TextMuted,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                    }
 
                     Surface(
                         modifier = Modifier
@@ -414,7 +440,7 @@ fun VaultStrategyScreen(
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text(text = "Liquid", fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
                                         Text(
-                                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalLiquidBalance)}",
+                                            text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalLiquidBalance)}",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Black,
                                             color = TextDark
@@ -432,25 +458,25 @@ fun VaultStrategyScreen(
                                         title = "Operating",
                                         percentage = if (totalLiquidBalance > 0) ((opTotal / totalLiquidBalance) * 100).toInt() else 0,
                                         color = Color(0xFFE57A28),
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", opTotal)}"
+                                        amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", opTotal)}"
                                     )
                                     AllocationStatPill(
                                         title = "Commitments",
                                         percentage = if (totalLiquidBalance > 0) ((comTotal / totalLiquidBalance) * 100).toInt() else 0,
                                         color = AccentPurple,
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", comTotal)}"
+                                        amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", comTotal)}"
                                     )
                                     AllocationStatPill(
                                         title = "Fortress",
                                         percentage = if (totalLiquidBalance > 0) ((fortTotal / totalLiquidBalance) * 100).toInt() else 0,
                                         color = SoftTeal,
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortTotal)}"
+                                        amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortTotal)}"
                                     )
                                     AllocationStatPill(
                                         title = "Cash",
                                         percentage = if (totalLiquidBalance > 0) ((cashTotal / totalLiquidBalance) * 100).toInt() else 0,
                                         color = SoftGreen,
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cashTotal)}"
+                                        amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cashTotal)}"
                                     )
                                 }
                             }
@@ -514,13 +540,71 @@ fun VaultStrategyScreen(
                                     tier = tier,
                                     isSelected = isSelected,
                                     showRole = true,
+                                    isDiscreet = isDiscreetMode,
                                     onSelect = { activeSelectedCardIndex = idx },
                                     onEdit = { editingAccount = acc },
                                     modifier = Modifier.width(260.dp)
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(18.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+                }
+
+                // Overdraft Buffer Shield Warning
+                if (isOverdraftRisk) {
+                    item {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(2.dp, RoundedCornerShape(14.dp)),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFFFF1F2),
+                            border = BorderStroke(0.8.dp, SoftRed.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Shield,
+                                        contentDescription = null,
+                                        tint = SoftRed,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            text = "Overdraft Buffer Warning",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.5.sp,
+                                            color = SoftRed
+                                        )
+                                        Text(
+                                            text = "Queued AutoPay bills exceed this account's liquid balance.",
+                                            fontSize = 11.sp,
+                                            color = TextDark.copy(alpha = 0.8f),
+                                            lineHeight = 14.sp
+                                        )
+                                    }
+                                }
+                                Button(
+                                    onClick = { showTransferSheet = true },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SoftRed),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(30.dp)
+                                ) {
+                                    Text(text = "Cover", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
                     }
                 }
 
@@ -547,7 +631,7 @@ fun VaultStrategyScreen(
                                 Row(modifier = Modifier.fillMaxWidth()) {
                                     MatrixMetricCell(
                                         title = "Daily Burn Rate",
-                                        value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyBurnRate)}/day",
+                                        value = if (isDiscreetMode) "••••/day" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyBurnRate)}/day",
                                         icon = Icons.Default.Whatshot,
                                         iconColor = SoftRed,
                                         subtitle = "Avg spend velocity",
@@ -573,7 +657,7 @@ fun VaultStrategyScreen(
                                 Row(modifier = Modifier.fillMaxWidth()) {
                                     MatrixMetricCell(
                                         title = "Queued AutoPay",
-                                        value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPendingBillsAmount)}",
+                                        value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPendingBillsAmount)}",
                                         icon = Icons.Default.Schedule,
                                         iconColor = AccentPurple,
                                         subtitle = "${pendingBillsForAccount.size} pending bills",
@@ -585,7 +669,7 @@ fun VaultStrategyScreen(
                                     val netDelta = activeIncome - activeExpenses - activeTransfersOut
                                     MatrixMetricCell(
                                         title = "Net Cashflow",
-                                        value = "${if (netDelta >= 0) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(netDelta))}",
+                                        value = if (isDiscreetMode) "••••" else "${if (netDelta >= 0) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(netDelta))}",
                                         icon = if (netDelta >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                                         iconColor = if (netDelta >= 0) SoftGreen else SoftRed,
                                         subtitle = "Retained balance delta",
@@ -596,6 +680,74 @@ fun VaultStrategyScreen(
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
+
+                        // Emergency Fund Runway Milestone Card (Shown on Fortress Vault Account)
+                        if (selectedTier == VaultTier.FORTRESS) {
+                            val curBal = acc.currentBalance
+                            val m3Target = totalMonthlyExpenses * 3
+                            val m6Target = totalMonthlyExpenses * 6
+                            val m12Target = totalMonthlyExpenses * 12
+
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .shadow(2.dp, RoundedCornerShape(18.dp)),
+                                shape = RoundedCornerShape(18.dp),
+                                color = CardWhite,
+                                border = BorderStroke(0.8.dp, SoftTeal.copy(alpha = 0.35f))
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Security, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(17.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(text = "Emergency Runway Milestones", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
+                                        }
+
+                                        Surface(shape = RoundedCornerShape(6.dp), color = SoftTeal.copy(alpha = 0.12f)) {
+                                            Text(
+                                                text = "${(curBal / totalMonthlyExpenses).toInt()} Mo Covered",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = SoftTeal,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        RunwayMilestoneRow(
+                                            title = "3 Months Essential Buffer",
+                                            target = m3Target,
+                                            current = curBal,
+                                            currencySymbol = userProfile.currencySymbol,
+                                            isDiscreet = isDiscreetMode
+                                        )
+                                        RunwayMilestoneRow(
+                                            title = "6 Months Security Cushion",
+                                            target = m6Target,
+                                            current = curBal,
+                                            currencySymbol = userProfile.currencySymbol,
+                                            isDiscreet = isDiscreetMode
+                                        )
+                                        RunwayMilestoneRow(
+                                            title = "12 Months Fortress Immunity",
+                                            target = m12Target,
+                                            current = curBal,
+                                            currencySymbol = userProfile.currencySymbol,
+                                            isDiscreet = isDiscreetMode
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
 
                         // Strategic Vault Routing Card
                         Surface(
@@ -998,7 +1150,7 @@ fun VaultStrategyScreen(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(text = "Everyday Spend & Living", fontSize = 12.sp, color = TextDark)
                                 }
-                                Text(text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeExpenses)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeExpenses)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1007,7 +1159,7 @@ fun VaultStrategyScreen(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(text = "Queued / Paid AutoPay Bills", fontSize = 12.sp, color = TextDark)
                                 }
-                                Text(text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1016,7 +1168,7 @@ fun VaultStrategyScreen(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(text = "Transfers & Fortress Sweeps", fontSize = 12.sp, color = TextDark)
                                 }
-                                Text(text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeTransfersOut)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeTransfersOut)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
                         }
                     }
@@ -1035,16 +1187,16 @@ fun VaultStrategyScreen(
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(text = "Current Liquid Balance", fontSize = 11.5.sp, color = TextMuted)
-                                Text(text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeAccount?.currentBalance ?: 0.0)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeAccount?.currentBalance ?: 0.0)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(text = "Reserved for Upcoming AutoPay", fontSize = 11.5.sp, color = TextMuted)
-                                Text(text = "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
+                                Text(text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
                             }
                             HorizontalDivider(color = BorderLight, thickness = 0.6.dp)
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(text = "Available Sweepable Surplus", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                                Text(text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", calculatedSweepSurplus)}", fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = SoftGreen)
+                                Text(text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", calculatedSweepSurplus)}", fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = SoftGreen)
                             }
                         }
                     }
@@ -1062,7 +1214,7 @@ fun VaultStrategyScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text(text = "Sweep Surplus to Fortress (${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", calculatedSweepSurplus)})", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(text = if (isDiscreetMode) "Sweep Surplus to Fortress" else "Sweep Surplus to Fortress (${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", calculatedSweepSurplus)})", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -1106,6 +1258,7 @@ fun VaultStrategyScreen(
             var toAccount by remember { mutableStateOf(accountNames.getOrNull(1) ?: accountNames.firstOrNull().orEmpty()) }
             var amountText by remember { mutableStateOf(if (calculatedSweepSurplus > 0) String.format(Locale.US, "%.0f", calculatedSweepSurplus) else "") }
             var noteText by remember { mutableStateOf("Strategic Vault Sweep") }
+            var isAutoSweepMonthly by remember { mutableStateOf(false) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -1205,13 +1358,50 @@ fun VaultStrategyScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Monthly Auto-Sweep Recurring Option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { isAutoSweepMonthly = !isAutoSweepMonthly }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = isAutoSweepMonthly,
+                            onCheckedChange = { isAutoSweepMonthly = it },
+                            colors = CheckboxDefaults.colors(checkedColor = AccentPurple)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Column {
+                            Text(text = "Repeat Monthly (Auto-Sweep Rule)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                            Text(text = "Adds this sweep to recurring monthly AutoPay commitments", fontSize = 10.5.sp, color = TextMuted)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
                         onClick = {
                             val amt = amountText.toDoubleOrNull() ?: 0.0
                             if (amt > 0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount != toAccount) {
                                 viewModel.executeInstantTransfer(fromAccount, toAccount, amt, noteText)
+
+                                if (isAutoSweepMonthly) {
+                                    viewModel.addFixedBill(
+                                        title = noteText.ifBlank { "Monthly Vault Sweep" },
+                                        amount = amt,
+                                        category = "Transfers",
+                                        subcategory = "General",
+                                        accountName = fromAccount,
+                                        toAccountName = toAccount,
+                                        type = TransactionType.TRANSFER,
+                                        dueDay = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
+                                    )
+                                }
+
                                 showTransferSheet = false
                                 receiptPayload = SuccessReceiptPayload(
                                     subtitle = "Transfer Successful",
@@ -1240,7 +1430,7 @@ fun VaultStrategyScreen(
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
             var balanceText by remember { mutableStateOf("") }
-            var selectedTier by remember { mutableStateOf(VaultTier.OPERATING) }
+            var selectedTierOption by remember { mutableStateOf(VaultTier.OPERATING) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -1281,12 +1471,12 @@ fun VaultStrategyScreen(
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         VaultTier.entries.forEach { tier ->
-                            val isSel = selectedTier == tier
+                            val isSel = selectedTierOption == tier
                             Surface(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(9.dp))
-                                    .clickable { selectedTier = tier },
+                                    .clickable { selectedTierOption = tier },
                                 shape = RoundedCornerShape(9.dp),
                                 color = if (isSel) tier.color.copy(alpha = 0.14f) else CanvasLight,
                                 border = BorderStroke(0.7.dp, if (isSel) tier.color else BorderLight)
@@ -1325,10 +1515,10 @@ fun VaultStrategyScreen(
                                 viewModel.addAccount(
                                     name = name.trim().uppercase(),
                                     startingBalance = bal,
-                                    type = selectedTier.title
+                                    type = selectedTierOption.title
                                 )
                                 showAddAccountSheet = false
-                                Toast.makeText(context, "Account '${name.trim().uppercase()}' registered as ${selectedTier.title}", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Account '${name.trim().uppercase()}' registered as ${selectedTierOption.title}", Toast.LENGTH_SHORT).show()
                             }
                         },
                         enabled = name.isNotBlank(),
@@ -1401,6 +1591,44 @@ fun VaultStrategyScreen(
 }
 
 @Composable
+private fun RunwayMilestoneRow(
+    title: String,
+    target: Double,
+    current: Double,
+    currencySymbol: String,
+    isDiscreet: Boolean
+) {
+    val progress = (current / target).toFloat().coerceIn(0f, 1f)
+    val isComplete = current >= target
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = title, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = TextDark)
+            Text(
+                text = if (isDiscreet) "••••" else if (isComplete) "100% Secured" else "${currencySymbol}${String.format(Locale.US, "%,.0f", current)} / ${currencySymbol}${String.format(Locale.US, "%,.0f", target)}",
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isComplete) SoftGreen else TextMuted
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.5.dp)
+                .clip(RoundedCornerShape(2.dp)),
+            color = if (isComplete) SoftGreen else SoftTeal,
+            trackColor = BorderLight.copy(alpha = 0.5f)
+        )
+    }
+}
+
+@Composable
 private fun MatrixMetricCell(
     title: String,
     value: String,
@@ -1429,6 +1657,7 @@ private fun BankAccountPhysicalCard(
     tier: VaultTier,
     isSelected: Boolean,
     showRole: Boolean,
+    isDiscreet: Boolean,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
@@ -1534,7 +1763,7 @@ private fun BankAccountPhysicalCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
+                text = if (isDiscreet) "••••••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
                 color = if (account.currentBalance >= 0) TextDark else SoftRed
