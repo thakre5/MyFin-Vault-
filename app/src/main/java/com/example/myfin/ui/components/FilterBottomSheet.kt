@@ -23,9 +23,9 @@ fun FilterBottomSheet(
     onApply: (type: TransactionType?, account: String, startDate: Long?, endDate: Long?) -> Unit,
     onReset: () -> Unit
 ) {
-    var selectedType by remember { mutableStateOf(currentFilter.type) }
-    var selectedAccount by remember { mutableStateOf(currentFilter.account) }
-    val sheetState = rememberModalBottomSheetState()
+    var selectedType by remember(currentFilter) { mutableStateOf(currentFilter.type) }
+    var selectedAccount by remember(currentFilter) { mutableStateOf(currentFilter.account) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -36,8 +36,9 @@ fun FilterBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp)
+                .padding(bottom = 24.dp)
         ) {
             Text("Filter Ledger Entries", fontWeight = FontWeight.Black, fontSize = 17.sp, color = TextDark)
 
@@ -54,7 +55,7 @@ fun FilterBottomSheet(
                         shape = RoundedCornerShape(8.dp)
                     )
                 }
-                items(TransactionType.values()) { type ->
+                items(TransactionType.entries) { type ->
                     FilterChip(
                         selected = selectedType == type,
                         onClick = { selectedType = type },
