@@ -72,7 +72,8 @@ data class PendingEditConfirmation(
     val originalAccount: AccountBalanceResult,
     val updatedName: String,
     val updatedRole: VaultTier,
-    val targetBalance: Double
+    val targetBalance: Double,
+    val isFixedDeposit: Boolean = false
 )
 
 private fun getVaultTier(accountType: String, accountName: String): VaultTier {
@@ -113,6 +114,9 @@ fun VaultStrategyScreen(
     var isDiscreetMode by remember { mutableStateOf(false) }
 
     var showTransferSheet by remember { mutableStateOf(false) }
+    var transferPrefillAmount by remember { mutableStateOf("") }
+    var transferPrefillNote by remember { mutableStateOf("Strategic Vault Sweep") }
+
     var showAddAccountSheet by remember { mutableStateOf(false) }
     var showRoutingDetailsSheet by remember { mutableStateOf(false) }
 
@@ -125,7 +129,9 @@ fun VaultStrategyScreen(
     val displayAccounts = uiState.accounts
     var activeSelectedCardIndex by remember { mutableIntStateOf(0) }
     val activeAccount = remember(displayAccounts, activeSelectedCardIndex) {
-        displayAccounts.getOrNull(activeSelectedCardIndex.coerceIn(0, (displayAccounts.size - 1).coerceAtLeast(0)))
+        if (displayAccounts.isNotEmpty()) {
+            displayAccounts.getOrNull(activeSelectedCardIndex.coerceIn(0, displayAccounts.size - 1))
+        } else null
     }
 
     val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
@@ -203,6 +209,15 @@ fun VaultStrategyScreen(
         selectedTier == VaultTier.COMMITMENTS && ((activeAccount?.currentBalance ?: 0.0) < totalPendingBillsAmount)
     }
 
+    // Fortress FD Surplus Trigger Logic
+    val fortressThreshold = userProfile.fortressThreshold.takeIf { it > 0 } ?: 25000.0
+    val fortressLiquidExcess = remember(activeAccount?.currentBalance, selectedTier, fortressThreshold) {
+        if (selectedTier == VaultTier.FORTRESS) {
+            val bal = activeAccount?.currentBalance ?: 0.0
+            (bal - fortressThreshold).coerceAtLeast(0.0)
+        } else 0.0
+    }
+
     // Benchmark base monthly expenses: uses actual expenses, falls back to planned budget or fixed commitments
     val effectiveMonthlyExpenses = remember(allFlattenedTxs, uiState.metrics.plannedExpenses, uiState.metrics.fixedCommitmentsTotal) {
         val actual = allFlattenedTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
@@ -224,7 +239,11 @@ fun VaultStrategyScreen(
             DockFabAction(
                 icon = Icons.Default.SyncAlt,
                 label = "Transfer",
-                onClick = { showTransferSheet = true }
+                onClick = {
+                    transferPrefillAmount = ""
+                    transferPrefillNote = "Internal Vault Transfer"
+                    showTransferSheet = true
+                }
             )
         )
     }
@@ -601,7 +620,11 @@ fun VaultStrategyScreen(
                                     }
                                 }
                                 Button(
-                                    onClick = { showTransferSheet = true },
+                                    onClick = {
+                                        transferPrefillAmount = ""
+                                        transferPrefillNote = "Cover AutoPay Overdraft"
+                                        showTransferSheet = true
+                                    },
                                     shape = RoundedCornerShape(8.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = SoftRed),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
@@ -615,7 +638,77 @@ fun VaultStrategyScreen(
                     }
                 }
 
-                // Account Cashflow Matrix
+                // Interactive FD Auto-Sweep Call-to-Action Banner (Shown on Fortress Tier with Excess Balance)
+                if (fortressLiquidExcess > 0) {
+                    item {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(2.dp, RoundedCornerShape(16.dp)),
+                            shape = RoundedCornerShape(16.dp),
+                            color = CardWhite,
+                            border = BorderStroke(1.dp, SoftTeal.copy(alpha = 0.45f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(SoftTeal.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Lock,
+                                        contentDescription = null,
+                                        tint = SoftTeal,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isDiscreetMode) "Excess Safety Buffer Available" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressLiquidExcess)} Ready for FD Sweep",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.5.sp,
+                                        color = TextDark
+                                    )
+                                    Text(
+                                        text = "Surplus funds above your safety cap of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressThreshold)} ready to earn interest in Fixed Deposit.",
+                                        fontSize = 10.5.sp,
+                                        color = TextMuted,
+                                        lineHeight = 14.sp
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Button(
+                                    onClick = {
+                                        transferPrefillAmount = String.format(Locale.US, "%.0f", fortressLiquidExcess)
+                                        transferPrefillNote = "Automated FD Sweep"
+                                        showTransferSheet = true
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text(text = "Sweep to FD", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+                }
+
+                // Account Cashflow Matrix (Bound Dynamically to Active Account)
                 activeAccount?.let { acc ->
                     item {
                         Text(
@@ -662,14 +755,26 @@ fun VaultStrategyScreen(
                                 Spacer(modifier = Modifier.height(12.dp))
 
                                 Row(modifier = Modifier.fillMaxWidth()) {
-                                    MatrixMetricCell(
-                                        title = "Queued AutoPay",
-                                        value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPendingBillsAmount)}",
-                                        icon = Icons.Default.Schedule,
-                                        iconColor = AccentPurple,
-                                        subtitle = "${pendingBillsForAccount.size} pending bills",
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                    if (selectedTier == VaultTier.FORTRESS) {
+                                        val capProgress = ((acc.currentBalance / fortressThreshold) * 100).toInt()
+                                        MatrixMetricCell(
+                                            title = "Safety Cap Buffer",
+                                            value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressThreshold)}",
+                                            icon = Icons.Default.VerifiedUser,
+                                            iconColor = SoftTeal,
+                                            subtitle = "$capProgress% Target Funded",
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    } else {
+                                        MatrixMetricCell(
+                                            title = "Queued AutoPay",
+                                            value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPendingBillsAmount)}",
+                                            icon = Icons.Default.Schedule,
+                                            iconColor = AccentPurple,
+                                            subtitle = "${pendingBillsForAccount.size} pending bills",
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
 
                                     Spacer(modifier = Modifier.width(12.dp))
 
@@ -833,7 +938,11 @@ fun VaultStrategyScreen(
                                     }
 
                                     Button(
-                                        onClick = { showTransferSheet = true },
+                                        onClick = {
+                                            transferPrefillAmount = if (calculatedSweepSurplus > 0) String.format(Locale.US, "%.0f", calculatedSweepSurplus) else ""
+                                            transferPrefillNote = "Monthly Commitments Sweep"
+                                            showTransferSheet = true
+                                        },
                                         shape = RoundedCornerShape(8.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
@@ -919,6 +1028,7 @@ fun VaultStrategyScreen(
             var nameText by remember(acc) { mutableStateOf(acc.accountName) }
             var selectedRole by remember(acc) { mutableStateOf(getVaultTier(acc.accountType, acc.accountName)) }
             var balanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%.2f", acc.currentBalance)) }
+            var isFdAccount by remember(acc) { mutableStateOf(acc.accountName.contains("FD", ignoreCase = true)) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -998,6 +1108,30 @@ fun VaultStrategyScreen(
                         }
                     }
 
+                    // Optional Locked Fixed Deposit Toggle
+                    if (selectedRole == VaultTier.FORTRESS) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { isFdAccount = !isFdAccount }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = isFdAccount,
+                                onCheckedChange = { isFdAccount = it },
+                                colors = CheckboxDefaults.colors(checkedColor = SoftTeal)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text(text = "Locked Fixed Deposit (FD)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = "Marks account as term deposit reserve under Fortress tier", fontSize = 10.5.sp, color = TextMuted)
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedTextField(
@@ -1045,7 +1179,8 @@ fun VaultStrategyScreen(
                                     originalAccount = acc,
                                     updatedName = nameText.trim().uppercase(),
                                     updatedRole = selectedRole,
-                                    targetBalance = targetBal
+                                    targetBalance = targetBal,
+                                    isFixedDeposit = isFdAccount
                                 )
                             }
                         },
@@ -1231,6 +1366,8 @@ fun VaultStrategyScreen(
                     Button(
                         onClick = {
                             showRoutingDetailsSheet = false
+                            transferPrefillAmount = if (calculatedSweepSurplus > 0) String.format(Locale.US, "%.0f", calculatedSweepSurplus) else ""
+                            transferPrefillNote = "Surplus Fortress Sweep"
                             showTransferSheet = true
                         },
                         modifier = Modifier
@@ -1281,8 +1418,8 @@ fun VaultStrategyScreen(
         if (showTransferSheet) {
             var fromAccount by remember { mutableStateOf(accountNames.firstOrNull().orEmpty()) }
             var toAccount by remember { mutableStateOf(accountNames.getOrNull(1) ?: accountNames.firstOrNull().orEmpty()) }
-            var amountText by remember { mutableStateOf(if (calculatedSweepSurplus > 0) String.format(Locale.US, "%.0f", calculatedSweepSurplus) else "") }
-            var noteText by remember { mutableStateOf("Strategic Vault Sweep") }
+            var amountText by remember { mutableStateOf(transferPrefillAmount) }
+            var noteText by remember { mutableStateOf(transferPrefillNote) }
             var isAutoSweepMonthly by remember { mutableStateOf(false) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -1456,6 +1593,7 @@ fun VaultStrategyScreen(
             var name by remember { mutableStateOf("") }
             var balanceText by remember { mutableStateOf("") }
             var selectedTierOption by remember { mutableStateOf(VaultTier.OPERATING) }
+            var isFdAccount by remember { mutableStateOf(false) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -1518,6 +1656,29 @@ fun VaultStrategyScreen(
                         }
                     }
 
+                    if (selectedTierOption == VaultTier.FORTRESS) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { isFdAccount = !isFdAccount }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = isFdAccount,
+                                onCheckedChange = { isFdAccount = it },
+                                colors = CheckboxDefaults.colors(checkedColor = SoftTeal)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text(text = "Fixed Deposit (FD)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text(text = "Creates this account with automatic FD tagging under Fortress", fontSize = 10.5.sp, color = TextMuted)
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedTextField(
@@ -1537,13 +1698,14 @@ fun VaultStrategyScreen(
                         onClick = {
                             if (name.isNotBlank()) {
                                 val bal = balanceText.toDoubleOrNull() ?: 0.0
+                                val effectiveName = if (isFdAccount && !name.contains("FD", ignoreCase = true)) "${name.trim().uppercase()} (FD)" else name.trim().uppercase()
                                 viewModel.addAccount(
-                                    name = name.trim().uppercase(),
+                                    name = effectiveName,
                                     startingBalance = bal,
                                     type = selectedTierOption.title
                                 )
                                 showAddAccountSheet = false
-                                Toast.makeText(context, "Account '${name.trim().uppercase()}' registered as ${selectedTierOption.title}", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Account '$effectiveName' registered as ${selectedTierOption.title}", Toast.LENGTH_SHORT).show()
                             }
                         },
                         enabled = name.isNotBlank(),
@@ -1690,6 +1852,9 @@ private fun BankAccountPhysicalCard(
     val maskedDigits = remember(account.accountName) {
         String.format(Locale.US, "%04d", abs(account.accountName.hashCode() % 9000 + 1000))
     }
+    val isFd = remember(account.accountName) {
+        account.accountName.contains("FD", ignoreCase = true)
+    }
 
     Surface(
         modifier = modifier
@@ -1724,11 +1889,12 @@ private fun BankAccountPhysicalCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = when (tier) {
-                            VaultTier.CASH -> Icons.Default.Payments
-                            VaultTier.FORTRESS -> Icons.Default.Security
-                            VaultTier.COMMITMENTS -> Icons.Default.CreditCard
-                            VaultTier.OPERATING -> Icons.Default.AccountBalance
+                        imageVector = when {
+                            isFd -> Icons.Default.Lock
+                            tier == VaultTier.CASH -> Icons.Default.Payments
+                            tier == VaultTier.FORTRESS -> Icons.Default.Security
+                            tier == VaultTier.COMMITMENTS -> Icons.Default.CreditCard
+                            else -> Icons.Default.AccountBalance
                         },
                         contentDescription = null,
                         tint = tier.color,
@@ -1743,7 +1909,7 @@ private fun BankAccountPhysicalCard(
                             color = tier.color.copy(alpha = 0.14f)
                         ) {
                             Text(
-                                text = tier.title,
+                                text = if (isFd) "Locked FD" else tier.title,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = tier.color,
@@ -1788,7 +1954,7 @@ private fun BankAccountPhysicalCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = if (isDiscreetMode) "••••••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
+                text = if (isDiscreet) "••••••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
                 color = if (account.currentBalance >= 0) TextDark else SoftRed
