@@ -20,7 +20,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -75,14 +74,6 @@ data class DailySpendData(
     val essentialAmount: Double,
     val discretionaryAmount: Double,
     val totalAmount: Double
-)
-
-private val HeroLightGradient = Brush.verticalGradient(
-    colors = listOf(
-        Color(0xFFFFFFFF),
-        Color(0xFFFCFAFF),
-        AccentPurple.copy(alpha = 0.05f)
-    )
 )
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -660,17 +651,6 @@ private fun SummaryAnalyticsTabContent(
     val retentionRate = if (totalIncome > 0) ((netSurplus / totalIncome) * 100).coerceIn(0.0, 100.0) else 0.0
     val commitmentLoad = if (totalBudget > 0) ((fixedOutflow / totalBudget) * 100).coerceIn(0.0, 100.0) else 0.0
 
-    val daysInScope = when (selectedTimeRange) {
-        TimeRangeFilter.THIS_WEEK -> 7.0
-        TimeRangeFilter.THIS_MONTH -> {
-            Calendar.getInstance().getActualMaximum(Calendar.DAY_OF_MONTH).toDouble()
-        }
-        TimeRangeFilter.LAST_MONTH -> {
-            Calendar.getInstance().apply { add(Calendar.MONTH, -1) }.getActualMaximum(Calendar.DAY_OF_MONTH).toDouble()
-        }
-    }
-    val dailyInflow = if (daysInScope > 0) totalIncome / daysInScope else 0.0
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -678,83 +658,77 @@ private fun SummaryAnalyticsTabContent(
             .padding(horizontal = 22.dp)
             .padding(top = 4.dp, bottom = 140.dp)
     ) {
-        Column(
+        // Dual-Wave Minimalist Hero Card (25.3 Clean Wave Style)
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(4.dp, RoundedCornerShape(26.dp))
-                .clip(RoundedCornerShape(26.dp))
-                .background(HeroLightGradient)
-                .border(BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f)), RoundedCornerShape(26.dp))
-                .padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 14.dp)
+                .shadow(3.dp, RoundedCornerShape(24.dp)),
+            shape = RoundedCornerShape(24.dp),
+            color = CardWhite,
+            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                // Left Metric Column
+                Column(modifier = Modifier.weight(0.95f)) {
                     Text(
-                        text = "Net Capital Retained",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextMuted
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "$userProfileCurrency${String.format(Locale.US, "%,.2f", netSurplus)}",
-                        fontSize = 28.sp,
+                        text = "${String.format(Locale.US, "%.1f", retentionRate)}",
+                        fontSize = 32.sp,
                         fontWeight = FontWeight.Black,
-                        color = if (netSurplus >= 0) TextDark else SoftRed
+                        color = TextDark,
+                        letterSpacing = (-0.6).sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "CAPITAL RETENTION",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextMuted,
+                        letterSpacing = 0.6.sp
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "$userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} retained",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (netSurplus >= 0) SoftTeal else SoftRed
                     )
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = if (netSurplus >= 0) SoftTeal.copy(alpha = 0.14f) else SoftRed.copy(alpha = 0.14f)
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Right Dual Glow Wave Graph + Step Numbers
+                Column(
+                    modifier = Modifier.weight(1.55f),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    DualGlowWaveCanvas(
+                        weeklySpendData = weeklySpendData,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Icon(
-                            imageVector = if (netSurplus >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.Default.TrendingDown,
-                            contentDescription = null,
-                            tint = if (netSurplus >= 0) SoftTeal else SoftRed,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "${String.format(Locale.US, "%.1f", retentionRate)}% Saved",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (netSurplus >= 0) SoftTeal else SoftRed
-                        )
+                        listOf("01", "02", "03", "04", "05", "06").forEach { step ->
+                            Text(
+                                text = step,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextMuted.copy(alpha = 0.7f)
+                            )
+                        }
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            SummaryHeroSplineWave(weeklySpendData = weeklySpendData)
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Daily Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyInflow)}",
-                    fontSize = 11.sp,
-                    color = SoftGreen,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Daily Burn: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}",
-                    fontSize = 11.sp,
-                    color = AccentPurple,
-                    fontWeight = FontWeight.SemiBold
-                )
             }
         }
 
@@ -1036,68 +1010,114 @@ private fun SummaryAnalyticsTabContent(
 }
 
 @Composable
-private fun SummaryHeroSplineWave(weeklySpendData: List<DailySpendData>) {
-    Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(84.dp)
-    ) {
+private fun DualGlowWaveCanvas(
+    weeklySpendData: List<DailySpendData>,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
 
         val maxSpend = weeklySpendData.maxOfOrNull { it.totalAmount }?.coerceAtLeast(1.0) ?: 1.0
-        val points = weeklySpendData.mapIndexed { index, data ->
-            val x = (index.toFloat() / (weeklySpendData.size - 1).coerceAtLeast(1)) * w
-            val normalizedY = 1f - (data.totalAmount / maxSpend).toFloat()
-            val y = (h * 0.15f) + (normalizedY * h * 0.70f)
-            Offset(x, y)
+        val hasData = weeklySpendData.any { it.totalAmount > 0 }
+
+        val ptsWave1 = if (hasData) {
+            weeklySpendData.take(6).mapIndexed { idx, d ->
+                val x = (idx.toFloat() / 5f) * w
+                val normY = 1f - (d.totalAmount / maxSpend).toFloat().coerceIn(0.15f, 0.85f)
+                val y = (h * 0.15f) + (normY * h * 0.70f)
+                Offset(x, y)
+            }
+        } else {
+            listOf(
+                Offset(0f, h * 0.82f),
+                Offset(w * 0.25f, h * 0.38f),
+                Offset(w * 0.50f, h * 0.60f),
+                Offset(w * 0.75f, h * 0.40f),
+                Offset(w * 0.90f, h * 0.22f),
+                Offset(w, h * 0.78f)
+            )
         }
 
-        if (points.size >= 2) {
-            val path = Path().apply {
-                moveTo(points[0].x, points[0].y)
-                for (i in 0 until points.size - 1) {
-                    val p0 = points[i]
-                    val p1 = points[i + 1]
-                    val cx = (p0.x + p1.x) / 2
-                    cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+        val ptsWave2 = if (hasData) {
+            weeklySpendData.take(6).mapIndexed { idx, d ->
+                val x = (idx.toFloat() / 5f) * w
+                val essNorm = 1f - (d.essentialAmount / maxSpend).toFloat().coerceIn(0.10f, 0.90f)
+                val y = (h * 0.20f) + (essNorm * h * 0.65f)
+                Offset(x, y)
+            }
+        } else {
+            listOf(
+                Offset(0f, h * 0.88f),
+                Offset(w * 0.25f, h * 0.80f),
+                Offset(w * 0.50f, h * 0.36f),
+                Offset(w * 0.75f, h * 0.65f),
+                Offset(w * 0.90f, h * 0.78f),
+                Offset(w, h * 0.88f)
+            )
+        }
+
+        fun buildSpline(pts: List<Offset>): Pair<Path, Path> {
+            val stroke = Path().apply {
+                if (pts.isNotEmpty()) {
+                    moveTo(pts[0].x, pts[0].y)
+                    for (i in 0 until pts.size - 1) {
+                        val p0 = pts[i]
+                        val p1 = pts[i + 1]
+                        val cx = (p0.x + p1.x) / 2
+                        cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                    }
                 }
             }
-
-            val fillPath = Path().apply {
-                addPath(path)
+            val fill = Path().apply {
+                addPath(stroke)
                 lineTo(w, h)
                 lineTo(0f, h)
                 close()
             }
+            return Pair(stroke, fill)
+        }
 
-            drawPath(
-                path = fillPath,
-                brush = Brush.verticalGradient(
-                    listOf(AccentPurple.copy(alpha = 0.22f), Color.Transparent)
+        val (stroke1, fill1) = buildSpline(ptsWave1)
+        val (stroke2, fill2) = buildSpline(ptsWave2)
+
+        // Wave 1: Soft Cyan/Blue Gradient
+        drawPath(
+            path = fill1,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFF38BDF8).copy(alpha = 0.55f),
+                    Color(0xFF6366F1).copy(alpha = 0.25f),
+                    Color.Transparent
                 )
             )
+        )
+        drawPath(
+            path = stroke1,
+            brush = Brush.horizontalGradient(
+                colors = listOf(Color(0xFF38BDF8), Color(0xFF6366F1))
+            ),
+            style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
+        )
 
-            drawPath(
-                path = path,
-                color = AccentPurple,
-                style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+        // Wave 2: Soft Pink/Magenta Gradient Overlap
+        drawPath(
+            path = fill2,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFF43F5E).copy(alpha = 0.50f),
+                    Color(0xFFA855F7).copy(alpha = 0.20f),
+                    Color.Transparent
+                )
             )
-
-            var peakIndex = 0
-            var highestVal = 0.0
-            weeklySpendData.forEachIndexed { idx, item ->
-                if (item.totalAmount > highestVal) {
-                    highestVal = item.totalAmount
-                    peakIndex = idx
-                }
-            }
-            if (highestVal > 0) {
-                val apex = points[peakIndex]
-                drawCircle(color = CardWhite, radius = 5.5.dp.toPx(), center = apex)
-                drawCircle(color = AccentPurple, radius = 3.5.dp.toPx(), center = apex)
-            }
-        }
+        )
+        drawPath(
+            path = stroke2,
+            brush = Brush.horizontalGradient(
+                colors = listOf(Color(0xFFF43F5E), Color(0xFFA855F7))
+            ),
+            style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
+        )
     }
 }
 
