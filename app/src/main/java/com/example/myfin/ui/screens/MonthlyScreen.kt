@@ -36,6 +36,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -72,6 +73,9 @@ fun MonthlyScreen(
 
     var selectedMatrixType by remember { mutableStateOf(TransactionType.EXPENSE) }
     var selectedTxFilterType by remember { mutableStateOf<TransactionType?>(null) }
+
+    var isDiscreetMode by remember { mutableStateOf(false) }
+    var dismissedWaterfallMonth by remember { mutableIntStateOf(0) }
 
     var showAddSheet by remember { mutableStateOf(false) }
     var showTransferSheet by remember { mutableStateOf(false) }
@@ -115,6 +119,11 @@ fun MonthlyScreen(
     val dailySpendAllowance = if (daysRemaining > 0) {
         (uiState.metrics.safeToSpend / daysRemaining).coerceAtLeast(0.0)
     } else 0.0
+
+    // Payday Waterfall Split Detection
+    val showWaterfallPrompt = remember(uiState.metrics.actualIncome, uiState.selectedMonth, dismissedWaterfallMonth) {
+        uiState.metrics.actualIncome > 0.0 && dismissedWaterfallMonth != uiState.selectedMonth
+    }
 
     val fabActions = remember {
         listOf(
@@ -171,28 +180,47 @@ fun MonthlyScreen(
                         )
                     }
 
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable { showMonthPicker = true },
-                        shape = RoundedCornerShape(20.dp),
-                        color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
-                        shadowElevation = 2.dp
+                    Row(
+                        modifier = Modifier.align(Alignment.Center),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { showMonthPicker = true },
+                            shape = RoundedCornerShape(20.dp),
+                            color = CardWhite,
+                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
+                            shadowElevation = 2.dp
                         ) {
-                            Text(
-                                text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = TextDark
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = TextDark
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Discreet Privacy Toggle
+                        IconButton(
+                            onClick = { isDiscreetMode = !isDiscreetMode },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = "Toggle Balance Privacy",
+                                tint = if (isDiscreetMode) AccentPurple else TextMuted,
+                                modifier = Modifier.size(19.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -231,46 +259,145 @@ fun MonthlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            if (showRollover) {
+                            // Top Notification Slot (Compact Sync & Waterfall Split Capsules)
+                            if (showRollover || showWaterfallPrompt) {
                                 item {
-                                    Surface(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .shadow(3.dp, RoundedCornerShape(18.dp)),
-                                        shape = RoundedCornerShape(18.dp),
-                                        color = CardWhite,
-                                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.35f))
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(16.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(text = "Prepare for Next Month", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                Text(text = "Carry forward your AutoPay commitments and budget templates.", fontSize = 11.sp, color = TextMuted)
-                                            }
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column(horizontalAlignment = Alignment.End) {
-                                                Button(
-                                                    onClick = { viewModel.executeRolloverToNextMonth() },
-                                                    shape = RoundedCornerShape(10.dp),
-                                                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
-                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        // 1. Compact Clone/Rollover Banner
+                                        if (showRollover) {
+                                            Surface(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = CardWhite,
+                                                border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.35f)),
+                                                shadowElevation = 1.5.dp
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
                                                 ) {
-                                                    Text(text = "Sync Now", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.SyncAlt,
+                                                            contentDescription = null,
+                                                            tint = AccentPurple,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text(
+                                                            text = "Sync templates to next month",
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = TextDark,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Button(
+                                                            onClick = { viewModel.executeRolloverToNextMonth() },
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
+                                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                            modifier = Modifier.height(28.dp)
+                                                        ) {
+                                                            Text(text = "Sync", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        }
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        IconButton(
+                                                            onClick = { viewModel.dismissRolloverPrompt() },
+                                                            modifier = Modifier.size(24.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Close,
+                                                                contentDescription = "Dismiss",
+                                                                tint = TextMuted,
+                                                                modifier = Modifier.size(15.dp)
+                                                            )
+                                                        }
+                                                    }
                                                 }
-                                                TextButton(
-                                                    onClick = { viewModel.dismissRolloverPrompt() },
-                                                    contentPadding = PaddingValues(0.dp)
+                                            }
+                                        }
+
+                                        // 2. Compact Payday Waterfall Split Prompt
+                                        if (showWaterfallPrompt) {
+                                            Surface(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = CardWhite,
+                                                border = BorderStroke(0.8.dp, SoftTeal.copy(alpha = 0.45f)),
+                                                shadowElevation = 1.5.dp
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
                                                 ) {
-                                                    Text(text = "Dismiss", fontSize = 10.sp, color = TextMuted)
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.AccountTree,
+                                                            contentDescription = null,
+                                                            tint = SoftTeal,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text(
+                                                            text = "Income logged • Waterfall split vaults?",
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = TextDark,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Button(
+                                                            onClick = {
+                                                                dismissedWaterfallMonth = uiState.selectedMonth
+                                                                showTransferSheet = true
+                                                            },
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
+                                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                            modifier = Modifier.height(28.dp)
+                                                        ) {
+                                                            Text(text = "Split", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        }
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        IconButton(
+                                                            onClick = { dismissedWaterfallMonth = uiState.selectedMonth },
+                                                            modifier = Modifier.size(24.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Close,
+                                                                contentDescription = "Dismiss",
+                                                                tint = TextMuted,
+                                                                modifier = Modifier.size(15.dp)
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(14.dp))
                                 }
                             }
 
@@ -340,7 +467,7 @@ fun MonthlyScreen(
                                         Spacer(modifier = Modifier.height(10.dp))
 
                                         Text(
-                                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
+                                            text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
                                             fontSize = 34.sp,
                                             fontWeight = FontWeight.Black,
                                             color = if (isHealthy) TextDark else SoftRed,
@@ -352,7 +479,7 @@ fun MonthlyScreen(
                                         Text(
                                             text = when {
                                                 isPastMonth -> "Month closed: final remaining balance"
-                                                isCurrentMonth && isHealthy -> "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
+                                                isCurrentMonth && isHealthy -> if (isDiscreetMode) "Daily allowance protected" else "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
                                                 isCurrentMonth -> "Overrun warning: spending exceeds available cashflow buffer"
                                                 else -> "Projected safe allowance across $daysRemaining days"
                                             },
@@ -378,19 +505,19 @@ fun MonthlyScreen(
                                         ) {
                                             PillarMetricCard(
                                                 title = "Inflow",
-                                                amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedIncome)}",
+                                                amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedIncome)}",
                                                 tintColor = SoftGreen,
                                                 modifier = Modifier.weight(1f)
                                             )
                                             PillarMetricCard(
                                                 title = "Fixed Bills",
-                                                amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
+                                                amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
                                                 tintColor = SoftRed,
                                                 modifier = Modifier.weight(1f)
                                             )
                                             PillarMetricCard(
                                                 title = "SIP Assets",
-                                                amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualAssets)}",
+                                                amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualAssets)}",
                                                 tintColor = SoftTeal,
                                                 modifier = Modifier.weight(1f)
                                             )
@@ -430,7 +557,7 @@ fun MonthlyScreen(
                                             Text(text = "START BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(
-                                                text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBalance)}",
+                                                text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBalance)}",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 15.sp,
                                                 color = TextDark
@@ -453,7 +580,7 @@ fun MonthlyScreen(
                                             Text(text = "END BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(
-                                                text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentEndBalance)}",
+                                                text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentEndBalance)}",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 15.sp,
                                                 color = if (currentEndBalance >= 0) TextDark else SoftRed
@@ -477,7 +604,7 @@ fun MonthlyScreen(
                                             Text(text = "NET SAVINGS", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(
-                                                text = "${if (netSavings >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", netSavings)}",
+                                                text = if (isDiscreetMode) "••••" else "${if (netSavings >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", netSavings)}",
                                                 fontWeight = FontWeight.Black,
                                                 fontSize = 15.sp,
                                                 color = if (netSavings >= 0) SoftTeal else SoftRed
@@ -538,8 +665,10 @@ fun MonthlyScreen(
                                             currencySymbol = userProfile.currencySymbol,
                                             progressFraction = expFraction,
                                             barColor = SoftRed,
+                                            isDiscreet = isDiscreetMode,
                                             varianceText = if (plannedExpenses > 0) {
-                                                if (expDiff > 0) "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expDiff)} Over"
+                                                if (isDiscreetMode) "Tracked"
+                                                else if (expDiff > 0) "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expDiff)} Over"
                                                 else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(expDiff))} Left"
                                             } else "No Cap",
                                             isAlert = expDiff > 0 && plannedExpenses > 0
@@ -554,8 +683,10 @@ fun MonthlyScreen(
                                             currencySymbol = userProfile.currencySymbol,
                                             progressFraction = incFraction,
                                             barColor = SoftGreen,
+                                            isDiscreet = isDiscreetMode,
                                             varianceText = if (plannedIncome > 0) {
                                                 if (incDiff >= 0) "Target Met"
+                                                else if (isDiscreetMode) "Short"
                                                 else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(incDiff))} Short"
                                             } else "Recorded Inflow",
                                             isAlert = false
@@ -570,8 +701,10 @@ fun MonthlyScreen(
                                             currencySymbol = userProfile.currencySymbol,
                                             progressFraction = astFraction,
                                             barColor = SoftTeal,
+                                            isDiscreet = isDiscreetMode,
                                             varianceText = if (plannedAssets > 0) {
                                                 if (astDiff >= 0) "Target Met"
+                                                else if (isDiscreetMode) "Short"
                                                 else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(astDiff))} Short"
                                             } else "Recorded Wealth",
                                             isAlert = false
@@ -716,7 +849,8 @@ fun MonthlyScreen(
                                                                 Text(
                                                                     text = if (cat.plannedAmount > 0) {
                                                                         val remaining = cat.plannedAmount - cat.actualAmount
-                                                                        if (remaining >= 0) {
+                                                                        if (isDiscreetMode) "Target configured"
+                                                                        else if (remaining >= 0) {
                                                                             "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", remaining)} left of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.plannedAmount)}"
                                                                         } else {
                                                                             "Exceeded by ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(remaining))}"
@@ -733,7 +867,7 @@ fun MonthlyScreen(
                                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                                             Column(horizontalAlignment = Alignment.End) {
                                                                 Text(
-                                                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.actualAmount)}",
+                                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.actualAmount)}",
                                                                     fontWeight = FontWeight.Black,
                                                                     fontSize = 15.sp,
                                                                     color = if (cat.isOverBudget) SoftRed else TextDark
@@ -818,7 +952,7 @@ fun MonthlyScreen(
                                                                             }
 
                                                                             Text(
-                                                                                text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", sub.amount)} ($subPercentage%)",
+                                                                                text = if (isDiscreetMode) "•••• ($subPercentage%)" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", sub.amount)} ($subPercentage%)",
                                                                                 fontSize = 12.sp,
                                                                                 fontWeight = FontWeight.Bold,
                                                                                 color = TextDark
@@ -1059,7 +1193,7 @@ fun MonthlyScreen(
                                             ) {
                                                 if (dailyIncomeTotal > 0.0) {
                                                     Text(
-                                                        text = "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
+                                                        text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 11.5.sp,
                                                         color = SoftGreen
@@ -1067,7 +1201,7 @@ fun MonthlyScreen(
                                                 }
                                                 if (dailyExpenseTotal > 0.0) {
                                                     Text(
-                                                        text = "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
+                                                        text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 11.5.sp,
                                                         color = TextDark
@@ -1688,6 +1822,7 @@ private fun PillarDualBarRow(
     currencySymbol: String,
     progressFraction: Float,
     barColor: Color,
+    isDiscreet: Boolean,
     varianceText: String,
     isAlert: Boolean
 ) {
@@ -1716,13 +1851,13 @@ private fun PillarDualBarRow(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Plan: $currencySymbol${String.format(Locale.US, "%,.0f", planned)}",
+                    text = if (isDiscreet) "Plan: ••••" else "Plan: $currencySymbol${String.format(Locale.US, "%,.0f", planned)}",
                     fontSize = 11.sp,
                     color = TextMuted
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Act: $currencySymbol${String.format(Locale.US, "%,.0f", actual)}",
+                    text = if (isDiscreet) "Act: ••••" else "Act: $currencySymbol${String.format(Locale.US, "%,.0f", actual)}",
                     fontWeight = FontWeight.Black,
                     fontSize = 13.sp,
                     color = if (isAlert) SoftRed else barColor
