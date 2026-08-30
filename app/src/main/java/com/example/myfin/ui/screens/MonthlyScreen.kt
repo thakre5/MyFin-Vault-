@@ -36,7 +36,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -259,115 +258,147 @@ fun MonthlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            // Top Notification Slot (Compact Sync & Waterfall Split Capsules)
+                            // Top Notification Slot (Structured 3-Line Banners)
                             if (showRollover || showWaterfallPrompt) {
                                 item {
                                     Column(
                                         modifier = Modifier.fillMaxWidth(),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        // 1. Compact Clone/Rollover Banner
+                                        // 1. Clone / Rollover Banner (3-Line Readable Structure)
                                         if (showRollover) {
                                             Surface(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                shape = RoundedCornerShape(12.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .shadow(2.dp, RoundedCornerShape(16.dp)),
+                                                shape = RoundedCornerShape(16.dp),
                                                 color = CardWhite,
-                                                border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.35f)),
-                                                shadowElevation = 1.5.dp
+                                                border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.28f))
                                             ) {
                                                 Row(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                        .padding(14.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.weight(1f)
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(40.dp)
+                                                            .clip(CircleShape)
+                                                            .background(AccentPurple.copy(alpha = 0.12f)),
+                                                        contentAlignment = Alignment.Center
                                                     ) {
                                                         Icon(
                                                             imageVector = Icons.Default.SyncAlt,
                                                             contentDescription = null,
                                                             tint = AccentPurple,
-                                                            modifier = Modifier.size(16.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(8.dp))
-                                                        Text(
-                                                            text = "Sync templates to next month",
-                                                            fontSize = 11.5.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = TextDark,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
+                                                            modifier = Modifier.size(20.dp)
                                                         )
                                                     }
 
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = "Clone & Roll Over Commitments",
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 13.sp,
+                                                            color = TextDark
+                                                        )
+                                                        Spacer(modifier = Modifier.height(2.dp))
+                                                        Text(
+                                                            text = "Carry forward recurring AutoPay bills and budget limits to the next cycle.",
+                                                            fontSize = 11.sp,
+                                                            color = TextMuted,
+                                                            lineHeight = 15.sp,
+                                                            maxLines = 2
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                                    Column(
+                                                        horizontalAlignment = Alignment.End,
+                                                        verticalArrangement = Arrangement.Center
+                                                    ) {
                                                         Button(
                                                             onClick = { viewModel.executeRolloverToNextMonth() },
                                                             shape = RoundedCornerShape(8.dp),
                                                             colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
-                                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                            modifier = Modifier.height(28.dp)
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                                            modifier = Modifier.height(32.dp)
                                                         ) {
-                                                            Text(text = "Sync", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                            Text(text = "Sync", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                                                         }
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        IconButton(
+                                                        Spacer(modifier = Modifier.height(2.dp))
+                                                        TextButton(
                                                             onClick = { viewModel.dismissRolloverPrompt() },
-                                                            modifier = Modifier.size(24.dp)
+                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                                            modifier = Modifier.height(22.dp)
                                                         ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Close,
-                                                                contentDescription = "Dismiss",
-                                                                tint = TextMuted,
-                                                                modifier = Modifier.size(15.dp)
-                                                            )
+                                                            Text(text = "Dismiss", fontSize = 10.sp, color = TextMuted)
                                                         }
                                                     }
                                                 }
                                             }
                                         }
 
-                                        // 2. Compact Payday Waterfall Split Prompt
+                                        // 2. Payday Waterfall Split Prompt (3-Line Readable Structure)
                                         if (showWaterfallPrompt) {
                                             Surface(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                shape = RoundedCornerShape(12.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .shadow(2.dp, RoundedCornerShape(16.dp)),
+                                                shape = RoundedCornerShape(16.dp),
                                                 color = CardWhite,
-                                                border = BorderStroke(0.8.dp, SoftTeal.copy(alpha = 0.45f)),
-                                                shadowElevation = 1.5.dp
+                                                border = BorderStroke(1.dp, SoftTeal.copy(alpha = 0.35f))
                                             ) {
                                                 Row(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                        .padding(14.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.weight(1f)
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(40.dp)
+                                                            .clip(CircleShape)
+                                                            .background(SoftTeal.copy(alpha = 0.12f)),
+                                                        contentAlignment = Alignment.Center
                                                     ) {
                                                         Icon(
                                                             imageVector = Icons.Default.AccountTree,
                                                             contentDescription = null,
                                                             tint = SoftTeal,
-                                                            modifier = Modifier.size(16.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(8.dp))
-                                                        Text(
-                                                            text = "Income logged • Waterfall split vaults?",
-                                                            fontSize = 11.5.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = TextDark,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
+                                                            modifier = Modifier.size(20.dp)
                                                         )
                                                     }
 
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = "Payday Waterfall Distribution",
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 13.sp,
+                                                            color = TextDark
+                                                        )
+                                                        Spacer(modifier = Modifier.height(2.dp))
+                                                        Text(
+                                                            text = "New income logged. Automate distribution into Commitments, Fortress, and Living vaults.",
+                                                            fontSize = 11.sp,
+                                                            color = TextMuted,
+                                                            lineHeight = 15.sp,
+                                                            maxLines = 2
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                                    Column(
+                                                        horizontalAlignment = Alignment.End,
+                                                        verticalArrangement = Arrangement.Center
+                                                    ) {
                                                         Button(
                                                             onClick = {
                                                                 dismissedWaterfallMonth = uiState.selectedMonth
@@ -375,22 +406,18 @@ fun MonthlyScreen(
                                                             },
                                                             shape = RoundedCornerShape(8.dp),
                                                             colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
-                                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                            modifier = Modifier.height(28.dp)
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                                            modifier = Modifier.height(32.dp)
                                                         ) {
-                                                            Text(text = "Split", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                            Text(text = "Split", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                                                         }
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        IconButton(
+                                                        Spacer(modifier = Modifier.height(2.dp))
+                                                        TextButton(
                                                             onClick = { dismissedWaterfallMonth = uiState.selectedMonth },
-                                                            modifier = Modifier.size(24.dp)
+                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                                            modifier = Modifier.height(22.dp)
                                                         ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Close,
-                                                                contentDescription = "Dismiss",
-                                                                tint = TextMuted,
-                                                                modifier = Modifier.size(15.dp)
-                                                            )
+                                                            Text(text = "Dismiss", fontSize = 10.sp, color = TextMuted)
                                                         }
                                                     }
                                                 }
