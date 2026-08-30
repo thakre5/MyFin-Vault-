@@ -8,7 +8,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -21,7 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -315,9 +313,7 @@ fun ReportsAnalyticsScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // =========================================================
             // 1. PINNED TOP BAR (WITH DOWNWARD DISSOLVE SHELF)
-            // =========================================================
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -342,7 +338,7 @@ fun ReportsAnalyticsScreen(
                             .clip(CircleShape)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ChevronLeft,
+                            imageVector = Icons.Default.Menu,
                             contentDescription = "Drawer",
                             tint = TextDark,
                             modifier = Modifier.size(24.dp)
@@ -437,9 +433,7 @@ fun ReportsAnalyticsScreen(
                 )
             }
 
-            // =========================================================
             // 2. FULL-SCREEN HORIZONTAL PAGER (SWIPEABLE ANALYTICS TABS)
-            // =========================================================
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
@@ -494,9 +488,7 @@ fun ReportsAnalyticsScreen(
             }
         }
 
-        // =========================================================
         // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
-        // =========================================================
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -514,9 +506,7 @@ fun ReportsAnalyticsScreen(
                 .zIndex(2.5f)
         )
 
-        // =========================================================
         // 4. FLOATING PAGER INDICATOR PILL (ANCHORED LEFT ABOVE DOCK)
-        // =========================================================
         FloatingPagerIndicator(
             pagerState = pagerState,
             pageTitles = pageTitles,
@@ -528,9 +518,7 @@ fun ReportsAnalyticsScreen(
                 .zIndex(3.5f)
         )
 
-        // =========================================================
         // 5. STANDARDIZED FLOATING BOTTOM NAVIGATION DOCK WITH FAB
-        // =========================================================
         AppBottomDock(
             currentSelection = NavigationTarget.REPORTS_ANALYTICS,
             onSelectTarget = { target ->
@@ -2207,10 +2195,10 @@ private fun DualTrajectoryLineCanvas(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 listOf(
-                    "${(maxDailyBudget / 1000).toInt()}k",
-                    "${(maxDailyBudget * 0.75 / 1000).toInt()}k",
-                    "${(maxDailyBudget * 0.50 / 1000).toInt()}k",
-                    "${(maxDailyBudget * 0.25 / 1000).toInt()}k"
+                    if (maxDailyBudget >= 1000) "${(maxDailyBudget / 1000).toInt()}k" else "${maxDailyBudget.toInt()}",
+                    if (maxDailyBudget >= 1000) "${(maxDailyBudget * 0.75 / 1000).toInt()}k" else "${(maxDailyBudget * 0.75).toInt()}",
+                    if (maxDailyBudget >= 1000) "${(maxDailyBudget * 0.50 / 1000).toInt()}k" else "${(maxDailyBudget * 0.50).toInt()}",
+                    if (maxDailyBudget >= 1000) "${(maxDailyBudget * 0.25 / 1000).toInt()}k" else "${(maxDailyBudget * 0.25).toInt()}"
                 ).forEach { label ->
                     Text(
                         text = label,
@@ -2515,7 +2503,8 @@ private fun ThreeBubbleAllocationCanvas(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Banks", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
-                Text("$currency${(bankAmount / 1000).toInt()}k", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
+                val label = if (bankAmount >= 1000) "$currency${(bankAmount / 1000).toInt()}k" else "$currency${bankAmount.toInt()}"
+                Text(label, fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
             }
         }
 
@@ -2528,7 +2517,8 @@ private fun ThreeBubbleAllocationCanvas(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Assets", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
-                Text("$currency${(assetAmount / 1000).toInt()}k", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                val label = if (assetAmount >= 1000) "$currency${(assetAmount / 1000).toInt()}k" else "$currency${assetAmount.toInt()}"
+                Text(label, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
             }
         }
 
@@ -2541,7 +2531,8 @@ private fun ThreeBubbleAllocationCanvas(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Cash", fontSize = 9.sp, color = Color.White.copy(alpha = 0.8f))
-                Text("$currency${(cashAmount / 1000).toInt()}k", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White)
+                val label = if (cashAmount >= 1000) "$currency${(cashAmount / 1000).toInt()}k" else "$currency${cashAmount.toInt()}"
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White)
             }
         }
     }
