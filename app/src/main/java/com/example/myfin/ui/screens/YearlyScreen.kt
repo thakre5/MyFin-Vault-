@@ -38,13 +38,11 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.ExcelExportManager
-import com.example.myfin.data.MonthlySummary
 import com.example.myfin.data.TransactionType
 import com.example.myfin.data.YearlyCategoryRollup
 import com.example.myfin.ui.BudgetViewModel
@@ -91,14 +89,6 @@ fun YearlyScreen(
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
-    // 12-Month Synthetic Flow & Category Rollup Flows
-    val yearlySummaryFlow by produceState<List<MonthlySummary>>(initialValue = emptyList(), uiState.selectedYear) {
-        viewModel.getYearlySummary(uiState.selectedYear).collect { value = it }
-    }
-    val yearlyBreakdownFlow by produceState<List<YearlyCategoryRollup>>(initialValue = emptyList(), uiState.selectedYear) {
-        viewModel.getYearlyCategoryBreakdown(uiState.selectedYear).collect { value = it }
-    }
-
     val pagerState = rememberPagerState(pageCount = { 3 })
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
     val pageTitles = remember { listOf("Executive", "12 Months", "Audit") }
@@ -112,15 +102,26 @@ fun YearlyScreen(
     val thisYear = currentCal.get(Calendar.YEAR)
     val thisMonth = currentCal.get(Calendar.MONTH) + 1
 
-    val yearlyMonthsData = remember(yearlySummaryFlow, uiState.selectedYear) {
-        val summaryMap = yearlySummaryFlow.associateBy { it.month }
+    val allTransactions = remember(uiState.groupedTransactions, uiState.selectedYear) {
+        val txCal = Calendar.getInstance()
+        uiState.groupedTransactions.values.flatten().filter { tx ->
+            txCal.timeInMillis = tx.date
+            txCal.get(Calendar.YEAR) == uiState.selectedYear
+        }
+    }
+
+    val yearlyMonthsData = remember(allTransactions, uiState.selectedYear) {
+        val txCal = Calendar.getInstance()
         (1..12).map { m ->
             val isFutureMonth = (uiState.selectedYear == thisYear && m > thisMonth) || (uiState.selectedYear > thisYear)
-            val summary = summaryMap[m]
+            val monthTxs = allTransactions.filter { tx ->
+                txCal.timeInMillis = tx.date
+                (txCal.get(Calendar.MONTH) + 1) == m
+            }
 
-            val inc = summary?.totalActualIncome ?: 0.0
-            val exp = summary?.totalActualExpense ?: 0.0
-            val ast = summary?.totalAsset ?: 0.0
+            val inc = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+            val exp = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+            val ast = monthTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
             val net = inc - exp - ast
 
             MonthDataSummary(
@@ -140,6 +141,13 @@ fun YearlyScreen(
     val annualAssets = yearlyMonthsData.sumOf { it.assets }
     val annualNetSurplus = annualIncome - annualExpenses - annualAssets
     val annualSavingsRate = if (annualIncome > 0) ((annualNetSurplus / annualIncome) * 100).coerceIn(0.0, 100.0) else 0.0
+
+    val expenseBreakdown = remember(allTransactions) {
+        allTransactions.filter { it.type == TransactionType.EXPENSE }
+            .groupBy { it.category }
+            .map { (cat, txs) -> YearlyCategoryRollup(cat, TransactionType.EXPENSE, txs.sumOf { it.amount }) }
+            .sortedByDescending { it.totalActualAmount }
+    }
 
     // Export Statement Launchers
     val xlsxExportLauncher = rememberLauncherForActivityResult(
@@ -509,10 +517,6 @@ fun YearlyScreen(
 
                     // --- SUB-SCREEN 2: ANNUAL AUDIT & CATEGORY SPECTRUM ---
                     2 -> {
-                        val expenseBreakdown = remember(yearlyBreakdownFlow) {
-                            yearlyBreakdownFlow.filter { it.type == TransactionType.EXPENSE }
-                        }
-
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
