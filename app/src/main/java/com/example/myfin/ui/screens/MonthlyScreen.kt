@@ -92,18 +92,29 @@ fun MonthlyScreen(
     val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
     val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
     val accountsList = remember(uiState.accounts) {
-        if (uiState.accounts.isEmpty()) listOf("BOM", "CASH", "HDFC", "INDUSIND")
-        else uiState.accounts.map { it.accountName }
+        uiState.accounts.map { it.accountName }
     }
 
+    // Relative Timeframe & Daily Burn Allowance Calculation
     val daysInMonth = remember(uiState.selectedMonth, uiState.selectedYear) {
         Calendar.getInstance().apply {
             set(uiState.selectedYear, uiState.selectedMonth - 1, 1)
         }.getActualMaximum(Calendar.DAY_OF_MONTH)
     }
-    val currentDay = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
-    val daysRemaining = (daysInMonth - currentDay + 1).coerceAtLeast(1)
-    val dailySpendAllowance = (uiState.metrics.safeToSpend / daysRemaining).coerceAtLeast(0.0)
+    val todayCal = remember { Calendar.getInstance() }
+    val isCurrentMonth = uiState.selectedYear == todayCal.get(Calendar.YEAR) &&
+            uiState.selectedMonth == (todayCal.get(Calendar.MONTH) + 1)
+    val isPastMonth = (uiState.selectedYear < todayCal.get(Calendar.YEAR)) ||
+            (uiState.selectedYear == todayCal.get(Calendar.YEAR) && uiState.selectedMonth < (todayCal.get(Calendar.MONTH) + 1))
+
+    val daysRemaining = when {
+        isCurrentMonth -> (daysInMonth - todayCal.get(Calendar.DAY_OF_MONTH) + 1).coerceAtLeast(1)
+        isPastMonth -> 0
+        else -> daysInMonth
+    }
+    val dailySpendAllowance = if (daysRemaining > 0) {
+        (uiState.metrics.safeToSpend / daysRemaining).coerceAtLeast(0.0)
+    } else 0.0
 
     val fabActions = remember {
         listOf(
@@ -203,7 +214,7 @@ fun MonthlyScreen(
             }
 
             // =========================================================
-            // 2. FULL-SCREEN HORIZONTAL PAGER (SWIPEABLE SUB-SCREENS)
+            // 2. FULL-SCREEN HORIZONTAL PAGER
             // =========================================================
             HorizontalPager(
                 state = pagerState,
@@ -339,10 +350,11 @@ fun MonthlyScreen(
                                         Spacer(modifier = Modifier.height(4.dp))
 
                                         Text(
-                                            text = if (isHealthy) {
-                                                "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
-                                            } else {
-                                                "Overrun warning: spending exceeds available cashflow buffer"
+                                            text = when {
+                                                isPastMonth -> "Month closed: final remaining balance"
+                                                isCurrentMonth && isHealthy -> "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
+                                                isCurrentMonth -> "Overrun warning: spending exceeds available cashflow buffer"
+                                                else -> "Projected safe allowance across $daysRemaining days"
                                             },
                                             fontSize = 11.5.sp,
                                             fontWeight = FontWeight.Medium,
@@ -1149,7 +1161,7 @@ fun MonthlyScreen(
         }
 
         // =========================================================
-        // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
+        // 3. BOTTOM GRADIENT SCRIM
         // =========================================================
         Box(
             modifier = Modifier
@@ -1169,7 +1181,7 @@ fun MonthlyScreen(
         )
 
         // =========================================================
-        // 4. FLOATING PAGER INDICATOR PILL (ANCHORED LEFT ABOVE ACTIVE TAB)
+        // 4. FLOATING PAGER INDICATOR PILL
         // =========================================================
         FloatingPagerIndicator(
             pagerState = pagerState,
@@ -1183,7 +1195,7 @@ fun MonthlyScreen(
         )
 
         // =========================================================
-        // 5. STANDARDIZED FLOATING BOTTOM NAVIGATION DOCK WITH FAB
+        // 5. FLOATING BOTTOM NAVIGATION DOCK WITH FAB
         // =========================================================
         AppBottomDock(
             currentSelection = NavigationTarget.MONTHLY_VIEW,
@@ -1371,8 +1383,8 @@ fun MonthlyScreen(
 
         // Transfer Bottom Sheet
         if (showTransferSheet) {
-            var fromAccount by remember { mutableStateOf(accountsList.firstOrNull().orEmpty()) }
-            var toAccount by remember { mutableStateOf(accountsList.getOrNull(1) ?: accountsList.firstOrNull().orEmpty()) }
+            var fromAccount by remember(accountsList) { mutableStateOf(accountsList.firstOrNull().orEmpty()) }
+            var toAccount by remember(accountsList) { mutableStateOf(accountsList.getOrNull(1) ?: accountsList.firstOrNull().orEmpty()) }
             var amountText by remember { mutableStateOf("") }
             var noteText by remember { mutableStateOf("") }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
