@@ -140,6 +140,9 @@ interface BudgetDao {
     @Delete
     suspend fun deleteAccount(account: AccountEntity)
 
+    @Query("DELETE FROM accounts WHERE accountName = :accountName")
+    suspend fun deleteAccountByName(accountName: String)
+
     @Query("DELETE FROM accounts")
     suspend fun clearAllAccounts()
 
@@ -215,7 +218,7 @@ interface BudgetDao {
         sortOrder: Int
     ) {
         if (oldName != newName) {
-            deleteAccount(AccountEntity(oldName))
+            deleteAccountByName(oldName)
             insertAccount(AccountEntity(newName, startingBalance, accountType, sortOrder))
             cascadeRenameAccountInTransactions(oldName, newName)
             cascadeRenameToAccountInTransactions(oldName, newName)
