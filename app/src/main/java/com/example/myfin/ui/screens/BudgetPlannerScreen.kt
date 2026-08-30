@@ -111,7 +111,7 @@ fun BudgetPlannerScreen(
     val allocationPercentage = if (totalPlannedIncome > 0) {
         ((totalAllocated / totalPlannedIncome) * 100).toInt()
     } else 0
-    val isOverAllocated = unallocatedBuffer < 0
+    val isOverAllocated = totalPlannedIncome > 0 && unallocatedBuffer < 0
 
     // Prioritized Category Resolution
     val displayedCategories = remember(uiState.masterCategories, uiState.categories, selectedSegment) {
@@ -352,7 +352,13 @@ fun BudgetPlannerScreen(
                                     color = if (isOverAllocated) SoftRed.copy(alpha = 0.12f) else AccentPurple.copy(alpha = 0.12f)
                                 ) {
                                     Text(
-                                        text = if (isOverAllocated) "Over-allocated ($allocationPercentage%)" else "$allocationPercentage% Allocated",
+                                        text = if (totalPlannedIncome == 0.0) {
+                                            "Baseline Unset"
+                                        } else if (isOverAllocated) {
+                                            "Over-allocated ($allocationPercentage%)"
+                                        } else {
+                                            "$allocationPercentage% Allocated"
+                                        },
                                         color = if (isOverAllocated) SoftRed else AccentPurple,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
@@ -372,10 +378,10 @@ fun BudgetPlannerScreen(
                             )
 
                             Text(
-                                text = if (isOverAllocated) {
-                                    "Deficit: Exceeds income by ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(unallocatedBuffer))}"
-                                } else {
-                                    "Unallocated buffer: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", unallocatedBuffer)} left to assign"
+                                text = when {
+                                    totalPlannedIncome == 0.0 -> "Set expected income baseline in the Income tab to calculate allocation buffer"
+                                    isOverAllocated -> "Deficit: Exceeds income by ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(unallocatedBuffer))}"
+                                    else -> "Unallocated buffer: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", unallocatedBuffer)} left to assign"
                                 },
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Medium,
@@ -651,6 +657,7 @@ fun BudgetPlannerScreen(
                 confirmButton = {
                     Button(
                         onClick = {
+                            viewModel.executeRolloverToNextMonth()
                             Toast.makeText(context, "Previous month's plan synced successfully!", Toast.LENGTH_SHORT).show()
                             showCopyPlanDialog = false
                         },
@@ -760,7 +767,14 @@ fun BudgetPlannerScreen(
             val committedAutoPay = remember(uiState.fixedBills, cat) {
                 uiState.fixedBills.filter { it.category == cat.category && it.type == cat.type }.sumOf { it.amount }
             }
-            var customAmountText by remember { mutableStateOf(if (cat.plannedAmount > 0) cat.plannedAmount.toInt().toString() else "") }
+            var customAmountText by remember(cat) {
+                mutableStateOf(
+                    if (cat.plannedAmount > 0) {
+                        if (cat.plannedAmount % 1.0 == 0.0) cat.plannedAmount.toLong().toString()
+                        else cat.plannedAmount.toString()
+                    } else ""
+                )
+            }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
