@@ -251,9 +251,7 @@ fun BudgetPlannerScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // =========================================================
             // 1. PINNED TOP HEADER WITH SHELF GRADIENT DISSOLVE
-            // =========================================================
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -280,7 +278,7 @@ fun BudgetPlannerScreen(
                                 .clip(CircleShape)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.ChevronLeft,
+                                imageVector = Icons.Default.Menu,
                                 contentDescription = "Drawer",
                                 tint = TextDark,
                                 modifier = Modifier.size(24.dp)
@@ -504,9 +502,7 @@ fun BudgetPlannerScreen(
                 )
             }
 
-            // =========================================================
             // 2. SCROLLABLE CATEGORY LIMITS LIST
-            // =========================================================
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -554,9 +550,7 @@ fun BudgetPlannerScreen(
             }
         }
 
-        // =========================================================
         // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
-        // =========================================================
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -574,9 +568,7 @@ fun BudgetPlannerScreen(
                 .zIndex(2.5f)
         )
 
-        // =========================================================
         // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH TAB-AWARE FAB
-        // =========================================================
         AppBottomDock(
             currentSelection = NavigationTarget.BUDGET_PLANNER,
             onSelectTarget = { target ->
@@ -797,6 +789,7 @@ fun BudgetPlannerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Row(
