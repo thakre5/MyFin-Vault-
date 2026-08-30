@@ -134,9 +134,7 @@ fun MasterDataSetScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // =========================================================
             // 1. PINNED TOP HEADER WITH SHELF DISSOLVE
-            // =========================================================
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -163,7 +161,7 @@ fun MasterDataSetScreen(
                                 .clip(CircleShape)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.ChevronLeft,
+                                imageVector = Icons.Default.Menu,
                                 contentDescription = "Drawer",
                                 tint = TextDark,
                                 modifier = Modifier.size(24.dp)
@@ -392,9 +390,7 @@ fun MasterDataSetScreen(
                 )
             }
 
-            // =========================================================
             // 2. SCROLLABLE CATEGORY & SUBCATEGORY TREE
-            // =========================================================
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -444,9 +440,7 @@ fun MasterDataSetScreen(
             }
         }
 
-        // =========================================================
         // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
-        // =========================================================
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -464,9 +458,7 @@ fun MasterDataSetScreen(
                 .zIndex(2.5f)
         )
 
-        // =========================================================
         // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH FAB
-        // =========================================================
         AppBottomDock(
             currentSelection = NavigationTarget.DATA_SET,
             onSelectTarget = { target ->
@@ -584,6 +576,7 @@ fun MasterDataSetScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Text("Add Master Category", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
@@ -658,6 +651,7 @@ fun MasterDataSetScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Text("Add Subcategory Tag", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
@@ -762,6 +756,7 @@ fun MasterDataSetScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Text("Rename Category", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
@@ -828,6 +823,7 @@ fun MasterDataSetScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Text("Rename Subcategory", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
