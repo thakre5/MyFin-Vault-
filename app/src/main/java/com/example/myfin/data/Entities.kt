@@ -1,9 +1,18 @@
 package com.example.myfin.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "transactions")
+@Entity(
+    tableName = "transactions",
+    indices = [
+        Index(value = ["month", "year"]),
+        Index(value = ["accountName"]),
+        Index(value = ["toAccountName"]),
+        Index(value = ["linkedFixedBillId"])
+    ]
+)
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -20,7 +29,12 @@ data class TransactionEntity(
     val linkedFixedBillId: Long? = null
 )
 
-@Entity(tableName = "fixed_bills")
+@Entity(
+    tableName = "fixed_bills",
+    indices = [
+        Index(value = ["month", "year"])
+    ]
+)
 data class FixedBillEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -37,7 +51,12 @@ data class FixedBillEntity(
     val year: Int
 )
 
-@Entity(tableName = "budget_plans")
+@Entity(
+    tableName = "budget_plans",
+    indices = [
+        Index(value = ["category", "type", "month", "year"], unique = true)
+    ]
+)
 data class BudgetPlanEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -53,7 +72,7 @@ data class AccountEntity(
     @PrimaryKey
     val accountName: String,
     val startingBalance: Double = 0.0,
-    val accountType: String = "Bank",
+    val accountType: String = "Operating",
     val sortOrder: Int = 0
 )
 
@@ -61,9 +80,9 @@ data class AccountEntity(
 data class UserProfile(
     @PrimaryKey
     val id: Int = 1,
-    val displayName: String = "Sushant",
+    val displayName: String = "Vault User",
     val email: String = "",
-    val dateOfBirth: String = "2000-03-21",
+    val dateOfBirth: String = "",
     val baseMonthlyIncome: Double = 0.0,
     val currencySymbol: String = "₹",
     val profileImageUri: String? = null,
@@ -77,5 +96,5 @@ data class UserProfile(
     val reminderEnabled: Boolean = true,
     val reminderHour: Int = 20,
     val reminderMinute: Int = 0,
-    val vaultMode: String = "3_VAULT" // "3_VAULT" or "SIMPLE"
+    val vaultMode: String = "3-VAULT" // "3-VAULT" or "SIMPLE"
 )
