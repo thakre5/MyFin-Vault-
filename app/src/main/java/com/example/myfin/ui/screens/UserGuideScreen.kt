@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.example.myfin.BuildConfig
 import com.example.myfin.ui.components.AppBrandingFooter
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
@@ -115,7 +116,7 @@ fun UserGuideScreen(
                                 }
 
                                 Text(
-                                    text = "Handbook v1.0",
+                                    text = "Handbook v${BuildConfig.VERSION_NAME}",
                                     fontSize = 12.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color.White.copy(alpha = 0.92f),
@@ -421,7 +422,7 @@ fun UserGuideScreen(
                 // Shared App Branding Footer
                 AppBrandingFooter(
                     modifier = Modifier.fillMaxWidth(),
-                    version = "v1.0.0",
+                    version = "v${BuildConfig.VERSION_NAME}",
                     showIcon = true
                 )
 
