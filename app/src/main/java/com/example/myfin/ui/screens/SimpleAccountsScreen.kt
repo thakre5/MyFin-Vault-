@@ -91,9 +91,7 @@ fun SimpleAccountsScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // =========================================================
             // 1. PINNED TOP HEADER WITH SHELF DISSOLVE
-            // =========================================================
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -114,7 +112,7 @@ fun SimpleAccountsScreen(
                             .clip(CircleShape)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ChevronLeft,
+                            imageVector = Icons.Default.Menu,
                             contentDescription = "Drawer",
                             tint = TextDark,
                             modifier = Modifier.size(24.dp)
@@ -193,9 +191,7 @@ fun SimpleAccountsScreen(
                 )
             }
 
-            // =========================================================
             // 2. SCROLLABLE ACCOUNTS LIST
-            // =========================================================
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -404,9 +400,7 @@ fun SimpleAccountsScreen(
             }
         }
 
-        // =========================================================
         // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
-        // =========================================================
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -424,9 +418,7 @@ fun SimpleAccountsScreen(
                 .zIndex(2.5f)
         )
 
-        // =========================================================
         // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH CONTEXTUAL FAB
-        // =========================================================
         AppBottomDock(
             currentSelection = NavigationTarget.VAULT_ACCOUNTS,
             onSelectTarget = { target ->
@@ -469,6 +461,7 @@ fun SimpleAccountsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Row(
@@ -604,6 +597,7 @@ fun SimpleAccountsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Text(text = "Add Account", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
@@ -688,6 +682,7 @@ fun SimpleAccountsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 8.dp)
                 ) {
                     Text(text = "Transfer Funds", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
