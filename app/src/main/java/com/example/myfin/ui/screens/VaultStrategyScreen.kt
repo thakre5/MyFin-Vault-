@@ -1395,8 +1395,8 @@ fun VaultStrategyScreen(
                                         amount = amt,
                                         category = "Transfers",
                                         subcategory = "General",
-                                        accountName = fromAccount,
-                                        toAccountName = toAccount,
+                                        account = fromAccount,
+                                        toAccount = toAccount,
                                         type = TransactionType.TRANSFER,
                                         dueDay = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
                                     )
