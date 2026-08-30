@@ -197,12 +197,13 @@ fun PinLockScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Animated PIN Dot Indicators
+                // Animated PIN Dot Indicators (Standard 4 to 6 dot layout)
+                val dotCount = if (enteredPin.length > 4) 6 else 4
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    repeat(4) { index ->
+                    repeat(dotCount) { index ->
                         val isFilled = index < enteredPin.length
                         val dotSize by animateDpAsState(
                             targetValue = if (isFilled) 15.dp else 13.dp,
@@ -295,8 +296,9 @@ fun PinLockScreen(
                                                 if (enteredPin.length < 6) {
                                                     val newPin = enteredPin + key
                                                     enteredPin = newPin
-                                                    // Immediately test PIN validity
-                                                    if (securityManager.verifyPin(newPin)) {
+
+                                                    // Test PIN validity once length reaches 4 or higher
+                                                    if (newPin.length >= 4 && securityManager.verifyPin(newPin)) {
                                                         onUnlockSuccess()
                                                     } else if (newPin.length >= 6) {
                                                         Toast.makeText(context, "Incorrect PIN", Toast.LENGTH_SHORT).show()
@@ -345,9 +347,7 @@ fun PinLockScreen(
             }
         }
 
-        // =========================================================================
         // NON-DESTRUCTIVE IN-PLACE PASSWORD RESET DIALOG
-        // =========================================================================
         if (showResetDialog) {
             AlertDialog(
                 onDismissRequest = { showResetDialog = false },
@@ -371,7 +371,9 @@ fun PinLockScreen(
                 text = {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .imePadding()
                     ) {
                         if (recoveryStep == 1) {
                             Text(
