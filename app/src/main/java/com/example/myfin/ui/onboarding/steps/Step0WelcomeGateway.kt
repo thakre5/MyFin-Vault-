@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.example.myfin.data.SecurityManager
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.onboarding.CountryCurrencyMapping
 import com.example.myfin.ui.onboarding.CyanPrimary
@@ -79,6 +80,7 @@ import com.example.myfin.ui.onboarding.components.OnboardingDateVisualTransforma
 import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
+import java.util.Calendar
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -89,6 +91,16 @@ enum class GatewayStage {
     STRATEGY,
     ACCOUNTS,
     COMMITMENTS
+}
+
+private fun sanitizeDecimalInput(input: String): String {
+    val filtered = input.filter { it.isDigit() || it == '.' }
+    val parts = filtered.split('.')
+    return if (parts.size > 1) {
+        "${parts[0]}.${parts.drop(1).joinToString("")}"
+    } else {
+        filtered
+    }
 }
 
 @Composable
@@ -124,6 +136,7 @@ fun OnboardingStep0WelcomeGateway(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
+    val securityManager = remember { SecurityManager(context) }
 
     var currentStage by remember { mutableStateOf(GatewayStage.CAROUSEL) }
     val isImeVisible = WindowInsets.isImeVisible
@@ -651,7 +664,11 @@ fun OnboardingStep0WelcomeGateway(
                                                     focusManager.clearFocus()
                                                     keyboardController?.hide()
                                                     if (!isBiometricEnabled) {
-                                                        showBiometricSheet = true
+                                                        if (securityManager.canAuthenticateWithBiometrics(context)) {
+                                                            showBiometricSheet = true
+                                                        } else {
+                                                            Toast.makeText(context, "Biometrics not available on this device", Toast.LENGTH_SHORT).show()
+                                                        }
                                                     } else {
                                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                         onBiometricToggle(false)
@@ -677,7 +694,11 @@ fun OnboardingStep0WelcomeGateway(
                                                         focusManager.clearFocus()
                                                         keyboardController?.hide()
                                                         if (checked) {
-                                                            showBiometricSheet = true
+                                                            if (securityManager.canAuthenticateWithBiometrics(context)) {
+                                                                showBiometricSheet = true
+                                                            } else {
+                                                                Toast.makeText(context, "Biometrics not available on this device", Toast.LENGTH_SHORT).show()
+                                                            }
                                                         } else {
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                             onBiometricToggle(false)
@@ -848,7 +869,6 @@ fun OnboardingStep0WelcomeGateway(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Sleek, Compact Pill Container matching Text Box Geometry
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -881,7 +901,6 @@ fun OnboardingStep0WelcomeGateway(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Symmetrical Account Rows (Clean Pill-in-Pill Geometry + Lock/Close Status)
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -906,7 +925,6 @@ fun OnboardingStep0WelcomeGateway(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
-                                                // Left: Icon + Name + Type Tag
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     modifier = Modifier
@@ -947,7 +965,6 @@ fun OnboardingStep0WelcomeGateway(
                                                     }
                                                 }
 
-                                                // Right: Nested Capsule Amount Box (4dp margin, matching curvature)
                                                 Surface(
                                                     modifier = Modifier
                                                         .height(46.dp)
@@ -987,7 +1004,7 @@ fun OnboardingStep0WelcomeGateway(
                                                             BasicTextField(
                                                                 value = account.initialBalanceText,
                                                                 onValueChange = { newVal ->
-                                                                    onUpdateAccountBalance(index, newVal.filter { it.isDigit() || it == '.' })
+                                                                    onUpdateAccountBalance(index, sanitizeDecimalInput(newVal))
                                                                 },
                                                                 singleLine = true,
                                                                 textStyle = TextStyle(
@@ -1002,7 +1019,6 @@ fun OnboardingStep0WelcomeGateway(
                                                             )
                                                         }
 
-                                                        // Trailing Icon: Close (Deletable) or Lock (Non-deletable)
                                                         if (canDelete) {
                                                             Box(
                                                                 modifier = Modifier
@@ -1102,7 +1118,6 @@ fun OnboardingStep0WelcomeGateway(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Sleek, Compact Tri-Metric Capsule matching Text Box Geometry
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1201,7 +1216,6 @@ fun OnboardingStep0WelcomeGateway(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // 5 AutoPay / Commitment Rows
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1237,7 +1251,6 @@ fun OnboardingStep0WelcomeGateway(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
-                                                // Left: Checkmark Toggle + Icon Badge + Name & Type Tag
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     modifier = Modifier
@@ -1305,7 +1318,6 @@ fun OnboardingStep0WelcomeGateway(
                                                     }
                                                 }
 
-                                                // Right: Nested Capsule Amount Box (4dp margin, matching curvature)
                                                 Surface(
                                                     modifier = Modifier
                                                         .height(46.dp)
@@ -1345,7 +1357,7 @@ fun OnboardingStep0WelcomeGateway(
                                                             BasicTextField(
                                                                 value = item.amountText,
                                                                 onValueChange = { newVal ->
-                                                                    onUpdateCommitmentAmount(index, newVal.filter { it.isDigit() || it == '.' })
+                                                                    onUpdateCommitmentAmount(index, sanitizeDecimalInput(newVal))
                                                                 },
                                                                 singleLine = true,
                                                                 textStyle = TextStyle(
@@ -1411,10 +1423,15 @@ fun OnboardingStep0WelcomeGateway(
                                     currentStage = GatewayStage.IDENTITY
                                 }
                                 GatewayStage.IDENTITY -> {
+                                    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+                                    val day = if (rawDobDigits.length >= 2) rawDobDigits.substring(0, 2).toIntOrNull() ?: 0 else 0
+                                    val month = if (rawDobDigits.length >= 4) rawDobDigits.substring(2, 4).toIntOrNull() ?: 0 else 0
+                                    val year = if (rawDobDigits.length == 8) rawDobDigits.substring(4, 8).toIntOrNull() ?: 0 else 0
+
                                     if (displayName.trim().isEmpty()) {
                                         Toast.makeText(context, "Please enter your username", Toast.LENGTH_SHORT).show()
-                                    } else if (rawDobDigits.length < 8) {
-                                        Toast.makeText(context, "Enter valid 8-digit DOB (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
+                                    } else if (rawDobDigits.length < 8 || day !in 1..31 || month !in 1..12 || year !in 1900..currentYear) {
+                                        Toast.makeText(context, "Enter a valid calendar date (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
                                     } else {
                                         focusManager.clearFocus()
                                         keyboardController?.hide()
