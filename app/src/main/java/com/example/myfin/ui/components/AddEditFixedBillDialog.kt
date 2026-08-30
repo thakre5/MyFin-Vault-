@@ -36,6 +36,7 @@ import com.example.myfin.ui.theme.*
 @Composable
 fun AddEditFixedBillDialog(
     initialBill: FixedBillEntity? = null,
+    currencySymbol: String = "₹",
     accountList: List<String>,
     masterCategories: List<CategoryEntity>,
     masterSubcategories: List<SubcategoryEntity>,
@@ -94,10 +95,10 @@ fun AddEditFixedBillDialog(
     }
 
     var selectedAccount by remember {
-        mutableStateOf(initialBill?.accountName ?: accountList.firstOrNull() ?: "BOM")
+        mutableStateOf(initialBill?.accountName ?: accountList.firstOrNull() ?: "Primary Account")
     }
     var selectedToAccount by remember {
-        mutableStateOf(initialBill?.toAccountName ?: accountList.getOrNull(1) ?: "HDFC")
+        mutableStateOf(initialBill?.toAccountName ?: accountList.getOrNull(1) ?: accountList.firstOrNull() ?: "Secondary Account")
     }
 
     var showNewCategoryDialog by remember { mutableStateOf(false) }
@@ -204,7 +205,7 @@ fun AddEditFixedBillDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it },
-                    label = { Text("Amount (₹)", fontSize = 12.sp) },
+                    label = { Text("Amount ($currencySymbol)", fontSize = 12.sp) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1.2f),
@@ -238,7 +239,7 @@ fun AddEditFixedBillDialog(
                 value = noteText,
                 onValueChange = { noteText = it },
                 label = { Text("Note / Description (Optional)", fontSize = 12.sp) },
-                placeholder = { Text("e.g., Flat 402 rent, HDFC credit card", fontSize = 12.sp) },
+                placeholder = { Text("e.g., House rent, Insurance premium", fontSize = 12.sp) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
