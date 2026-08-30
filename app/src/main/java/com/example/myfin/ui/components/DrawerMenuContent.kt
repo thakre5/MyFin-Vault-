@@ -32,7 +32,7 @@ import java.io.File
 fun DrawerMenuContent(
     displayName: String,
     profileImageUri: String?,
-    onUpdateProfileImageUri: (String) -> Unit,
+    onUpdateProfileImageUri: (String) -> Unit = {},
     currentSelection: NavigationTarget,
     onSelectTarget: (NavigationTarget) -> Unit,
     onEditProfile: () -> Unit,
@@ -64,15 +64,21 @@ fun DrawerMenuContent(
                         .background(AccentPurple),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (!profileImageUri.isNullOrBlank()) {
+                    val imageModel = if (!profileImageUri.isNullOrBlank()) {
+                        File(profileImageUri).takeIf { it.exists() } ?: profileImageUri
+                    } else null
+
+                    if (imageModel != null) {
                         SubcomposeAsyncImage(
-                            model = File(profileImageUri).takeIf { it.exists() } ?: profileImageUri,
+                            model = imageModel,
                             contentDescription = "Profile Picture",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,
                             error = {
                                 Box(
-                                    modifier = Modifier.fillMaxSize().background(AccentPurple),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(AccentPurple),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
@@ -85,7 +91,9 @@ fun DrawerMenuContent(
                             },
                             loading = {
                                 Box(
-                                    modifier = Modifier.fillMaxSize().background(AccentPurple),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(AccentPurple),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
