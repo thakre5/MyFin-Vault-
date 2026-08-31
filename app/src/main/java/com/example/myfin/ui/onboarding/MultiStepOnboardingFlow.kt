@@ -135,7 +135,7 @@ fun MultiStepOnboardingFlow(
             "${rawDobDigits.substring(0, 2)}/${rawDobDigits.substring(2, 4)}/${rawDobDigits.substring(4, 8)}"
         } else ""
 
-        // 1. Atomic Profile & Security Persistence (Preserves isBiometricEnabled correctly)
+        // 1. Atomic Profile & Security Persistence
         viewModel.finalizeOnboardingProfile(
             displayName = displayName,
             email = emailAddress,
@@ -146,22 +146,32 @@ fun MultiStepOnboardingFlow(
             isBiometricEnabled = isBiometricEnabled
         )
 
-        // 2. Set Up Accounts
+        // Sync Monthly Base Salary to profile
+        val salaryCommitment = initialCommitments.find { it.type == TransactionType.INCOME && it.isSelected }
+        val parsedSalary = salaryCommitment?.amountText?.toDoubleOrNull() ?: 0.0
+        if (parsedSalary > 0.0) {
+            val currentProfile = viewModel.userProfile.value
+            viewModel.saveUserProfile(currentProfile.copy(baseMonthlyIncome = parsedSalary))
+        }
+
+        // 2. Set Up Accounts (Injecting ₹10,000 MAB for Commitments)
         val accountEntities = initialAccounts.mapIndexed { index, acc ->
+            val minBal = if (selectedStrategy == "3-VAULT" && acc.defaultType.equals("Commitments", ignoreCase = true)) 10000.0 else 0.0
             AccountEntity(
                 accountName = acc.name.trim().uppercase(),
                 startingBalance = acc.initialBalanceText.toDoubleOrNull() ?: 0.0,
                 accountType = acc.defaultType,
+                minBalance = minBal,
                 sortOrder = index
             )
         }
         viewModel.replaceAllAccounts(accountEntities)
 
         // 3. Set Up Commitments
-        val commitmentsAccountName = initialAccounts.firstOrNull { it.defaultType == "Commitments" }?.name?.uppercase()
-            ?: initialAccounts.first().name.uppercase()
-        val operatingAccountName = initialAccounts.firstOrNull { it.defaultType == "Operating" }?.name?.uppercase()
-            ?: initialAccounts.first().name.uppercase()
+        val commitmentsAccountName = initialAccounts.firstOrNull { it.defaultType == "Commitments" }?.name?.trim()?.uppercase()
+            ?: initialAccounts.first().name.trim().uppercase()
+        val operatingAccountName = initialAccounts.firstOrNull { it.defaultType == "Operating" }?.name?.trim()?.uppercase()
+            ?: initialAccounts.first().name.trim().uppercase()
 
         initialCommitments.filter { it.isSelected }.forEach { bill ->
             val amt = bill.amountText.toDoubleOrNull() ?: 0.0
