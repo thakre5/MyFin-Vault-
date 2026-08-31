@@ -124,6 +124,7 @@ fun OnboardingStep0WelcomeGateway(
     onCountrySelect: (CountryCurrencyMapping) -> Unit,
     onStrategySelect: (String) -> Unit,
     onUpdateAccountBalance: (Int, String) -> Unit,
+    onUpdateAccountMinBalance: (Int, String) -> Unit,
     onRemoveAccount: (Int) -> Unit,
     onAddAccount: () -> Unit,
     onToggleCommitment: (Int) -> Unit,
@@ -148,11 +149,13 @@ fun OnboardingStep0WelcomeGateway(
     var showRestoreConfirmationSheet by remember { mutableStateOf(false) }
     var showBiometricSheet by remember { mutableStateOf(false) }
     var strategyDetailTarget by remember { mutableStateOf<String?>(null) }
+    var editingMabAccountIndex by remember { mutableStateOf<Int?>(null) }
 
     val countrySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val restoreSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val biometricSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val strategySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val mabSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val formattedDob = remember(rawDobDigits) {
         if (rawDobDigits.length == 8) {
@@ -164,7 +167,7 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Bi-Directional Hardware Back Navigation
+    // Hardware Back Handler
     BackHandler(enabled = currentStage != GatewayStage.CAROUSEL) {
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         focusManager.clearFocus()
@@ -207,7 +210,7 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Responsive Hero Cards Scaling & Upward Positioning
+    // Responsive Hero Sizing
     val isCompactHero = currentStage == GatewayStage.ACCOUNTS || currentStage == GatewayStage.COMMITMENTS
     val heroScale by animateFloatAsState(
         targetValue = when {
@@ -230,7 +233,7 @@ fun OnboardingStep0WelcomeGateway(
         label = "heroHeight"
     )
 
-    // Dynamic Button Morphing
+    // Button Morphing Fractions
     val primaryButtonWidthFraction by animateFloatAsState(
         targetValue = if (currentStage == GatewayStage.CAROUSEL || currentStage == GatewayStage.IDENTITY) 1.0f else 0.58f,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
@@ -280,9 +283,7 @@ fun OnboardingStep0WelcomeGateway(
                 )
             )
     ) {
-        // =========================================================================
         // LAYER 1: SCROLLABLE BODY
-        // =========================================================================
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val minScreenHeight = maxHeight
 
@@ -845,7 +846,7 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
 
-                        // STAGE 4: Configure Accounts & Opening Balances
+                        // STAGE 4: Configure Accounts & Opening Balances + Dynamic MAB Chip
                         GatewayStage.ACCOUNTS -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -861,7 +862,7 @@ fun OnboardingStep0WelcomeGateway(
                                 )
                                 Spacer(modifier = Modifier.height(3.dp))
                                 Text(
-                                    text = "Set initial balances for your active vaults",
+                                    text = "Set initial balances & tap MAB to set bank rules",
                                     fontSize = 12.sp,
                                     color = TextMuted,
                                     textAlign = TextAlign.Center
@@ -909,11 +910,12 @@ fun OnboardingStep0WelcomeGateway(
                                         val isCash = account.defaultType == "Cash"
                                         val isSimpleStrategy = selectedStrategy == "SIMPLE"
                                         val canDelete = isSimpleStrategy && !isCash && accounts.count { it.defaultType != "Cash" } > 1 && index > 0
+                                        val currentMinBal = account.minBalanceText.toDoubleOrNull() ?: 0.0
 
                                         Surface(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(54.dp),
+                                                .height(58.dp),
                                             shape = RoundedCornerShape(27.dp),
                                             color = CardWhite,
                                             border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
@@ -955,13 +957,44 @@ fun OnboardingStep0WelcomeGateway(
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
                                                         )
-                                                        Text(
-                                                            text = account.defaultType,
-                                                            fontSize = 9.5.sp,
-                                                            fontWeight = FontWeight.Medium,
-                                                            color = TealPrimary,
-                                                            lineHeight = 11.sp
-                                                        )
+                                                        
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Text(
+                                                                text = account.defaultType,
+                                                                fontSize = 9.5.sp,
+                                                                fontWeight = FontWeight.Medium,
+                                                                color = TealPrimary,
+                                                                lineHeight = 11.sp
+                                                            )
+
+                                                            if (!isCash) {
+                                                                Spacer(modifier = Modifier.width(4.dp))
+                                                                Surface(
+                                                                    modifier = Modifier
+                                                                        .clip(RoundedCornerShape(6.dp))
+                                                                        .clickable {
+                                                                            focusManager.clearFocus()
+                                                                            keyboardController?.hide()
+                                                                            editingMabAccountIndex = index
+                                                                        },
+                                                                    shape = RoundedCornerShape(6.dp),
+                                                                    color = if (currentMinBal > 0.0) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
+                                                                    border = BorderStroke(0.5.dp, if (currentMinBal > 0.0) AccentPurple.copy(alpha = 0.4f) else BorderLight)
+                                                                ) {
+                                                                    Row(
+                                                                        verticalAlignment = Alignment.CenterVertically,
+                                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                                    ) {
+                                                                        Text(
+                                                                            text = if (currentMinBal > 0.0) "MAB: ${selectedCountry.currencySymbol}${String.format(java.util.Locale.US, "%,.0f", currentMinBal)}" else "MAB: 0 ▾",
+                                                                            fontSize = 8.5.sp,
+                                                                            fontWeight = FontWeight.Bold,
+                                                                            color = if (currentMinBal > 0.0) AccentPurple else TextMuted
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
 
@@ -1085,7 +1118,7 @@ fun OnboardingStep0WelcomeGateway(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "Note: Account names, types & balances are editable anytime in Vault Settings.",
+                                        text = "Tip: Tap the 'MAB' badge to customize non-maintenance penalty limits per bank.",
                                         fontSize = 10.sp,
                                         color = TextMuted,
                                         lineHeight = 13.sp
@@ -1133,7 +1166,7 @@ fun OnboardingStep0WelcomeGateway(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceEvenly
                                     ) {
-                                        // 1. Inflow
+                                        // Inflow
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1160,7 +1193,7 @@ fun OnboardingStep0WelcomeGateway(
 
                                         Box(modifier = Modifier.width(1.dp).height(18.dp).background(BorderLight))
 
-                                        // 2. Outflow
+                                        // Outflow
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1187,7 +1220,7 @@ fun OnboardingStep0WelcomeGateway(
 
                                         Box(modifier = Modifier.width(1.dp).height(18.dp).background(BorderLight))
 
-                                        // 3. Assets
+                                        // Assets
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1527,9 +1560,7 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // =========================================================================
         // LAYER 2: FLOATING PINNED HEADER
-        // =========================================================================
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1590,9 +1621,132 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // =========================================================
+        // QUICK MAB SELECTOR BOTTOM SHEET
+        editingMabAccountIndex?.let { accIdx ->
+            val targetAccount = accounts.getOrNull(accIdx)
+            if (targetAccount != null) {
+                var customMabText by remember(targetAccount) { mutableStateOf(targetAccount.minBalanceText) }
+                val presets = listOf("0", "2000", "3000", "5000", "10000", "25000")
+
+                ModalBottomSheet(
+                    onDismissRequest = { editingMabAccountIndex = null },
+                    sheetState = mabSheetState,
+                    shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+                    containerColor = CardWhite,
+                    dragHandle = { BottomSheetDefaults.DragHandle() }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 24.dp)
+                            .padding(bottom = 28.dp, top = 6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(38.dp),
+                                shape = CircleShape,
+                                color = AccentPurple.copy(alpha = 0.12f)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Shield, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Minimum Balance (MAB)",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextDark
+                                )
+                                Text(
+                                    text = "Protected floor for ${targetAccount.name}",
+                                    fontSize = 11.5.sp,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = "Quick Presets",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextMuted
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            presets.forEach { preset ->
+                                val isSel = customMabText == preset
+                                val label = if (preset == "0") "Zero" else "${selectedCountry.currencySymbol}${if (preset.length > 3) "${preset.dropLast(3)}k" else preset}"
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable { customMabText = preset },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
+                                    border = BorderStroke(0.8.dp, if (isSel) AccentPurple else BorderLight)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSel) AccentPurple else TextDark,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        OutlinedTextField(
+                            value = customMabText,
+                            onValueChange = { customMabText = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                            label = { Text("Custom MAB (${selectedCountry.currencySymbol})", fontSize = 12.sp) },
+                            singleLine = true,
+                            textStyle = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = AccentPurple,
+                                unfocusedBorderColor = BorderLight
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        Button(
+                            onClick = {
+                                onUpdateAccountMinBalance(accIdx, customMabText.ifBlank { "0" })
+                                editingMabAccountIndex = null
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                        ) {
+                            Text("Set Minimum Balance", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        }
+                    }
+                }
+            }
+        }
+
         // STRATEGY DETAIL & CONFIRMATION BOTTOM SHEET
-        // =========================================================
         strategyDetailTarget?.let { target ->
             ModalBottomSheet(
                 onDismissRequest = { strategyDetailTarget = null },
@@ -1751,9 +1905,7 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // =========================================================
         // COUNTRY / CURRENCY SELECTOR SHEET
-        // =========================================================
         if (showCountryPickerSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showCountryPickerSheet = false },
@@ -1829,9 +1981,7 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // =========================================================
         // RESTORE VAULT CONFIRMATION BOTTOM SHEET
-        // =========================================================
         if (showRestoreConfirmationSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showRestoreConfirmationSheet = false },
@@ -1888,9 +2038,7 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // =========================================================
         // BIOMETRIC CONFIRMATION BOTTOM SHEET
-        // =========================================================
         if (showBiometricSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showBiometricSheet = false },
