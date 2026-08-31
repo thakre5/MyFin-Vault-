@@ -84,6 +84,7 @@ data class AccountEntity(
     val accountName: String,
     val startingBalance: Double = 0.0,
     val accountType: String = "Operating",
+    val minBalance: Double = 0.0,
     val sortOrder: Int = 0
 )
 
@@ -98,7 +99,7 @@ data class UserProfile(
     val currencySymbol: String = "₹",
     val profileImageUri: String? = null,
     val coverImageUri: String? = null,
-    val fortressThreshold: Double = 100000.0,
+    val fortressThreshold: Double = 25000.0,
     val isOnboardingCompleted: Boolean = false,
     val isBiometricEnabled: Boolean = false,
     val isScreenCaptureAllowed: Boolean = false,
