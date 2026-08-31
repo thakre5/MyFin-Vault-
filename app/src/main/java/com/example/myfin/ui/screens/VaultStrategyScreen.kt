@@ -74,6 +74,7 @@ data class PendingEditConfirmation(
     val updatedName: String,
     val updatedRole: VaultTier,
     val targetBalance: Double,
+    val minBalance: Double = 0.0,
     val isFixedDeposit: Boolean = false
 )
 
@@ -208,15 +209,14 @@ fun VaultStrategyScreen(
     }
 
     val selectedTier = activeAccount?.let { getVaultTier(it.accountType, it.accountName) } ?: VaultTier.OPERATING
+    val accountMinBalance = activeAccount?.minBalance ?: 0.0
 
-    val minCommitmentsBuffer = 10000.0
-
-    // Overdraft & Minimum Balance Risk Check
-    val isOverdraftRisk = remember(activeAccount?.currentBalance, totalPendingBillsAmount, selectedTier) {
+    // Dynamic Overdraft & Minimum Balance Risk Check
+    val isOverdraftRisk = remember(activeAccount?.currentBalance, totalPendingBillsAmount, selectedTier, accountMinBalance) {
         val bal = activeAccount?.currentBalance ?: 0.0
         when (selectedTier) {
-            VaultTier.COMMITMENTS -> bal < (totalPendingBillsAmount + minCommitmentsBuffer)
-            VaultTier.OPERATING -> bal < totalPendingBillsAmount
+            VaultTier.COMMITMENTS -> bal < (totalPendingBillsAmount + accountMinBalance)
+            VaultTier.OPERATING -> bal < (totalPendingBillsAmount + accountMinBalance)
             else -> false
         }
     }
@@ -227,16 +227,17 @@ fun VaultStrategyScreen(
         totalPendingBillsAmount,
         dailyBurnRate,
         remainingDays,
-        selectedTier
+        selectedTier,
+        accountMinBalance
     ) {
         val bal = activeAccount?.currentBalance ?: 0.0
         when (selectedTier) {
             VaultTier.OPERATING -> {
                 val monthlyBurnSafety = dailyBurnRate * remainingDays
-                (bal - totalPendingBillsAmount - monthlyBurnSafety).coerceAtLeast(0.0)
+                (bal - totalPendingBillsAmount - monthlyBurnSafety - accountMinBalance).coerceAtLeast(0.0)
             }
             VaultTier.COMMITMENTS -> {
-                (bal - totalPendingBillsAmount - minCommitmentsBuffer).coerceAtLeast(0.0)
+                (bal - totalPendingBillsAmount - accountMinBalance).coerceAtLeast(0.0)
             }
             else -> 0.0
         }
@@ -273,7 +274,7 @@ fun VaultStrategyScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Pinned Header
+            // Pinned Top Header
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -525,7 +526,7 @@ fun VaultStrategyScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // Bank Accounts Row Header
+                // Connected Bank Accounts
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -548,7 +549,7 @@ fun VaultStrategyScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // Horizontal Carousel of Physical Cards
+                // Carousel of Cards
                 if (displayAccounts.isEmpty()) {
                     item {
                         Surface(
@@ -591,7 +592,7 @@ fun VaultStrategyScreen(
                     }
                 }
 
-                // Overdraft & Minimum Balance Buffer Warning
+                // Overdraft & Minimum Balance Warning Banner
                 if (isOverdraftRisk) {
                     item {
                         Surface(
@@ -626,8 +627,8 @@ fun VaultStrategyScreen(
                                             color = SoftRed
                                         )
                                         Text(
-                                            text = if (selectedTier == VaultTier.COMMITMENTS) {
-                                                "Liquid balance is below upcoming AutoPay bills plus the mandatory ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", minCommitmentsBuffer)} minimum balance."
+                                            text = if (selectedTier == VaultTier.COMMITMENTS && accountMinBalance > 0) {
+                                                "Liquid balance is below upcoming AutoPay bills plus the mandatory ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", accountMinBalance)} minimum balance."
                                             } else {
                                                 "Queued AutoPay bills exceed this account's liquid balance."
                                             },
@@ -658,7 +659,7 @@ fun VaultStrategyScreen(
                     }
                 }
 
-                // Sweep Surplus to Fortress Banner (Appears ONLY on Operating or Commitments with True Surplus)
+                // Sweep Surplus to Fortress Banner (Operating or Commitments with Surplus)
                 if ((selectedTier == VaultTier.OPERATING || selectedTier == VaultTier.COMMITMENTS) && calculatedSweepSurplus > 0) {
                     item {
                         Surface(
@@ -701,9 +702,9 @@ fun VaultStrategyScreen(
                                     )
                                     Text(
                                         text = if (selectedTier == VaultTier.OPERATING) {
-                                            "Surplus above this month's estimated living spend ready to be swept into your Fortress investment reserve."
+                                            "Surplus above estimated living spend and minimum balance ready to be swept into your Fortress investment reserve."
                                         } else {
-                                            "Excess funds above queued AutoPay commitments and ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", minCommitmentsBuffer)} minimum balance ready to be swept into Fortress."
+                                            "Excess funds above queued AutoPay commitments and minimum balance ready to be swept into Fortress."
                                         },
                                         fontSize = 10.5.sp,
                                         color = TextMuted,
@@ -792,13 +793,17 @@ fun VaultStrategyScreen(
                                             modifier = Modifier.weight(1f)
                                         )
                                     } else {
-                                        val reservedTotal = if (selectedTier == VaultTier.COMMITMENTS) totalPendingBillsAmount + minCommitmentsBuffer else totalPendingBillsAmount
+                                        val reservedTotal = totalPendingBillsAmount + accountMinBalance
                                         MatrixMetricCell(
-                                            title = if (selectedTier == VaultTier.COMMITMENTS) "Queued + MAB" else "Queued AutoPay",
+                                            title = if (accountMinBalance > 0) "Queued + MAB" else "Queued AutoPay",
                                             value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", reservedTotal)}",
                                             icon = Icons.Default.Schedule,
                                             iconColor = AccentPurple,
-                                            subtitle = if (selectedTier == VaultTier.COMMITMENTS) "${pendingBillsForAccount.size} bills + ₹10k MAB" else "${pendingBillsForAccount.size} pending bills",
+                                            subtitle = if (accountMinBalance > 0) {
+                                                "${pendingBillsForAccount.size} bills + ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", accountMinBalance)} MAB"
+                                            } else {
+                                                "${pendingBillsForAccount.size} pending bills"
+                                            },
                                             modifier = Modifier.weight(1f)
                                         )
                                     }
@@ -820,7 +825,7 @@ fun VaultStrategyScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Emergency Fund Runway Milestones Card (Fortress Tier)
+                        // Emergency Fund Runway Milestones Card
                         if (selectedTier == VaultTier.FORTRESS) {
                             val curBal = acc.currentBalance
                             val monthsCovered = if (avgMonthlySpend > 0.0) (curBal / avgMonthlySpend) else 0.0
@@ -1054,11 +1059,12 @@ fun VaultStrategyScreen(
             )
         }
 
-        // Edit Account Bottom Sheet
+        // Edit Account Sheet
         editingAccount?.let { acc ->
             var nameText by remember(acc) { mutableStateOf(acc.accountName) }
             var selectedRole by remember(acc) { mutableStateOf(getVaultTier(acc.accountType, acc.accountName)) }
             var balanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%.2f", acc.currentBalance)) }
+            var minBalanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%.0f", acc.minBalance)) }
             var isFdAccount by remember(acc) { mutableStateOf(acc.accountName.contains("FD", ignoreCase = true)) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -1090,6 +1096,7 @@ fun VaultStrategyScreen(
                                     accountName = acc.accountName,
                                     startingBalance = acc.startingBalance,
                                     accountType = acc.accountType,
+                                    minBalance = acc.minBalance,
                                     sortOrder = acc.sortOrder
                                 )
                             }
@@ -1175,6 +1182,20 @@ fun VaultStrategyScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = minBalanceText,
+                        onValueChange = { minBalanceText = it },
+                        label = { Text(text = "Minimum Balance Floor (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        supportingText = { Text(text = "Bank minimum average balance to prevent maintenance penalties", fontSize = 10.5.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                    )
+
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Surface(
@@ -1204,12 +1225,14 @@ fun VaultStrategyScreen(
                     Button(
                         onClick = {
                             val targetBal = balanceText.toDoubleOrNull() ?: acc.currentBalance
+                            val parsedMinBal = minBalanceText.toDoubleOrNull() ?: 0.0
                             if (nameText.isNotBlank()) {
                                 pendingEditConfirmation = PendingEditConfirmation(
                                     originalAccount = acc,
                                     updatedName = nameText.trim().uppercase(),
                                     updatedRole = selectedRole,
                                     targetBalance = targetBal,
+                                    minBalance = parsedMinBal,
                                     isFixedDeposit = isFdAccount
                                 )
                             }
@@ -1233,6 +1256,7 @@ fun VaultStrategyScreen(
             val isNameChanged = !conf.originalAccount.accountName.equals(conf.updatedName, ignoreCase = true)
             val isRoleChanged = !conf.originalAccount.accountType.equals(conf.updatedRole.title, ignoreCase = true)
             val isBalChanged = conf.targetBalance != conf.originalAccount.currentBalance
+            val isMinBalChanged = conf.minBalance != conf.originalAccount.minBalance
 
             AlertDialog(
                 onDismissRequest = { pendingEditConfirmation = null },
@@ -1249,7 +1273,10 @@ fun VaultStrategyScreen(
                             val diff = conf.targetBalance - conf.originalAccount.currentBalance
                             Text(text = "• Balance Adjustment: ${if (diff > 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", diff)}")
                         }
-                        if (!isNameChanged && !isRoleChanged && !isBalChanged) {
+                        if (isMinBalChanged) {
+                            Text(text = "• Minimum Balance: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", conf.minBalance)}")
+                        }
+                        if (!isNameChanged && !isRoleChanged && !isBalChanged && !isMinBalChanged) {
                             Text(text = "No changes detected.")
                         }
                     }
@@ -1380,8 +1407,8 @@ fun VaultStrategyScreen(
                                 Text(text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeAccount?.currentBalance ?: 0.0)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                val label = if (selectedTier == VaultTier.COMMITMENTS) "Reserved (AutoPay + ₹10k MAB)" else "Reserved for Upcoming AutoPay"
-                                val reservedVal = if (selectedTier == VaultTier.COMMITMENTS) totalPendingBillsAmount + minCommitmentsBuffer else totalPendingBillsAmount
+                                val label = if (accountMinBalance > 0) "Reserved (AutoPay + MAB)" else "Reserved for Upcoming AutoPay"
+                                val reservedVal = totalPendingBillsAmount + accountMinBalance
                                 Text(text = label, fontSize = 11.5.sp, color = TextMuted)
                                 Text(text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", reservedVal)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
                             }
@@ -1629,6 +1656,7 @@ fun VaultStrategyScreen(
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
             var balanceText by remember { mutableStateOf("") }
+            var minBalanceText by remember { mutableStateOf("") }
             var selectedTierOption by remember { mutableStateOf(VaultTier.OPERATING) }
             var isFdAccount by remember { mutableStateOf(false) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -1722,6 +1750,20 @@ fun VaultStrategyScreen(
                         value = balanceText,
                         onValueChange = { balanceText = it },
                         label = { Text(text = "Initial Starting Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = minBalanceText,
+                        onValueChange = { minBalanceText = it },
+                        label = { Text(text = "Minimum Balance Floor (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        supportingText = { Text(text = "Optional minimum average balance requirement", fontSize = 10.5.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
