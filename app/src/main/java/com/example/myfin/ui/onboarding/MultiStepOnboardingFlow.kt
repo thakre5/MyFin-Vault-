@@ -72,31 +72,37 @@ fun MultiStepOnboardingFlow(
 
     val initialAccounts = remember {
         mutableStateListOf(
-            InitialAccountSetup("Primary Bank", "Operating", "50000"),
-            InitialAccountSetup("Secondary Bank", "Commitments", "25000"),
-            InitialAccountSetup("Tertiary Bank", "Fortress", "5000"),
-            InitialAccountSetup("Cash Wallet", "Cash", "0")
+            InitialAccountSetup("Primary Bank", "Operating", "50000", "0"),
+            InitialAccountSetup("Secondary Bank", "Commitments", "25000", "10000"),
+            InitialAccountSetup("Tertiary Bank", "Fortress", "5000", "0"),
+            InitialAccountSetup("Cash Wallet", "Cash", "0", "0")
         )
     }
 
     fun syncAccountsForStrategy(strategy: String) {
         val existingBalances = initialAccounts.associate { it.name to it.initialBalanceText }
+        val existingMinBalances = initialAccounts.associate { it.name to it.minBalanceText }
+
         val primaryBal = existingBalances["Primary Bank"] ?: "50000"
         val secondaryBal = existingBalances["Secondary Bank"] ?: "25000"
         val tertiaryBal = existingBalances["Tertiary Bank"] ?: "5000"
         val cashBal = initialAccounts.firstOrNull { it.defaultType == "Cash" }?.initialBalanceText ?: "0"
 
+        val primaryMin = existingMinBalances["Primary Bank"] ?: "0"
+        val secondaryMin = if (strategy == "3-VAULT") (existingMinBalances["Secondary Bank"] ?: "10000") else "0"
+        val tertiaryMin = existingMinBalances["Tertiary Bank"] ?: "0"
+
         initialAccounts.clear()
         if (strategy == "3-VAULT") {
-            initialAccounts.add(InitialAccountSetup("Primary Bank", "Operating", primaryBal))
-            initialAccounts.add(InitialAccountSetup("Secondary Bank", "Commitments", secondaryBal))
-            initialAccounts.add(InitialAccountSetup("Tertiary Bank", "Fortress", tertiaryBal))
-            initialAccounts.add(InitialAccountSetup("Cash Wallet", "Cash", cashBal))
+            initialAccounts.add(InitialAccountSetup("Primary Bank", "Operating", primaryBal, primaryMin))
+            initialAccounts.add(InitialAccountSetup("Secondary Bank", "Commitments", secondaryBal, secondaryMin))
+            initialAccounts.add(InitialAccountSetup("Tertiary Bank", "Fortress", tertiaryBal, tertiaryMin))
+            initialAccounts.add(InitialAccountSetup("Cash Wallet", "Cash", cashBal, "0"))
         } else {
-            initialAccounts.add(InitialAccountSetup("Primary Bank", "Operating", primaryBal))
-            initialAccounts.add(InitialAccountSetup("Secondary Bank", "Operating", secondaryBal))
-            initialAccounts.add(InitialAccountSetup("Tertiary Bank", "Operating", tertiaryBal))
-            initialAccounts.add(InitialAccountSetup("Cash Wallet", "Cash", cashBal))
+            initialAccounts.add(InitialAccountSetup("Primary Bank", "Operating", primaryBal, primaryMin))
+            initialAccounts.add(InitialAccountSetup("Secondary Bank", "Operating", secondaryBal, "0"))
+            initialAccounts.add(InitialAccountSetup("Tertiary Bank", "Operating", tertiaryBal, "0"))
+            initialAccounts.add(InitialAccountSetup("Cash Wallet", "Cash", cashBal, "0"))
         }
     }
 
@@ -154,14 +160,14 @@ fun MultiStepOnboardingFlow(
             viewModel.saveUserProfile(currentProfile.copy(baseMonthlyIncome = parsedSalary))
         }
 
-        // 2. Set Up Accounts (Injecting ₹10,000 MAB for Commitments)
+        // 2. Set Up Accounts with User-Defined MAB Floored Values
         val accountEntities = initialAccounts.mapIndexed { index, acc ->
-            val minBal = if (selectedStrategy == "3-VAULT" && acc.defaultType.equals("Commitments", ignoreCase = true)) 10000.0 else 0.0
+            val parsedMin = acc.minBalanceText.toDoubleOrNull() ?: 0.0
             AccountEntity(
                 accountName = acc.name.trim().uppercase(),
                 startingBalance = acc.initialBalanceText.toDoubleOrNull() ?: 0.0,
                 accountType = acc.defaultType,
-                minBalance = minBal,
+                minBalance = parsedMin,
                 sortOrder = index
             )
         }
@@ -334,6 +340,9 @@ fun MultiStepOnboardingFlow(
                             onUpdateAccountBalance = { idx, newBal ->
                                 initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
                             },
+                            onUpdateAccountMinBalance = { idx, newMin ->
+                                initialAccounts[idx] = initialAccounts[idx].copy(minBalanceText = newMin)
+                            },
                             onRemoveAccount = { idx ->
                                 initialAccounts.removeAt(idx)
                             },
@@ -347,9 +356,9 @@ fun MultiStepOnboardingFlow(
                                 val cashAcc = initialAccounts.firstOrNull { it.defaultType == "Cash" }
                                 if (cashAcc != null) {
                                     val insertIdx = initialAccounts.indexOf(cashAcc)
-                                    initialAccounts.add(insertIdx, InitialAccountSetup(nextBankName, "Operating", "10000"))
+                                    initialAccounts.add(insertIdx, InitialAccountSetup(nextBankName, "Operating", "10000", "0"))
                                 } else {
-                                    initialAccounts.add(InitialAccountSetup(nextBankName, "Operating", "10000"))
+                                    initialAccounts.add(InitialAccountSetup(nextBankName, "Operating", "10000", "0"))
                                 }
                             },
                             onToggleCommitment = { idx ->
