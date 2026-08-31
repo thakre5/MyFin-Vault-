@@ -363,11 +363,22 @@ fun SimpleAccountsScreen(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "•••• $maskedDigits",
-                                            fontSize = 11.sp,
-                                            color = TextMuted
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "•••• $maskedDigits",
+                                                fontSize = 11.sp,
+                                                color = TextMuted
+                                            )
+                                            if (acc.minBalance > 0.0) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "• MAB: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", acc.minBalance)}",
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = AccentPurple
+                                                )
+                                            }
+                                        }
                                     }
                                 }
 
@@ -442,6 +453,7 @@ fun SimpleAccountsScreen(
         editingAccount?.let { acc ->
             var nameText by remember(acc) { mutableStateOf(acc.accountName) }
             var balanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%.2f", acc.currentBalance)) }
+            var minBalanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%.0f", acc.minBalance)) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -477,6 +489,7 @@ fun SimpleAccountsScreen(
                                     accountName = acc.accountName,
                                     startingBalance = acc.startingBalance,
                                     accountType = acc.accountType,
+                                    minBalance = acc.minBalance,
                                     sortOrder = acc.sortOrder
                                 )
                             }
@@ -511,11 +524,26 @@ fun SimpleAccountsScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = minBalanceText,
+                        onValueChange = { minBalanceText = it },
+                        label = { Text(text = "Minimum Balance Floor (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        supportingText = { Text(text = "Protected balance floor to avoid bank non-maintenance penalties", fontSize = 10.5.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                    )
+
                     Spacer(modifier = Modifier.height(18.dp))
 
                     Button(
                         onClick = {
                             val targetBal = balanceText.toDoubleOrNull() ?: acc.currentBalance
+                            val parsedMinBal = minBalanceText.toDoubleOrNull() ?: 0.0
                             if (nameText.isNotBlank()) {
                                 viewModel.updateAccountDetails(
                                     oldName = acc.accountName,
@@ -578,6 +606,7 @@ fun SimpleAccountsScreen(
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
             var balanceText by remember { mutableStateOf("") }
+            var minBalanceText by remember { mutableStateOf("") }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -602,7 +631,7 @@ fun SimpleAccountsScreen(
                 ) {
                     Text(text = "Add Account", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(text = "Enter bank or wallet name and starting balance", fontSize = 11.5.sp, color = TextMuted)
+                    Text(text = "Enter bank or wallet name, starting balance, and optional MAB", fontSize = 11.5.sp, color = TextMuted)
 
                     Spacer(modifier = Modifier.height(14.dp))
 
@@ -623,6 +652,20 @@ fun SimpleAccountsScreen(
                         value = balanceText,
                         onValueChange = { balanceText = it },
                         label = { Text(text = "Initial Starting Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = minBalanceText,
+                        onValueChange = { minBalanceText = it },
+                        label = { Text(text = "Minimum Balance Floor (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        supportingText = { Text(text = "Optional minimum average balance requirement", fontSize = 10.5.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
