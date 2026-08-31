@@ -31,7 +31,8 @@ val SupportedCountries = listOf(
 data class InitialAccountSetup(
     val name: String,
     val defaultType: String,
-    val initialBalanceText: String
+    val initialBalanceText: String,
+    val minBalanceText: String = if (defaultType.equals("Commitments", ignoreCase = true)) "10000" else "0"
 )
 
 data class InitialCommitmentPreset(
