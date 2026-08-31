@@ -211,7 +211,7 @@ fun VaultStrategyScreen(
     }
 
     // Fortress FD Surplus Trigger Logic & Threshold Split
-    val fortressThreshold = userProfile.fortressThreshold.takeIf { it > 0 } > 0.let { if (userProfile.fortressThreshold > 0) userProfile.fortressThreshold else 25000.0 }
+    val fortressThreshold: Double = if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
     val fortressLiquidExcess = remember(activeAccount?.currentBalance, selectedTier, fortressThreshold) {
         if (selectedTier == VaultTier.FORTRESS) {
             val bal = activeAccount?.currentBalance ?: 0.0
@@ -758,7 +758,7 @@ fun VaultStrategyScreen(
 
                                 Row(modifier = Modifier.fillMaxWidth()) {
                                     if (selectedTier == VaultTier.FORTRESS) {
-                                        val capProgress = ((acc.currentBalance / fortressThreshold) * 100).toInt()
+                                        val capProgress = if (fortressThreshold > 0.0) ((acc.currentBalance / fortressThreshold) * 100).toInt() else 0
                                         MatrixMetricCell(
                                             title = "Safety Cap Buffer",
                                             value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressThreshold)}",
