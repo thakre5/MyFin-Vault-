@@ -109,6 +109,7 @@ fun VaultStrategyScreen(
     val context = LocalContext.current
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
+    val avgMonthlySpend by viewModel.averageMonthlySpend.collectAsState()
 
     var showHelpDialog by remember { mutableStateOf(false) }
     var receiptPayload by remember { mutableStateOf<SuccessReceiptPayload?>(null) }
@@ -210,24 +211,13 @@ fun VaultStrategyScreen(
         selectedTier == VaultTier.COMMITMENTS && ((activeAccount?.currentBalance ?: 0.0) < totalPendingBillsAmount)
     }
 
-    // Fortress FD Surplus Trigger Logic & Threshold Split
-    val fortressThreshold: Double = if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
-    val fortressLiquidExcess = remember(activeAccount?.currentBalance, selectedTier, fortressThreshold) {
+    // Auto-Sweep Operating Threshold vs Emergency FD Surplus
+    val autoSweepThreshold: Double = if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
+    val fortressLiquidExcess = remember(activeAccount?.currentBalance, selectedTier, autoSweepThreshold) {
         if (selectedTier == VaultTier.FORTRESS) {
             val bal = activeAccount?.currentBalance ?: 0.0
-            (bal - fortressThreshold).coerceAtLeast(0.0)
+            (bal - autoSweepThreshold).coerceAtLeast(0.0)
         } else 0.0
-    }
-
-    // Benchmark base monthly expenses: uses actual expenses, falls back to planned budget or fixed commitments
-    val effectiveMonthlyExpenses = remember(allFlattenedTxs, uiState.metrics.plannedExpenses, uiState.metrics.fixedCommitmentsTotal) {
-        val actual = allFlattenedTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-        when {
-            actual > 0 -> actual
-            uiState.metrics.plannedExpenses > 0 -> uiState.metrics.plannedExpenses
-            uiState.metrics.fixedCommitmentsTotal > 0 -> uiState.metrics.fixedCommitmentsTotal
-            else -> 0.0
-        }
     }
 
     val fabActions = remember {
@@ -256,9 +246,7 @@ fun VaultStrategyScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // =========================================================
-            // 1. PINNED TOP HEADER WITH SHELF DISSOLVE
-            // =========================================================
+            // Pinned Top Header
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -358,7 +346,6 @@ fun VaultStrategyScreen(
                     }
                 }
 
-                // Smooth Dissolve Shelf Placed Below Top Header
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -374,9 +361,7 @@ fun VaultStrategyScreen(
                 )
             }
 
-            // =========================================================
-            // 2. SCROLLABLE VAULT CONTENT
-            // =========================================================
+            // Scrollable Content
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -384,7 +369,7 @@ fun VaultStrategyScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 4.dp, bottom = 125.dp)
             ) {
-                // Vault Asset Allocation Card
+                // Asset Allocation Donut Card
                 item {
                     Surface(
                         modifier = Modifier
@@ -513,7 +498,7 @@ fun VaultStrategyScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // Connected Bank Accounts Header
+                // Connected Bank Accounts
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -536,7 +521,6 @@ fun VaultStrategyScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // Horizontal Bank Cards Carousel
                 if (displayAccounts.isEmpty()) {
                     item {
                         Surface(
@@ -568,7 +552,7 @@ fun VaultStrategyScreen(
                                     isSelected = isSelected,
                                     showRole = true,
                                     isDiscreet = isDiscreetMode,
-                                    fortressThreshold = fortressThreshold,
+                                    autoSweepThreshold = autoSweepThreshold,
                                     onSelect = { activeSelectedCardIndex = idx },
                                     onEdit = { editingAccount = acc },
                                     modifier = Modifier.width(280.dp)
@@ -579,7 +563,7 @@ fun VaultStrategyScreen(
                     }
                 }
 
-                // Overdraft Buffer Shield Warning
+                // Overdraft Buffer Warning
                 if (isOverdraftRisk) {
                     item {
                         Surface(
@@ -640,7 +624,7 @@ fun VaultStrategyScreen(
                     }
                 }
 
-                // Interactive FD Auto-Sweep Call-to-Action Banner (Shown on Fortress Tier with Excess Balance)
+                // Auto-Sweep FD Surplus Call-to-Action
                 if (fortressLiquidExcess > 0) {
                     item {
                         Surface(
@@ -682,7 +666,7 @@ fun VaultStrategyScreen(
                                         color = TextDark
                                     )
                                     Text(
-                                        text = "Surplus funds above your safety cap of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressThreshold)} ready to earn interest in Fixed Deposit.",
+                                        text = "Surplus funds above your savings cap of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", autoSweepThreshold)} earning fixed deposit interest.",
                                         fontSize = 10.5.sp,
                                         color = TextMuted,
                                         lineHeight = 14.sp
@@ -710,7 +694,7 @@ fun VaultStrategyScreen(
                     }
                 }
 
-                // Account Cashflow Matrix (Bound Dynamically to Active Account)
+                // Account Cashflow Matrix
                 activeAccount?.let { acc ->
                     item {
                         Text(
@@ -758,10 +742,10 @@ fun VaultStrategyScreen(
 
                                 Row(modifier = Modifier.fillMaxWidth()) {
                                     if (selectedTier == VaultTier.FORTRESS) {
-                                        val capProgress = if (fortressThreshold > 0.0) ((acc.currentBalance / fortressThreshold) * 100).toInt() else 0
+                                        val capProgress = if (autoSweepThreshold > 0.0) ((acc.currentBalance / autoSweepThreshold) * 100).toInt() else 0
                                         MatrixMetricCell(
-                                            title = "Safety Cap Buffer",
-                                            value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressThreshold)}",
+                                            title = "Goal Savings Buffer",
+                                            value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", autoSweepThreshold)}",
                                             icon = Icons.Default.VerifiedUser,
                                             iconColor = SoftTeal,
                                             subtitle = "$capProgress% Target Funded",
@@ -795,15 +779,14 @@ fun VaultStrategyScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Emergency Fund Runway Milestone Card (Shown on Fortress Vault Account)
+                        // Emergency Fund Runway Milestones (Based on Actual Spending Average Across Year)
                         if (selectedTier == VaultTier.FORTRESS) {
                             val curBal = acc.currentBalance
-                            val hasExpenseBenchmark = effectiveMonthlyExpenses > 0
-                            val monthsCovered = if (hasExpenseBenchmark) (curBal / effectiveMonthlyExpenses) else 0.0
+                            val monthsCovered = if (avgMonthlySpend > 0.0) (curBal / avgMonthlySpend) else 0.0
 
-                            val m3Target = if (hasExpenseBenchmark) effectiveMonthlyExpenses * 3 else 10000.0
-                            val m6Target = if (hasExpenseBenchmark) effectiveMonthlyExpenses * 6 else 25000.0
-                            val m12Target = if (hasExpenseBenchmark) effectiveMonthlyExpenses * 12 else 50000.0
+                            val m3Target = avgMonthlySpend * 3
+                            val m6Target = avgMonthlySpend * 6
+                            val m12Target = avgMonthlySpend * 12
 
                             Surface(
                                 modifier = Modifier
@@ -825,14 +808,21 @@ fun VaultStrategyScreen(
                                         ) {
                                             Icon(Icons.Default.Security, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(18.dp))
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = "Emergency Runway Milestones",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.5.sp,
-                                                color = TextDark,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
+                                            Column {
+                                                Text(
+                                                    text = "Emergency Runway Milestones",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.5.sp,
+                                                    color = TextDark,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = "Based on ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgMonthlySpend)}/mo spending average",
+                                                    fontSize = 10.sp,
+                                                    color = TextMuted
+                                                )
+                                            }
                                         }
 
                                         Spacer(modifier = Modifier.width(8.dp))
@@ -842,7 +832,7 @@ fun VaultStrategyScreen(
                                             color = SoftTeal.copy(alpha = 0.12f)
                                         ) {
                                             Text(
-                                                text = if (!hasExpenseBenchmark) "-- Mo Covered" else "${String.format(Locale.US, "%.1f", monthsCovered)} Mo Covered",
+                                                text = "${String.format(Locale.US, "%.1f", monthsCovered)} Mo Covered",
                                                 fontSize = 10.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = SoftTeal,
@@ -960,9 +950,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // =========================================================
-        // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
-        // =========================================================
+        // Bottom Gradient Scrim
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -980,9 +968,7 @@ fun VaultStrategyScreen(
                 .zIndex(2.5f)
         )
 
-        // =========================================================
-        // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH CONTEXTUAL FAB
-        // =========================================================
+        // Floating Bottom Dock
         AppBottomDock(
             currentSelection = NavigationTarget.VAULT_ACCOUNTS,
             onSelectTarget = { target ->
@@ -1002,7 +988,7 @@ fun VaultStrategyScreen(
                 .zIndex(4f)
         )
 
-        // Help Guide Dialog
+        // Help Dialog
         if (showHelpDialog) {
             AlertDialog(
                 onDismissRequest = { showHelpDialog = false },
@@ -1025,7 +1011,7 @@ fun VaultStrategyScreen(
             )
         }
 
-        // Full Account Modifier Bottom Sheet
+        // Edit Account Bottom Sheet
         editingAccount?.let { acc ->
             var nameText by remember(acc) { mutableStateOf(acc.accountName) }
             var selectedRole by remember(acc) { mutableStateOf(getVaultTier(acc.accountType, acc.accountName)) }
@@ -1110,7 +1096,6 @@ fun VaultStrategyScreen(
                         }
                     }
 
-                    // Optional Locked Fixed Deposit Toggle
                     if (selectedRole == VaultTier.FORTRESS) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Row(
@@ -1200,7 +1185,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Confirmation Modal Before Applying Changes
+        // Confirmation Modal
         pendingEditConfirmation?.let { conf ->
             val isNameChanged = !conf.originalAccount.accountName.equals(conf.updatedName, ignoreCase = true)
             val isRoleChanged = !conf.originalAccount.accountType.equals(conf.updatedRole.title, ignoreCase = true)
@@ -1260,7 +1245,7 @@ fun VaultStrategyScreen(
             )
         }
 
-        // Strategic Vault Routing Breakdown Details Bottom Sheet
+        // Routing Details Sheet
         if (showRoutingDetailsSheet) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -1385,7 +1370,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Delete Account Confirmation Alert
+        // Delete Account Alert
         accountToDelete?.let { acc ->
             AlertDialog(
                 onDismissRequest = { accountToDelete = null },
@@ -1416,7 +1401,7 @@ fun VaultStrategyScreen(
             )
         }
 
-        // Instant Vault Transfer Bottom Sheet
+        // Transfer Bottom Sheet
         if (showTransferSheet) {
             var fromAccount by remember { mutableStateOf(accountNames.firstOrNull().orEmpty()) }
             var toAccount by remember { mutableStateOf(accountNames.getOrNull(1) ?: accountNames.firstOrNull().orEmpty()) }
@@ -1524,7 +1509,6 @@ fun VaultStrategyScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Monthly Auto-Sweep Recurring Option
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1787,8 +1771,8 @@ private fun RunwayMilestoneRow(
     currencySymbol: String,
     isDiscreet: Boolean
 ) {
-    val progress = if (target > 0) (current / target).toFloat().coerceIn(0f, 1f) else 0f
-    val isComplete = current >= target && target > 0
+    val progress = if (target > 0.0) (current / target).toFloat().coerceIn(0f, 1f) else 0f
+    val isComplete = current >= target && target > 0.0
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -1847,7 +1831,7 @@ private fun BankAccountPhysicalCard(
     isSelected: Boolean,
     showRole: Boolean,
     isDiscreet: Boolean,
-    fortressThreshold: Double,
+    autoSweepThreshold: Double,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
@@ -1857,8 +1841,8 @@ private fun BankAccountPhysicalCard(
     }
     val isFortress = tier == VaultTier.FORTRESS
 
-    val goalSavings = if (isFortress) min(account.currentBalance, fortressThreshold) else account.currentBalance
-    val emergencyFd = if (isFortress) max(0.0, account.currentBalance - fortressThreshold) else 0.0
+    val goalSavings = if (isFortress) min(account.currentBalance, autoSweepThreshold) else account.currentBalance
+    val emergencyFd = if (isFortress) max(0.0, account.currentBalance - autoSweepThreshold) else 0.0
 
     Surface(
         modifier = modifier
