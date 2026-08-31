@@ -160,7 +160,6 @@ fun SettingsScreen(
         }
     }
 
-    // Background Async Image Saving with Unique Timestamp & Instant Cache Invalidation
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -224,7 +223,6 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .background(CanvasLight)
                 ) {
-                    // Gradient Top Banner
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -280,7 +278,6 @@ fun SettingsScreen(
                             }
                         }
 
-                        // Circular Avatar with Inset Border
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
@@ -358,7 +355,6 @@ fun SettingsScreen(
                         }
                     }
 
-                    // User Identity Block
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -391,7 +387,6 @@ fun SettingsScreen(
                     }
                 }
 
-                // Dissolve Overlay
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -420,7 +415,6 @@ fun SettingsScreen(
                     .padding(top = 6.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Card 1: Profile & Regional Configuration
                 ExpandableSettingsCard(
                     icon = Icons.Default.Person,
                     title = "Profile & Regional",
@@ -450,7 +444,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // Card 2: Strategy & Vault Architecture
                 ExpandableSettingsCard(
                     icon = Icons.Default.Layers,
                     title = "Strategy & Architecture",
@@ -481,7 +474,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // Card 3: Security & Privacy
                 ExpandableSettingsCard(
                     icon = Icons.Default.Lock,
                     title = "Security & Privacy",
@@ -515,7 +507,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // Card 4: Reminders & Alerts
                 val reminderTime = String.format(Locale.US, "%02d:%02d", userProfile.reminderHour, userProfile.reminderMinute)
                 ExpandableSettingsCard(
                     icon = Icons.Outlined.Notifications,
@@ -551,7 +542,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // Card 5: Data Backup & Recovery
                 ExpandableSettingsCard(
                     icon = Icons.Default.Backup,
                     title = "Data Backup & Recovery",
@@ -581,7 +571,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // Card 6: Financial Statements & Reports
                 ExpandableSettingsCard(
                     icon = Icons.Default.TableChart,
                     title = "Financial Statements & Reports",
@@ -612,7 +601,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // Card 7: User Guide & Documentation
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -661,7 +649,6 @@ fun SettingsScreen(
                     }
                 }
 
-                // Card 8: Danger Zone
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -713,7 +700,6 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Bottom Lock Button
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -749,7 +735,6 @@ fun SettingsScreen(
                     }
                 }
 
-                // Dynamic App Branding Footer
                 AppBrandingFooter(
                     modifier = Modifier.fillMaxWidth(),
                     version = "v${BuildConfig.VERSION_NAME}",
@@ -765,7 +750,6 @@ fun SettingsScreen(
     // DEDICATED BOTTOM SHEETS & MODALS
     // ==========================================
 
-    // 1. Edit Personal Info Sheet
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
         var nameInput by remember(userProfile.displayName) { mutableStateOf(userProfile.displayName.ifBlank { "Alex Doe" }) }
         var emailInput by remember(userProfile.email) { mutableStateOf(userProfile.email.ifBlank { "alex.doe@example.com" }) }
@@ -868,7 +852,6 @@ fun SettingsScreen(
         }
     }
 
-    // 2. Strategy Mode Guidance Sheet
     if (activeSheet == SettingsActiveSheet.VAULT_STRATEGY || activeSheet == SettingsActiveSheet.STRATEGY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -1000,9 +983,14 @@ fun SettingsScreen(
         }
     }
 
-    // 3. Fortress Emergency Threshold Sheet
+    // Fortress Emergency Threshold Sheet with Months Selector
     if (activeSheet == SettingsActiveSheet.FORTRESS_THRESHOLD) {
-        var thresholdInput by remember(userProfile.fortressThreshold) {
+        var selectedMonths by remember(userProfile.baseMonthlyIncome, userProfile.fortressThreshold) {
+            val base = userProfile.baseMonthlyIncome.takeIf { it > 0 } ?: 25000.0
+            val months = (userProfile.fortressThreshold / base).toInt()
+            mutableIntStateOf(months.coerceIn(1, 24))
+        }
+        var customInput by remember(userProfile.fortressThreshold) {
             mutableStateOf(String.format(Locale.US, "%.0f", userProfile.fortressThreshold))
         }
 
@@ -1019,49 +1007,86 @@ fun SettingsScreen(
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Fortress Safety Net Target", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Target liquid buffer used for Auto-Sweep FD and runway pacing", fontSize = 12.sp, color = TextMuted)
+                Text("Configure emergency fund duration based on monthly baseline", fontSize = 12.sp, color = TextMuted)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                val monthlyBase = userProfile.baseMonthlyIncome.takeIf { it > 0 } ?: 25000.0
+                val computedTarget = monthlyBase * selectedMonths
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = CanvasLight,
+                    border = BorderStroke(0.8.dp, BorderLight)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Selected Target Coverage", fontSize = 11.5.sp, color = TextMuted)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)}",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Black,
+                            color = SettingsTealColor
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text("Based on $selectedMonths Months × ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthlyBase)}/mo", fontSize = 11.sp, color = TextMuted)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("Select Months Coverage:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(3, 6, 12).forEach { months ->
+                        val isSel = selectedMonths == months
+                        OutlinedButton(
+                            onClick = {
+                                selectedMonths = months
+                                customInput = String.format(Locale.US, "%.0f", monthlyBase * months)
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (isSel) SettingsTealColor.copy(alpha = 0.12f) else Color.Transparent
+                            ),
+                            border = BorderStroke(1.dp, if (isSel) SettingsTealColor else BorderLight)
+                        ) {
+                            Text("$months Months", fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium, color = if (isSel) SettingsTealColor else TextDark)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
                 OutlinedTextField(
-                    value = thresholdInput,
-                    onValueChange = { thresholdInput = it },
-                    label = { Text("Emergency Target Amount (${userProfile.currencySymbol})") },
+                    value = customInput,
+                    onValueChange = {
+                        customInput = it
+                        it.toDoubleOrNull()?.let { d ->
+                            if (d > 0) selectedMonths = (d / monthlyBase).toInt().coerceAtLeast(1)
+                        }
+                    },
+                    label = { Text("Or Enter Custom Amount (${userProfile.currencySymbol})") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text("Quick Multiplier Presets:", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val base = userProfile.baseMonthlyIncome.takeIf { it > 0 } ?: 25000.0
-                    listOf(3 to "3 Months", 6 to "6 Months", 12 to "12 Months").forEach { (multiplier, label) ->
-                        OutlinedButton(
-                            onClick = {
-                                thresholdInput = String.format(Locale.US, "%.0f", base * multiplier)
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 4.dp)
-                        ) {
-                            Text(label, fontSize = 11.sp, color = AccentPurple)
-                        }
-                    }
-                }
-
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Button(
                     onClick = {
-                        val parsed = thresholdInput.toDoubleOrNull() ?: userProfile.fortressThreshold
+                        val parsed = customInput.toDoubleOrNull() ?: computedTarget
                         viewModel.updateFortressThreshold(parsed)
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, "Fortress target set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", parsed)}", Toast.LENGTH_SHORT).show()
@@ -1080,7 +1105,6 @@ fun SettingsScreen(
         }
     }
 
-    // 4. Biometric Confirmation Sheet
     if (activeSheet == SettingsActiveSheet.BIOMETRIC_CONFIRM || activeSheet == SettingsActiveSheet.SECURITY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -1156,7 +1180,6 @@ fun SettingsScreen(
         }
     }
 
-    // 5. Change Master PIN Sheet
     if (activeSheet == SettingsActiveSheet.CHANGE_PIN) {
         var verifyDob by remember { mutableStateOf("") }
         var newPin by remember { mutableStateOf("") }
@@ -1251,7 +1274,6 @@ fun SettingsScreen(
         }
     }
 
-    // 6. Daily Review Reminder Time Sheet
     if (activeSheet == SettingsActiveSheet.DAILY_REMINDER || activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
         var hourInput by remember(userProfile.reminderHour) { mutableIntStateOf(userProfile.reminderHour) }
         var minInput by remember(userProfile.reminderMinute) { mutableIntStateOf(userProfile.reminderMinute) }
@@ -1341,7 +1363,6 @@ fun SettingsScreen(
         }
     }
 
-    // 7. Country & Primary Currency Selector Sheet
     if (activeSheet == SettingsActiveSheet.COUNTRY_CURRENCY_PICKER || activeSheet == SettingsActiveSheet.CURRENCY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -1409,7 +1430,6 @@ fun SettingsScreen(
         }
     }
 
-    // 8. Danger Zone Confirmation Dialog
     if (activeSheet == SettingsActiveSheet.RESET_CONFIRM || activeSheet == SettingsActiveSheet.DATA_MANAGEMENT) {
         AlertDialog(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -1612,10 +1632,6 @@ private fun SettingsChildSwitchRow(
         )
     }
 }
-
-// ==========================================
-// VECTOR ILLUSTRATION CANVASES
-// ==========================================
 
 @Composable
 private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
