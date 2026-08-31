@@ -4,6 +4,7 @@ data class AccountBalanceResult(
     val accountName: String,
     val startingBalance: Double,
     val accountType: String,
+    val minBalance: Double = 0.0,
     val sortOrder: Int,
     val currentBalance: Double
 )
