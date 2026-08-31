@@ -576,7 +576,7 @@ class BudgetViewModel(
             dao.insertAccounts(
                 listOf(
                     AccountEntity(accountName = "PRIMARY BANK", startingBalance = 0.0, accountType = "Operating", minBalance = 0.0, sortOrder = 0),
-                    AccountEntity(accountName = "SECONDARY BANK", startingBalance = 0.0, accountType = "Commitments", minBalance = 0.0, sortOrder = 1),
+                    AccountEntity(accountName = "SECONDARY BANK", startingBalance = 0.0, accountType = "Commitments", minBalance = 10000.0, sortOrder = 1),
                     AccountEntity(accountName = "TERTIARY BANK", startingBalance = 0.0, accountType = "Fortress", minBalance = 0.0, sortOrder = 2),
                     AccountEntity(accountName = "CASH WALLET", startingBalance = 0.0, accountType = "Cash", minBalance = 0.0, sortOrder = 3)
                 )
@@ -903,7 +903,13 @@ class BudgetViewModel(
         }
     }
 
-    fun addAccount(name: String, startingBalance: Double, type: String = "Operating", minBalance: Double = 0.0, sortOrder: Int = 0) {
+    fun addAccount(
+        name: String,
+        startingBalance: Double,
+        type: String = "Operating",
+        minBalance: Double = 0.0,
+        sortOrder: Int = 0
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             val existingAccounts = dao.getAllAccounts().first()
             val effectiveOrder = if (sortOrder == 0 && existingAccounts.isNotEmpty()) {
@@ -922,13 +928,30 @@ class BudgetViewModel(
         }
     }
 
-    fun updateAccountStartingBalance(accountName: String, startingBalance: Double, type: String = "Operating", minBalance: Double = 0.0) {
+    fun updateAccountStartingBalance(
+        accountName: String,
+        startingBalance: Double,
+        type: String = "Operating",
+        minBalance: Double? = null
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             val existing = dao.getAccountByName(accountName)
             if (existing != null) {
-                dao.insertAccount(existing.copy(startingBalance = startingBalance, minBalance = minBalance))
+                dao.insertAccount(
+                    existing.copy(
+                        startingBalance = startingBalance,
+                        minBalance = minBalance ?: existing.minBalance
+                    )
+                )
             } else {
-                dao.insertAccount(AccountEntity(accountName = accountName, startingBalance = startingBalance, accountType = type, minBalance = minBalance))
+                dao.insertAccount(
+                    AccountEntity(
+                        accountName = accountName,
+                        startingBalance = startingBalance,
+                        accountType = type,
+                        minBalance = minBalance ?: 0.0
+                    )
+                )
             }
         }
     }
@@ -988,11 +1011,13 @@ class BudgetViewModel(
     fun deleteAccount(account: AccountEntity, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val count = dao.getTransactionCountForAccount(account.accountName)
-            withContext(Dispatchers.Main) {
-                if (count > 0) {
+            if (count > 0) {
+                withContext(Dispatchers.Main) {
                     onResult(false, "Cannot delete account with $count linked transactions.")
-                } else {
-                    dao.deleteAccount(account)
+                }
+            } else {
+                dao.deleteAccount(account)
+                withContext(Dispatchers.Main) {
                     onResult(true, "Account removed successfully.")
                 }
             }
