@@ -209,7 +209,7 @@ class BudgetViewModel(
             val plannedAssets = matrixList.filter { it.type == TransactionType.ASSET }.sumOf { it.plannedAmount }
 
             val fixedExpenseTotal = fixedBills.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-            
+
             val baseIncome = when {
                 max(plannedIncome, actualIncome) > 0.0 -> max(plannedIncome, actualIncome)
                 profile.baseMonthlyIncome > 0.0 -> profile.baseMonthlyIncome
@@ -575,10 +575,10 @@ class BudgetViewModel(
         if (count == 0 && isCompleted) {
             dao.insertAccounts(
                 listOf(
-                    AccountEntity(accountName = "PRIMARY BANK", startingBalance = 0.0, accountType = "Operating", sortOrder = 0),
-                    AccountEntity(accountName = "SECONDARY BANK", startingBalance = 0.0, accountType = "Commitments", sortOrder = 1),
-                    AccountEntity(accountName = "TERTIARY BANK", startingBalance = 0.0, accountType = "Fortress", sortOrder = 2),
-                    AccountEntity(accountName = "CASH WALLET", startingBalance = 0.0, accountType = "Cash", sortOrder = 3)
+                    AccountEntity(accountName = "PRIMARY BANK", startingBalance = 0.0, accountType = "Operating", minBalance = 0.0, sortOrder = 0),
+                    AccountEntity(accountName = "SECONDARY BANK", startingBalance = 0.0, accountType = "Commitments", minBalance = 0.0, sortOrder = 1),
+                    AccountEntity(accountName = "TERTIARY BANK", startingBalance = 0.0, accountType = "Fortress", minBalance = 0.0, sortOrder = 2),
+                    AccountEntity(accountName = "CASH WALLET", startingBalance = 0.0, accountType = "Cash", minBalance = 0.0, sortOrder = 3)
                 )
             )
         }
@@ -903,7 +903,7 @@ class BudgetViewModel(
         }
     }
 
-    fun addAccount(name: String, startingBalance: Double, type: String = "Operating", sortOrder: Int = 0) {
+    fun addAccount(name: String, startingBalance: Double, type: String = "Operating", minBalance: Double = 0.0, sortOrder: Int = 0) {
         viewModelScope.launch(Dispatchers.IO) {
             val existingAccounts = dao.getAllAccounts().first()
             val effectiveOrder = if (sortOrder == 0 && existingAccounts.isNotEmpty()) {
@@ -915,19 +915,20 @@ class BudgetViewModel(
                     accountName = name.trim().uppercase(),
                     startingBalance = startingBalance,
                     accountType = type,
+                    minBalance = minBalance,
                     sortOrder = effectiveOrder
                 )
             )
         }
     }
 
-    fun updateAccountStartingBalance(accountName: String, startingBalance: Double, type: String = "Operating") {
+    fun updateAccountStartingBalance(accountName: String, startingBalance: Double, type: String = "Operating", minBalance: Double = 0.0) {
         viewModelScope.launch(Dispatchers.IO) {
             val existing = dao.getAccountByName(accountName)
             if (existing != null) {
-                dao.insertAccount(existing.copy(startingBalance = startingBalance))
+                dao.insertAccount(existing.copy(startingBalance = startingBalance, minBalance = minBalance))
             } else {
-                dao.insertAccount(AccountEntity(accountName = accountName, startingBalance = startingBalance, accountType = type))
+                dao.insertAccount(AccountEntity(accountName = accountName, startingBalance = startingBalance, accountType = type, minBalance = minBalance))
             }
         }
     }
@@ -963,6 +964,7 @@ class BudgetViewModel(
         newName: String,
         startingBalance: Double,
         accountType: String,
+        minBalance: Double = 0.0,
         sortOrder: Int = 0
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -971,6 +973,7 @@ class BudgetViewModel(
                 newName = newName,
                 startingBalance = startingBalance,
                 accountType = accountType,
+                minBalance = minBalance,
                 sortOrder = sortOrder
             )
         }
@@ -1134,6 +1137,7 @@ class BudgetViewModel(
                     put("accountName", a.accountName)
                     put("startingBalance", a.startingBalance)
                     put("accountType", a.accountType)
+                    put("minBalance", a.minBalance)
                     put("sortOrder", a.sortOrder)
                 })
             }
@@ -1223,11 +1227,13 @@ class BudgetViewModel(
                     val a = accArray.getJSONObject(i)
                     val accType = if (a.has("accountType")) a.getString("accountType") else a.optString("type", "Operating")
                     val sortOrder = a.optInt("sortOrder", i)
+                    val minBal = a.optDouble("minBalance", 0.0)
                     dao.insertAccount(
                         AccountEntity(
                             accountName = a.getString("accountName"),
                             startingBalance = a.getDouble("startingBalance"),
                             accountType = accType,
+                            minBalance = minBal,
                             sortOrder = sortOrder
                         )
                     )
