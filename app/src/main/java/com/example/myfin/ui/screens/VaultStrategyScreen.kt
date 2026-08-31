@@ -118,6 +118,8 @@ fun VaultStrategyScreen(
     var showTransferSheet by remember { mutableStateOf(false) }
     var transferPrefillAmount by remember { mutableStateOf("") }
     var transferPrefillNote by remember { mutableStateOf("Strategic Vault Sweep") }
+    var transferFromAccount by remember { mutableStateOf("") }
+    var transferToAccount by remember { mutableStateOf("") }
 
     var showAddAccountSheet by remember { mutableStateOf(false) }
     var showRoutingDetailsSheet by remember { mutableStateOf(false) }
@@ -137,6 +139,11 @@ fun VaultStrategyScreen(
     }
 
     val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
+
+    val fortressAccountName = remember(displayAccounts) {
+        displayAccounts.find { getVaultTier(it.accountType, it.accountName) == VaultTier.FORTRESS }?.accountName
+            ?: displayAccounts.getOrNull(2)?.accountName.orEmpty()
+    }
 
     val totalLiquidBalance = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
     val opTotal = remember(displayAccounts) {
@@ -200,25 +207,43 @@ fun VaultStrategyScreen(
         pendingBillsForAccount.sumOf { it.amount }
     }
 
-    val calculatedSweepSurplus = remember(activeAccount?.currentBalance, totalPendingBillsAmount, dailyBurnRate, remainingDays) {
-        val bal = activeAccount?.currentBalance ?: 0.0
-        val safetyBuffer = dailyBurnRate * remainingDays
-        (bal - totalPendingBillsAmount - safetyBuffer).coerceAtLeast(0.0)
-    }
-
     val selectedTier = activeAccount?.let { getVaultTier(it.accountType, it.accountName) } ?: VaultTier.OPERATING
+
+    val minCommitmentsBuffer = 10000.0
+
+    // Overdraft & Minimum Balance Risk Check
     val isOverdraftRisk = remember(activeAccount?.currentBalance, totalPendingBillsAmount, selectedTier) {
-        selectedTier == VaultTier.COMMITMENTS && ((activeAccount?.currentBalance ?: 0.0) < totalPendingBillsAmount)
+        val bal = activeAccount?.currentBalance ?: 0.0
+        when (selectedTier) {
+            VaultTier.COMMITMENTS -> bal < (totalPendingBillsAmount + minCommitmentsBuffer)
+            VaultTier.OPERATING -> bal < totalPendingBillsAmount
+            else -> false
+        }
     }
 
-    // Auto-Sweep Operating Threshold vs Emergency FD Surplus
-    val autoSweepThreshold: Double = if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
-    val fortressLiquidExcess = remember(activeAccount?.currentBalance, selectedTier, autoSweepThreshold) {
-        if (selectedTier == VaultTier.FORTRESS) {
-            val bal = activeAccount?.currentBalance ?: 0.0
-            (bal - autoSweepThreshold).coerceAtLeast(0.0)
-        } else 0.0
+    // Dynamic Sweepable Surplus Calculations
+    val calculatedSweepSurplus = remember(
+        activeAccount?.currentBalance,
+        totalPendingBillsAmount,
+        dailyBurnRate,
+        remainingDays,
+        selectedTier
+    ) {
+        val bal = activeAccount?.currentBalance ?: 0.0
+        when (selectedTier) {
+            VaultTier.OPERATING -> {
+                val monthlyBurnSafety = dailyBurnRate * remainingDays
+                (bal - totalPendingBillsAmount - monthlyBurnSafety).coerceAtLeast(0.0)
+            }
+            VaultTier.COMMITMENTS -> {
+                (bal - totalPendingBillsAmount - minCommitmentsBuffer).coerceAtLeast(0.0)
+            }
+            else -> 0.0
+        }
     }
+
+    // Auto-Sweep Operating Threshold (For Account 3 Internal Split)
+    val autoSweepThreshold: Double = if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
 
     val fabActions = remember {
         listOf(
@@ -233,6 +258,8 @@ fun VaultStrategyScreen(
                 onClick = {
                     transferPrefillAmount = ""
                     transferPrefillNote = "Internal Vault Transfer"
+                    transferFromAccount = ""
+                    transferToAccount = ""
                     showTransferSheet = true
                 }
             )
@@ -246,7 +273,7 @@ fun VaultStrategyScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Pinned Top Header
+            // Pinned Header
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -369,7 +396,7 @@ fun VaultStrategyScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 4.dp, bottom = 125.dp)
             ) {
-                // Asset Allocation Donut Card
+                // Donut Allocation Card
                 item {
                     Surface(
                         modifier = Modifier
@@ -498,7 +525,7 @@ fun VaultStrategyScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // Connected Bank Accounts
+                // Bank Accounts Row Header
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -521,6 +548,7 @@ fun VaultStrategyScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
+                // Horizontal Carousel of Physical Cards
                 if (displayAccounts.isEmpty()) {
                     item {
                         Surface(
@@ -563,7 +591,7 @@ fun VaultStrategyScreen(
                     }
                 }
 
-                // Overdraft Buffer Warning
+                // Overdraft & Minimum Balance Buffer Warning
                 if (isOverdraftRisk) {
                     item {
                         Surface(
@@ -592,13 +620,17 @@ fun VaultStrategyScreen(
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text(
-                                            text = "Overdraft Buffer Warning",
+                                            text = if (selectedTier == VaultTier.COMMITMENTS) "Overdraft & MAB Warning" else "Overdraft Buffer Warning",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 12.5.sp,
                                             color = SoftRed
                                         )
                                         Text(
-                                            text = "Queued AutoPay bills exceed this account's liquid balance.",
+                                            text = if (selectedTier == VaultTier.COMMITMENTS) {
+                                                "Liquid balance is below upcoming AutoPay bills plus the mandatory ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", minCommitmentsBuffer)} minimum balance."
+                                            } else {
+                                                "Queued AutoPay bills exceed this account's liquid balance."
+                                            },
                                             fontSize = 11.sp,
                                             color = TextDark.copy(alpha = 0.8f),
                                             lineHeight = 14.sp
@@ -608,7 +640,9 @@ fun VaultStrategyScreen(
                                 Button(
                                     onClick = {
                                         transferPrefillAmount = ""
-                                        transferPrefillNote = "Cover AutoPay Overdraft"
+                                        transferPrefillNote = "Cover ${selectedTier.title} Balance"
+                                        transferFromAccount = ""
+                                        transferToAccount = activeAccount?.accountName.orEmpty()
                                         showTransferSheet = true
                                     },
                                     shape = RoundedCornerShape(8.dp),
@@ -624,8 +658,8 @@ fun VaultStrategyScreen(
                     }
                 }
 
-                // Auto-Sweep FD Surplus Call-to-Action
-                if (fortressLiquidExcess > 0) {
+                // Sweep Surplus to Fortress Banner (Appears ONLY on Operating or Commitments with True Surplus)
+                if ((selectedTier == VaultTier.OPERATING || selectedTier == VaultTier.COMMITMENTS) && calculatedSweepSurplus > 0) {
                     item {
                         Surface(
                             modifier = Modifier
@@ -649,7 +683,7 @@ fun VaultStrategyScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Lock,
+                                        imageVector = Icons.Default.Savings,
                                         contentDescription = null,
                                         tint = SoftTeal,
                                         modifier = Modifier.size(20.dp)
@@ -660,13 +694,17 @@ fun VaultStrategyScreen(
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = if (isDiscreetMode) "Excess Safety Buffer Available" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressLiquidExcess)} Ready for FD Sweep",
+                                        text = if (isDiscreetMode) "Surplus Buffer Ready for Sweep" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", calculatedSweepSurplus)} Ready to Sweep",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.5.sp,
                                         color = TextDark
                                     )
                                     Text(
-                                        text = "Surplus funds above your savings cap of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", autoSweepThreshold)} earning fixed deposit interest.",
+                                        text = if (selectedTier == VaultTier.OPERATING) {
+                                            "Surplus above this month's estimated living spend ready to be swept into your Fortress investment reserve."
+                                        } else {
+                                            "Excess funds above queued AutoPay commitments and ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", minCommitmentsBuffer)} minimum balance ready to be swept into Fortress."
+                                        },
                                         fontSize = 10.5.sp,
                                         color = TextMuted,
                                         lineHeight = 14.sp
@@ -677,8 +715,10 @@ fun VaultStrategyScreen(
 
                                 Button(
                                     onClick = {
-                                        transferPrefillAmount = String.format(Locale.US, "%.0f", fortressLiquidExcess)
-                                        transferPrefillNote = "Automated FD Sweep"
+                                        transferPrefillAmount = String.format(Locale.US, "%.0f", calculatedSweepSurplus)
+                                        transferPrefillNote = "${selectedTier.title} Surplus Sweep"
+                                        transferFromAccount = activeAccount?.accountName.orEmpty()
+                                        transferToAccount = fortressAccountName
                                         showTransferSheet = true
                                     },
                                     shape = RoundedCornerShape(8.dp),
@@ -686,7 +726,7 @@ fun VaultStrategyScreen(
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                     modifier = Modifier.height(32.dp)
                                 ) {
-                                    Text(text = "Sweep to FD", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text(text = "Sweep to Fortress", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
                             }
                         }
@@ -752,12 +792,13 @@ fun VaultStrategyScreen(
                                             modifier = Modifier.weight(1f)
                                         )
                                     } else {
+                                        val reservedTotal = if (selectedTier == VaultTier.COMMITMENTS) totalPendingBillsAmount + minCommitmentsBuffer else totalPendingBillsAmount
                                         MatrixMetricCell(
-                                            title = "Queued AutoPay",
-                                            value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPendingBillsAmount)}",
+                                            title = if (selectedTier == VaultTier.COMMITMENTS) "Queued + MAB" else "Queued AutoPay",
+                                            value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", reservedTotal)}",
                                             icon = Icons.Default.Schedule,
                                             iconColor = AccentPurple,
-                                            subtitle = "${pendingBillsForAccount.size} pending bills",
+                                            subtitle = if (selectedTier == VaultTier.COMMITMENTS) "${pendingBillsForAccount.size} bills + ₹10k MAB" else "${pendingBillsForAccount.size} pending bills",
                                             modifier = Modifier.weight(1f)
                                         )
                                     }
@@ -779,7 +820,7 @@ fun VaultStrategyScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Emergency Fund Runway Milestones (Based on Actual Spending Average Across Year)
+                        // Emergency Fund Runway Milestones Card (Fortress Tier)
                         if (selectedTier == VaultTier.FORTRESS) {
                             val curBal = acc.currentBalance
                             val monthsCovered = if (avgMonthlySpend > 0.0) (curBal / avgMonthlySpend) else 0.0
@@ -932,7 +973,9 @@ fun VaultStrategyScreen(
                                     Button(
                                         onClick = {
                                             transferPrefillAmount = if (calculatedSweepSurplus > 0) String.format(Locale.US, "%.0f", calculatedSweepSurplus) else ""
-                                            transferPrefillNote = "Monthly Commitments Sweep"
+                                            transferPrefillNote = "${selectedTier.title} Surplus Sweep"
+                                            transferFromAccount = activeAccount?.accountName.orEmpty()
+                                            transferToAccount = fortressAccountName
                                             showTransferSheet = true
                                         },
                                         shape = RoundedCornerShape(8.dp),
@@ -968,7 +1011,7 @@ fun VaultStrategyScreen(
                 .zIndex(2.5f)
         )
 
-        // Floating Bottom Dock
+        // Bottom Dock
         AppBottomDock(
             currentSelection = NavigationTarget.VAULT_ACCOUNTS,
             onSelectTarget = { target ->
@@ -1337,8 +1380,10 @@ fun VaultStrategyScreen(
                                 Text(text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeAccount?.currentBalance ?: 0.0)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = "Reserved for Upcoming AutoPay", fontSize = 11.5.sp, color = TextMuted)
-                                Text(text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
+                                val label = if (selectedTier == VaultTier.COMMITMENTS) "Reserved (AutoPay + ₹10k MAB)" else "Reserved for Upcoming AutoPay"
+                                val reservedVal = if (selectedTier == VaultTier.COMMITMENTS) totalPendingBillsAmount + minCommitmentsBuffer else totalPendingBillsAmount
+                                Text(text = label, fontSize = 11.5.sp, color = TextMuted)
+                                Text(text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", reservedVal)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
                             }
                             HorizontalDivider(color = BorderLight, thickness = 0.6.dp)
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1354,7 +1399,9 @@ fun VaultStrategyScreen(
                         onClick = {
                             showRoutingDetailsSheet = false
                             transferPrefillAmount = if (calculatedSweepSurplus > 0) String.format(Locale.US, "%.0f", calculatedSweepSurplus) else ""
-                            transferPrefillNote = "Surplus Fortress Sweep"
+                            transferPrefillNote = "${selectedTier.title} Surplus Sweep"
+                            transferFromAccount = activeAccount?.accountName.orEmpty()
+                            transferToAccount = fortressAccountName
                             showTransferSheet = true
                         },
                         modifier = Modifier
@@ -1370,7 +1417,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Delete Account Alert
+        // Delete Account Dialog
         accountToDelete?.let { acc ->
             AlertDialog(
                 onDismissRequest = { accountToDelete = null },
@@ -1403,10 +1450,14 @@ fun VaultStrategyScreen(
 
         // Transfer Bottom Sheet
         if (showTransferSheet) {
-            var fromAccount by remember { mutableStateOf(accountNames.firstOrNull().orEmpty()) }
-            var toAccount by remember { mutableStateOf(accountNames.getOrNull(1) ?: accountNames.firstOrNull().orEmpty()) }
-            var amountText by remember { mutableStateOf(transferPrefillAmount) }
-            var noteText by remember { mutableStateOf(transferPrefillNote) }
+            var fromAccount by remember(transferFromAccount) {
+                mutableStateOf(transferFromAccount.ifBlank { accountNames.firstOrNull().orEmpty() })
+            }
+            var toAccount by remember(transferToAccount) {
+                mutableStateOf(transferToAccount.ifBlank { accountNames.getOrNull(1) ?: accountNames.firstOrNull().orEmpty() })
+            }
+            var amountText by remember(transferPrefillAmount) { mutableStateOf(transferPrefillAmount) }
+            var noteText by remember(transferPrefillNote) { mutableStateOf(transferPrefillNote) }
             var isAutoSweepMonthly by remember { mutableStateOf(false) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
