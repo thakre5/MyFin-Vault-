@@ -53,6 +53,7 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 
 enum class VaultTier(val title: String, val description: String, val color: Color, val bgTint: Color) {
     OPERATING("Operating", "Daily living & spending", Color(0xFFE57A28), Color(0xFFFFF0D4)),
@@ -209,8 +210,8 @@ fun VaultStrategyScreen(
         selectedTier == VaultTier.COMMITMENTS && ((activeAccount?.currentBalance ?: 0.0) < totalPendingBillsAmount)
     }
 
-    // Fortress FD Surplus Trigger Logic
-    val fortressThreshold = userProfile.fortressThreshold.takeIf { it > 0 } ?: 25000.0
+    // Fortress FD Surplus Trigger Logic & Threshold Split
+    val fortressThreshold = userProfile.fortressThreshold.takeIf { it > 0 } > 0.let { if (userProfile.fortressThreshold > 0) userProfile.fortressThreshold else 25000.0 }
     val fortressLiquidExcess = remember(activeAccount?.currentBalance, selectedTier, fortressThreshold) {
         if (selectedTier == VaultTier.FORTRESS) {
             val bal = activeAccount?.currentBalance ?: 0.0
@@ -567,9 +568,10 @@ fun VaultStrategyScreen(
                                     isSelected = isSelected,
                                     showRole = true,
                                     isDiscreet = isDiscreetMode,
+                                    fortressThreshold = fortressThreshold,
                                     onSelect = { activeSelectedCardIndex = idx },
                                     onEdit = { editingAccount = acc },
-                                    modifier = Modifier.width(260.dp)
+                                    modifier = Modifier.width(280.dp)
                                 )
                             }
                         }
@@ -1845,6 +1847,7 @@ private fun BankAccountPhysicalCard(
     isSelected: Boolean,
     showRole: Boolean,
     isDiscreet: Boolean,
+    fortressThreshold: Double,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
@@ -1852,9 +1855,10 @@ private fun BankAccountPhysicalCard(
     val maskedDigits = remember(account.accountName) {
         String.format(Locale.US, "%04d", abs(account.accountName.hashCode() % 9000 + 1000))
     }
-    val isFd = remember(account.accountName) {
-        account.accountName.contains("FD", ignoreCase = true)
-    }
+    val isFortress = tier == VaultTier.FORTRESS
+
+    val goalSavings = if (isFortress) min(account.currentBalance, fortressThreshold) else account.currentBalance
+    val emergencyFd = if (isFortress) max(0.0, account.currentBalance - fortressThreshold) else 0.0
 
     Surface(
         modifier = modifier
@@ -1890,9 +1894,8 @@ private fun BankAccountPhysicalCard(
                 ) {
                     Icon(
                         imageVector = when {
-                            isFd -> Icons.Default.Lock
+                            isFortress -> Icons.Default.Lock
                             tier == VaultTier.CASH -> Icons.Default.Payments
-                            tier == VaultTier.FORTRESS -> Icons.Default.Security
                             tier == VaultTier.COMMITMENTS -> Icons.Default.CreditCard
                             else -> Icons.Default.AccountBalance
                         },
@@ -1909,7 +1912,7 @@ private fun BankAccountPhysicalCard(
                             color = tier.color.copy(alpha = 0.14f)
                         ) {
                             Text(
-                                text = if (isFd) "Locked FD" else tier.title,
+                                text = if (isFortress) "Auto-Sweep & FD" else tier.title,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = tier.color,
@@ -1953,12 +1956,53 @@ private fun BankAccountPhysicalCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Text(
-                text = if (isDiscreet) "••••••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Black,
-                color = if (account.currentBalance >= 0) TextDark else SoftRed
-            )
+            if (isFortress) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = CanvasLight,
+                    border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "Goal Savings Buffer", fontSize = 10.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                            Text(
+                                text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", goalSavings)}",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "Emergency FD Reserve", fontSize = 10.5.sp, color = SoftTeal, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", emergencyFd)}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = SoftTeal
+                            )
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    text = if (isDiscreet) "••••••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (account.currentBalance >= 0) TextDark else SoftRed
+                )
+            }
         }
     }
 }
