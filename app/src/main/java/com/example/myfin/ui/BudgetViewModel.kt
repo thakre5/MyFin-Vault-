@@ -210,7 +210,6 @@ class BudgetViewModel(
 
             val fixedExpenseTotal = fixedBills.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
             
-            // Determine effective base inflow: planned, actual, or profile baseline
             val baseIncome = when {
                 max(plannedIncome, actualIncome) > 0.0 -> max(plannedIncome, actualIncome)
                 profile.baseMonthlyIncome > 0.0 -> profile.baseMonthlyIncome
@@ -297,6 +296,18 @@ class BudgetViewModel(
                 )
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), YearlyUiState())
+
+    val averageMonthlySpend: StateFlow<Double> = combine(yearlyUiState, monthlyUiState) { yearly, monthly ->
+        val activeMonths = yearly.monthlyRollups.filter { it.totalActualExpense > 0 }
+        if (activeMonths.isNotEmpty()) {
+            activeMonths.sumOf { it.totalActualExpense } / activeMonths.size
+        } else {
+            val curActual = monthly.metrics.actualExpenses
+            if (curActual > 0.0) curActual
+            else monthly.metrics.plannedExpenses.takeIf { it > 0.0 }
+                ?: monthly.metrics.fixedCommitmentsTotal.coerceAtLeast(25000.0)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 25000.0)
 
     fun selectMonth(month: Int) {
         currentMonth.value = month
