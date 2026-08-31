@@ -1367,19 +1367,19 @@ class BudgetViewModel(
 
     private fun calculateDailySparklinePoints(transactions: List<TransactionEntity>, month: Int, year: Int): List<Float> {
         val daysInMonth = Calendar.getInstance().apply { set(year, month - 1, 1) }.getActualMaximum(Calendar.DAY_OF_MONTH)
-        val dailyMap = FloatArray(daysInMonth) { 0f }
+        val dataMap = FloatArray(daysInMonth) { 0f }
         val calTx = Calendar.getInstance()
 
         transactions.filter { it.type == TransactionType.EXPENSE }.forEach { tx ->
             calTx.timeInMillis = tx.date
             val day = calTx.get(Calendar.DAY_OF_MONTH)
             if (day in 1..daysInMonth) {
-                dailyMap[day - 1] += tx.amount.toFloat()
+                dataMap[day - 1] += tx.amount.toFloat()
             }
         }
 
         var runningTotal = 0f
-        return dailyMap.map { amt ->
+        return dataMap.map { amt ->
             runningTotal += amt
             runningTotal
         }
