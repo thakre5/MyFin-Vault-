@@ -102,6 +102,7 @@ interface BudgetDao {
             a.accountName, 
             a.startingBalance, 
             a.accountType, 
+            COALESCE(a.minBalance, 0.0) AS minBalance,
             a.sortOrder,
             (a.startingBalance 
              + COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.accountName = a.accountName AND t.type = 'INCOME') OR (t.toAccountName = a.accountName AND t.type = 'TRANSFER')), 0.0)
@@ -232,17 +233,18 @@ interface BudgetDao {
         newName: String,
         startingBalance: Double,
         accountType: String,
-        sortOrder: Int
+        minBalance: Double = 0.0,
+        sortOrder: Int = 0
     ) {
         if (oldName != newName) {
             deleteAccountByName(oldName)
-            insertAccount(AccountEntity(newName, startingBalance, accountType, sortOrder))
+            insertAccount(AccountEntity(newName, startingBalance, accountType, minBalance, sortOrder))
             cascadeRenameAccountInTransactions(oldName, newName)
             cascadeRenameToAccountInTransactions(oldName, newName)
             cascadeRenameAccountInFixedBills(oldName, newName)
             cascadeRenameToAccountInFixedBills(oldName, newName)
         } else {
-            insertAccount(AccountEntity(newName, startingBalance, accountType, sortOrder))
+            insertAccount(AccountEntity(newName, startingBalance, accountType, minBalance, sortOrder))
         }
     }
 
