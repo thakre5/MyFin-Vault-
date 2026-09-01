@@ -70,7 +70,9 @@ data class AccountBalanceResult(
     val minBalance: Double = 0.0,
     val isArchived: Boolean = false,
     val sortOrder: Int = 0,
-    val currentBalance: Double = 0.0
+    val currentBalance: Double = 0.0,
+    val totalInflow: Double = 0.0,
+    val totalOutflow: Double = 0.0
 )
 
 data class MonthlySummary(
@@ -84,8 +86,10 @@ data class MonthlySummary(
 data class YearlyCategoryRollup(
     val category: String,
     val type: TransactionType,
-    val totalAmount: Double
-)
+    val totalActualAmount: Double
+) {
+    val totalAmount: Double get() = totalActualAmount
+}
 
 @Entity(tableName = "master_categories")
 data class CategoryEntity(
@@ -126,32 +130,24 @@ data class SubcategoryEntity(
 ) {
     companion object {
         val defaultSubcategories = listOf(
-            // Utilities & Living Bills
             SubcategoryEntity("Utilities & Living Bills", "Electricity & Water", TransactionType.EXPENSE),
             SubcategoryEntity("Utilities & Living Bills", "PG Rent", TransactionType.EXPENSE),
             SubcategoryEntity("Utilities & Living Bills", "House Rent", TransactionType.EXPENSE),
             SubcategoryEntity("Utilities & Living Bills", "Broadband & WiFi", TransactionType.EXPENSE),
             SubcategoryEntity("Utilities & Living Bills", "Mobile Recharges", TransactionType.EXPENSE),
-            SubcategoryEntity("Utilities & Living Bills", "Gas Cylinder / Pipeline", TransactionType.EXPENSE),
-            // Everyday Living
             SubcategoryEntity("Everyday Living", "Groceries & Supermarket", TransactionType.EXPENSE),
             SubcategoryEntity("Everyday Living", "Dining Out & Cafes", TransactionType.EXPENSE),
             SubcategoryEntity("Everyday Living", "Fuel & Vehicle Maintenance", TransactionType.EXPENSE),
             SubcategoryEntity("Everyday Living", "Daily Commute & Cabs", TransactionType.EXPENSE),
-            // Debt & Financial Obligations
             SubcategoryEntity("Debt & Financial Obligations", "Credit Cards & EMI", TransactionType.EXPENSE),
             SubcategoryEntity("Debt & Financial Obligations", "Personal Loan EMI", TransactionType.EXPENSE),
-            // Investments & Wealth
             SubcategoryEntity("Investments & Wealth", "Mutual Funds (MF)", TransactionType.ASSET),
             SubcategoryEntity("Investments & Wealth", "Stock Market (Equities)", TransactionType.ASSET),
             SubcategoryEntity("Investments & Wealth", "Fixed Deposits (FD)", TransactionType.ASSET),
-            // Liquid Reserves & Receivables
             SubcategoryEntity("Liquid Reserves & Receivables", "Emergency Fund", TransactionType.ASSET),
-            // Salary & Professional Inflow
             SubcategoryEntity("Salary & Professional Inflow", "Base Salary (Pay Slip)", TransactionType.INCOME),
             SubcategoryEntity("Salary & Professional Inflow", "Freelance / Consulting", TransactionType.INCOME),
             SubcategoryEntity("Salary & Professional Inflow", "Bonus / Incentive", TransactionType.INCOME),
-            // General
             SubcategoryEntity("General", "Adjustment", TransactionType.EXPENSE)
         )
     }
