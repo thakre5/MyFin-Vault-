@@ -14,7 +14,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,11 +43,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -68,11 +65,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.SecurityManager
 import com.example.myfin.data.TransactionType
+import com.example.myfin.ui.components.MyFinBrandHeader
 import com.example.myfin.ui.onboarding.CountryCurrencyMapping
-import com.example.myfin.ui.onboarding.CyanPrimary
 import com.example.myfin.ui.onboarding.InitialAccountSetup
 import com.example.myfin.ui.onboarding.InitialCommitmentPreset
-import com.example.myfin.ui.onboarding.PurplePrimary
 import com.example.myfin.ui.onboarding.SupportedCountries
 import com.example.myfin.ui.onboarding.TealPrimary
 import com.example.myfin.ui.onboarding.WelcomeCarouselSlides
@@ -82,8 +78,6 @@ import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import java.util.Calendar
 import java.util.Locale
-import kotlin.math.cos
-import kotlin.math.sin
 
 enum class GatewayStage {
     CAROUSEL,
@@ -1578,7 +1572,7 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // LAYER 2: FLOATING PINNED HEADER
+        // LAYER 2: FLOATING PINNED HEADER WITH MYFIN BRAND HEADER
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1594,49 +1588,13 @@ fun OnboardingStep0WelcomeGateway(
                     )
                 )
                 .statusBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 10.dp)
+                .padding(horizontal = 24.dp, vertical = 8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = Color.Transparent,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(CyanPrimary, AccentPurple, PurplePrimary)
-                            )
-                        )
-                        val c = center
-                        val r = size.minDimension * 0.32f
-                        repeat(8) { i ->
-                            val angleRad = Math.toRadians((i * 45.0))
-                            val px = c.x + (r * cos(angleRad)).toFloat()
-                            val py = c.y + (r * sin(angleRad)).toFloat()
-                            drawLine(
-                                color = Color.White,
-                                start = c,
-                                end = Offset(px, py),
-                                strokeWidth = 2.4.dp.toPx(),
-                                cap = StrokeCap.Round
-                            )
-                        }
-                        drawCircle(color = Color.White, radius = 2.5.dp.toPx(), center = c)
-                    }
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "MyFin",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Black,
-                    color = TextDark,
-                    letterSpacing = (-0.5).sp
-                )
-            }
+            MyFinBrandHeader(
+                logoSize = 34.dp,
+                showVaultBadge = true,
+                subtitle = "OFFLINE 3-TIER WEALTH LEDGER"
+            )
         }
 
         // QUICK MAB SELECTOR BOTTOM SHEET
