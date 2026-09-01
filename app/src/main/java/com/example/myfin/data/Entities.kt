@@ -86,10 +86,9 @@ data class MonthlySummary(
 data class YearlyCategoryRollup(
     val category: String,
     val type: TransactionType,
-    val totalActualAmount: Double
-) {
-    val totalAmount: Double get() = totalActualAmount
-}
+    val totalActualAmount: Double = 0.0,
+    val totalAmount: Double = totalActualAmount
+)
 
 @Entity(
     tableName = "categories",
