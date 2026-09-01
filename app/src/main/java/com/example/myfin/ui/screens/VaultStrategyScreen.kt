@@ -98,10 +98,14 @@ private val BlueAccent = Color(0xFF3B82F6)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun VaultAccountsScreen(
+fun VaultStrategyScreen(
     viewModel: BudgetViewModel,
     onOpenDrawer: () -> Unit,
-    onNavigateToDashboard: () -> Unit = {}
+    onNavigateToDashboard: () -> Unit = {},
+    onNavigateToPlanner: () -> Unit = {},
+    onNavigateToTaxonomy: () -> Unit = {},
+    onNavigateToVaultAnalytics: () -> Unit = {},
+    onNavigateToVaultSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -109,7 +113,7 @@ fun VaultAccountsScreen(
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
-    val accounts = uiState.activeAccounts.ifEmpty { uiState.accounts.filter { !it.isArchived } }
+    val accounts = remember(uiState.accounts) { uiState.accounts.filter { !it.isArchived } }
     val totalLiquid = remember(accounts) { accounts.sumOf { it.currentBalance } }
 
     val allTransactions = remember(uiState.groupedTransactions) {
@@ -235,9 +239,6 @@ fun VaultAccountsScreen(
                             totalPendingCommitments = totalPendingCommitments,
                             commitmentsShortfall = uiState.commitmentsShortfall,
                             paydayPlan = uiState.paydaySuggestion,
-                            operatingAccount = operatingBank?.accountName ?: "Primary Bank",
-                            commitmentsAccount = commitmentBank?.accountName ?: "Secondary Bank",
-                            fortressAccount = fortressBank?.accountName ?: "Tertiary Bank",
                             onApplyPaydayAllocation = { plan ->
                                 viewModel.applyPaydayAllocation(
                                     plan = plan,
@@ -536,9 +537,6 @@ private fun VaultsOverviewContent(
     totalPendingCommitments: Double,
     commitmentsShortfall: CommitmentsShortfallStatus,
     paydayPlan: PaydayAllocationPlan?,
-    operatingAccount: String,
-    commitmentsAccount: String,
-    fortressAccount: String,
     onApplyPaydayAllocation: (PaydayAllocationPlan) -> Unit,
     onTriggerShortfallTransfer: () -> Unit,
     onSelectAccountEdit: (AccountBalanceResult) -> Unit,
@@ -882,6 +880,299 @@ private fun RoutingAllocatorTabContent(
     }
 }
 
+// TAB 3: FORTRESS SWEEP CONTENT
+@Composable
+fun FortressSweepTabContent(
+    fortressBank: AccountBalanceResult?,
+    currencySymbol: String,
+    fortressThreshold: Double,
+    monthlyBurnRate: Double,
+    onOpenCalibration: () -> Unit
+) {
+    val totalBalance = fortressBank?.currentBalance ?: 0.0
+    val liquidSavings = min(totalBalance, fortressThreshold)
+    val autoSweptFDs = max(0.0, totalBalance - fortressThreshold)
+    val runwayMonths = if (monthlyBurnRate > 0) (autoSweptFDs / monthlyBurnRate) else 0.0
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp)
+            .padding(bottom = 110.dp)
+    ) {
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "Fortress Auto-Sweep Facility",
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            color = Color(0xFF1E202E)
+        )
+        Text(
+            text = "Balance exceeding $currencySymbol${String.format(Locale.US, "%,.0f", fortressThreshold)} auto-sweeps into Emergency FDs",
+            fontSize = 11.5.sp,
+            color = TextMuted
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        FortressDirectCanvasVisualizer(
+            runwayMonths = runwayMonths,
+            liquidSavings = liquidSavings,
+            autoSweptFDs = autoSweptFDs,
+            fortressThreshold = fortressThreshold
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(16.dp),
+                color = CanvasLight
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text("Liquid Savings", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "$currencySymbol${String.format(Locale.US, "%,.0f", liquidSavings)}",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 17.sp,
+                        color = Color(0xFF1E202E)
+                    )
+                    Text("Cap: $currencySymbol${String.format(Locale.US, "%,.0f", fortressThreshold)}", fontSize = 10.sp, color = TealPrimary, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(16.dp),
+                color = CanvasLight
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text("Auto-Swept FDs", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "$currencySymbol${String.format(Locale.US, "%,.0f", autoSweptFDs)}",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 17.sp,
+                        color = PurplePrimary
+                    )
+                    Text("Emergency Vault", fontSize = 10.sp, color = PurplePrimary, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(HeroCardGradient)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Emergency Runway", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${String.format(Locale.US, "%.1f", runwayMonths)} Months",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TealPrimary
+                    )
+                    Text("Secured at current monthly burn", fontSize = 10.5.sp, color = TextMuted)
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = TealPrimary.copy(alpha = 0.14f)
+                ) {
+                    Text(
+                        text = if (runwayMonths >= 6.0) "Shield Solid" else "Accumulating",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TealPrimary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(22.dp))
+
+        Button(
+            onClick = onOpenCalibration,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF181A2A))
+        ) {
+            Icon(Icons.Default.Tune, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Calibrate Fortress & Auto-Sweep Cap", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        }
+    }
+}
+
+// DIRECT CANVAS VISUALIZER
+@Composable
+private fun FortressDirectCanvasVisualizer(
+    runwayMonths: Double,
+    liquidSavings: Double,
+    autoSweptFDs: Double,
+    fortressThreshold: Double
+) {
+    val displayedKpi = String.format(Locale.US, "%.1f", runwayMonths)
+    val activeMilestoneIndex = runwayMonths.toInt().coerceIn(0, 6)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(105.dp)
+                    .padding(end = 8.dp)
+            ) {
+                Text(
+                    text = displayedKpi,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFF1E202E),
+                    letterSpacing = (-0.5).sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "RUNWAY METRIC\nACTIVE MONTHS",
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextMuted,
+                    lineHeight = 11.sp
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(95.dp)
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+
+                    val liquidRatio = (liquidSavings / fortressThreshold.coerceAtLeast(1.0)).toFloat().coerceIn(0.0f, 1.0f)
+                    val fdRatio = if (fortressThreshold > 0) (autoSweptFDs / (fortressThreshold * 2.5)).toFloat().coerceIn(0.0f, 1.0f) else 0f
+
+                    val p1PeakY = h * (0.95f - 0.70f * liquidRatio)
+                    val p1 = Path().apply {
+                        moveTo(0f, h)
+                        lineTo(w * 0.18f, h)
+                        cubicTo(
+                            w * 0.32f, h * (0.98f - 0.05f * liquidRatio),
+                            w * 0.42f, p1PeakY + 3.dp.toPx(),
+                            w * 0.54f, p1PeakY
+                        )
+                        cubicTo(
+                            w * 0.66f, p1PeakY,
+                            w * 0.78f, h * (0.95f - 0.10f * liquidRatio),
+                            w * 0.95f, h
+                        )
+                        lineTo(w, h)
+                        close()
+                    }
+
+                    drawPath(
+                        path = p1,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                MagentaAccent.copy(alpha = 0.55f * liquidRatio.coerceAtLeast(0.15f)),
+                                MagentaAccent.copy(alpha = 0.18f * liquidRatio.coerceAtLeast(0.08f)),
+                                Color.Transparent
+                            ),
+                            startY = p1PeakY,
+                            endY = h
+                        )
+                    )
+
+                    val p2PeakY = h * (0.95f - 0.85f * fdRatio)
+                    val p2 = Path().apply {
+                        moveTo(w * 0.05f, h)
+                        cubicTo(
+                            w * 0.10f, h * 0.92f,
+                            w * 0.15f, h * (0.95f - 0.57f * fdRatio),
+                            w * 0.24f, h * (0.95f - 0.60f * fdRatio)
+                        )
+                        cubicTo(
+                            w * 0.34f, h * (0.95f - 0.60f * fdRatio),
+                            w * 0.40f, h * (0.95f - 0.20f * fdRatio),
+                            w * 0.56f, h * (0.95f - 0.30f * fdRatio)
+                        )
+                        cubicTo(
+                            w * 0.72f, h * (0.95f - 0.40f * fdRatio),
+                            w * 0.82f, p2PeakY,
+                            w * 0.90f, p2PeakY + 2.dp.toPx()
+                        )
+                        cubicTo(
+                            w * 0.96f, p2PeakY + 5.dp.toPx(),
+                            w * 0.98f, h * 0.88f,
+                            w, h
+                        )
+                        close()
+                    }
+
+                    drawPath(
+                        path = p2,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                BlueAccent.copy(alpha = 0.60f * fdRatio.coerceAtLeast(0.12f)),
+                                CyanPrimary.copy(alpha = 0.25f * fdRatio.coerceAtLeast(0.05f)),
+                                Color.Transparent
+                            ),
+                            startY = p2PeakY,
+                            endY = h
+                        )
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 105.dp, end = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            listOf("01", "02", "03", "04", "05", "06").forEachIndexed { index, step ->
+                val isReached = (index + 1) <= activeMilestoneIndex
+                Text(
+                    text = step,
+                    fontSize = 10.sp,
+                    fontWeight = if (isReached) FontWeight.Bold else FontWeight.SemiBold,
+                    color = if (isReached) BlueAccent else TextMuted.copy(alpha = 0.60f),
+                    fontFamily = FontFamily.Monospace,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
 // 3D BANK CARD COMPONENT
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1136,7 +1427,6 @@ private fun OrganicCardCanvas(palette: CardPalette) {
     }
 }
 
-// SALARY ROUTING FUNNEL CANVAS
 @Composable
 private fun SalaryRoutingFunnelCanvas(
     operatingBalance: Double,
@@ -1357,7 +1647,7 @@ private fun BalanceEditModalSheet(
     var selectedRole by remember { mutableStateOf(getAccountRole(account.accountName, account.accountType)) }
     var amountString by remember { mutableStateOf(account.currentBalance.toInt().toString()) }
     var minBalanceString by remember { mutableStateOf(account.minBalance.toInt().toString()) }
-    var isArchived by remember { mutableStateOf(account.isArchived) }
+    var isArchivedState by remember { mutableStateOf(account.isArchived) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1516,7 +1806,7 @@ private fun BalanceEditModalSheet(
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     val finalBal = amountString.toDoubleOrNull() ?: account.currentBalance
                     val finalMinBal = minBalanceString.toDoubleOrNull() ?: account.minBalance
-                    onSave(editName.trim(), selectedRole.roleKey, finalBal, finalMinBal, isArchived)
+                    onSave(editName.trim(), selectedRole.roleKey, finalBal, finalMinBal, isArchivedState)
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(25.dp),
@@ -1609,9 +1899,19 @@ private fun BankAnalyticsModalSheet(
                     shape = RoundedCornerShape(23.dp),
                     border = BorderStroke(1.dp, BorderLight)
                 ) {
-                    Icon(Icons.Default.Archive, contentDescription = "Archive", tint = TextDark, modifier = Modifier.size(16.dp))
+                    Icon(
+                        imageVector = if (account.isArchived) Icons.Default.Unarchive else Icons.Default.Archive,
+                        contentDescription = "Archive",
+                        tint = TextDark,
+                        modifier = Modifier.size(16.dp)
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Archive Vault", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = TextDark)
+                    Text(
+                        text = if (account.isArchived) "Restore Vault" else "Archive Vault",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp,
+                        color = TextDark
+                    )
                 }
 
                 OutlinedButton(
@@ -2103,7 +2403,6 @@ private fun SquircleTransactionRow(
     }
 }
 
-// DATE HEADER FORMATTING HELPER
 private fun formatDayHeader(dateMillis: Long): String {
     val nowCal = Calendar.getInstance()
     val txCal = Calendar.getInstance().apply { timeInMillis = dateMillis }
@@ -2116,7 +2415,6 @@ private fun formatDayHeader(dateMillis: Long): String {
     }
 }
 
-// SQUIRCLE VISUAL THEME HELPER
 private data class TxVisualTheme(val icon: ImageVector, val background: Color, val tint: Color)
 
 private fun getTransactionVisualTheme(tx: TransactionEntity): TxVisualTheme {
@@ -2146,7 +2444,6 @@ private fun getTransactionVisualTheme(tx: TransactionEntity): TxVisualTheme {
     }
 }
 
-// 3-BANK TOPOLOGY CLASSIFIER HELPER
 private fun getAccountRole(accountName: String, accountType: String): BankRole {
     val typeClean = accountType.lowercase()
     val nameClean = accountName.lowercase()
@@ -2162,7 +2459,6 @@ private fun getAccountRole(accountName: String, accountType: String): BankRole {
     }
 }
 
-// CARD PALETTE MAPPING HELPER
 private fun getVaultCardPalette(name: String, type: String): CardPalette {
     val clean = name.lowercase()
     return when {
