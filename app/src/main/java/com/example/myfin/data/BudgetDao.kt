@@ -6,36 +6,166 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface BudgetDao {
 
-    // --- TRANSACTIONS ---
-    @Query("SELECT * FROM transactions WHERE month = :month AND year = :year ORDER BY date DESC")
-    fun getTransactionsForMonth(month: Int, year: Int): Flow<List<TransactionEntity>>
-
-    @Query("SELECT * FROM transactions ORDER BY date DESC")
-    suspend fun getAllTransactions(): List<TransactionEntity>
+    // ========================================================================
+    // 1. User Profile & Settings
+    // ========================================================================
+    @Query("SELECT * FROM user_profile WHERE id = 1")
+    fun getUserProfile(): Flow<UserProfile?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTransaction(transaction: TransactionEntity): Long
+    suspend fun saveUserProfile(profile: UserProfile)
 
-    @Update
-    suspend fun updateTransaction(transaction: TransactionEntity)
+    @Query("DELETE FROM user_profile")
+    suspend fun clearUserProfile()
+
+    // ========================================================================
+    // 2. Liquid Vault Accounts
+    // ========================================================================
+    @Query("SELECT * FROM accounts ORDER BY isArchived ASC, sortOrder ASC, accountName ASC")
+    fun getAllAccounts(): Flow<List<AccountEntity>>
+
+    @Query("SELECT * FROM accounts WHERE isArchived = 0 ORDER BY sortOrder ASC, accountName ASC")
+    fun getActiveAccounts(): Flow<List<AccountEntity>>
+
+    @Query("SELECT * FROM accounts WHERE isArchived = 1 ORDER BY sortOrder ASC, accountName ASC")
+    fun getArchivedAccounts(): Flow<List<AccountEntity>>
+
+    @Query("SELECT * FROM accounts WHERE accountName = :name LIMIT 1")
+    suspend fun getAccountByName(name: String): AccountEntity?
+
+    @Query("SELECT COUNT(*) FROM accounts")
+    suspend fun getAccountCount(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAccount(account: AccountEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAccounts(accounts: List<AccountEntity>)
 
     @Delete
-    suspend fun deleteTransaction(transaction: TransactionEntity)
+    suspend fun deleteAccount(account: AccountEntity)
 
-    @Query("DELETE FROM transactions WHERE linkedFixedBillId = :fixedBillId")
-    suspend fun deleteTransactionByLinkedBill(fixedBillId: Long)
+    @Query("DELETE FROM accounts WHERE accountName = :name")
+    suspend fun deleteAccountByName(name: String)
 
-    @Query("DELETE FROM transactions")
-    suspend fun clearAllTransactions()
+    @Query("UPDATE accounts SET isArchived = 1 WHERE accountName = :name")
+    suspend fun archiveAccount(name: String)
 
-    @Query("SELECT COUNT(*) FROM transactions WHERE accountName = :accountName OR toAccountName = :accountName")
-    suspend fun getTransactionCountForAccount(accountName: String): Int
+    @Query("UPDATE accounts SET isArchived = 0 WHERE accountName = :name")
+    suspend fun unarchiveAccount(name: String)
 
-    // --- FIXED BILLS / AUTOPAY ---
-    @Query("SELECT * FROM fixed_bills WHERE month = :month AND year = :year ORDER BY dueDay ASC, id ASC")
+    @Query("DELETE FROM accounts")
+    suspend fun clearAllAccounts()
+
+    @Query("SELECT COUNT(*) FROM transactions WHERE accountName = :accName OR toAccountName = :accName")
+    suspend fun getTransactionCountForAccount(accName: String): Int
+
+    @Query("""
+        SELECT 
+            a.accountName, 
+            a.startingBalance, 
+            a.accountType,
+            COALESCE(a.minBalance, 0.0) AS minBalance,
+            COALESCE(a.isArchived, 0) AS isArchived,
+            a.sortOrder,
+            (a.startingBalance + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName), 0.0) - 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName), 0.0) - 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName), 0.0)
+            ) AS currentBalance,
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName), 0.0)
+            ) AS totalInflow,
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName), 0.0)
+            ) AS totalOutflow
+        FROM accounts a
+        ORDER BY a.isArchived ASC, a.sortOrder ASC, a.accountName ASC
+    """)
+    fun getAccountBalances(): Flow<List<AccountBalanceResult>>
+
+    @Query("""
+        SELECT 
+            a.accountName, 
+            a.startingBalance, 
+            a.accountType,
+            COALESCE(a.minBalance, 0.0) AS minBalance,
+            COALESCE(a.isArchived, 0) AS isArchived,
+            a.sortOrder,
+            (a.startingBalance + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName), 0.0) - 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName), 0.0) - 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName), 0.0)
+            ) AS currentBalance,
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName), 0.0)
+            ) AS totalInflow,
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName), 0.0)
+            ) AS totalOutflow
+        FROM accounts a
+        WHERE a.isArchived = 0
+        ORDER BY a.sortOrder ASC, a.accountName ASC
+    """)
+    fun getActiveAccountBalances(): Flow<List<AccountBalanceResult>>
+
+    // ========================================================================
+    // 3. Master Categories & Subcategories
+    // ========================================================================
+    @Query("SELECT * FROM master_categories ORDER BY type ASC, name ASC")
+    fun getAllCategories(): Flow<List<CategoryEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCategory(category: CategoryEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCategories(categories: List<CategoryEntity>)
+
+    @Update
+    suspend fun updateCategory(category: CategoryEntity)
+
+    @Delete
+    suspend fun deleteCategory(category: CategoryEntity)
+
+    @Query("DELETE FROM master_categories WHERE name = :name AND type = :type")
+    suspend fun deleteCategoryByNameAndType(name: String, type: TransactionType)
+
+    @Query("DELETE FROM master_categories")
+    suspend fun clearAllCategories()
+
+    @Query("SELECT * FROM master_subcategories ORDER BY parentCategory ASC, name ASC")
+    fun getAllSubcategories(): Flow<List<SubcategoryEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSubcategory(subcategory: SubcategoryEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSubcategories(subcategories: List<SubcategoryEntity>)
+
+    @Update
+    suspend fun updateSubcategory(subcategory: SubcategoryEntity)
+
+    @Delete
+    suspend fun deleteSubcategory(subcategory: SubcategoryEntity)
+
+    @Query("DELETE FROM master_subcategories WHERE parentCategory = :parentCategory")
+    suspend fun deleteSubcategoriesForParent(parentCategory: String)
+
+    @Query("DELETE FROM master_subcategories WHERE parentCategory = :parentCategory AND name = :name AND type = :type")
+    suspend fun deleteSubcategoryByKeys(parentCategory: String, name: String, type: TransactionType)
+
+    @Query("DELETE FROM master_subcategories")
+    suspend fun clearAllSubcategories()
+
+    // ========================================================================
+    // 4. Fixed Bills / Commitments
+    // ========================================================================
+    @Query("SELECT * FROM fixed_bills WHERE month = :month AND year = :year ORDER BY isPaid ASC, dueDay ASC, title ASC")
     fun getFixedBillsForMonth(month: Int, year: Int): Flow<List<FixedBillEntity>>
 
-    @Query("SELECT * FROM fixed_bills")
+    @Query("SELECT * FROM fixed_bills ORDER BY year DESC, month DESC, id ASC")
     suspend fun getAllFixedBills(): List<FixedBillEntity>
 
     @Query("SELECT * FROM fixed_bills WHERE id = :id LIMIT 1")
@@ -59,24 +189,26 @@ interface BudgetDao {
     @Delete
     suspend fun deleteFixedBill(bill: FixedBillEntity)
 
-    @Query("DELETE FROM fixed_bills WHERE category = :category AND isPaid = 0 AND ((year > :currentYear) OR (year = :currentYear AND month >= :currentMonth))")
-    suspend fun deleteFutureUnpaidFixedBillsByCategory(category: String, currentMonth: Int, currentYear: Int)
-
-    @Query("DELETE FROM fixed_bills WHERE category = :parentCategory AND subcategory = :subcategory AND isPaid = 0 AND ((year > :currentYear) OR (year = :currentYear AND month >= :currentMonth))")
-    suspend fun deleteFutureUnpaidFixedBillsBySubcategory(parentCategory: String, subcategory: String, currentMonth: Int, currentYear: Int)
-
     @Query("DELETE FROM fixed_bills")
     suspend fun clearAllFixedBills()
 
-    // --- BUDGET PLANS ---
-    @Query("SELECT * FROM budget_plans WHERE month = :month AND year = :year")
+    @Query("DELETE FROM fixed_bills WHERE category = :category AND isPaid = 0 AND ((year > :currentYear) OR (year = :currentYear AND month >= :currentMonth))")
+    suspend fun deleteFutureUnpaidFixedBillsByCategory(category: String, currentMonth: Int, currentYear: Int)
+
+    @Query("DELETE FROM fixed_bills WHERE category = :category AND subcategory = :subcategory AND isPaid = 0 AND ((year > :currentYear) OR (year = :currentYear AND month >= :currentMonth))")
+    suspend fun deleteFutureUnpaidFixedBillsBySubcategory(category: String, subcategory: String, currentMonth: Int, currentYear: Int)
+
+    // ========================================================================
+    // 5. Budget Plans
+    // ========================================================================
+    @Query("SELECT * FROM budget_plans WHERE month = :month AND year = :year ORDER BY category ASC")
     fun getBudgetPlansForMonth(month: Int, year: Int): Flow<List<BudgetPlanEntity>>
 
-    @Query("SELECT * FROM budget_plans")
+    @Query("SELECT * FROM budget_plans ORDER BY year DESC, month DESC, category ASC")
     suspend fun getAllBudgetPlans(): List<BudgetPlanEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertBudgetPlan(plan: BudgetPlanEntity): Long
+    suspend fun insertBudgetPlan(plan: BudgetPlanEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBudgetPlans(plans: List<BudgetPlanEntity>)
@@ -87,167 +219,36 @@ interface BudgetDao {
     @Query("DELETE FROM budget_plans")
     suspend fun clearAllBudgetPlans()
 
-    // --- ACCOUNTS & BALANCES ---
-    @Query("SELECT * FROM accounts ORDER BY sortOrder ASC")
-    fun getAllAccounts(): Flow<List<AccountEntity>>
+    // ========================================================================
+    // 6. Transactions
+    // ========================================================================
+    @Query("SELECT * FROM transactions WHERE month = :month AND year = :year ORDER BY date DESC, id DESC")
+    fun getTransactionsForMonth(month: Int, year: Int): Flow<List<TransactionEntity>>
 
-    @Query("SELECT * FROM accounts WHERE accountName = :name LIMIT 1")
-    suspend fun getAccountByName(name: String): AccountEntity?
+    @Query("SELECT * FROM transactions ORDER BY date DESC, id DESC")
+    suspend fun getAllTransactions(): List<TransactionEntity>
 
-    @Query("SELECT COUNT(*) FROM accounts")
-    suspend fun getAccountCount(): Int
-
-    @Query("""
-        SELECT 
-            a.accountName, 
-            a.startingBalance, 
-            a.accountType, 
-            COALESCE(a.minBalance, 0.0) AS minBalance,
-            a.sortOrder,
-            (a.startingBalance 
-             + COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.accountName = a.accountName AND t.type = 'INCOME') OR (t.toAccountName = a.accountName AND t.type = 'TRANSFER')), 0.0)
-             - COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.accountName = a.accountName AND (t.type = 'EXPENSE' OR t.type = 'ASSET' OR t.type = 'TRANSFER'))), 0.0)
-            ) AS currentBalance
-        FROM accounts a
-        ORDER BY a.sortOrder ASC
-    """)
-    fun getAccountBalances(): Flow<List<AccountBalanceResult>>
-
-    @Query("""
-        SELECT COALESCE(SUM(currentBalance), 0.0) 
-        FROM (
-            SELECT 
-                (a.startingBalance 
-                 + COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.accountName = a.accountName AND t.type = 'INCOME') OR (t.toAccountName = a.accountName AND t.type = 'TRANSFER')), 0.0)
-                 - COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.accountName = a.accountName AND (t.type = 'EXPENSE' OR t.type = 'ASSET' OR t.type = 'TRANSFER'))), 0.0)
-                ) AS currentBalance
-            FROM accounts a
-            WHERE a.accountType = 'Fortress' AND a.accountName NOT LIKE '%(FD)%' AND a.accountName NOT LIKE '%FD%'
-        )
-    """)
-    fun getLiquidFortressBalance(): Flow<Double>
-
-    @Query("SELECT * FROM accounts WHERE accountType = 'Fortress' AND (accountName LIKE '%(FD)%' OR accountName LIKE '%FD%') ORDER BY sortOrder ASC")
-    fun getFixedDepositAccounts(): Flow<List<AccountEntity>>
+    @Query("SELECT * FROM transactions WHERE linkedFixedBillId = :billId LIMIT 1")
+    suspend fun getTransactionByLinkedBill(billId: Long): TransactionEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAccount(account: AccountEntity)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAccounts(accounts: List<AccountEntity>)
+    suspend fun insertTransaction(transaction: TransactionEntity): Long
 
     @Update
-    suspend fun updateAccount(account: AccountEntity)
-
-    @Update
-    suspend fun updateAccounts(accounts: List<AccountEntity>)
-
-    @Query("UPDATE accounts SET startingBalance = :startingBalance WHERE accountName = :accountName")
-    suspend fun updateAccountStartingBalance(accountName: String, startingBalance: Double)
-
-    @Query("UPDATE accounts SET accountType = :accountType WHERE accountName = :accountName")
-    suspend fun updateAccountType(accountName: String, accountType: String)
-
-    @Transaction
-    suspend fun reorderAccounts(orderedAccounts: List<AccountEntity>) {
-        orderedAccounts.forEachIndexed { index, account ->
-            insertAccount(account.copy(sortOrder = index))
-        }
-    }
+    suspend fun updateTransaction(transaction: TransactionEntity)
 
     @Delete
-    suspend fun deleteAccount(account: AccountEntity)
+    suspend fun deleteTransaction(transaction: TransactionEntity)
 
-    @Query("DELETE FROM accounts WHERE accountName = :accountName")
-    suspend fun deleteAccountByName(accountName: String)
+    @Query("DELETE FROM transactions WHERE linkedFixedBillId = :billId")
+    suspend fun deleteTransactionByLinkedBill(billId: Long)
 
-    @Query("DELETE FROM accounts")
-    suspend fun clearAllAccounts()
+    @Query("DELETE FROM transactions")
+    suspend fun clearAllTransactions()
 
-    // --- CATEGORIES & TAXONOMY ---
-    @Query("SELECT * FROM categories ORDER BY name ASC")
-    fun getAllCategories(): Flow<List<CategoryEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCategory(category: CategoryEntity)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCategories(categories: List<CategoryEntity>)
-
-    @Update
-    suspend fun updateCategory(category: CategoryEntity)
-
-    @Delete
-    suspend fun deleteCategory(category: CategoryEntity)
-
-    @Query("DELETE FROM categories")
-    suspend fun clearAllCategories()
-
-    // --- SUBCATEGORIES ---
-    @Query("SELECT * FROM subcategories ORDER BY name ASC")
-    fun getAllSubcategories(): Flow<List<SubcategoryEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSubcategory(subcategory: SubcategoryEntity)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSubcategories(subcategories: List<SubcategoryEntity>)
-
-    @Update
-    suspend fun updateSubcategory(subcategory: SubcategoryEntity)
-
-    @Delete
-    suspend fun deleteSubcategory(subcategory: SubcategoryEntity)
-
-    @Query("DELETE FROM subcategories WHERE parentCategory = :parentCategory")
-    suspend fun deleteSubcategoriesForParent(parentCategory: String)
-
-    @Query("DELETE FROM subcategories")
-    suspend fun clearAllSubcategories()
-
-    // --- CASCADING RENAMES & ADJUSTMENTS ---
-    @Query("UPDATE transactions SET category = :newName WHERE category = :oldName")
-    suspend fun cascadeRenameCategoryInTransactions(oldName: String, newName: String)
-
-    @Query("UPDATE budget_plans SET category = :newName WHERE category = :oldName")
-    suspend fun cascadeRenameCategoryInBudgetPlans(oldName: String, newName: String)
-
-    @Query("UPDATE fixed_bills SET category = :newName WHERE category = :oldName")
-    suspend fun cascadeRenameCategoryInFixedBills(oldName: String, newName: String)
-
-    @Query("UPDATE subcategories SET parentCategory = :newName WHERE parentCategory = :oldName")
-    suspend fun cascadeRenameCategoryInSubcategories(oldName: String, newName: String)
-
-    @Query("UPDATE transactions SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName")
-    suspend fun cascadeRenameSubcategoryInTransactions(parentCat: String, oldName: String, newName: String)
-
-    @Query("UPDATE fixed_bills SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName")
-    suspend fun cascadeRenameSubcategoryInFixedBills(parentCat: String, oldName: String, newName: String)
-
-    @Query("UPDATE transactions SET category = 'General', subcategory = 'General' WHERE category = :oldCategory")
-    suspend fun reassignOrphanedTransactionsToGeneral(oldCategory: String)
-
-    @Transaction
-    suspend fun updateAccountAndCascade(
-        oldName: String,
-        newName: String,
-        startingBalance: Double,
-        accountType: String,
-        minBalance: Double = 0.0,
-        sortOrder: Int = 0
-    ) {
-        if (oldName != newName) {
-            deleteAccountByName(oldName)
-            insertAccount(AccountEntity(newName, startingBalance, accountType, minBalance, sortOrder))
-            cascadeRenameAccountInTransactions(oldName, newName)
-            cascadeRenameToAccountInTransactions(oldName, newName)
-            cascadeRenameAccountInFixedBills(oldName, newName)
-            cascadeRenameToAccountInFixedBills(oldName, newName)
-        } else {
-            insertAccount(AccountEntity(newName, startingBalance, accountType, minBalance, sortOrder))
-        }
-    }
-
+    // ========================================================================
+    // 7. Cascading Rename Operations
+    // ========================================================================
     @Query("UPDATE transactions SET accountName = :newName WHERE accountName = :oldName")
     suspend fun cascadeRenameAccountInTransactions(oldName: String, newName: String)
 
@@ -260,16 +261,114 @@ interface BudgetDao {
     @Query("UPDATE fixed_bills SET toAccountName = :newName WHERE toAccountName = :oldName")
     suspend fun cascadeRenameToAccountInFixedBills(oldName: String, newName: String)
 
-    // --- YEARLY AGGREGATIONS ---
+    @Query("UPDATE transactions SET category = :newName WHERE category = :oldName")
+    suspend fun cascadeRenameCategoryInTransactions(oldName: String, newName: String)
+
+    @Query("UPDATE budget_plans SET category = :newName WHERE category = :oldName")
+    suspend fun cascadeRenameCategoryInBudgetPlans(oldName: String, newName: String)
+
+    @Query("UPDATE fixed_bills SET category = :newName WHERE category = :oldName")
+    suspend fun cascadeRenameCategoryInFixedBills(oldName: String, newName: String)
+
+    @Query("UPDATE master_subcategories SET parentCategory = :newName WHERE parentCategory = :oldName")
+    suspend fun cascadeRenameCategoryInSubcategories(oldName: String, newName: String)
+
+    @Query("UPDATE transactions SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName")
+    suspend fun cascadeRenameSubcategoryInTransactions(parentCat: String, oldName: String, newName: String)
+
+    @Query("UPDATE fixed_bills SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName")
+    suspend fun cascadeRenameSubcategoryInFixedBills(parentCat: String, oldName: String, newName: String)
+
+    @Query("UPDATE transactions SET category = 'General' WHERE category = :oldCategory")
+    suspend fun reassignOrphanedTransactionsToGeneral(oldCategory: String)
+
+    // ========================================================================
+    // 8. Atomic Transactions for Safe Migrations & Reordering
+    // ========================================================================
+    @Transaction
+    suspend fun updateAccountAndCascade(
+        oldName: String,
+        newName: String,
+        startingBalance: Double,
+        accountType: String,
+        minBalance: Double = 0.0,
+        isArchived: Boolean = false,
+        sortOrder: Int = 0
+    ) {
+        val updatedAccount = AccountEntity(
+            accountName = newName.trim().uppercase(),
+            startingBalance = startingBalance,
+            accountType = accountType,
+            minBalance = minBalance,
+            isArchived = isArchived,
+            sortOrder = sortOrder
+        )
+
+        if (oldName.equals(newName, ignoreCase = true)) {
+            insertAccount(updatedAccount)
+        } else {
+            insertAccount(updatedAccount)
+            cascadeRenameAccountInTransactions(oldName, newName)
+            cascadeRenameToAccountInTransactions(oldName, newName)
+            cascadeRenameAccountInFixedBills(oldName, newName)
+            cascadeRenameToAccountInFixedBills(oldName, newName)
+            deleteAccountByName(oldName)
+        }
+    }
+
+    @Transaction
+    suspend fun updateCategoryAndCascade(
+        oldCategory: CategoryEntity,
+        newName: String
+    ) {
+        if (oldCategory.name == newName) return
+
+        insertCategory(CategoryEntity(name = newName, type = oldCategory.type))
+        cascadeRenameCategoryInTransactions(oldCategory.name, newName)
+        cascadeRenameCategoryInBudgetPlans(oldCategory.name, newName)
+        cascadeRenameCategoryInFixedBills(oldCategory.name, newName)
+        cascadeRenameCategoryInSubcategories(oldCategory.name, newName)
+        deleteCategory(oldCategory)
+    }
+
+    @Transaction
+    suspend fun updateSubcategoryAndCascade(
+        oldSubcategory: SubcategoryEntity,
+        newName: String
+    ) {
+        if (oldSubcategory.name == newName) return
+
+        insertSubcategory(
+            SubcategoryEntity(
+                parentCategory = oldSubcategory.parentCategory,
+                name = newName,
+                type = oldSubcategory.type
+            )
+        )
+        cascadeRenameSubcategoryInTransactions(oldSubcategory.parentCategory, oldSubcategory.name, newName)
+        cascadeRenameSubcategoryInFixedBills(oldSubcategory.parentCategory, oldSubcategory.name, newName)
+        deleteSubcategory(oldSubcategory)
+    }
+
+    @Transaction
+    suspend fun reorderAccounts(orderedAccounts: List<AccountEntity>) {
+        orderedAccounts.forEachIndexed { index, account ->
+            insertAccount(account.copy(sortOrder = index))
+        }
+    }
+
+    // ========================================================================
+    // 9. Yearly Analytics Aggregations
+    // ========================================================================
     @Query("""
         SELECT 
             m.month,
-            COALESCE(SUM(CASE WHEN t.type = 'INCOME' THEN t.amount ELSE 0.0 END), 0.0) AS totalActualIncome,
-            COALESCE(SUM(CASE WHEN t.type = 'EXPENSE' THEN t.amount ELSE 0.0 END), 0.0) AS totalActualExpense,
-            COALESCE(SUM(CASE WHEN t.type = 'ASSET' THEN t.amount ELSE 0.0 END), 0.0) AS totalAsset
+            COALESCE(SUM(CASE WHEN t.type = 'INCOME' THEN t.amount ELSE 0 END), 0.0) AS totalActualIncome,
+            COALESCE(SUM(CASE WHEN t.type = 'EXPENSE' THEN t.amount ELSE 0 END), 0.0) AS totalActualExpense,
+            COALESCE(SUM(CASE WHEN t.type = 'ASSET' THEN t.amount ELSE 0 END), 0.0) AS totalAsset
         FROM (
-            SELECT 1 AS month UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 
-            UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 
+            SELECT 1 AS month UNION SELECT 2 UNION SELECT 3 UNION SELECT 4
+            UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8
             UNION SELECT 9 UNION SELECT 10 UNION SELECT 11 UNION SELECT 12
         ) m
         LEFT JOIN transactions t ON m.month = t.month AND t.year = :year AND t.type != 'TRANSFER'
@@ -279,24 +378,11 @@ interface BudgetDao {
     fun getYearlySummary(year: Int): Flow<List<MonthlySummary>>
 
     @Query("""
-        SELECT 
-            category,
-            type,
-            SUM(amount) AS totalActualAmount
-        FROM transactions
-        WHERE year = :year AND type != 'TRANSFER'
-        GROUP BY category, type
-        ORDER BY totalActualAmount DESC
+        SELECT category, type, SUM(amount) AS totalAmount 
+        FROM transactions 
+        WHERE year = :year AND type != 'TRANSFER' 
+        GROUP BY category, type 
+        ORDER BY totalAmount DESC
     """)
     fun getYearlyCategoryBreakdown(year: Int): Flow<List<YearlyCategoryRollup>>
-
-    // --- USER PROFILE ---
-    @Query("SELECT * FROM user_profile WHERE id = 1 LIMIT 1")
-    fun getUserProfile(): Flow<UserProfile?>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun saveUserProfile(profile: UserProfile)
-
-    @Query("DELETE FROM user_profile")
-    suspend fun clearUserProfile()
 }
