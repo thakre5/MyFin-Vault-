@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package com.example.myfin.ui.screens
 
 import androidx.compose.animation.*
@@ -41,6 +43,7 @@ enum class GuideAccordionSection {
     NONE,
     ARCHITECTURE,
     VAULT_MODES,
+    MAB_AND_SURPLUS,
     MATHEMATICAL_FORMULAS,
     SCREEN_DIRECTORY,
     BACKUP_EXPORTS,
@@ -170,7 +173,7 @@ fun UserGuideScreen(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Mathematical Engine, Vault Logic & Local Privacy Specs",
+                            text = "Mathematical Engine, MAB Floors & Local Privacy Specs",
                             fontSize = 12.5.sp,
                             color = TextMuted
                         )
@@ -279,10 +282,44 @@ fun UserGuideScreen(
                     GuideTextParagraph("Aggregates all connected bank accounts and cash balances into a single flat liquidity pool without segregated reserve buckets.")
                 }
 
-                // Section 3: Mathematical Engine & Formulas
+                // Section 3: MAB Floors & Liquid Surplus
+                GuideAccordionCard(
+                    icon = Icons.Default.AccountBalance,
+                    title = "3. MAB Floors & Spendable Surplus",
+                    subtitle = "Minimum Average Balance & Automated Safety",
+                    isExpanded = expandedSection == GuideAccordionSection.MAB_AND_SURPLUS,
+                    onToggleExpand = {
+                        expandedSection = if (expandedSection == GuideAccordionSection.MAB_AND_SURPLUS) {
+                            GuideAccordionSection.NONE
+                        } else {
+                            GuideAccordionSection.MAB_AND_SURPLUS
+                        }
+                    }
+                ) {
+                    GuideTextParagraph("MyFin Vault introduces dedicated protection for bank minimum balance (MAB) requirements across all active bank accounts:")
+
+                    GuideFeatureBullet(
+                        title = "Protected MAB Floor",
+                        desc = "Each bank account can be assigned a minimum balance floor (e.g. ₹10,000 for Commitments or salary accounts) to prevent non-maintenance penalty charges."
+                    )
+                    GuideFeatureBullet(
+                        title = "Spendable Surplus Calculation",
+                        desc = "Surplus = max(0, Current Balance - MAB). This ensures your dashboard and allocation engines only suggest truly disposable cash rather than eating into your required banking floor."
+                    )
+                    GuideFeatureBullet(
+                        title = "Commitments Shortfall Warnings",
+                        desc = "If pending AutoPay bills and fixed commitments exceed your Commitments account balance before their due dates, MyFin triggers an urgent shortfall warning banner with 1-tap transfer prompts."
+                    )
+                    GuideFeatureBullet(
+                        title = "Payday Waterfall Allocation",
+                        desc = "When a salary inflow is logged, the 1-tap Payday Splitter automatically ring-fences funds into Commitments (covering pending bills + MAB) and sweeps surplus into Fortress SIPs."
+                    )
+                }
+
+                // Section 4: Mathematical Engine & Formulas
                 GuideAccordionCard(
                     icon = Icons.Default.Functions,
-                    title = "3. Mathematical Engine & Formulas",
+                    title = "4. Mathematical Engine & Formulas",
                     subtitle = "Real-Time S2S, Runways, Pacing & Splits",
                     isExpanded = expandedSection == GuideAccordionSection.MATHEMATICAL_FORMULAS,
                     onToggleExpand = {
@@ -330,10 +367,10 @@ fun UserGuideScreen(
                     )
                 }
 
-                // Section 4: Screen Directory & Navigation
+                // Section 5: Screen Directory & Navigation
                 GuideAccordionCard(
                     icon = Icons.Default.TouchApp,
-                    title = "4. Screen Directory & Navigation",
+                    title = "5. Screen Directory & Navigation",
                     subtitle = "Monthly, Planner, Master DB, Analytics & Vaults",
                     isExpanded = expandedSection == GuideAccordionSection.SCREEN_DIRECTORY,
                     onToggleExpand = {
@@ -346,11 +383,11 @@ fun UserGuideScreen(
                 ) {
                     GuideFeatureBullet(
                         title = "Monthly Dashboard",
-                        desc = "Safe-to-Spend hero display, cumulative spending Bézier sparkline curve, fixed bill checklist with one-tap payment marking, and category progress bars."
+                        desc = "Real Liquid Safe-to-Spend hero display, cumulative spending Bézier sparkline curve, fixed bill checklist with one-tap payment marking, and category progress bars."
                     )
                     GuideFeatureBullet(
                         title = "Budget Planner",
-                        desc = "Pre-allocate planned caps for Income, Expenses, and Assets. Features 1-click previous month budget cloning and real-time overspend variance flags."
+                        desc = "Pre-allocate planned caps for Income, Expenses, and Assets. Features 1-click previous month budget cloning, AutoPay floor protection, and 5th-of-the-month ceiling freezes."
                     )
                     GuideFeatureBullet(
                         title = "Taxonomy Master DB",
@@ -361,15 +398,15 @@ fun UserGuideScreen(
                         desc = "Dedicated 3-tab dock: (1) Summary Analytics (Net Capital spline wave, concentric donut, burn velocity bars), (2) Category Analytics (6-axis radar web, 50/30/20 ribbon), (3) Wealth Analytics (reserve mountain chart, asset bubble map, runway gauge)."
                     )
                     GuideFeatureBullet(
-                        title = "Vault Accounts Hub",
-                        desc = "Multi-account balance adjustments, tier assignments, and instant internal inter-vault transfers."
+                        title = "Vault Accounts Hub & Carousel",
+                        desc = "Swipeable 3D card carousel with card reordering, MAB badge editing, auto-sweep threshold calibration, and instant inter-vault transfers."
                     )
                 }
 
-                // Section 5: Data Backup & Export Engines
+                // Section 6: Data Backup & Export Engines
                 GuideAccordionCard(
                     icon = Icons.Default.SaveAlt,
-                    title = "5. Backup, Restore & Exports",
+                    title = "6. Backup, Restore & Exports",
                     subtitle = "Full .json snapshots, .xlsx Workbooks, .csv Ledgers",
                     isExpanded = expandedSection == GuideAccordionSection.BACKUP_EXPORTS,
                     onToggleExpand = {
@@ -394,10 +431,10 @@ fun UserGuideScreen(
                     )
                 }
 
-                // Section 6: Mathematical Legend & Symbol Index
+                // Section 7: Mathematical Legend & Symbol Index
                 GuideAccordionCard(
                     icon = Icons.Default.FormatListNumbered,
-                    title = "6. Mathematical Legend & Symbols",
+                    title = "7. Mathematical Legend & Symbols",
                     subtitle = "Reference Table of Arithmetic Variables",
                     isExpanded = expandedSection == GuideAccordionSection.SYMBOL_LEGEND,
                     onToggleExpand = {
@@ -411,6 +448,8 @@ fun UserGuideScreen(
                     GuideSymbolRow(symbol = "I_base", meaning = "Effective Base Inflow", formula = "max(I_planned, I_actual)")
                     GuideSymbolRow(symbol = "C_fixed", meaning = "Total Fixed Commitments", formula = "Σ Bills_EXPENSE + Σ Tx_ASSET")
                     GuideSymbolRow(symbol = "E_variable", meaning = "Discretionary Outflow", formula = "Σ Unlinked Expenses")
+                    GuideSymbolRow(symbol = "MAB", meaning = "Minimum Average Balance Floor", formula = "Protected Account Minimum")
+                    GuideSymbolRow(symbol = "Surplus", meaning = "Spendable Cash Above Floor", formula = "max(0, Balance - MAB)")
                     GuideSymbolRow(symbol = "S2S", meaning = "Safe-to-Spend Liquidity", formula = "max(0, I_base - C_fixed - E_variable)")
                     GuideSymbolRow(symbol = "R_net", meaning = "Net Retained Capital", formula = "I_actual - E_actual - A_actual")
                     GuideSymbolRow(symbol = "B_daily", meaning = "7-Day Daily Burn Rate", formula = "(Σ 7-Day Outflow) / 7")
