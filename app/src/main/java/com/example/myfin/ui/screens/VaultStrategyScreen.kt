@@ -24,7 +24,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -408,14 +407,14 @@ fun VaultStrategyScreen(
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 showAccountAnalyticsSheet = true
             },
-            onSave = { newName, newRoleKey, newBalance, newMinBalance, isArchived ->
+            onSave = { newName, newRoleKey, newBalance, newMinBalance, isArchivedState ->
                 viewModel.updateAccountDetails(
                     oldName = account.accountName,
                     newName = newName.trim(),
                     startingBalance = newBalance,
                     accountType = newRoleKey,
                     minBalance = newMinBalance,
-                    isArchived = isArchived,
+                    isArchived = isArchivedState,
                     sortOrder = account.sortOrder
                 )
                 Toast.makeText(context, "Vault updated", Toast.LENGTH_SHORT).show()
@@ -1647,7 +1646,7 @@ private fun BalanceEditModalSheet(
     var selectedRole by remember { mutableStateOf(getAccountRole(account.accountName, account.accountType)) }
     var amountString by remember { mutableStateOf(account.currentBalance.toInt().toString()) }
     var minBalanceString by remember { mutableStateOf(account.minBalance.toInt().toString()) }
-    var isArchivedState by remember { mutableStateOf(account.isArchived) }
+    var isArchivedState by remember { mutableStateOf<Boolean>(account.isArchived) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -2421,7 +2420,7 @@ private fun getTransactionVisualTheme(tx: TransactionEntity): TxVisualTheme {
     return when (tx.type) {
         TransactionType.INCOME -> TxVisualTheme(Icons.Default.ArrowDownward, TealPrimary.copy(alpha = 0.14f), TealPrimary)
         TransactionType.TRANSFER -> TxVisualTheme(Icons.Default.SyncAlt, PurplePrimary.copy(alpha = 0.14f), PurplePrimary)
-        TransactionType.ASSET -> TxVisualTheme(Icons.AutoMirrored.Filled.TrendingUp, CyanPrimary.copy(alpha = 0.14f), CyanPrimary)
+        TransactionType.ASSET -> TxVisualTheme(Icons.Default.TrendingUp, CyanPrimary.copy(alpha = 0.14f), CyanPrimary)
         TransactionType.EXPENSE -> {
             val cat = tx.category.lowercase()
             when {
