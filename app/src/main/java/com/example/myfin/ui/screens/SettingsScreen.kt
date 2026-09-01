@@ -442,7 +442,7 @@ fun SettingsScreen(
                     )
                 }
 
-                // Strategy & Architecture (Auto-Sweep Threshold and Safety Net Target Distinct)
+                // Strategy & Architecture
                 val autoSweepLimit = if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
                 ExpandableSettingsCard(
                     icon = Icons.Default.Layers,
@@ -991,7 +991,7 @@ fun SettingsScreen(
         }
     }
 
-    // Auto-Sweep Threshold Sheet (Sets Operating Liquid Balance Cap before FD)
+    // Auto-Sweep Threshold Sheet
     if (activeSheet == SettingsActiveSheet.AUTO_SWEEP_THRESHOLD) {
         var thresholdInput by remember(userProfile.fortressThreshold) {
             val currentVal = if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
@@ -1048,7 +1048,7 @@ fun SettingsScreen(
         }
     }
 
-    // Fortress Safety Net Target (Calculated from Actual Annual Spending Average)
+    // Fortress Safety Net Target Sheet
     if (activeSheet == SettingsActiveSheet.FORTRESS_SAFETY_NET) {
         var selectedMonths by remember { mutableIntStateOf(6) }
 
@@ -1286,7 +1286,7 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        val isDobValid = viewModel.securityManager.verifyDob(verifyDob)
+                        val isDobValid = viewModel.securityManager.verifyRecoveryDob(verifyDob)
                         if (!isDobValid) {
                             errorMessage = "DOB verification failed. Please enter your correct birth date."
                         } else if (newPin.length < 4) {
