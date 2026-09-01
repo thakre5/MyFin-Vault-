@@ -43,6 +43,7 @@ import androidx.compose.ui.zIndex
 import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
+import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
@@ -94,8 +95,25 @@ fun MonthlyScreen(
 
     val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
     val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-    val accountsList = remember(uiState.accounts) {
-        uiState.accounts.map { it.accountName }
+    
+    val activeAccounts = remember(uiState.activeAccounts, uiState.accounts) {
+        uiState.activeAccounts.ifEmpty { uiState.accounts.filter { !it.isArchived } }
+    }
+    val accountsList = remember(activeAccounts) {
+        activeAccounts.map { it.accountName }
+    }
+
+    val operatingAccountName = remember(activeAccounts) {
+        activeAccounts.firstOrNull { it.accountType.equals("Operating", ignoreCase = true) }?.accountName
+            ?: activeAccounts.firstOrNull()?.accountName ?: "Primary Bank"
+    }
+    val commitmentsAccountName = remember(activeAccounts) {
+        activeAccounts.firstOrNull { it.accountType.equals("Commitments", ignoreCase = true) }?.accountName
+            ?: activeAccounts.getOrNull(1)?.accountName ?: "Secondary Bank"
+    }
+    val fortressAccountName = remember(activeAccounts) {
+        activeAccounts.firstOrNull { it.accountType.equals("Fortress", ignoreCase = true) }?.accountName
+            ?: activeAccounts.getOrNull(2)?.accountName ?: "Tertiary Bank"
     }
 
     // Relative Timeframe & Daily Burn Allowance Calculation
@@ -120,8 +138,9 @@ fun MonthlyScreen(
     } else 0.0
 
     // Payday Waterfall Split Detection
-    val showWaterfallPrompt = remember(uiState.metrics.actualIncome, uiState.selectedMonth, dismissedWaterfallMonth) {
-        uiState.metrics.actualIncome > 0.0 && dismissedWaterfallMonth != uiState.selectedMonth
+    val paydayPlan = uiState.paydaySuggestion
+    val showWaterfallPrompt = remember(paydayPlan, uiState.selectedMonth, dismissedWaterfallMonth) {
+        paydayPlan != null && dismissedWaterfallMonth != uiState.selectedMonth
     }
 
     val fabActions = remember {
@@ -251,14 +270,81 @@ fun MonthlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            // Top Notification Slot (Structured 3-Line Banners)
-                            if (showRollover || showWaterfallPrompt) {
+                            // Top Notification Slot
+                            if (showRollover || showWaterfallPrompt || uiState.commitmentsShortfall.isShortfall) {
                                 item {
                                     Column(
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        // 1. Clone / Rollover Banner
+                                        // 1. Commitments Shortfall Warning Banner
+                                        if (uiState.commitmentsShortfall.isShortfall) {
+                                            val shortfall = uiState.commitmentsShortfall
+                                            Surface(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .shadow(2.dp, RoundedCornerShape(16.dp)),
+                                                shape = RoundedCornerShape(16.dp),
+                                                color = CardWhite,
+                                                border = BorderStroke(1.dp, SoftRed.copy(alpha = 0.35f))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(14.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(40.dp)
+                                                            .clip(CircleShape)
+                                                            .background(SoftRed.copy(alpha = 0.12f)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.WarningAmber,
+                                                            contentDescription = null,
+                                                            tint = SoftRed,
+                                                            modifier = Modifier.size(20.dp)
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = "Commitments Shortfall Warning",
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 13.sp,
+                                                            color = TextDark
+                                                        )
+                                                        Spacer(modifier = Modifier.height(2.dp))
+                                                        val dueText = if (shortfall.earliestDueDay != null) " by ${shortfall.earliestDueDay}th" else ""
+                                                        Text(
+                                                            text = "Transfer ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", shortfall.shortfallAmount)}$dueText to protect MAB & avoid bill bounce.",
+                                                            fontSize = 11.sp,
+                                                            color = TextMuted,
+                                                            lineHeight = 15.sp,
+                                                            maxLines = 2
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                                    Button(
+                                                        onClick = { showTransferSheet = true },
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = SoftRed),
+                                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                                        modifier = Modifier.height(32.dp)
+                                                    ) {
+                                                        Text(text = "Transfer", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // 2. Clone / Rollover Banner
                                         if (showRollover) {
                                             Surface(
                                                 modifier = Modifier
@@ -336,8 +422,8 @@ fun MonthlyScreen(
                                             }
                                         }
 
-                                        // 2. Payday Waterfall Split Prompt
-                                        if (showWaterfallPrompt) {
+                                        // 3. Payday Waterfall Split Prompt
+                                        if (showWaterfallPrompt && paydayPlan != null) {
                                             Surface(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
@@ -371,14 +457,14 @@ fun MonthlyScreen(
 
                                                     Column(modifier = Modifier.weight(1f)) {
                                                         Text(
-                                                            text = "Payday Waterfall Distribution",
+                                                            text = "Payday Inflow Detected",
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 13.sp,
                                                             color = TextDark
                                                         )
                                                         Spacer(modifier = Modifier.height(2.dp))
                                                         Text(
-                                                            text = "New income logged. Automate distribution into Commitments, Fortress, and Living vaults.",
+                                                            text = "Allocate ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toCommitments)} to Commitments & ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toFortress)} to Fortress SIP.",
                                                             fontSize = 11.sp,
                                                             color = TextMuted,
                                                             lineHeight = 15.sp,
@@ -394,15 +480,21 @@ fun MonthlyScreen(
                                                     ) {
                                                         Button(
                                                             onClick = {
+                                                                viewModel.applyPaydayAllocation(
+                                                                    plan = paydayPlan,
+                                                                    operatingAccount = operatingAccountName,
+                                                                    commitmentsAccount = commitmentsAccountName,
+                                                                    fortressAccount = fortressAccountName
+                                                                )
                                                                 dismissedWaterfallMonth = uiState.selectedMonth
-                                                                showTransferSheet = true
+                                                                Toast.makeText(context, "Salary distributed across vaults!", Toast.LENGTH_SHORT).show()
                                                             },
                                                             shape = RoundedCornerShape(8.dp),
                                                             colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
                                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                                             modifier = Modifier.height(32.dp)
                                                         ) {
-                                                            Text(text = "Split", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                                            Text(text = "1-Tap Split", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                                                         }
                                                         Spacer(modifier = Modifier.height(2.dp))
                                                         TextButton(
@@ -421,7 +513,7 @@ fun MonthlyScreen(
                                 }
                             }
 
-                            // Hero Card: Safe-to-Spend Guardrail & Live Sparkline
+                            // Hero Card: Real Liquid Safe-to-Spend Guardrail & Live Sparkline
                             item {
                                 val isHealthy = uiState.metrics.safeToSpend > 0
                                 val statusColor = if (isHealthy) SoftGreen else SoftRed
@@ -461,7 +553,7 @@ fun MonthlyScreen(
                                                 )
                                                 Spacer(modifier = Modifier.width(7.dp))
                                                 Text(
-                                                    text = "SAFE TO SPEND GUARDRAIL",
+                                                    text = "LIQUID SAFE TO SPEND",
                                                     color = TextMuted,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Black,
@@ -500,7 +592,7 @@ fun MonthlyScreen(
                                             text = when {
                                                 isPastMonth -> "Month closed: final remaining balance"
                                                 isCurrentMonth && isHealthy -> if (isDiscreetMode) "Daily allowance protected" else "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
-                                                isCurrentMonth -> "Overrun warning: spending exceeds available cashflow buffer"
+                                                isCurrentMonth -> "Overrun warning: spending exceeds liquid operating buffer"
                                                 else -> "Projected safe allowance across $daysRemaining days"
                                             },
                                             fontSize = 11.5.sp,
@@ -605,7 +697,7 @@ fun MonthlyScreen(
                                                 fontSize = 15.sp,
                                                 color = if (currentEndBalance >= 0) TextDark else SoftRed
                                             )
-                                            Text(text = "Current Liquid", fontSize = 10.sp, color = TextMuted)
+                                            Text(text = "Active Liquid", fontSize = 10.sp, color = TextMuted)
                                         }
 
                                         Box(
@@ -1652,7 +1744,13 @@ fun MonthlyScreen(
                         onClick = {
                             val amt = amountText.toDoubleOrNull() ?: 0.0
                             if (amt > 0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount != toAccount) {
-                                viewModel.executeInstantTransfer(fromAccount, toAccount, amt, noteText)
+                                val subtype = when {
+                                    toAccount.contains("Commitment", ignoreCase = true) || toAccount.contains("AutoPay", ignoreCase = true) -> TransferSubtype.BILL_FUNDING
+                                    toAccount.contains("Fortress", ignoreCase = true) || toAccount.contains("FD", ignoreCase = true) -> TransferSubtype.WEALTH_ALLOCATION
+                                    toAccount.contains("Cash", ignoreCase = true) -> TransferSubtype.CASH_WITHDRAWAL
+                                    else -> TransferSubtype.REBALANCE
+                                }
+                                viewModel.executeInstantTransfer(fromAccount, toAccount, amt, noteText, subtype)
                                 showTransferSheet = false
                                 Toast.makeText(context, "Transferred ${userProfile.currencySymbol}$amt", Toast.LENGTH_SHORT).show()
                             } else {
