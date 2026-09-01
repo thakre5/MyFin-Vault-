@@ -150,6 +150,10 @@ fun ReportsAnalyticsScreen(
         uiState.groupedTransactions.values.flatten()
     }
 
+    val activeAccounts = remember(uiState.activeAccounts, uiState.accounts) {
+        uiState.activeAccounts.ifEmpty { uiState.accounts.filter { !it.isArchived } }
+    }
+
     val filteredTransactions = remember(allTransactions, selectedTimeRange) {
         val calendar = Calendar.getInstance()
         when (selectedTimeRange) {
@@ -478,7 +482,7 @@ fun ReportsAnalyticsScreen(
                             onOpenStrategyInfo = { showStrategyInfoSheet = true },
                             totalAssets = totalAssets,
                             totalExpenses = totalExpenses,
-                            accounts = uiState.accounts,
+                            accounts = activeAccounts,
                             transactions = allTransactions,
                             isDiscreet = isDiscreetMode,
                             onOpenMetricInfo = { activeChartMetricInfo = it }
@@ -1442,7 +1446,7 @@ private fun CategoriesAnalyticsTabContent(
             .sortedByDescending { it.second }
     }
 
-    // Month-over-Month Surge Drift Detection
+    // Month-over-Month Velocity Surge Drift Detection
     val categorySurges = remember(allTransactions) {
         val now = Calendar.getInstance()
         val curM = now.get(Calendar.MONTH)
@@ -1918,6 +1922,8 @@ private fun WealthAnalyticsTabContent(
         Spacer(modifier = Modifier.height(10.dp))
 
         accounts.forEach { acc ->
+            val spendableSurplus = (acc.currentBalance - acc.minBalance).coerceAtLeast(0.0)
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1943,7 +1949,13 @@ private fun WealthAnalyticsTabContent(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(acc.accountName, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                        Text(if (is3Vault) "${acc.accountType} Tier" else "${acc.accountType} Vault", fontSize = 11.sp, color = TextMuted)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (is3Vault) "${acc.accountType} Tier" else "${acc.accountType} Vault", fontSize = 11.sp, color = TextMuted)
+                            if (acc.minBalance > 0.0) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("• MAB: $userProfileCurrency${String.format(Locale.US, "%,.0f", acc.minBalance)}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                            }
+                        }
                     }
                 }
 
@@ -1954,11 +1966,20 @@ private fun WealthAnalyticsTabContent(
                         fontSize = 14.5.sp,
                         color = TextDark
                     )
-                    Text(
-                        text = if (isDiscreet) "Base: ••••" else "Base: $userProfileCurrency${acc.startingBalance.toInt()}",
-                        fontSize = 10.5.sp,
-                        color = TextMuted
-                    )
+                    if (acc.minBalance > 0.0) {
+                        Text(
+                            text = if (isDiscreet) "Surplus: ••••" else "Surplus: $userProfileCurrency${String.format(Locale.US, "%,.0f", spendableSurplus)}",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SoftTeal
+                        )
+                    } else {
+                        Text(
+                            text = if (isDiscreet) "Base: ••••" else "Base: $userProfileCurrency${acc.startingBalance.toInt()}",
+                            fontSize = 10.5.sp,
+                            color = TextMuted
+                        )
+                    }
                 }
             }
             HorizontalDivider(color = BorderLight.copy(alpha = 0.35f), thickness = 0.7.dp)
@@ -2265,10 +2286,9 @@ private fun DualTrajectoryLineCanvas(
                     var runningCumulative = 0.0
                     val actualPoints = (0 until count).map { i ->
                         runningCumulative += spendData.getOrNull(i)?.totalAmount ?: 0.0
-                        val x = (i.toFloat() / (count - 1).coerceAtLeast(1)) * w
                         val spendRatio = (runningCumulative / maxDailyBudget).toFloat().coerceIn(0f, 1f)
                         val y = h * (1f - (spendRatio * 0.80f + 0.10f))
-                        Offset(x, y)
+                        Offset(x = (i.toFloat() / (count - 1).coerceAtLeast(1)) * w, y = y)
                     }
 
                     val actualPath = Path().apply {
