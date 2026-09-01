@@ -16,9 +16,11 @@ data class MonthlySummary(
     val month: Int,
     val totalActualIncome: Double = 0.0,
     val totalActualExpense: Double = 0.0,
-    val totalAsset: Double = 0.0,
-    val netSurplus: Double = totalActualIncome - totalActualExpense
-)
+    val totalAsset: Double = 0.0
+) {
+    val netSurplus: Double
+        get() = totalActualIncome - totalActualExpense
+}
 
 data class YearlyCategoryRollup(
     val category: String,
