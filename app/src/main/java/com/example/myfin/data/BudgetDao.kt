@@ -112,7 +112,7 @@ interface BudgetDao {
     fun getActiveAccountBalances(): Flow<List<AccountBalanceResult>>
 
     // ========================================================================
-    // 3. Categories & Subcategories (Table: categories, subcategories)
+    // 3. Categories & Subcategories
     // ========================================================================
     @Query("SELECT * FROM categories ORDER BY type ASC, name ASC")
     fun getAllCategories(): Flow<List<CategoryEntity>>
@@ -378,11 +378,11 @@ interface BudgetDao {
     fun getYearlySummary(year: Int): Flow<List<MonthlySummary>>
 
     @Query("""
-        SELECT category, type, SUM(amount) AS totalAmount 
+        SELECT category, type, SUM(amount) AS totalActualAmount, SUM(amount) AS totalAmount 
         FROM transactions 
         WHERE year = :year AND type != 'TRANSFER' 
         GROUP BY category, type 
-        ORDER BY totalAmount DESC
+        ORDER BY totalActualAmount DESC
     """)
     fun getYearlyCategoryBreakdown(year: Int): Flow<List<YearlyCategoryRollup>>
 }
