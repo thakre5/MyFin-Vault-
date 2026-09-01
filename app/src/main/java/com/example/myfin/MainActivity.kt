@@ -31,8 +31,6 @@ import com.example.myfin.ui.theme.MyfinTheme
 
 class MainActivity : FragmentActivity() {
 
-    private var backgroundTimestamp = 0L
-
     private val securityManager by lazy { SecurityManager(applicationContext) }
     private val database by lazy { AppDatabase.getDatabase(applicationContext) }
 
@@ -51,16 +49,17 @@ class MainActivity : FragmentActivity() {
 
         ReminderScheduler.createNotificationChannels(applicationContext)
 
+        // Session Auto-Lock Lifecycle Observer (60-second timeout)
         lifecycle.addObserver(LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_STOP -> {
-                    backgroundTimestamp = System.currentTimeMillis()
+                    securityManager.recordAppBackgrounded()
                 }
                 Lifecycle.Event.ON_START -> {
-                    if (backgroundTimestamp > 0 && System.currentTimeMillis() - backgroundTimestamp > 45000L) {
+                    if (securityManager.shouldLockOnResume()) {
                         viewModel.lockApp()
                     }
-                    backgroundTimestamp = 0L
+                    securityManager.clearSessionLock()
                 }
                 else -> {}
             }
@@ -109,7 +108,7 @@ class MainActivity : FragmentActivity() {
 
                 var isDrawerOpen by rememberSaveable { mutableStateOf(false) }
                 var currentTarget by rememberSaveable { mutableStateOf(NavigationTarget.MONTHLY_VIEW) }
-                var settingsInitialSheet by rememberSaveable { mutableStateOf<SettingsActiveSheet>(SettingsActiveSheet.NONE) }
+                var settingsInitialSheet by rememberSaveable { mutableStateOf(SettingsActiveSheet.NONE) }
 
                 when {
                     isFirstLaunch -> {
@@ -139,7 +138,7 @@ class MainActivity : FragmentActivity() {
                     }
 
                     else -> {
-                        BackHandler(enabled = isDrawerOpen || currentTarget != NavigationTarget.MONTHLY_VIEW) {
+                        BackHandler(enabled = true) {
                             if (isDrawerOpen) {
                                 isDrawerOpen = false
                             } else if (currentTarget == NavigationTarget.USER_GUIDE) {
@@ -147,6 +146,8 @@ class MainActivity : FragmentActivity() {
                             } else if (currentTarget != NavigationTarget.MONTHLY_VIEW) {
                                 settingsInitialSheet = SettingsActiveSheet.NONE
                                 currentTarget = NavigationTarget.MONTHLY_VIEW
+                            } else {
+                                moveTaskToBack(true)
                             }
                         }
 
@@ -236,14 +237,10 @@ class MainActivity : FragmentActivity() {
                                                 onNavigateToVaultSettings = { currentTarget = NavigationTarget.SETTINGS }
                                             )
                                         } else {
-                                            VaultStrategyScreen(
+                                            VaultAccountsScreen(
                                                 viewModel = viewModel,
                                                 onOpenDrawer = { isDrawerOpen = true },
-                                                onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
-                                                onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
-                                                onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
-                                                onNavigateToVaultAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS },
-                                                onNavigateToVaultSettings = { currentTarget = NavigationTarget.SETTINGS }
+                                                onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW }
                                             )
                                         }
                                     }
