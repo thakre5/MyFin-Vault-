@@ -81,6 +81,7 @@ import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import java.util.Calendar
+import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -452,7 +453,7 @@ fun OnboardingStep0WelcomeGateway(
 
                                     OutlinedTextField(
                                         value = emailAddress,
-                                        onValueChange = onEmailChange,
+                                        onEmailChange = onEmailChange,
                                         placeholder = { Text("Email Address", fontSize = 13.5.sp, color = TextMuted) },
                                         leadingIcon = {
                                             Icon(Icons.Outlined.Mail, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
@@ -912,10 +913,17 @@ fun OnboardingStep0WelcomeGateway(
                                         val canDelete = isSimpleStrategy && !isCash && accounts.count { it.defaultType != "Cash" } > 1 && index > 0
                                         val currentMinBal = account.minBalanceText.toDoubleOrNull() ?: 0.0
 
+                                        val mabDisplay = when {
+                                            currentMinBal <= 0.0 -> "MAB: 0 ▾"
+                                            currentMinBal >= 1000.0 && currentMinBal % 1000.0 == 0.0 -> "MAB: ${selectedCountry.currencySymbol}${(currentMinBal / 1000).toInt()}k"
+                                            currentMinBal >= 1000.0 -> "MAB: ${selectedCountry.currencySymbol}${String.format(Locale.US, "%,.0f", currentMinBal)}"
+                                            else -> "MAB: ${selectedCountry.currencySymbol}${currentMinBal.toInt()}"
+                                        }
+
                                         Surface(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(58.dp),
+                                                .height(60.dp),
                                             shape = RoundedCornerShape(27.dp),
                                             color = CardWhite,
                                             border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
@@ -923,7 +931,7 @@ fun OnboardingStep0WelcomeGateway(
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxSize()
-                                                    .padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                                                    .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
@@ -931,7 +939,7 @@ fun OnboardingStep0WelcomeGateway(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     modifier = Modifier
                                                         .weight(1f)
-                                                        .padding(end = 8.dp)
+                                                        .padding(end = 6.dp)
                                                 ) {
                                                     Surface(
                                                         modifier = Modifier.size(32.dp),
@@ -947,8 +955,11 @@ fun OnboardingStep0WelcomeGateway(
                                                             )
                                                         }
                                                     }
-                                                    Spacer(modifier = Modifier.width(10.dp))
-                                                    Column(verticalArrangement = Arrangement.Center) {
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Column(
+                                                        modifier = Modifier.weight(1f, fill = false),
+                                                        verticalArrangement = Arrangement.Center
+                                                    ) {
                                                         Text(
                                                             text = account.name,
                                                             fontSize = 12.5.sp,
@@ -958,13 +969,18 @@ fun OnboardingStep0WelcomeGateway(
                                                             overflow = TextOverflow.Ellipsis
                                                         )
                                                         
-                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        ) {
                                                             Text(
                                                                 text = account.defaultType,
                                                                 fontSize = 9.5.sp,
                                                                 fontWeight = FontWeight.Medium,
                                                                 color = TealPrimary,
-                                                                lineHeight = 11.sp
+                                                                lineHeight = 11.sp,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
                                                             )
 
                                                             if (!isCash) {
@@ -983,13 +999,15 @@ fun OnboardingStep0WelcomeGateway(
                                                                 ) {
                                                                     Row(
                                                                         verticalAlignment = Alignment.CenterVertically,
-                                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                                                                     ) {
                                                                         Text(
-                                                                            text = if (currentMinBal > 0.0) "MAB: ${selectedCountry.currencySymbol}${String.format(java.util.Locale.US, "%,.0f", currentMinBal)}" else "MAB: 0 ▾",
+                                                                            text = mabDisplay,
                                                                             fontSize = 8.5.sp,
                                                                             fontWeight = FontWeight.Bold,
-                                                                            color = if (currentMinBal > 0.0) AccentPurple else TextMuted
+                                                                            color = if (currentMinBal > 0.0) AccentPurple else TextMuted,
+                                                                            maxLines = 1,
+                                                                            softWrap = false
                                                                         )
                                                                     }
                                                                 }
@@ -1001,7 +1019,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 Surface(
                                                     modifier = Modifier
                                                         .height(46.dp)
-                                                        .width(136.dp),
+                                                        .width(110.dp),
                                                     shape = RoundedCornerShape(23.dp),
                                                     color = CanvasLight,
                                                     border = BorderStroke(0.8.dp, BorderLight)
@@ -1686,7 +1704,7 @@ fun OnboardingStep0WelcomeGateway(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             presets.forEach { preset ->
-                                val isSel = customMabText == preset
+                                val isSel = customMabText.toDoubleOrNull() == preset.toDoubleOrNull()
                                 val label = if (preset == "0") "Zero" else "${selectedCountry.currencySymbol}${if (preset.length > 3) "${preset.dropLast(3)}k" else preset}"
                                 Surface(
                                     modifier = Modifier
