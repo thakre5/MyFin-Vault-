@@ -112,9 +112,9 @@ interface BudgetDao {
     fun getActiveAccountBalances(): Flow<List<AccountBalanceResult>>
 
     // ========================================================================
-    // 3. Master Categories & Subcategories
+    // 3. Categories & Subcategories (Table: categories, subcategories)
     // ========================================================================
-    @Query("SELECT * FROM master_categories ORDER BY type ASC, name ASC")
+    @Query("SELECT * FROM categories ORDER BY type ASC, name ASC")
     fun getAllCategories(): Flow<List<CategoryEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -129,13 +129,13 @@ interface BudgetDao {
     @Delete
     suspend fun deleteCategory(category: CategoryEntity)
 
-    @Query("DELETE FROM master_categories WHERE name = :name AND type = :type")
+    @Query("DELETE FROM categories WHERE name = :name AND type = :type")
     suspend fun deleteCategoryByNameAndType(name: String, type: TransactionType)
 
-    @Query("DELETE FROM master_categories")
+    @Query("DELETE FROM categories")
     suspend fun clearAllCategories()
 
-    @Query("SELECT * FROM master_subcategories ORDER BY parentCategory ASC, name ASC")
+    @Query("SELECT * FROM subcategories ORDER BY parentCategory ASC, name ASC")
     fun getAllSubcategories(): Flow<List<SubcategoryEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -150,13 +150,13 @@ interface BudgetDao {
     @Delete
     suspend fun deleteSubcategory(subcategory: SubcategoryEntity)
 
-    @Query("DELETE FROM master_subcategories WHERE parentCategory = :parentCategory")
+    @Query("DELETE FROM subcategories WHERE parentCategory = :parentCategory")
     suspend fun deleteSubcategoriesForParent(parentCategory: String)
 
-    @Query("DELETE FROM master_subcategories WHERE parentCategory = :parentCategory AND name = :name AND type = :type")
+    @Query("DELETE FROM subcategories WHERE parentCategory = :parentCategory AND name = :name AND type = :type")
     suspend fun deleteSubcategoryByKeys(parentCategory: String, name: String, type: TransactionType)
 
-    @Query("DELETE FROM master_subcategories")
+    @Query("DELETE FROM subcategories")
     suspend fun clearAllSubcategories()
 
     // ========================================================================
@@ -270,7 +270,7 @@ interface BudgetDao {
     @Query("UPDATE fixed_bills SET category = :newName WHERE category = :oldName")
     suspend fun cascadeRenameCategoryInFixedBills(oldName: String, newName: String)
 
-    @Query("UPDATE master_subcategories SET parentCategory = :newName WHERE parentCategory = :oldName")
+    @Query("UPDATE subcategories SET parentCategory = :newName WHERE parentCategory = :oldName")
     suspend fun cascadeRenameCategoryInSubcategories(oldName: String, newName: String)
 
     @Query("UPDATE transactions SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName")
@@ -378,11 +378,11 @@ interface BudgetDao {
     fun getYearlySummary(year: Int): Flow<List<MonthlySummary>>
 
     @Query("""
-        SELECT category, type, SUM(amount) AS totalActualAmount 
+        SELECT category, type, SUM(amount) AS totalAmount 
         FROM transactions 
         WHERE year = :year AND type != 'TRANSFER' 
         GROUP BY category, type 
-        ORDER BY totalActualAmount DESC
+        ORDER BY totalAmount DESC
     """)
     fun getYearlyCategoryBreakdown(year: Int): Flow<List<YearlyCategoryRollup>>
 }
