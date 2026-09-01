@@ -2,132 +2,187 @@ package com.example.myfin.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
-import java.security.MessageDigest
+import java.io.File
+import java.security.GeneralSecurityException
+import java.security.KeyStore
 import java.security.SecureRandom
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 
-class SecurityManager(context: Context) {
+class SecurityManager(private val context: Context) {
 
-    private val prefs: SharedPreferences by lazy {
-        try {
-            val masterKey = MasterKey.Builder(context)
+    private val sharedPreferences: SharedPreferences = createEncryptedPreferences(context)
+
+    private fun createEncryptedPreferences(appContext: Context): SharedPreferences {
+        return try {
+            val masterKey = MasterKey.Builder(appContext)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
                 .build()
 
             EncryptedSharedPreferences.create(
-                context,
-                PREFS_NAME,
+                appContext,
+                PREFS_FILE_NAME,
                 masterKey,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             )
         } catch (e: Exception) {
-            // Fallback for custom OEM ROMs or environments where Keystore initialization fails
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            // Handle Keystore corruption, master key revocation, or OS upgrades
+            if (e is GeneralSecurityException || e is java.io.IOException) {
+                try {
+                    val prefsFile = File(appContext.filesDir.parent, "shared_prefs/$PREFS_FILE_NAME.xml")
+                    if (prefsFile.exists()) {
+                        prefsFile.delete()
+                    }
+
+                    try {
+                        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                        if (keyStore.containsAlias(MasterKey.DEFAULT_MASTER_KEY_ALIAS)) {
+                            keyStore.deleteEntry(MasterKey.DEFAULT_MASTER_KEY_ALIAS)
+                        }
+                    } catch (_: Exception) {}
+
+                    val masterKey = MasterKey.Builder(appContext)
+                        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                        .build()
+
+                    EncryptedSharedPreferences.create(
+                        appContext,
+                        PREFS_FILE_NAME,
+                        masterKey,
+                        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                    )
+                } catch (_: Exception) {
+                    appContext.getSharedPreferences(FALLBACK_PREFS_NAME, Context.MODE_PRIVATE)
+                }
+            } else {
+                appContext.getSharedPreferences(FALLBACK_PREFS_NAME, Context.MODE_PRIVATE)
+            }
         }
     }
 
-    fun getStoredPin(): String? {
-        return prefs.getString(KEY_PIN_HASH, null)
+    // --- PBKDF2 PIN HASHING & AUTHENTICATION ---
+
+    fun isPinSet(): Boolean {
+        val hasHash = sharedPreferences.getString(KEY_PIN_HASH, null) != null
+        val hasLegacyPin = sharedPreferences.getString(KEY_PIN_LEGACY, null) != null
+        return hasHash || hasLegacyPin
     }
 
-    fun hasPin(): Boolean {
-        return !getStoredPin().isNullOrBlank()
+    fun setPin(pin: String): Boolean {
+        if (pin.isBlank()) return false
+        val salt = generateSalt()
+        val hash = hashPinWithSalt(pin.trim(), salt)
+        val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+        val hashBase64 = Base64.encodeToString(hash, Base64.NO_WRAP)
+
+        return sharedPreferences.edit()
+            .putString(KEY_PIN_HASH, hashBase64)
+            .putString(KEY_PIN_SALT, saltBase64)
+            .remove(KEY_PIN_LEGACY) // Purge plaintext legacy storage
+            .commit()
     }
 
-    fun setPin(pin: String) {
-        val cleanPin = pin.trim()
-        if (cleanPin.isBlank()) {
-            prefs.edit()
-                .remove(KEY_PIN_HASH)
-                .remove(KEY_PIN_SALT)
-                .apply()
-        } else {
-            val salt = getOrCreateSalt()
-            val hash = hashPinWithSalt(cleanPin, salt)
-            prefs.edit().putString(KEY_PIN_HASH, hash).apply()
+    fun verifyPin(enteredPin: String): Boolean {
+        val trimmedEntered = enteredPin.trim()
+        val storedHashBase64 = sharedPreferences.getString(KEY_PIN_HASH, null)
+        val storedSaltBase64 = sharedPreferences.getString(KEY_PIN_SALT, null)
+
+        if (storedHashBase64 != null && storedSaltBase64 != null) {
+            val salt = Base64.decode(storedSaltBase64, Base64.NO_WRAP)
+            val computedHash = hashPinWithSalt(trimmedEntered, salt)
+            val computedHashBase64 = Base64.encodeToString(computedHash, Base64.NO_WRAP)
+            return constantTimeEquals(storedHashBase64, computedHashBase64)
         }
-    }
 
-    fun verifyPin(inputPin: String): Boolean {
-        val storedHash = getStoredPin() ?: return false
-        val cleanInput = inputPin.trim()
-        val salt = prefs.getString(KEY_PIN_SALT, null)
-
-        // 1. Verify against cryptographic salted hash
-        if (!salt.isNullOrBlank()) {
-            return hashPinWithSalt(cleanInput, salt) == storedHash
-        }
-
-        // 2. Legacy fallback for unsalted hashes with automatic upgrade
-        val legacyHash = hashLegacy(cleanInput)
-        if (legacyHash == storedHash) {
-            setPin(cleanInput) // Auto-upgrade to salted hash
+        // Seamless migration for legacy unhashed PINs
+        val legacyPin = sharedPreferences.getString(KEY_PIN_LEGACY, null)
+        if (legacyPin != null && legacyPin == trimmedEntered) {
+            setPin(trimmedEntered) // Auto-upgrade to salted hash
             return true
         }
 
         return false
     }
 
-    fun setRecoveryDob(dob: String) {
-        val cleanDob = dob.trim()
-        if (cleanDob.isBlank()) {
-            prefs.edit().remove(KEY_RECOVERY_DOB).apply()
-        } else {
-            prefs.edit().putString(KEY_RECOVERY_DOB, cleanDob).apply()
+    private fun generateSalt(): ByteArray {
+        val random = SecureRandom()
+        val salt = ByteArray(16)
+        random.nextBytes(salt)
+        return salt
+    }
+
+    private fun hashPinWithSalt(pin: String, salt: ByteArray): ByteArray {
+        val spec = PBEKeySpec(pin.toCharArray(), salt, HASH_ITERATIONS, HASH_KEY_LENGTH)
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        return factory.generateSecret(spec).encoded
+    }
+
+    private fun constantTimeEquals(a: String, b: String): Boolean {
+        if (a.length != b.length) return false
+        var result = 0
+        for (i in a.indices) {
+            result = result or (a[i].code xor b[i].code)
         }
+        return result == 0
+    }
+
+    // --- RECOVERY DOB KEYS ---
+
+    fun setRecoveryDob(dob: String): Boolean {
+        return sharedPreferences.edit().putString(KEY_RECOVERY_DOB, dob.trim()).commit()
     }
 
     fun getRecoveryDob(): String? {
-        return prefs.getString(KEY_RECOVERY_DOB, null)
+        return sharedPreferences.getString(KEY_RECOVERY_DOB, null)
     }
 
-    fun verifyDob(inputDob: String): Boolean {
+    fun verifyRecoveryDob(enteredDob: String): Boolean {
         val storedDob = getRecoveryDob() ?: return false
-        val cleanInput = inputDob.trim()
-        if (cleanInput.isBlank()) return false
+        val cleanStored = storedDob.replace("[^0-9]".toRegex(), "")
+        val cleanEntered = enteredDob.replace("[^0-9]".toRegex(), "")
+        return cleanStored.isNotEmpty() && cleanStored == cleanEntered
+    }
 
-        // 1. Semantic ISO Date Normalization (handles DD/MM/YYYY, YYYY-MM-DD, DD-MM-YYYY)
-        val normInput = normalizeDateString(cleanInput)
-        val normStored = normalizeDateString(storedDob)
-
-        if (normInput.isNotEmpty() && normStored.isNotEmpty() && normInput == normStored) {
-            return true
+    fun resetPinWithDob(enteredDob: String, newPin: String): Boolean {
+        if (verifyRecoveryDob(enteredDob) && newPin.trim().length >= 4) {
+            return setPin(newPin.trim())
         }
-
-        // 2. Fallback: Digit-only stripped comparison or exact string match
-        val rawDigitsInput = cleanInput.filter { it.isDigit() }
-        val rawDigitsStored = storedDob.filter { it.isDigit() }
-
-        return cleanInput.equals(storedDob.trim(), ignoreCase = true) ||
-                (rawDigitsInput.isNotEmpty() && rawDigitsInput == rawDigitsStored)
+        return false
     }
 
-    fun clearAll() {
-        prefs.edit().clear().apply()
+    // --- BIOMETRIC AUTHENTICATION ---
+
+    fun isBiometricEnabled(): Boolean {
+        return sharedPreferences.getBoolean(KEY_BIOMETRIC_ENABLED, false)
     }
 
-    fun canAuthenticateWithBiometrics(context: Context): Boolean {
-        val biometricManager = BiometricManager.from(context)
-        val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK
-        return biometricManager.canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS
+    fun setBiometricEnabled(enabled: Boolean): Boolean {
+        return sharedPreferences.edit().putBoolean(KEY_BIOMETRIC_ENABLED, enabled).commit()
+    }
+
+    fun canAuthenticateWithBiometrics(targetContext: Context = context): Boolean {
+        val biometricManager = BiometricManager.from(targetContext)
+        return biometricManager.canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK
+        ) == BiometricManager.BIOMETRIC_SUCCESS
     }
 
     fun showBiometricPrompt(
         activity: FragmentActivity,
         onSuccess: () -> Unit,
-        onError: (String) -> Unit
+        onError: () -> Unit
     ) {
         val executor = ContextCompat.getMainExecutor(activity)
-        val callback = object : BiometricPrompt.AuthenticationCallback() {
+        val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 super.onAuthenticationSucceeded(result)
                 onSuccess()
@@ -135,77 +190,68 @@ class SecurityManager(context: Context) {
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 super.onAuthenticationError(errorCode, errString)
-                onError(errString.toString())
+                onError()
             }
 
             override fun onAuthenticationFailed() {
                 super.onAuthenticationFailed()
-                // BiometricPrompt UI remains visible and prompts user to retry naturally
             }
-        }
+        })
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Unlock MyFin Vault")
-            .setSubtitle("Authenticate using your biometric credentials")
-            .setNegativeButtonText("Use Master PIN")
+            .setSubtitle("Authenticate using biometrics")
+            .setNegativeButtonText("Use PIN")
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK)
             .build()
 
-        val biometricPrompt = BiometricPrompt(activity, executor, callback)
-        biometricPrompt.authenticate(promptInfo)
+        prompt.authenticate(promptInfo)
     }
 
-    private fun getOrCreateSalt(): String {
-        var salt = prefs.getString(KEY_PIN_SALT, null)
-        if (salt.isNullOrBlank()) {
-            val randomBytes = ByteArray(16)
-            SecureRandom().nextBytes(randomBytes)
-            salt = randomBytes.joinToString("") { "%02x".format(it) }
-            prefs.edit().putString(KEY_PIN_SALT, salt).apply()
-        }
-        return salt
+    // --- SESSION AUTO-LOCK TIMEOUT ENGINE (60s) ---
+
+    fun recordAppBackgrounded() {
+        sharedPreferences.edit()
+            .putLong(KEY_LAST_BACKGROUND_TIME, System.currentTimeMillis())
+            .commit()
     }
 
-    private fun hashPinWithSalt(pin: String, salt: String): String {
-        val combined = "$salt:$pin"
-        val bytes = MessageDigest.getInstance("SHA-256").digest(combined.toByteArray(Charsets.UTF_8))
-        return bytes.joinToString("") { "%02x".format(it) }
+    fun shouldLockOnResume(timeoutMillis: Long = DEFAULT_LOCK_TIMEOUT_MILLIS): Boolean {
+        val lastBackground = sharedPreferences.getLong(KEY_LAST_BACKGROUND_TIME, 0L)
+        if (lastBackground == 0L) return false
+        val elapsed = System.currentTimeMillis() - lastBackground
+        return elapsed >= timeoutMillis
     }
 
-    private fun hashLegacy(input: String): String {
-        val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.UTF_8))
-        return bytes.joinToString("") { "%02x".format(it) }
+    fun clearSessionLock() {
+        sharedPreferences.edit()
+            .putLong(KEY_LAST_BACKGROUND_TIME, 0L)
+            .commit()
     }
 
-    private fun normalizeDateString(dateStr: String): String {
-        val candidatePatterns = listOf(
-            "yyyy-MM-dd",
-            "dd/MM/yyyy",
-            "dd-MM-yyyy",
-            "yyyy/MM/dd",
-            "dd.MM.yyyy",
-            "yyyyMMdd",
-            "ddMMyyyy"
-        )
+    // --- VAULT RESET & WIPES ---
 
-        for (pattern in candidatePatterns) {
-            try {
-                val sdf = SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }
-                val parsedDate: Date? = sdf.parse(dateStr)
-                if (parsedDate != null) {
-                    return SimpleDateFormat("yyyyMMdd", Locale.US).format(parsedDate)
-                }
-            } catch (_: Exception) {
-                // Try next pattern
-            }
-        }
+    fun clearSecurity(): Boolean {
+        return sharedPreferences.edit().clear().commit()
+    }
 
-        return ""
+    fun clearAll(): Boolean {
+        return clearSecurity()
     }
 
     companion object {
-        private const val PREFS_NAME = "myfin_vault_security_prefs"
-        private const val KEY_PIN_HASH = "master_pin_sha256"
-        private const val KEY_PIN_SALT = "master_pin_salt"
-        private const val KEY_RECOVERY_DOB = "master_recovery_dob"
+        private const val PREFS_FILE_NAME = "myfin_secure_prefs"
+        private const val FALLBACK_PREFS_NAME = "myfin_fallback_prefs"
+
+        private const val KEY_PIN_HASH = "secure_vault_pin_hash_v2"
+        private const val KEY_PIN_SALT = "secure_vault_pin_salt_v2"
+        private const val KEY_PIN_LEGACY = "secure_vault_pin"
+        private const val KEY_RECOVERY_DOB = "recovery_dob"
+        private const val KEY_BIOMETRIC_ENABLED = "biometric_auth_enabled"
+        private const val KEY_LAST_BACKGROUND_TIME = "last_background_timestamp"
+
+        private const val HASH_ITERATIONS = 10000
+        private const val HASH_KEY_LENGTH = 256
+        const val DEFAULT_LOCK_TIMEOUT_MILLIS = 60_000L // 60 Seconds
     }
 }
