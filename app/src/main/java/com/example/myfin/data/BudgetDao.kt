@@ -378,11 +378,11 @@ interface BudgetDao {
     fun getYearlySummary(year: Int): Flow<List<MonthlySummary>>
 
     @Query("""
-        SELECT category, type, SUM(amount) AS totalAmount 
+        SELECT category, type, SUM(amount) AS totalActualAmount 
         FROM transactions 
         WHERE year = :year AND type != 'TRANSFER' 
         GROUP BY category, type 
-        ORDER BY totalAmount DESC
+        ORDER BY totalActualAmount DESC
     """)
     fun getYearlyCategoryBreakdown(year: Int): Flow<List<YearlyCategoryRollup>>
 }
