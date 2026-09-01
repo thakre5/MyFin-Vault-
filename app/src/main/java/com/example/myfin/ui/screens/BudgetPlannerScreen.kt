@@ -102,16 +102,17 @@ fun BudgetPlannerScreen(
             (uiState.selectedYear == currentCalendarYear && uiState.selectedMonth < currentCalendarMonth)
     val isPastFifth = isCurrentMonth && (currentDayOfMonth > 5)
 
-    // Financial Allocation Metrics
+    // Financial Allocation Metrics (With Profile Base Income Fallback)
     val totalPlannedIncome = uiState.metrics.plannedIncome
+    val effectiveIncomeBaseline = if (totalPlannedIncome > 0.0) totalPlannedIncome else userProfile.baseMonthlyIncome
     val totalPlannedExpenses = uiState.metrics.plannedExpenses
     val totalPlannedAssets = uiState.metrics.plannedAssets
     val totalAllocated = totalPlannedExpenses + totalPlannedAssets
-    val unallocatedBuffer = totalPlannedIncome - totalAllocated
-    val allocationPercentage = if (totalPlannedIncome > 0) {
-        ((totalAllocated / totalPlannedIncome) * 100).toInt()
+    val unallocatedBuffer = effectiveIncomeBaseline - totalAllocated
+    val allocationPercentage = if (effectiveIncomeBaseline > 0) {
+        ((totalAllocated / effectiveIncomeBaseline) * 100).toInt()
     } else 0
-    val isOverAllocated = totalPlannedIncome > 0 && unallocatedBuffer < 0
+    val isOverAllocated = effectiveIncomeBaseline > 0 && unallocatedBuffer < 0
 
     // Prioritized Category Resolution
     val displayedCategories = remember(uiState.masterCategories, uiState.categories, selectedSegment) {
@@ -161,10 +162,8 @@ fun BudgetPlannerScreen(
                 ),
                 DockFabAction(
                     icon = Icons.Default.Autorenew,
-                    label = "Add Fixed Bill",
-                    onClick = {
-                        Toast.makeText(context, "Manage recurring AutoPay in Vaults.", Toast.LENGTH_SHORT).show()
-                    }
+                    label = "Manage Fixed Bills",
+                    onClick = { onNavigateToVaults() }
                 ),
                 DockFabAction(
                     icon = Icons.Default.History,
@@ -191,13 +190,6 @@ fun BudgetPlannerScreen(
                     }
                 ),
                 DockFabAction(
-                    icon = Icons.Default.Savings,
-                    label = "Add Recurring Inflow",
-                    onClick = {
-                        Toast.makeText(context, "Configure fixed salary/inflow streams.", Toast.LENGTH_SHORT).show()
-                    }
-                ),
-                DockFabAction(
                     icon = Icons.Default.History,
                     label = "Copy Last Month's Plan",
                     onClick = {
@@ -219,13 +211,6 @@ fun BudgetPlannerScreen(
                         } else {
                             showQuickSelectTargetSheet = true
                         }
-                    }
-                ),
-                DockFabAction(
-                    icon = Icons.Default.AccountBalance,
-                    label = "Add Recurring SIP",
-                    onClick = {
-                        Toast.makeText(context, "Configure automated investment SIPs.", Toast.LENGTH_SHORT).show()
                     }
                 ),
                 DockFabAction(
@@ -350,7 +335,7 @@ fun BudgetPlannerScreen(
                                     color = if (isOverAllocated) SoftRed.copy(alpha = 0.12f) else AccentPurple.copy(alpha = 0.12f)
                                 ) {
                                     Text(
-                                        text = if (totalPlannedIncome == 0.0) {
+                                        text = if (effectiveIncomeBaseline == 0.0) {
                                             "Baseline Unset"
                                         } else if (isOverAllocated) {
                                             "Over-allocated ($allocationPercentage%)"
@@ -368,7 +353,7 @@ fun BudgetPlannerScreen(
                             Spacer(modifier = Modifier.height(2.dp))
 
                             Text(
-                                text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPlannedIncome)}",
+                                text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", effectiveIncomeBaseline)}",
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Black,
                                 color = TextDark,
@@ -377,7 +362,7 @@ fun BudgetPlannerScreen(
 
                             Text(
                                 text = when {
-                                    totalPlannedIncome == 0.0 -> "Set expected income baseline in the Income tab to calculate allocation buffer"
+                                    effectiveIncomeBaseline == 0.0 -> "Set expected income baseline in the Income tab to calculate allocation buffer"
                                     isOverAllocated -> "Deficit: Exceeds income by ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(unallocatedBuffer))}"
                                     else -> "Unallocated buffer: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", unallocatedBuffer)} left to assign"
                                 },
@@ -389,8 +374,8 @@ fun BudgetPlannerScreen(
                             Spacer(modifier = Modifier.height(8.dp))
 
                             // Dual Segment Allocation Progress Bar
-                            val expenseFraction = if (totalPlannedIncome > 0) (totalPlannedExpenses / totalPlannedIncome).toFloat().coerceIn(0f, 1f) else 0f
-                            val assetFraction = if (totalPlannedIncome > 0) (totalPlannedAssets / totalPlannedIncome).toFloat().coerceIn(0f, 1f) else 0f
+                            val expenseFraction = if (effectiveIncomeBaseline > 0) (totalPlannedExpenses / effectiveIncomeBaseline).toFloat().coerceIn(0f, 1f) else 0f
+                            val assetFraction = if (effectiveIncomeBaseline > 0) (totalPlannedAssets / effectiveIncomeBaseline).toFloat().coerceIn(0f, 1f) else 0f
 
                             Row(
                                 modifier = Modifier
@@ -641,7 +626,7 @@ fun BudgetPlannerScreen(
                 title = { Text("Copy Last Month's Plan?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                 text = {
                     Text(
-                        "This will sync planned ceilings and baseline goals from the previous month into ${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}.",
+                        "This will copy all planned category limits and baseline goals from the previous month into ${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}.",
                         fontSize = 13.sp,
                         color = TextDark
                     )
@@ -649,8 +634,9 @@ fun BudgetPlannerScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.executeRolloverToNextMonth()
-                            Toast.makeText(context, "Previous month's plan synced successfully!", Toast.LENGTH_SHORT).show()
+                            viewModel.copyPreviousMonthBudget { count ->
+                                Toast.makeText(context, "$count budget targets synced from previous month!", Toast.LENGTH_SHORT).show()
+                            }
                             showCopyPlanDialog = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
