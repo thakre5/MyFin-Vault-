@@ -6,9 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -33,7 +31,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,7 +45,9 @@ import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AccountTransferDialog
 import com.example.myfin.ui.theme.*
 import java.util.Locale
-import kotlin.math.abs
+
+private val SimplePurple = Color(0xFF6C5CE7)
+private val SimpleTeal = Color(0xFF10B981)
 
 private enum class AccountsViewTab(val title: String) {
     ACTIVE("Active Vaults"),
@@ -95,7 +94,7 @@ fun SimpleAccountsScreen(
             .background(CardWhite)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // TOP BAR (Matching 3-Vault Header)
+            // TOP BAR
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -171,7 +170,7 @@ fun SimpleAccountsScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 4.dp, bottom = 110.dp)
             ) {
-                // MASTER CAPITAL HERO CARD (Organic Card Canvas)
+                // MASTER CAPITAL HERO CARD
                 item {
                     MasterLiquidityHeroCard(
                         currencySymbol = userProfile.currencySymbol,
@@ -279,7 +278,7 @@ fun SimpleAccountsScreen(
             }
         }
 
-        // FLOATING DASHBOARD SWITCH DOCK (Matching 3-Vault Screen)
+        // FLOATING BOTTOM DOCK
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -396,14 +395,14 @@ fun SimpleAccountsScreen(
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 showAccountAnalyticsSheet = true
             },
-            onSave = { newName, newRoleKey, newBalance, newMinBalance, isArchived ->
+            onSave = { newName, newRoleKey, newBalance, newMinBalance, isArchivedState ->
                 viewModel.updateAccountDetails(
                     oldName = account.accountName,
                     newName = newName.trim().uppercase(),
                     startingBalance = account.startingBalance,
                     accountType = newRoleKey,
                     minBalance = newMinBalance,
-                    isArchived = isArchived,
+                    isArchived = isArchivedState,
                     sortOrder = account.sortOrder
                 )
                 if (newBalance != account.currentBalance) {
@@ -478,7 +477,6 @@ fun SimpleAccountsScreen(
     }
 }
 
-// ORGANIC MASTER LIQUIDITY HERO CARD
 @Composable
 private fun MasterLiquidityHeroCard(
     currencySymbol: String,
@@ -594,7 +592,6 @@ private fun MasterLiquidityHeroCard(
     }
 }
 
-// 3D/ORGANIC STYLE INDIVIDUAL ACCOUNT CARD
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SimpleAccountCardItem(
@@ -715,10 +712,10 @@ private fun SimpleAccountCardItem(
 
                     if (account.minBalance > 0) {
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Spendable Surplus", color = Color(0xFF10B981), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text("Spendable Surplus", color = SimpleTeal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             Text(
                                 text = "$currencySymbol${String.format(Locale.US, "%,.0f", spendableSurplus)}",
-                                color = Color(0xFF10B981),
+                                color = SimpleTeal,
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Black
                             )
@@ -756,7 +753,6 @@ private fun OrganicHeroCardCanvas(palette: CardPalette) {
     }
 }
 
-// CREATE LIQUID VAULT BOTTOM SHEET
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CreateVaultModalSheet(
@@ -889,7 +885,7 @@ private fun CreateVaultModalSheet(
                 enabled = newName.isNotBlank(),
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(26.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = SimplePurple)
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -899,7 +895,6 @@ private fun CreateVaultModalSheet(
     }
 }
 
-// BALANCE & SETTINGS EDIT MODAL SHEET
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BalanceEditModalSheet(
@@ -914,7 +909,7 @@ private fun BalanceEditModalSheet(
     var selectedRole by remember { mutableStateOf(getAccountRole(account.accountName, account.accountType)) }
     var amountString by remember { mutableStateOf(account.currentBalance.toInt().toString()) }
     var minBalanceString by remember { mutableStateOf(account.minBalance.toInt().toString()) }
-    var isArchived by remember { mutableStateOf(account.isArchived) }
+    var isArchivedState by remember { mutableStateOf(account.isArchived) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1073,11 +1068,11 @@ private fun BalanceEditModalSheet(
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     val finalBal = amountString.toDoubleOrNull() ?: account.currentBalance
                     val finalMinBal = minBalanceString.toDoubleOrNull() ?: account.minBalance
-                    onSave(editName.trim(), selectedRole.roleKey, finalBal, finalMinBal, isArchived)
+                    onSave(editName.trim(), selectedRole.roleKey, finalBal, finalMinBal, isArchivedState)
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(25.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = SimplePurple)
             ) {
                 Icon(Icons.Default.Check, contentDescription = "Confirm", tint = Color.White)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1087,7 +1082,6 @@ private fun BalanceEditModalSheet(
     }
 }
 
-// BANK ANALYTICS & ARCHIVE MODAL SHEET
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BankAnalyticsModalSheet(
@@ -1224,7 +1218,6 @@ private fun BankAnalyticsModalSheet(
     }
 }
 
-// ROLE CLASSIFIER & PALETTE HELPERS
 private fun getAccountRole(accountName: String, accountType: String): BankRole {
     val typeClean = accountType.lowercase()
     val nameClean = accountName.lowercase()
