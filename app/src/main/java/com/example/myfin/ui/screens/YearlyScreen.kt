@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -30,9 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -404,7 +401,7 @@ fun YearlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            // Dark Spline Topography Hero Card
+                            // Multi-Stream Ribbon Flow Graph Hero Card
                             item(key = "executive_hero_card") {
                                 Surface(
                                     modifier = Modifier
@@ -470,11 +467,12 @@ fun YearlyScreen(
 
                                         Spacer(modifier = Modifier.height(18.dp))
 
-                                        AnnualTopographyWaveCanvas(
+                                        // Sales-Report Style Multi-Stream Ribbon Graph
+                                        AnnualStreamFlowCanvas(
                                             yearlyData = yearlyMonthsData,
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(130.dp)
+                                                .height(145.dp)
                                         )
 
                                         Spacer(modifier = Modifier.height(14.dp))
@@ -494,7 +492,7 @@ fun YearlyScreen(
                                                 Text(text = if (isDiscreetMode) "Assets: ••••" else "Assets ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualAssets)}", fontSize = 10.5.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
                                             }
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(AccentPurple))
+                                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFFF7043)))
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(text = if (isDiscreetMode) "Burn: ••••" else "Burn ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualExpenses)}", fontSize = 10.5.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
                                             }
@@ -505,7 +503,7 @@ fun YearlyScreen(
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
 
-                            // Wealth Goal Execution Capsule (Heart Liquid Progress)
+                            // Wealth Goal Execution Capsule (Flat Heart Liquid Progress)
                             item(key = "wealth_goal_card") {
                                 Surface(
                                     modifier = Modifier
@@ -1006,14 +1004,12 @@ fun YearlyScreen(
 private fun HeartLiquidProgressCanvas(
     fillPercentage: Float,
     modifier: Modifier = Modifier,
-    primaryColor: Color = AccentPurple,
-    secondaryColor: Color = Color(0xFF8B5CF6)
+    primaryColor: Color = AccentPurple
 ) {
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
 
-        // Precise Symmetric Heart Bézier Path
         val heartPath = Path().apply {
             moveTo(w / 2f, h * 0.82f)
             cubicTo(
@@ -1039,12 +1035,9 @@ private fun HeartLiquidProgressCanvas(
             close()
         }
 
-        // Clip all liquid drawing strictly inside the flat heart boundary
         clipPath(heartPath) {
-            // Flat background container tint
             drawRect(color = primaryColor.copy(alpha = 0.12f))
 
-            // Clean flat bottom-up liquid fill
             val fillHeight = h * fillPercentage.coerceIn(0f, 1f)
             val fillTop = h - fillHeight
 
@@ -1055,7 +1048,6 @@ private fun HeartLiquidProgressCanvas(
             )
         }
 
-        // Clean, flat vector outline
         drawPath(
             path = heartPath,
             color = primaryColor,
@@ -1118,7 +1110,6 @@ private fun CategoryTrajectoryRowCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 12-Month Mini Sparkline
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1156,22 +1147,23 @@ private fun CategoryTrajectoryRowCard(
 }
 
 @Composable
-private fun AnnualTopographyWaveCanvas(
+private fun AnnualStreamFlowCanvas(
     yearlyData: List<MonthDataSummary>,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
-
-        val maxVal = yearlyData.maxOfOrNull { maxOf(it.income, it.expenses, it.assets) }?.coerceAtLeast(100.0) ?: 100.0
         val pointsCount = yearlyData.size
 
-        fun createSplinePath(values: List<Double>): Path {
+        val maxVal = yearlyData.maxOfOrNull { maxOf(it.income, it.expenses, it.assets) }?.coerceAtLeast(100.0) ?: 100.0
+
+        fun createStreamPath(values: List<Double>, offsetY: Float, invert: Boolean = false): Path {
             val pts = values.mapIndexed { idx, v ->
                 val x = (idx.toFloat() / (pointsCount - 1).coerceAtLeast(1)) * w
-                val normalizedY = 1f - (v / maxVal).toFloat().coerceIn(0.1f, 0.95f)
-                val y = (h * 0.1f) + (normalizedY * h * 0.75f)
+                val ratio = (v / maxVal).toFloat().coerceIn(0.05f, 0.75f)
+                val delta = ratio * (h * 0.38f)
+                val y = if (invert) offsetY - delta else offsetY + delta
                 Offset(x, y)
             }
             return Path().apply {
@@ -1187,29 +1179,38 @@ private fun AnnualTopographyWaveCanvas(
             }
         }
 
-        val incomePath = createSplinePath(yearlyData.map { it.income })
-        val expensePath = createSplinePath(yearlyData.map { it.expenses })
-        val assetsPath = createSplinePath(yearlyData.map { it.assets })
+        val centerY = h / 2f
 
-        val incomeFill = Path().apply {
-            addPath(incomePath)
-            lineTo(w, h)
-            lineTo(0f, h)
-            close()
-        }
-        drawPath(incomeFill, brush = Brush.verticalGradient(listOf(SoftGreen.copy(alpha = 0.25f), Color.Transparent)))
-        drawPath(incomePath, color = SoftGreen, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+        // Draw multi-layer organic stream bands matching the Sales Report aesthetic
+        val expTop = createStreamPath(yearlyData.map { it.expenses }, centerY, invert = true)
+        val expBottom = createStreamPath(yearlyData.map { it.expenses }, centerY, invert = false)
 
-        val expenseFill = Path().apply {
-            addPath(expensePath)
-            lineTo(w, h)
-            lineTo(0f, h)
-            close()
-        }
-        drawPath(expenseFill, brush = Brush.verticalGradient(listOf(AccentPurple.copy(alpha = 0.25f), Color.Transparent)))
-        drawPath(expensePath, color = AccentPurple, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+        val assetTop = createStreamPath(yearlyData.map { it.assets }, centerY, invert = true)
+        val assetBottom = createStreamPath(yearlyData.map { it.assets }, centerY, invert = false)
 
-        drawPath(assetsPath, color = SoftTeal, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
+        // Expense stream band (Warm orange/coral gradient)
+        drawPath(
+            path = expTop,
+            brush = Brush.horizontalGradient(
+                colors = listOf(Color(0xFFFFB74D), Color(0xFFFF7043), Color(0xFFEF5350))
+            ),
+            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+        )
+        drawPath(
+            path = expBottom,
+            brush = Brush.horizontalGradient(
+                colors = listOf(Color(0xFFFFB74D), Color(0xFFFF7043), Color(0xFFEF5350))
+            ),
+            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+        )
+
+        // Center spine indicator line
+        drawLine(
+            color = Color.White.copy(alpha = 0.25f),
+            start = Offset(w * 0.5f, 0f),
+            end = Offset(w * 0.5f, h),
+            strokeWidth = 1.dp.toPx()
+        )
     }
 }
 
