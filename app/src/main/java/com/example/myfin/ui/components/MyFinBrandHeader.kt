@@ -70,20 +70,14 @@ fun MyFinBrandHeader(
 
                 if (showVaultBadge) {
                     Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = if (isDarkTheme) Color.White.copy(alpha = 0.12f) else Color(0xFF1E2034).copy(alpha = 0.08f)
-                    ) {
-                        Text(
-                            text = "VAULT",
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Black,
-                            fontFamily = FontFamily.Monospace,
-                            color = if (isDarkTheme) Color(0xFF00D2EE) else Color(0xFF6C5CE7),
-                            letterSpacing = 1.sp,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                        )
-                    }
+                    Text(
+                        text = "VAULT",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        color = if (isDarkTheme) Color(0xFF00D2EE) else Color(0xFF6C5CE7),
+                        letterSpacing = 1.sp
+                    )
                 }
             }
 
