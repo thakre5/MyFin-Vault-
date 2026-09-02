@@ -15,13 +15,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myfin.BuildConfig
 import com.example.myfin.ui.theme.TextDark
 import com.example.myfin.ui.theme.TextMuted
 
 @Composable
 fun AppBrandingFooter(
     modifier: Modifier = Modifier,
-    version: String = "v1.0.0",
+    version: String = "v${BuildConfig.VERSION_NAME}",
     showIcon: Boolean = true
 ) {
     Column(
