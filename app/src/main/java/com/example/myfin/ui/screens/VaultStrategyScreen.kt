@@ -1,7 +1,6 @@
 package com.example.myfin.ui.screens
 
 import android.widget.Toast
-import androidx.compose.animation.BorderStroke
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -31,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -55,11 +55,6 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-// Add these missing imports to:
-// - app/src/main/java/com/example/myfin/ui/screens/VaultStrategyScreen.kt
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-
 
 enum class VaultTier(
     val title: String,
@@ -165,7 +160,6 @@ fun VaultStrategyScreen(
         displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.CASH }.sumOf { it.currentBalance }
     }
 
-    // Fortress Auto-Sweep FD Logic
     val fortressCap = remember(userProfile.fortressThreshold) {
         if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
     }
@@ -173,7 +167,6 @@ fun VaultStrategyScreen(
     val fortressFd = remember(fortTotal, fortressCap) { max(0.0, fortTotal - fortressCap) }
     val fortressSavingsFraction = if (fortressCap > 0) (fortressSavings / fortressCap).toFloat().coerceIn(0f, 1f) else 1f
 
-    // Active Account Cash Flow Analysis
     val activeAccountTxs = remember(uiState.groupedTransactions, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         uiState.groupedTransactions.values.flatten().filter {
@@ -202,7 +195,6 @@ fun VaultStrategyScreen(
             .sumOf { it.amount }
     }
 
-    // Dynamic Calendar & Velocity Math
     val calendar = remember { Calendar.getInstance() }
     val daysElapsed = remember { calendar.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1) }
     val daysInMonth = remember { calendar.getActualMaximum(Calendar.DAY_OF_MONTH) }
@@ -227,7 +219,6 @@ fun VaultStrategyScreen(
         pendingBillsForAccount.sumOf { it.amount }
     }
 
-    // Surplus Engine Math
     val mabBuffer = remember(activeAccount) { activeAccount?.minBalance ?: 0.0 }
     val calculatedSweepSurplus = remember(activeAccount?.currentBalance, totalPendingBillsAmount, dailyBurnRate, daysRemaining, mabBuffer) {
         val bal = activeAccount?.currentBalance ?: 0.0
@@ -239,7 +230,6 @@ fun VaultStrategyScreen(
         (fortressCap - fortTotal).coerceAtLeast(0.0)
     }
 
-    // Standard App FAB Actions for Vault Screen
     val fabActions = remember {
         listOf(
             DockFabAction(
@@ -553,7 +543,6 @@ fun VaultStrategyScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // Dual-Bucket Split Progress Bar
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -580,13 +569,11 @@ fun VaultStrategyScreen(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Sub-Bucket Breakdown Metrics
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Liquid Savings Cushion
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftTeal))
@@ -614,7 +601,6 @@ fun VaultStrategyScreen(
                                         .background(BorderLight.copy(alpha = 0.7f))
                                 )
 
-                                // Emergency Fixed Deposit (FD)
                                 Column(
                                     modifier = Modifier
                                         .weight(1f)
@@ -827,7 +813,6 @@ fun VaultStrategyScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Strategic Vault Routing Engine Card
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -972,7 +957,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // 3. BOTTOM GRADIENT SCRIM
+        // Bottom Gradient Scrim
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -990,7 +975,7 @@ fun VaultStrategyScreen(
                 .zIndex(2.5f)
         )
 
-        // 4. STANDARDIZED FLOATING BOTTOM NAVIGATION DOCK WITH FAB
+        // Floating Bottom Navigation Dock
         AppBottomDock(
             currentSelection = NavigationTarget.VAULT_ACCOUNTS,
             onSelectTarget = { target ->
@@ -1126,7 +1111,6 @@ fun VaultStrategyScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Archive Status Toggle
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1927,26 +1911,6 @@ fun VaultStrategyScreen(
                 }
             }
         }
-
-        // Standardized Floating Bottom Navigation Dock with FAB
-        AppBottomDock(
-            currentSelection = NavigationTarget.VAULT_ACCOUNTS,
-            onSelectTarget = { target ->
-                when (target) {
-                    NavigationTarget.MONTHLY_VIEW -> onNavigateToDashboard()
-                    NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
-                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
-                    NavigationTarget.REPORTS_ANALYTICS -> onNavigateToVaultAnalytics()
-                    NavigationTarget.VAULT_ACCOUNTS -> { /* Active */ }
-                    else -> {}
-                }
-            },
-            fabActions = fabActions,
-            isVisible = isDockVisible.value,
-            modifier = Modifier
-                .fillMaxSize()
-                .zIndex(4f)
-        )
     }
 }
 
