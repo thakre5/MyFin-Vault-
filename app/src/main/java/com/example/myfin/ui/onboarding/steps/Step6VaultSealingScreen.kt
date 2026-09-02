@@ -2,7 +2,6 @@ package com.example.myfin.ui.onboarding.steps
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,10 +21,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
@@ -37,16 +34,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.SubcomposeAsyncImage
+import com.example.myfin.ui.components.MyFinBrandHeader
 import com.example.myfin.ui.onboarding.CountryCurrencyMapping
-import com.example.myfin.ui.onboarding.CyanPrimary
-import com.example.myfin.ui.onboarding.PurplePrimary
 import com.example.myfin.ui.onboarding.TealPrimary
 import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
 import com.example.myfin.ui.theme.*
 import java.io.File
 import java.util.Locale
-import kotlin.math.cos
-import kotlin.math.sin
 
 @Composable
 fun OnboardingStep6VaultSealing(
@@ -63,7 +57,6 @@ fun OnboardingStep6VaultSealing(
     val haptic = LocalHapticFeedback.current
     val scrollState = rememberScrollState()
 
-    // Smooth Pulsing Animation for the Encryption Status Chip
     val infiniteTransition = rememberInfiniteTransition(label = "pulseTransition")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -89,9 +82,6 @@ fun OnboardingStep6VaultSealing(
                 )
             )
     ) {
-        // =========================================================================
-        // LAYER 1: SCROLLABLE BODY
-        // =========================================================================
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val minScreenHeight = maxHeight
 
@@ -108,7 +98,6 @@ fun OnboardingStep6VaultSealing(
             ) {
                 Spacer(modifier = Modifier.height(48.dp))
 
-                // Compact Hero Cards Header
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -126,7 +115,6 @@ fun OnboardingStep6VaultSealing(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Screen Headline & Subtitle
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -151,7 +139,6 @@ fun OnboardingStep6VaultSealing(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Compact Countdown & Status Capsule (44dp)
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -212,12 +199,10 @@ fun OnboardingStep6VaultSealing(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Audit Rows (Harmonized 54dp Pill-in-Pill Geometry)
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Row 1: Profile & Currency
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -326,7 +311,6 @@ fun OnboardingStep6VaultSealing(
                             }
                         }
 
-                        // Row 2: Strategy Architecture
                         val is3Tier = strategy == "3-VAULT"
                         Surface(
                             modifier = Modifier
@@ -417,7 +401,6 @@ fun OnboardingStep6VaultSealing(
                             }
                         }
 
-                        // Row 3: Capital & Flow Metrics
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -508,7 +491,6 @@ fun OnboardingStep6VaultSealing(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Air-Gap Security Note
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -533,7 +515,6 @@ fun OnboardingStep6VaultSealing(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Bottom Enter Vault Action Button
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -562,9 +543,6 @@ fun OnboardingStep6VaultSealing(
             }
         }
 
-        // =========================================================================
-        // LAYER 2: FLOATING PINNED HEADER
-        // =========================================================================
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -580,49 +558,13 @@ fun OnboardingStep6VaultSealing(
                     )
                 )
                 .statusBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 10.dp)
+                .padding(horizontal = 24.dp, vertical = 8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = Color.Transparent,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(CyanPrimary, AccentPurple, PurplePrimary)
-                            )
-                        )
-                        val c = center
-                        val r = size.minDimension * 0.32f
-                        repeat(8) { i ->
-                            val angleRad = Math.toRadians((i * 45.0))
-                            val px = c.x + (r * cos(angleRad)).toFloat()
-                            val py = c.y + (r * sin(angleRad)).toFloat()
-                            drawLine(
-                                color = Color.White,
-                                start = c,
-                                end = Offset(px, py),
-                                strokeWidth = 2.4.dp.toPx(),
-                                cap = StrokeCap.Round
-                            )
-                        }
-                        drawCircle(color = Color.White, radius = 2.5.dp.toPx(), center = c)
-                    }
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "MyFin",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Black,
-                    color = TextDark,
-                    letterSpacing = (-0.5).sp
-                )
-            }
+            MyFinBrandHeader(
+                logoSize = 34.dp,
+                showVaultBadge = true,
+                subtitle = "OFFLINE 3-TIER WEALTH LEDGER"
+            )
         }
     }
 }
