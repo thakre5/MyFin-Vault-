@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -41,8 +42,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -435,7 +434,7 @@ fun YearlyScreen(
                                                 )
                                                 Spacer(modifier = Modifier.height(4.dp))
                                                 Text(
-                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualNetSurplus)}",
+                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", annualNetSurplus)}",
                                                     fontSize = 30.sp,
                                                     fontWeight = FontWeight.Black,
                                                     color = if (annualNetSurplus >= 0) Color.White else SoftRed,
@@ -504,6 +503,54 @@ fun YearlyScreen(
                                 }
 
                                 Spacer(modifier = Modifier.height(20.dp))
+                            }
+
+                            // Wealth Goal Execution Capsule (Heart Liquid Progress)
+                            item(key = "wealth_goal_card") {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .shadow(3.dp, RoundedCornerShape(22.dp)),
+                                    shape = RoundedCornerShape(22.dp),
+                                    color = CardWhite,
+                                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(18.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.size(86.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            HeartLiquidProgressCanvas(
+                                                fillPercentage = (annualSavingsRate / 100f).toFloat().coerceIn(0.05f, 1f),
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            Text(
+                                                text = "${annualSavingsRate.toInt()}%",
+                                                fontWeight = FontWeight.Black,
+                                                fontSize = 15.sp,
+                                                color = Color.White
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(16.dp))
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(text = "Annual Wealth Accumulation", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Text(
+                                                text = "Accumulated ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualAssets + annualNetSurplus)} towards annual compounding reserves.",
+                                                fontSize = 11.5.sp,
+                                                color = TextMuted,
+                                                lineHeight = 16.sp
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(18.dp))
                             }
 
                             // Fiscal Quarter Performance Grid (Q1 to Q4)
@@ -956,6 +1003,80 @@ fun YearlyScreen(
 // =========================================================
 
 @Composable
+private fun HeartLiquidProgressCanvas(
+    fillPercentage: Float,
+    modifier: Modifier = Modifier,
+    primaryColor: Color = AccentPurple,
+    secondaryColor: Color = Color(0xFF8B5CF6)
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        val heartPath = Path().apply {
+            moveTo(w / 2f, h * 0.82f)
+            cubicTo(
+                w * 0.12f, h * 0.52f,
+                0f, h * 0.3f,
+                w * 0.26f, h * 0.15f
+            )
+            cubicTo(
+                w * 0.4f, h * 0.02f,
+                w * 0.45f, h * 0.12f,
+                w / 2f, h * 0.32f
+            )
+            cubicTo(
+                w * 0.55f, h * 0.12f,
+                w * 0.6f, h * 0.02f,
+                w * 0.74f, h * 0.15f
+            )
+            cubicTo(
+                w, h * 0.3f,
+                w * 0.88f, h * 0.52f,
+                w / 2f, h * 0.82f
+            )
+            close()
+        }
+
+        clipPath(heartPath) {
+            drawRect(color = primaryColor.copy(alpha = 0.10f))
+
+            val fillHeight = h * fillPercentage.coerceIn(0f, 1f)
+            val fillTop = h - fillHeight
+
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(secondaryColor, primaryColor),
+                    startY = fillTop,
+                    endY = h
+                ),
+                topLeft = Offset(0f, fillTop),
+                size = Size(w, fillHeight + 10f)
+            )
+
+            val wavePath = Path().apply {
+                moveTo(0f, fillTop)
+                quadraticBezierTo(w * 0.25f, fillTop - 6f, w * 0.5f, fillTop)
+                quadraticBezierTo(w * 0.75f, fillTop + 6f, w, fillTop)
+                lineTo(w, h)
+                lineTo(0f, h)
+                close()
+            }
+            drawPath(
+                path = wavePath,
+                color = Color.White.copy(alpha = 0.25f)
+            )
+        }
+
+        drawPath(
+            path = heartPath,
+            color = primaryColor.copy(alpha = 0.45f),
+            style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+        )
+    }
+}
+
+@Composable
 private fun QuickMetricTile(
     modifier: Modifier = Modifier,
     label: String,
@@ -1028,7 +1149,6 @@ private fun CategoryTrajectoryRowCard(
                 }
                 drawPath(path, color = AccentPurple, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
 
-                // Highlight peak month
                 val peakPt = pts[item.peakMonthIndex]
                 drawCircle(color = SoftRed, radius = 3.dp.toPx(), center = peakPt)
             }
