@@ -646,7 +646,7 @@ class BudgetViewModel(
         fortressThreshold: Double,
         masterPin: String,
         isBiometricEnabled: Boolean,
-        vaultMode: String = "3_VAULT"
+        vaultMode: String = "3-VAULT"
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             securityManager.setPin(masterPin)
@@ -667,7 +667,7 @@ class BudgetViewModel(
     }
 
     suspend fun seedFullExcelTaxonomyIfEmpty() = withContext(Dispatchers.IO) {
-        val existingCats = dao.getAllCategories().first()
+        val existingCats = dao.getAllCategoriesDirect()
         if (existingCats.isEmpty()) {
             dao.insertCategories(CategoryEntity.defaultCategories)
             dao.insertSubcategories(SubcategoryEntity.defaultSubcategories)
@@ -675,7 +675,7 @@ class BudgetViewModel(
     }
 
     suspend fun seedDefaultAccountsIfEmpty() = withContext(Dispatchers.IO) {
-        val isCompleted = dao.getUserProfile().first()?.isOnboardingCompleted ?: false
+        val isCompleted = dao.getUserProfileDirect()?.isOnboardingCompleted ?: false
         val count = dao.getAccountCount()
         if (count == 0 && isCompleted) {
             dao.insertAccounts(
@@ -725,28 +725,27 @@ class BudgetViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val prevMonth = if (currentMonth.value == 1) 12 else currentMonth.value - 1
             val prevYear = if (currentMonth.value == 1) currentYear.value - 1 else currentYear.value
-            val previousPlans = dao.getBudgetPlansForMonth(prevMonth, prevYear).first()
+            val previousPlans = dao.getBudgetPlansForMonthDirect(prevMonth, prevYear)
 
-            previousPlans.forEach { plan ->
-                dao.insertBudgetPlan(
-                    BudgetPlanEntity(
-                        category = plan.category,
-                        plannedAmount = plan.plannedAmount,
-                        type = plan.type,
-                        month = currentMonth.value,
-                        year = currentYear.value
-                    )
+            val clonedPlans = previousPlans.map { plan ->
+                BudgetPlanEntity(
+                    category = plan.category,
+                    plannedAmount = plan.plannedAmount,
+                    type = plan.type,
+                    month = currentMonth.value,
+                    year = currentYear.value
                 )
             }
+            dao.insertBudgetPlans(clonedPlans)
             withContext(Dispatchers.Main) {
-                onComplete(previousPlans.size)
+                onComplete(clonedPlans.size)
             }
         }
     }
 
     fun updateCategoryBudget(category: String, amount: Double, type: TransactionType) {
         viewModelScope.launch(Dispatchers.IO) {
-            val currentPlans = dao.getBudgetPlansForMonth(currentMonth.value, currentYear.value).first()
+            val currentPlans = dao.getBudgetPlansForMonthDirect(currentMonth.value, currentYear.value)
             val existing = currentPlans.find { it.category == category && it.type == type }
             if (existing != null) {
                 dao.insertBudgetPlan(existing.copy(plannedAmount = amount))
@@ -841,25 +840,23 @@ class BudgetViewModel(
     }
 
     fun applyPaydayAllocation(plan: PaydayAllocationPlan, operatingAccount: String, commitmentsAccount: String, fortressAccount: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            if (plan.toCommitments > 0.0) {
-                executeInstantTransfer(
-                    fromAccount = operatingAccount,
-                    toAccount = commitmentsAccount,
-                    amount = plan.toCommitments,
-                    note = "Salary Staging ➔ Commitments (AutoPay & MAB)",
-                    subtype = TransferSubtype.BILL_FUNDING
-                )
-            }
-            if (plan.toFortress > 0.0) {
-                executeInstantTransfer(
-                    fromAccount = operatingAccount,
-                    toAccount = fortressAccount,
-                    amount = plan.toFortress,
-                    note = "Salary Staging ➔ Fortress (Wealth SIP)",
-                    subtype = TransferSubtype.WEALTH_ALLOCATION
-                )
-            }
+        if (plan.toCommitments > 0.0) {
+            executeInstantTransfer(
+                fromAccount = operatingAccount,
+                toAccount = commitmentsAccount,
+                amount = plan.toCommitments,
+                note = "Salary Staging ➔ Commitments (AutoPay & MAB)",
+                subtype = TransferSubtype.BILL_FUNDING
+            )
+        }
+        if (plan.toFortress > 0.0) {
+            executeInstantTransfer(
+                fromAccount = operatingAccount,
+                toAccount = fortressAccount,
+                amount = plan.toFortress,
+                note = "Salary Staging ➔ Fortress (Wealth SIP)",
+                subtype = TransferSubtype.WEALTH_ALLOCATION
+            )
         }
     }
 
@@ -885,13 +882,7 @@ class BudgetViewModel(
 
     fun updateCategory(category: CategoryEntity, newName: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val oldName = category.name
-            val trimmed = newName.trim()
-            dao.updateCategory(category.copy(name = trimmed))
-            dao.cascadeRenameCategoryInTransactions(oldName, trimmed)
-            dao.cascadeRenameCategoryInBudgetPlans(oldName, trimmed)
-            dao.cascadeRenameCategoryInFixedBills(oldName, trimmed)
-            dao.cascadeRenameCategoryInSubcategories(oldName, trimmed)
+            dao.updateCategoryAndCascade(category, newName)
         }
     }
 
@@ -901,10 +892,7 @@ class BudgetViewModel(
             return
         }
         viewModelScope.launch(Dispatchers.IO) {
-            dao.deleteCategory(category)
-            dao.deleteSubcategoriesForParent(category.name)
-            dao.deleteBudgetPlansForCategory(category.name)
-            dao.reassignOrphanedTransactionsToGeneral(category.name)
+            dao.deleteCategoryAndCascade(category)
             dao.deleteFutureUnpaidFixedBillsByCategory(category.name, currentMonth.value, currentYear.value)
             withContext(Dispatchers.Main) {
                 onResult(true, "Category deleted. Historical entries safely reassigned to 'General'.")
@@ -922,11 +910,7 @@ class BudgetViewModel(
 
     fun updateSubcategory(sub: SubcategoryEntity, newName: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val oldName = sub.name
-            val trimmed = newName.trim()
-            dao.updateSubcategory(sub.copy(name = trimmed))
-            dao.cascadeRenameSubcategoryInTransactions(sub.parentCategory, oldName, trimmed)
-            dao.cascadeRenameSubcategoryInFixedBills(sub.parentCategory, oldName, trimmed)
+            dao.updateSubcategoryAndCascade(sub, newName)
         }
     }
 
@@ -1051,7 +1035,7 @@ class BudgetViewModel(
         sortOrder: Int = 0
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val existingAccounts = dao.getAllAccounts().first()
+            val existingAccounts = dao.getAllAccountsDirect()
             val effectiveOrder = if (sortOrder == 0 && existingAccounts.isNotEmpty()) {
                 existingAccounts.maxOf { it.sortOrder } + 1
             } else sortOrder
@@ -1257,9 +1241,9 @@ class BudgetViewModel(
         try {
             val root = JSONObject()
             val allTxs = dao.getAllTransactions()
-            val allCats = dao.getAllCategories().first()
-            val allSubcats = dao.getAllSubcategories().first()
-            val allAccounts = dao.getAllAccounts().first()
+            val allCats = dao.getAllCategoriesDirect()
+            val allSubcats = dao.getAllSubcategoriesDirect()
+            val allAccounts = dao.getAllAccountsDirect()
             val allFixedBills = dao.getAllFixedBills()
             val allBudgetPlans = dao.getAllBudgetPlans()
             val currentProfile = userProfile.value
@@ -1403,28 +1387,33 @@ class BudgetViewModel(
                 dao.clearAllCategories()
                 dao.clearAllSubcategories()
                 val catArray = root.getJSONArray("categories")
+                val catList = mutableListOf<CategoryEntity>()
                 for (i in 0 until catArray.length()) {
                     val c = catArray.getJSONObject(i)
-                    dao.insertCategory(CategoryEntity(name = c.getString("name"), type = TransactionType.valueOf(c.getString("type"))))
+                    catList.add(CategoryEntity(name = c.getString("name"), type = TransactionType.valueOf(c.getString("type"))))
                 }
+                dao.insertCategories(catList)
             }
             if (root.has("subcategories") && wipeExisting) {
                 val subArray = root.getJSONArray("subcategories")
+                val subList = mutableListOf<SubcategoryEntity>()
                 for (i in 0 until subArray.length()) {
                     val s = subArray.getJSONObject(i)
-                    dao.insertSubcategory(SubcategoryEntity(parentCategory = s.getString("parentCategory"), name = s.getString("name"), type = TransactionType.valueOf(s.getString("type"))))
+                    subList.add(SubcategoryEntity(parentCategory = s.getString("parentCategory"), name = s.getString("name"), type = TransactionType.valueOf(s.getString("type"))))
                 }
+                dao.insertSubcategories(subList)
             }
             if (root.has("accounts") && wipeExisting) {
                 dao.clearAllAccounts()
                 val accArray = root.getJSONArray("accounts")
+                val accList = mutableListOf<AccountEntity>()
                 for (i in 0 until accArray.length()) {
                     val a = accArray.getJSONObject(i)
                     val accType = if (a.has("accountType")) a.getString("accountType") else a.optString("type", "Operating")
                     val sortOrder = a.optInt("sortOrder", i)
                     val minBal = a.optDouble("minBalance", 0.0)
                     val isArchived = a.optBoolean("isArchived", false)
-                    dao.insertAccount(
+                    accList.add(
                         AccountEntity(
                             accountName = a.getString("accountName"),
                             startingBalance = a.getDouble("startingBalance"),
@@ -1435,6 +1424,7 @@ class BudgetViewModel(
                         )
                     )
                 }
+                dao.insertAccounts(accList)
             }
             if (root.has("fixedBills")) {
                 val billsArray = root.getJSONArray("fixedBills")
@@ -1566,7 +1556,7 @@ class BudgetViewModel(
 
             val countInIter = dao.getFixedBillCount(currentIterMonth, currentIterYear)
             if (countInIter == 0) {
-                val sourceBills = dao.getFixedBillsForMonth(prevMonth, prevYear).first().ifEmpty { latestKnownBills }
+                val sourceBills = dao.getFixedBillsForMonthDirect(prevMonth, prevYear).ifEmpty { latestKnownBills }
                 if (sourceBills.isNotEmpty()) {
                     val cloned = sourceBills.distinctBy {
                         "${it.title.trim().lowercase()}_${it.category.trim().lowercase()}_${it.type.name}"
@@ -1589,7 +1579,7 @@ class BudgetViewModel(
                     latestKnownBills = cloned
                 }
             } else {
-                latestKnownBills = dao.getFixedBillsForMonth(currentIterMonth, currentIterYear).first()
+                latestKnownBills = dao.getFixedBillsForMonthDirect(currentIterMonth, currentIterYear)
             }
         }
     }
