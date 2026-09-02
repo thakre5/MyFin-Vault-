@@ -268,7 +268,7 @@ interface BudgetDao {
     suspend fun clearAllTransactions()
 
     // ========================================================================
-    // 7. Cascading Rename Operations
+    // 7. Cascading Rename & Cleanup Operations
     // ========================================================================
     @Query("UPDATE transactions SET accountName = :newName WHERE accountName = :oldName COLLATE NOCASE")
     suspend fun cascadeRenameAccountInTransactions(oldName: String, newName: String)
@@ -300,8 +300,11 @@ interface BudgetDao {
     @Query("UPDATE fixed_bills SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName")
     suspend fun cascadeRenameSubcategoryInFixedBills(parentCat: String, oldName: String, newName: String)
 
-    @Query("UPDATE transactions SET category = 'General' WHERE category = :oldCategory")
+    @Query("UPDATE transactions SET category = 'General', subcategory = 'General' WHERE category = :oldCategory")
     suspend fun reassignOrphanedTransactionsToGeneral(oldCategory: String)
+
+    @Query("UPDATE fixed_bills SET category = 'General', subcategory = 'General' WHERE category = :oldCategory")
+    suspend fun reassignOrphanedFixedBillsToGeneral(oldCategory: String)
 
     // ========================================================================
     // 8. Atomic Transactions for Safe Migrations & Reordering
@@ -328,7 +331,8 @@ interface BudgetDao {
             sortOrder = sortOrder
         )
 
-        if (cleanOldName.equals(cleanNewName, ignoreCase = true)) {
+        // Strict comparison to ensure case-only renames (e.g., "hdfc" -> "HDFC") delete the old casing
+        if (cleanOldName == cleanNewName) {
             insertAccount(updatedAccount)
         } else {
             insertAccount(updatedAccount)
@@ -357,6 +361,15 @@ interface BudgetDao {
     }
 
     @Transaction
+    suspend fun deleteCategoryAndCascade(category: CategoryEntity) {
+        reassignOrphanedTransactionsToGeneral(category.name)
+        reassignOrphanedFixedBillsToGeneral(category.name)
+        deleteSubcategoriesForParent(category.name)
+        deleteBudgetPlansForCategory(category.name)
+        deleteCategory(category)
+    }
+
+    @Transaction
     suspend fun updateSubcategoryAndCascade(
         oldSubcategory: SubcategoryEntity,
         newName: String
@@ -378,9 +391,10 @@ interface BudgetDao {
 
     @Transaction
     suspend fun reorderAccounts(orderedAccounts: List<AccountEntity>) {
-        orderedAccounts.forEachIndexed { index, account ->
-            insertAccount(account.copy(sortOrder = index))
+        val updated = orderedAccounts.mapIndexed { index, account ->
+            account.copy(sortOrder = index)
         }
+        insertAccounts(updated)
     }
 
     // ========================================================================
