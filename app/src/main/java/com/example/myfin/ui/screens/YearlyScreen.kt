@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -30,9 +31,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -51,8 +54,11 @@ import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+
+private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 private val HeroDarkGradient = Brush.verticalGradient(
     colors = listOf(
@@ -93,10 +99,6 @@ fun YearlyScreen(
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
     val pageTitles = remember { listOf("Executive", "12 Months", "Audit") }
 
-    val monthNames = remember {
-        listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-    }
-
     // Relative Calendar Timeline Checks
     val currentCal = remember { Calendar.getInstance() }
     val thisYear = currentCal.get(Calendar.YEAR)
@@ -126,7 +128,7 @@ fun YearlyScreen(
 
             MonthDataSummary(
                 monthIndex = m,
-                monthName = monthNames[m - 1],
+                monthName = MONTH_NAMES[m - 1],
                 income = inc,
                 expenses = exp,
                 assets = ast,
@@ -200,9 +202,7 @@ fun YearlyScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // =========================================================
             // 1. PINNED TOP BAR (WITH YEAR PICKER CAPSULE & DISSOLVE)
-            // =========================================================
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -289,9 +289,7 @@ fun YearlyScreen(
                 )
             }
 
-            // =========================================================
             // 2. FULL-SCREEN HORIZONTAL PAGER
-            // =========================================================
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
@@ -308,7 +306,7 @@ fun YearlyScreen(
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
                             // Dark Spline Topography Hero Card
-                            item {
+                            item(key = "executive_hero_card") {
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -409,7 +407,7 @@ fun YearlyScreen(
                             }
 
                             // Wealth Goal Execution Capsule
-                            item {
+                            item(key = "wealth_goal_card") {
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -457,7 +455,7 @@ fun YearlyScreen(
                             }
 
                             // Macro Metrics Row
-                            item {
+                            item(key = "macro_metrics_row") {
                                 val activeMonthsCount = if (uiState.selectedYear == thisYear) thisMonth.coerceAtLeast(1) else 12
                                 val avgMonthlyBurn = annualExpenses / activeMonthsCount
                                 val avgDailyBurn = annualExpenses / (activeMonthsCount * 30).coerceAtLeast(1)
@@ -523,7 +521,7 @@ fun YearlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            item {
+                            item(key = "radar_header") {
                                 Text(text = "Annual Category Pareto", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
                                 Text(text = "Cumulative spend distribution across entire year", fontSize = 11.5.sp, color = TextMuted)
                                 Spacer(modifier = Modifier.height(14.dp))
@@ -552,13 +550,13 @@ fun YearlyScreen(
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
 
-                            item {
+                            item(key = "outflow_segments_title") {
                                 Text(text = "Highest Outflow Segments", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
                                 Spacer(modifier = Modifier.height(10.dp))
                             }
 
                             if (expenseBreakdown.isEmpty()) {
-                                item {
+                                item(key = "empty_expenses") {
                                     Surface(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(16.dp),
@@ -570,8 +568,7 @@ fun YearlyScreen(
                                     }
                                 }
                             } else {
-                                items(expenseBreakdown.size) { idx ->
-                                    val item = expenseBreakdown[idx]
+                                items(expenseBreakdown, key = { it.category }) { item ->
                                     val ratio = if (annualExpenses > 0) (item.totalActualAmount / annualExpenses).toFloat() else 0f
 
                                     Surface(
@@ -616,9 +613,7 @@ fun YearlyScreen(
             }
         }
 
-        // =========================================================
         // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
-        // =========================================================
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -636,9 +631,7 @@ fun YearlyScreen(
                 .zIndex(2.5f)
         )
 
-        // =========================================================
         // 4. FLOATING PAGER INDICATOR PILL (ANCHORED BOTTOM LEFT)
-        // =========================================================
         FloatingPagerIndicator(
             pagerState = pagerState,
             pageTitles = pageTitles,
@@ -650,9 +643,7 @@ fun YearlyScreen(
                 .zIndex(3.5f)
         )
 
-        // =========================================================
         // 5. STANDARDIZED FLOATING BOTTOM NAVIGATION DOCK WITH FAB
-        // =========================================================
         AppBottomDock(
             currentSelection = NavigationTarget.YEARLY_VIEW,
             onSelectTarget = { target ->
@@ -749,23 +740,29 @@ private fun LiquidGoalPillCanvas(
         val h = size.height
         val cornerRadius = CornerRadius(w / 2f, w / 2f)
 
-        drawRoundRect(
-            color = BorderLight.copy(alpha = 0.35f),
-            size = Size(w, h),
-            cornerRadius = cornerRadius
-        )
+        val pillPath = Path().apply {
+            addRoundRect(
+                RoundRect(0f, 0f, w, h, cornerRadius)
+            )
+        }
 
-        val fillH = h * fillPercentage.coerceIn(0.08f, 1f)
-        val fillTop = h - fillH
+        // Outer container track
+        drawPath(pillPath, color = BorderLight.copy(alpha = 0.35f))
 
-        drawRoundRect(
-            brush = Brush.verticalGradient(
-                listOf(AccentPurple, Color(0xFF8B5CF6))
-            ),
-            topLeft = Offset(0f, fillTop),
-            size = Size(w, fillH),
-            cornerRadius = cornerRadius
-        )
+        // Liquid fill clipped strictly within container boundaries
+        clipPath(pillPath) {
+            val fillH = h * fillPercentage.coerceIn(0f, 1f)
+            val fillTop = h - fillH
+            drawRect(
+                brush = Brush.verticalGradient(
+                    listOf(AccentPurple, Color(0xFF8B5CF6)),
+                    startY = fillTop,
+                    endY = h
+                ),
+                topLeft = Offset(0f, fillTop),
+                size = Size(w, fillH)
+            )
+        }
     }
 }
 
@@ -778,6 +775,7 @@ private fun AnnualRadarSpiderCanvas(
         val c = center
         val maxR = size.minDimension * 0.44f
 
+        // Concentric polygonal web rings
         for (ring in 1..3) {
             val r = maxR * (ring / 3f)
             val ringPath = Path()
@@ -791,21 +789,32 @@ private fun AnnualRadarSpiderCanvas(
             drawPath(ringPath, color = BorderLight.copy(alpha = 0.5f), style = Stroke(width = 1.dp.toPx()))
         }
 
-        val maxAmount = categorySums.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
-        val polyPath = Path()
+        // Radial axis spokes
         for (i in 0 until numAxes) {
-            val amt = categorySums.getOrNull(i) ?: 0.0
-            val ratio = if (categorySums.isNotEmpty()) (amt / maxAmount).toFloat().coerceIn(0.15f, 0.95f) else 0.2f
-            val r = maxR * ratio
             val angle = (i * 2 * Math.PI / numAxes) - Math.PI / 2
-            val x = c.x + (r * cos(angle)).toFloat()
-            val y = c.y + (r * sin(angle)).toFloat()
-            if (i == 0) polyPath.moveTo(x, y) else polyPath.lineTo(x, y)
+            val x = c.x + (maxR * cos(angle)).toFloat()
+            val y = c.y + (maxR * sin(angle)).toFloat()
+            drawLine(color = BorderLight.copy(alpha = 0.6f), start = c, end = Offset(x, y), strokeWidth = 1.dp.toPx())
         }
-        polyPath.close()
 
-        drawPath(polyPath, color = AccentPurple.copy(alpha = 0.22f))
-        drawPath(polyPath, color = AccentPurple, style = Stroke(width = 2.dp.toPx()))
+        val hasData = categorySums.any { it > 0.0 }
+        if (hasData) {
+            val maxAmount = categorySums.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+            val polyPath = Path()
+            for (i in 0 until numAxes) {
+                val amt = categorySums.getOrNull(i) ?: 0.0
+                val ratio = (amt / maxAmount).toFloat().coerceIn(0.12f, 0.95f)
+                val r = maxR * ratio
+                val angle = (i * 2 * Math.PI / numAxes) - Math.PI / 2
+                val x = c.x + (r * cos(angle)).toFloat()
+                val y = c.y + (r * sin(angle)).toFloat()
+                if (i == 0) polyPath.moveTo(x, y) else polyPath.lineTo(x, y)
+            }
+            polyPath.close()
+
+            drawPath(polyPath, color = AccentPurple.copy(alpha = 0.22f))
+            drawPath(polyPath, color = AccentPurple, style = Stroke(width = 2.dp.toPx()))
+        }
     }
 }
 
@@ -816,7 +825,17 @@ private fun MonthGridTimelineCard(
     onTapMonth: () -> Unit
 ) {
     val isSurplus = data.netSavings >= 0
+    val hasActivity = data.income > 0 || data.expenses > 0 || data.assets > 0
     val statusColor = if (data.isFuture) TextMuted else if (isSurplus) SoftGreen else SoftRed
+
+    val absSavings = abs(data.netSavings)
+    val formattedSavings = if (absSavings >= 1000) "${(absSavings / 1000).toInt()}k" else "${absSavings.toInt()}"
+    val badgeText = when {
+        data.isFuture -> "Planned"
+        !hasActivity -> "No Data"
+        isSurplus -> "+$currencySymbol$formattedSavings"
+        else -> "-$currencySymbol$formattedSavings"
+    }
 
     Surface(
         modifier = Modifier
@@ -840,7 +859,7 @@ private fun MonthGridTimelineCard(
                     color = statusColor.copy(alpha = 0.12f)
                 ) {
                     Text(
-                        text = if (data.isFuture) "Planned" else if (isSurplus) "+${currencySymbol}${(data.netSavings / 1000).toInt()}k" else "-${currencySymbol}${(data.netSavings / 1000).toInt()}k",
+                        text = badgeText,
                         fontSize = 9.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = statusColor,
@@ -852,10 +871,10 @@ private fun MonthGridTimelineCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = "${currencySymbol}${String.format(Locale.US, "%,.0f", data.expenses)}",
+                text = "$currencySymbol${String.format(Locale.US, "%,.0f", data.expenses)}",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
-                color = if (data.isFuture) TextMuted else TextDark
+                color = if (data.isFuture || !hasActivity) TextMuted else TextDark
             )
             Text(text = "Outflow Burn", fontSize = 10.sp, color = TextMuted)
 
@@ -869,9 +888,11 @@ private fun MonthGridTimelineCard(
                     .clip(CircleShape)
                     .background(BorderLight.copy(alpha = 0.4f))
             ) {
-                Box(modifier = Modifier.weight((data.income / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(SoftGreen))
-                Box(modifier = Modifier.weight((data.expenses / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(AccentPurple))
-                Box(modifier = Modifier.weight((data.assets / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(SoftTeal))
+                if (hasActivity) {
+                    Box(modifier = Modifier.weight((data.income / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(SoftGreen))
+                    Box(modifier = Modifier.weight((data.expenses / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(AccentPurple))
+                    Box(modifier = Modifier.weight((data.assets / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(SoftTeal))
+                }
             }
         }
     }
