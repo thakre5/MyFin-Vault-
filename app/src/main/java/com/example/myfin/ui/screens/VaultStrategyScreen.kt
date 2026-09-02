@@ -58,6 +58,7 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 
 enum class VaultTier(
     val title: String,
@@ -68,7 +69,7 @@ enum class VaultTier(
 ) {
     OPERATING("Operating", "Daily living & UPI spending", Color(0xFFE57A28), Color(0xFFFFF0D4), Icons.Default.AccountBalance),
     COMMITMENTS("Commitments", "AutoPay ring-fence & fixed bills", AccentPurple, Color(0xFFF3E5F5), Icons.Default.CreditCard),
-    FORTRESS("Fortress", "Untouchable emergency buffer", SoftTeal, Color(0xFFE0F7FA), Icons.Default.Security),
+    FORTRESS("Fortress", "Emergency savings & sweep FDs", SoftTeal, Color(0xFFE0F7FA), Icons.Default.Security),
     CASH("Cash", "Physical wallet & micro-spend", SoftGreen, Color(0xFFE6F8EF), Icons.Default.Payments)
 }
 
@@ -134,7 +135,6 @@ fun VaultStrategyScreen(
     var pendingEditConfirmation by remember { mutableStateOf<PendingEditConfirmation?>(null) }
     var accountToDelete by remember { mutableStateOf<AccountEntity?>(null) }
 
-    // Synchronized active and archived accounts
     val displayAccounts = remember(uiState.accounts) {
         uiState.accounts.filter { !it.isArchived }.sortedBy { it.sortOrder }
     }
@@ -162,6 +162,14 @@ fun VaultStrategyScreen(
     val cashTotal = remember(displayAccounts) {
         displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.CASH }.sumOf { it.currentBalance }
     }
+
+    // Fortress Auto-Sweep FD Logic
+    val fortressCap = remember(userProfile.fortressThreshold) {
+        if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
+    }
+    val fortressSavings = remember(fortTotal, fortressCap) { min(fortTotal, fortressCap) }
+    val fortressFd = remember(fortTotal, fortressCap) { max(0.0, fortTotal - fortressCap) }
+    val fortressSavingsFraction = if (fortressCap > 0) (fortressSavings / fortressCap).toFloat().coerceIn(0f, 1f) else 1f
 
     // Active Account Cash Flow Analysis
     val activeAccountTxs = remember(uiState.groupedTransactions, activeAccount?.accountName) {
@@ -206,7 +214,6 @@ fun VaultStrategyScreen(
         if (dailyBurnRate > 0 && bal > 0) (bal / dailyBurnRate).toInt() else 90
     }
 
-    // Ring-Fenced Commitments & AutoPay Routing Calculations
     val pendingBillsForAccount = remember(uiState.fixedBills, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         uiState.fixedBills.filter {
@@ -218,7 +225,7 @@ fun VaultStrategyScreen(
         pendingBillsForAccount.sumOf { it.amount }
     }
 
-    // True Strategic Surplus Engine with MAB Buffer Safeguard
+    // Surplus Engine Math
     val mabBuffer = remember(activeAccount) { activeAccount?.minBalance ?: 0.0 }
     val calculatedSweepSurplus = remember(activeAccount?.currentBalance, totalPendingBillsAmount, dailyBurnRate, daysRemaining, mabBuffer) {
         val bal = activeAccount?.currentBalance ?: 0.0
@@ -226,9 +233,8 @@ fun VaultStrategyScreen(
         (bal - mabBuffer - totalPendingBillsAmount - monthlyRemainingSpendProtection).coerceAtLeast(0.0)
     }
 
-    // Fortress Threshold Deficit Analysis
-    val fortressDeficit = remember(fortTotal, userProfile.fortressThreshold) {
-        (userProfile.fortressThreshold - fortTotal).coerceAtLeast(0.0)
+    val fortressDeficit = remember(fortTotal, fortressCap) {
+        (fortressCap - fortTotal).coerceAtLeast(0.0)
     }
 
     Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
@@ -321,7 +327,7 @@ fun VaultStrategyScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 105.dp)
             ) {
-                // Asset Allocation Donut Card
+                // Vault Asset Allocation Card
                 item {
                     Surface(
                         modifier = Modifier
@@ -357,7 +363,7 @@ fun VaultStrategyScreen(
                                         color = TextDark
                                     )
                                     Text(
-                                        text = "Liquidity distribution & fortress status",
+                                        text = "Liquidity distribution across accounts",
                                         fontSize = 11.sp,
                                         color = TextMuted
                                     )
@@ -444,31 +450,181 @@ fun VaultStrategyScreen(
                                     )
                                 }
                             }
+                        }
+                    }
 
-                            // Fortress Cushion Floor Warning / Status Banner
-                            if (fortressDeficit > 0) {
-                                Spacer(modifier = Modifier.height(14.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = SoftAmber.copy(alpha = 0.12f),
-                                    border = BorderStroke(0.6.dp, SoftAmber.copy(alpha = 0.4f))
-                                ) {
-                                    Row(
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
+                // Dedicated Fortress Emergency FD & Savings Split Card
+                item {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(3.dp, RoundedCornerShape(20.dp)),
+                        shape = RoundedCornerShape(20.dp),
+                        color = CardWhite,
+                        border = BorderStroke(1.dp, SoftTeal.copy(alpha = 0.25f))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            Color(0xFFFFFFFF),
+                                            SoftTeal.copy(alpha = 0.04f)
+                                        )
+                                    )
+                                )
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(SoftTeal.copy(alpha = 0.14f)),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Icons.Default.Shield, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(15.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Icon(
+                                            Icons.Default.Security,
+                                            contentDescription = null,
+                                            tint = SoftTeal,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
                                         Text(
-                                            text = "Fortress under target by ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressDeficit)}. Prioritize emergency sweep.",
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.SemiBold,
+                                            text = "Fortress Vault Split",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
                                             color = TextDark
+                                        )
+                                        Text(
+                                            text = "Liquid Cushion vs. Emergency FD",
+                                            fontSize = 10.5.sp,
+                                            color = TextMuted
                                         )
                                     }
                                 }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (fortressFd > 0) SoftTeal.copy(alpha = 0.12f) else SoftAmber.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = if (fortressFd > 0) "FD Active" else "Filling Cushion",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (fortressFd > 0) SoftTeal else SoftAmber,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Dual-Bucket Split Progress Bar
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(7.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(CanvasLight)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(fortressSavingsFraction.coerceAtLeast(0.02f))
+                                        .fillMaxHeight()
+                                        .background(SoftTeal)
+                                )
+                                if (fortressFd > 0) {
+                                    val fdFraction = (fortressFd / fortTotal.coerceAtLeast(1.0)).toFloat().coerceIn(0.05f, 0.95f)
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(fdFraction)
+                                            .fillMaxHeight()
+                                            .background(Color(0xFF0D9488))
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Sub-Bucket Breakdown Metrics
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Liquid Savings Cushion
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftTeal))
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text("Liquid Cushion", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressSavings)}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextDark
+                                    )
+                                    Text(
+                                        text = "Cap: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressCap)}",
+                                        fontSize = 9.5.sp,
+                                        color = TextMuted
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .height(32.dp)
+                                        .width(1.dp)
+                                        .background(BorderLight.copy(alpha = 0.7f))
+                                )
+
+                                // Emergency Fixed Deposit (FD)
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = 12.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF0D9488)))
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text("Emergency FD", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressFd)}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (fortressFd > 0) Color(0xFF0D9488) else TextMuted
+                                    )
+                                    Text(
+                                        text = if (fortressFd > 0) "Auto-sweep excess" else "No excess swept",
+                                        fontSize = 9.5.sp,
+                                        color = TextMuted
+                                    )
+                                }
+                            }
+
+                            if (fortressDeficit > 0) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "• Inflow needed: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressDeficit)} to fill liquid cushion before FD auto-sweeps.",
+                                    fontSize = 10.5.sp,
+                                    color = SoftAmber,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }
@@ -476,7 +632,7 @@ fun VaultStrategyScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // Connected Bank Accounts Carousel Header with Reorder Trigger
+                // Connected Bank Accounts Header
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -550,7 +706,7 @@ fun VaultStrategyScreen(
                     }
                 }
 
-                // Account Cashflow Matrix & MAB Breach Monitor
+                // Focused Account Cashflow Matrix & MAB Protection
                 activeAccount?.let { acc ->
                     item {
                         val isMabBreached = acc.minBalance > 0 && acc.currentBalance < acc.minBalance
@@ -575,7 +731,7 @@ fun VaultStrategyScreen(
                                     border = BorderStroke(0.6.dp, SoftRed.copy(alpha = 0.4f))
                                 ) {
                                     Text(
-                                        text = "MAB Penalty Risk (-${userProfile.currencySymbol}${deficit.toInt()})",
+                                        text = "! MAB Penalty Risk (-${userProfile.currencySymbol}${deficit.toInt()})",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = SoftRed,
@@ -930,7 +1086,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Full Account Modifier Bottom Sheet (Includes MAB & Archive Controls)
+        // Edit Account Sheet
         editingAccount?.let { acc ->
             var nameText by remember(acc) { mutableStateOf(acc.accountName) }
             var selectedRole by remember(acc) { mutableStateOf(getVaultTier(acc.accountType, acc.accountName)) }
@@ -1313,7 +1469,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Strategic Vault Routing Breakdown Details Bottom Sheet
+        // Routing & Surplus Engine Breakdown Details Sheet
         if (showRoutingDetailsSheet) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -1445,7 +1601,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Delete Account Alert with Referential Check
+        // Delete Account Alert
         accountToDelete?.let { acc ->
             AlertDialog(
                 onDismissRequest = { accountToDelete = null },
@@ -1476,7 +1632,7 @@ fun VaultStrategyScreen(
             )
         }
 
-        // 3-Tier Transfer / Sweep Bottom Sheet with Subtype Categorization
+        // Transfer Bottom Sheet
         if (showTransferSheet) {
             var fromAccount by remember { mutableStateOf(activeAccount?.accountName ?: accountNames.firstOrNull().orEmpty()) }
             var toAccount by remember { mutableStateOf(accountNames.firstOrNull { it != fromAccount } ?: "") }
@@ -1651,7 +1807,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Add Account Bottom Sheet (Includes MAB Presets)
+        // Add Account Bottom Sheet
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
             var balanceText by remember { mutableStateOf("") }
@@ -1783,7 +1939,7 @@ fun VaultStrategyScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("1. Operating Vault: Receives income, handles daily living expenses, groceries, and UPI transfers. Kept at 1-2 months runway.", fontSize = 12.sp, color = TextDark)
                         Text("2. Commitments Vault: Ring-fences recurring EMIs, AutoPay bills, utilities, and rent so money cannot accidentally be spent.", fontSize = 12.sp, color = TextDark)
-                        Text("3. Fortress Vault: High-security untouchable emergency buffer designed to survive income interruptions.", fontSize = 12.sp, color = TextDark)
+                        Text("3. Fortress Vault: High-security emergency buffer. Splits automatically into liquid savings (instant cushion) and high-yield sweep FDs (excess).", fontSize = 12.sp, color = TextDark)
                         Text("4. Cash Wallet: Physical cash on hand for micro-payments.", fontSize = 12.sp, color = TextDark)
                     }
                 },
