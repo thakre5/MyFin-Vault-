@@ -77,7 +77,6 @@ import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import java.util.Calendar
-import java.util.Locale
 
 enum class GatewayStage {
     CAROUSEL,
@@ -447,7 +446,7 @@ fun OnboardingStep0WelcomeGateway(
 
                                     OutlinedTextField(
                                         value = emailAddress,
-                                        onEmailChange = onEmailChange,
+                                        onValueChange = onEmailChange,
                                         placeholder = { Text("Email Address", fontSize = 13.5.sp, color = TextMuted) },
                                         leadingIcon = {
                                             Icon(Icons.Outlined.Mail, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
