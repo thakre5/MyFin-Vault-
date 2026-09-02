@@ -436,8 +436,20 @@ fun PinLockScreen(
                     Button(
                         onClick = {
                             if (recoveryStep == 1) {
-                                val isDobMatched = securityManager.verifyDob(recoveryDobInput) ||
-                                        (recoveryDob.isNotBlank() && recoveryDobInput.filter { it.isDigit() } == recoveryDob.filter { it.isDigit() })
+                                val inputDigits = recoveryDobInput.filter { it.isDigit() }
+                                val expectedDigits = recoveryDob.filter { it.isDigit() }
+
+                                val isDobMatched = expectedDigits.isNotBlank() && (
+                                    inputDigits == expectedDigits ||
+                                    (inputDigits.length == 8 && expectedDigits.length == 8 && (
+                                        (inputDigits.take(2) == expectedDigits.takeLast(2) &&
+                                         inputDigits.substring(2, 4) == expectedDigits.substring(4, 6) &&
+                                         inputDigits.takeLast(4) == expectedDigits.take(4)) ||
+                                        (inputDigits.take(4) == expectedDigits.takeLast(4) &&
+                                         inputDigits.substring(4, 6) == expectedDigits.substring(2, 4) &&
+                                         inputDigits.takeLast(2) == expectedDigits.take(2))
+                                    ))
+                                )
 
                                 if (isDobMatched) {
                                     recoveryStep = 2
