@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
@@ -87,6 +88,7 @@ fun BudgetPlannerScreen(
     var editingCategory by remember { mutableStateOf<CategoryPerformance?>(null) }
     var showQuickSelectTargetSheet by remember { mutableStateOf(false) }
     var showCopyPlanDialog by remember { mutableStateOf(false) }
+    var showMonthPicker by remember { mutableStateOf(false) }
 
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
     val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -278,18 +280,27 @@ fun BudgetPlannerScreen(
                         )
 
                         Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable { showMonthPicker = true },
                             shape = RoundedCornerShape(18.dp),
                             color = CardWhite,
                             border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
                             shadowElevation = 2.dp
                         ) {
-                            Text(
-                                text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextDark,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(16.dp))
+                            }
                         }
                     }
 
@@ -512,7 +523,7 @@ fun BudgetPlannerScreen(
                         val committedAmount = remember(uiState.fixedBills, cat) {
                             uiState.fixedBills.filter { it.category == cat.category && it.type == cat.type }.sumOf { it.amount }
                         }
-                        val isLocked = (isPastMonth) || (isPastFifth && cat.plannedAmount > 0.0)
+                        val isLocked = isPastMonth || (isCurrentMonth && isPastFifth && cat.plannedAmount > 0.0)
 
                         BudgetCategoryCleanCard(
                             category = cat,
@@ -522,7 +533,7 @@ fun BudgetPlannerScreen(
                             onClick = {
                                 if (isPastMonth) {
                                     Toast.makeText(context, "Historical months cannot be modified.", Toast.LENGTH_SHORT).show()
-                                } else if (isPastFifth && cat.plannedAmount > 0.0) {
+                                } else if (isCurrentMonth && isPastFifth && cat.plannedAmount > 0.0) {
                                     lockedCategoryAlert = cat
                                 } else {
                                     categoryToConfirm = cat
@@ -553,7 +564,7 @@ fun BudgetPlannerScreen(
                 .zIndex(2.5f)
         )
 
-        // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH TAB-AWARE FAB
+        // 4. FLOATING BOTTOM DOCK WITH TAB-AWARE FAB
         AppBottomDock(
             currentSelection = NavigationTarget.BUDGET_PLANNER,
             onSelectTarget = { target ->
@@ -562,6 +573,7 @@ fun BudgetPlannerScreen(
                     NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
                     NavigationTarget.REPORTS_ANALYTICS -> onNavigateToAnalytics()
+                    NavigationTarget.YEARLY_VIEW -> onNavigateToYearly()
                     NavigationTarget.BUDGET_PLANNER -> { /* Active */ }
                     else -> {}
                 }
@@ -572,6 +584,61 @@ fun BudgetPlannerScreen(
                 .fillMaxSize()
                 .zIndex(4f)
         )
+
+        // Month / Year Picker Modal Dialog
+        if (showMonthPicker) {
+            Dialog(onDismissRequest = { showMonthPicker = false }) {
+                Surface(shape = RoundedCornerShape(20.dp), color = CardWhite, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(text = "Select Planning Timeframe", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { viewModel.selectYear(uiState.selectedYear - 1) }) {
+                                Icon(Icons.Default.ChevronLeft, contentDescription = "Prev Year")
+                            }
+                            Text(text = "${uiState.selectedYear}", fontWeight = FontWeight.Black, fontSize = 16.sp)
+                            IconButton(onClick = { viewModel.selectYear(uiState.selectedYear + 1) }) {
+                                Icon(Icons.Default.ChevronRight, contentDescription = "Next Year")
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            for (i in 0 until 4) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    for (j in 0 until 3) {
+                                        val monthIdx = i * 3 + j + 1
+                                        val isSelected = uiState.selectedMonth == monthIdx
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(if (isSelected) AccentPurple else CanvasLight)
+                                                .clickable {
+                                                    viewModel.selectMonth(monthIdx)
+                                                    showMonthPicker = false
+                                                }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = months[monthIdx - 1],
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 12.sp,
+                                                color = if (isSelected) Color.White else TextDark
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // Alert: Locked Past the 5th
         lockedCategoryAlert?.let { cat ->
@@ -689,7 +756,7 @@ fun BudgetPlannerScreen(
 
                     LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
                         items(displayedCategories) { cat ->
-                            val isFrozen = isPastFifth && (cat.plannedAmount > 0.0)
+                            val isFrozen = isCurrentMonth && isPastFifth && (cat.plannedAmount > 0.0)
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -864,7 +931,8 @@ fun BudgetPlannerScreen(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                viewModel.updateCategoryBudget(cat.category, 0.0, cat.type)
+                                val resetTarget = if (committedAutoPay > 0) committedAutoPay else 0.0
+                                viewModel.updateCategoryBudget(cat.category, resetTarget, cat.type)
                                 editingCategory = null
                             },
                             modifier = Modifier.weight(1f),
@@ -872,7 +940,11 @@ fun BudgetPlannerScreen(
                             border = BorderStroke(1.dp, SoftRed.copy(alpha = 0.5f)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftRed)
                         ) {
-                            Text("Reset", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                            Text(
+                                text = if (committedAutoPay > 0) "Reset to Floor" else "Reset",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
                         }
 
                         Button(
