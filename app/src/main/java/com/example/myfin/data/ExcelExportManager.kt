@@ -24,7 +24,7 @@ object ExcelExportManager {
             val outputStream = context.contentResolver.openOutputStream(uri) ?: return@withContext false
 
             OutputStreamWriter(outputStream, Charsets.UTF_8).use { writer ->
-                // Write UTF-8 Byte Order Mark (BOM) so Microsoft Excel renders formatting/currencies accurately
+                // Write UTF-8 Byte Order Mark (BOM) so Microsoft Excel renders UTF-8 currency symbols properly
                 writer.write("\uFEFF")
 
                 // SECTION 1: VAULT ACCOUNTS OVERVIEW
@@ -32,7 +32,7 @@ object ExcelExportManager {
                 writer.write("Account Name,Type,Starting Balance ($currencySymbol),Current Balance ($currencySymbol),Minimum Balance (MAB),Status\n")
                 allAccounts.forEach { acc ->
                     val status = if (acc.isArchived) "Archived" else "Active"
-                    writer.write("\"${escapeCsv(acc.accountName)}\",\"${acc.accountType}\",${acc.startingBalance},${acc.currentBalance},${acc.minBalance},\"$status\"\n")
+                    writer.write("\"${sanitizeCsv(acc.accountName)}\",\"${sanitizeCsv(acc.accountType)}\",${acc.startingBalance},${acc.currentBalance},${acc.minBalance},\"$status\"\n")
                 }
                 writer.write("\n\n")
 
@@ -43,7 +43,7 @@ object ExcelExportManager {
                     val status = if (bill.isPaid) "Settled" else "Pending"
                     val dueDayStr = bill.dueDay?.let { "Day $it" } ?: "Not Set"
                     writer.write(
-                        "\"${escapeCsv(bill.title)}\",\"${bill.type.name}\",\"${escapeCsv(bill.category)}\",\"${escapeCsv(bill.subcategory)}\",${bill.amount},\"${escapeCsv(bill.accountName)}\",\"$dueDayStr\",\"$status\",${bill.month},${bill.year}\n"
+                        "\"${sanitizeCsv(bill.title)}\",\"${bill.type.name}\",\"${sanitizeCsv(bill.category)}\",\"${sanitizeCsv(bill.subcategory)}\",${bill.amount},\"${sanitizeCsv(bill.accountName)}\",\"$dueDayStr\",\"$status\",${bill.month},${bill.year}\n"
                     )
                 }
                 writer.write("\n\n")
@@ -56,7 +56,7 @@ object ExcelExportManager {
                     val dest = tx.toAccountName ?: ""
                     val subtype = if (tx.transferSubtype != TransferSubtype.NONE) tx.transferSubtype.name else ""
                     writer.write(
-                        "\"$dateStr\",\"${escapeCsv(tx.title)}\",\"${tx.type.name}\",\"${escapeCsv(tx.category)}\",\"${escapeCsv(tx.subcategory)}\",${tx.amount},\"${escapeCsv(tx.accountName)}\",\"${escapeCsv(dest)}\",\"$subtype\",${tx.month},${tx.year}\n"
+                        "\"$dateStr\",\"${sanitizeCsv(tx.title)}\",\"${tx.type.name}\",\"${sanitizeCsv(tx.category)}\",\"${sanitizeCsv(tx.subcategory)}\",${tx.amount},\"${sanitizeCsv(tx.accountName)}\",\"${sanitizeCsv(dest)}\",\"$subtype\",${tx.month},${tx.year}\n"
                     )
                 }
             }
@@ -68,7 +68,12 @@ object ExcelExportManager {
         }
     }
 
-    private fun escapeCsv(value: String): String {
-        return value.replace("\"", "\"\"")
+    private fun sanitizeCsv(value: String): String {
+        var clean = value.replace("\"", "\"\"")
+        // Neutralize CSV formula execution in spreadsheet software
+        if (clean.startsWith("=") || clean.startsWith("+") || clean.startsWith("-") || clean.startsWith("@")) {
+            clean = "\t$clean"
+        }
+        return clean
     }
 }
