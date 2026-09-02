@@ -6,3 +6,11 @@ enum class TransactionType {
     ASSET,
     TRANSFER
 }
+
+enum class TransferSubtype {
+    NONE,
+    BILL_FUNDING,
+    WEALTH_ALLOCATION,
+    REBALANCE,
+    CASH_WITHDRAWAL
+}
