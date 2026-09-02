@@ -160,14 +160,15 @@ fun ReportsAnalyticsScreen(
             TimeRangeFilter.THIS_WEEK -> {
                 val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
                 val offset = (dayOfWeek + 5) % 7
-                calendar.add(Calendar.DAY_OF_MONTH, -offset)
-                calendar.set(Calendar.HOUR_OF_DAY, 0)
-                calendar.set(Calendar.MINUTE, 0)
-                calendar.set(Calendar.SECOND, 0)
-                calendar.set(Calendar.MILLISECOND, 0)
-                val startOfWeek = calendar.timeInMillis
-                calendar.add(Calendar.DAY_OF_MONTH, 7)
-                val endOfWeek = calendar.timeInMillis
+                val startCal = Calendar.getInstance().apply {
+                    add(Calendar.DAY_OF_MONTH, -offset)
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val startOfWeek = startCal.timeInMillis
+                val endOfWeek = startOfWeek + (7L * 24 * 60 * 60 * 1000)
                 allTransactions.filter { it.date in startOfWeek until endOfWeek }
             }
             TimeRangeFilter.THIS_MONTH -> {
@@ -179,9 +180,9 @@ fun ReportsAnalyticsScreen(
                 }
             }
             TimeRangeFilter.LAST_MONTH -> {
-                calendar.add(Calendar.MONTH, -1)
-                val lastMonth = calendar.get(Calendar.MONTH)
-                val targetYear = calendar.get(Calendar.YEAR)
+                val targetCal = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
+                val lastMonth = targetCal.get(Calendar.MONTH)
+                val targetYear = targetCal.get(Calendar.YEAR)
                 allTransactions.filter { tx ->
                     val txCal = Calendar.getInstance().apply { timeInMillis = tx.date }
                     txCal.get(Calendar.MONTH) == lastMonth && txCal.get(Calendar.YEAR) == targetYear
@@ -218,14 +219,15 @@ fun ReportsAnalyticsScreen(
                 val days = listOf("M", "T", "W", "T", "F", "S", "S")
                 val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
                 val offset = (dayOfWeek + 5) % 7
-                calendar.add(Calendar.DAY_OF_MONTH, -offset)
-                calendar.set(Calendar.HOUR_OF_DAY, 0)
-                calendar.set(Calendar.MINUTE, 0)
-                calendar.set(Calendar.SECOND, 0)
-                calendar.set(Calendar.MILLISECOND, 0)
-                val startOfWeek = calendar.timeInMillis
-                calendar.add(Calendar.DAY_OF_MONTH, 7)
-                val endOfWeek = calendar.timeInMillis
+                val startCal = Calendar.getInstance().apply {
+                    add(Calendar.DAY_OF_MONTH, -offset)
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val startOfWeek = startCal.timeInMillis
+                val endOfWeek = startOfWeek + (7L * 24 * 60 * 60 * 1000)
 
                 val weekTxs = filteredTransactions.filter { it.date in startOfWeek until endOfWeek && it.type == TransactionType.EXPENSE }
                 val essentialSums = DoubleArray(7) { 0.0 }
@@ -1386,7 +1388,7 @@ private fun InteractiveDualGlowWaveCanvas(
                 style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
             )
 
-            // Touch Inspection Marker
+            // Touch Marker
             touchIndex?.let { idx ->
                 val pt = ptsWave1.getOrNull(idx)
                 if (pt != null) {
@@ -2161,10 +2163,8 @@ private fun MicroFrequencyStripCanvas(transactions: List<TransactionEntity>) {
         val now = System.currentTimeMillis()
         val oneDayMillis = 86400000L
         for (tx in transactions) {
-            val diffDays = ((now - tx.date) / oneDayMillis).toInt()
-            if (diffDays in 0 until 28) {
-                buckets[27 - diffDays]++
-            }
+            val diffDays = ((now - tx.date) / oneDayMillis).toInt().coerceIn(0, 27)
+            buckets[27 - diffDays]++
         }
         buckets
     }
