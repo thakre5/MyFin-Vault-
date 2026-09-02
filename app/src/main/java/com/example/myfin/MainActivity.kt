@@ -26,7 +26,6 @@ import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.onboarding.MultiStepOnboardingFlow
 import com.example.myfin.ui.screens.*
-import com.example.myfin.ui.screens.SettingsActiveSheet
 import com.example.myfin.ui.theme.MyfinTheme
 
 class MainActivity : FragmentActivity() {
@@ -53,7 +52,10 @@ class MainActivity : FragmentActivity() {
         lifecycle.addObserver(LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_STOP -> {
-                    securityManager.recordAppBackgrounded()
+                    // Avoid recording background time on screen rotation or configuration changes
+                    if (!isChangingConfigurations) {
+                        securityManager.recordAppBackgrounded()
+                    }
                 }
                 Lifecycle.Event.ON_START -> {
                     if (securityManager.shouldLockOnResume()) {
