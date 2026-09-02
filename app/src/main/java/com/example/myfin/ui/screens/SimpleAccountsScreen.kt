@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -46,6 +47,10 @@ import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
+import com.example.myfin.ui.components.AppBottomDock
+import com.example.myfin.ui.components.DockFabAction
+import com.example.myfin.ui.components.NavigationTarget
+import com.example.myfin.ui.components.rememberAutoScrollVisibilityConnection
 import com.example.myfin.ui.theme.*
 import java.util.Locale
 import kotlin.math.abs
@@ -74,6 +79,8 @@ fun SimpleAccountsScreen(
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
+    val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
+
     var showActionMenu by remember { mutableStateOf(false) }
     var showTransferSheet by remember { mutableStateOf(false) }
     var showAddAccountSheet by remember { mutableStateOf(false) }
@@ -94,7 +101,27 @@ fun SimpleAccountsScreen(
     val totalInflow = remember(displayAccounts) { displayAccounts.sumOf { it.totalInflow } }
     val totalOutflow = remember(displayAccounts) { displayAccounts.sumOf { it.totalOutflow } }
 
-    Box(modifier = Modifier.fillMaxSize().background(CanvasLight)) {
+    val fabActions = remember {
+        listOf(
+            DockFabAction(
+                icon = Icons.Default.AddCard,
+                label = "Add Account",
+                onClick = { showAddAccountSheet = true }
+            ),
+            DockFabAction(
+                icon = Icons.Default.SyncAlt,
+                label = "Transfer",
+                onClick = { showTransferSheet = true }
+            )
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CanvasLight)
+            .nestedScroll(scrollConnection)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -182,7 +209,7 @@ fun SimpleAccountsScreen(
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 105.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 125.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // Overview Liquidity Card
@@ -506,141 +533,43 @@ fun SimpleAccountsScreen(
             }
         }
 
-        // Floating Bottom Navigation Dock
-        Row(
+        // 3. BOTTOM GRADIENT SCRIM
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
                 .fillMaxWidth()
-                .zIndex(4f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(60.dp)
-                    .shadow(16.dp, CircleShape),
-                shape = CircleShape,
-                color = CardWhite
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    DockPillTab(
-                        title = "Taxonomy",
-                        icon = Icons.Default.Category,
-                        isSelected = false,
-                        onClick = onNavigateToTaxonomy
+                .height(115.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            CanvasLight.copy(alpha = 0.85f),
+                            CanvasLight
+                        )
                     )
-                    DockPillTab(
-                        title = "Planner",
-                        icon = Icons.Default.PieChart,
-                        isSelected = false,
-                        onClick = onNavigateToPlanner
-                    )
-                    DockPillTab(
-                        title = "Vaults",
-                        icon = Icons.Default.AccountBalanceWallet,
-                        isSelected = true,
-                        onClick = { }
-                    )
-                    DockPillTab(
-                        title = "Monthly",
-                        icon = Icons.Default.Assessment,
-                        isSelected = false,
-                        onClick = onNavigateToDashboard
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            FloatingActionButton(
-                onClick = { showActionMenu = !showActionMenu },
-                containerColor = AccentPurple,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.size(60.dp).shadow(16.dp, CircleShape)
-            ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = "Actions",
-                    modifier = Modifier
-                        .size(28.dp)
-                        .rotate(if (showActionMenu) 45f else 0f)
                 )
-            }
-        }
+                .zIndex(2.5f)
+        )
 
-        if (showActionMenu) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(5f)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { showActionMenu = false }
-                    )
-            )
-
-            AnimatedVisibility(
-                visible = showActionMenu,
-                enter = scaleIn(transformOrigin = TransformOrigin(1f, 1f), animationSpec = tween(180)) + fadeIn(animationSpec = tween(180)),
-                exit = scaleOut(transformOrigin = TransformOrigin(1f, 1f), animationSpec = tween(150)) + fadeOut(animationSpec = tween(150)),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 94.dp, end = 20.dp)
-                    .zIndex(6f)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = CardWhite,
-                    shadowElevation = 10.dp,
-                    border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.2f)),
-                    modifier = Modifier.width(190.dp)
-                ) {
-                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showActionMenu = false
-                                    showAddAccountSheet = true
-                                }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.AddCard, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Add Account", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                        }
-
-                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showActionMenu = false
-                                    showTransferSheet = true
-                                }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.SyncAlt, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                        }
-                    }
+        // 4. STANDARDIZED FLOATING BOTTOM NAVIGATION DOCK WITH FAB
+        AppBottomDock(
+            currentSelection = NavigationTarget.VAULT_ACCOUNTS,
+            onSelectTarget = { target ->
+                when (target) {
+                    NavigationTarget.MONTHLY_VIEW -> onNavigateToDashboard()
+                    NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
+                    NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
+                    NavigationTarget.REPORTS_ANALYTICS -> onNavigateToVaultAnalytics()
+                    NavigationTarget.VAULT_ACCOUNTS -> { /* Active */ }
+                    else -> {}
                 }
-            }
-        }
+            },
+            fabActions = fabActions,
+            isVisible = isDockVisible.value,
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(4f)
+        )
 
         // Edit Account Bottom Sheet
         editingAccount?.let { acc ->
@@ -1109,36 +1038,6 @@ fun SimpleAccountsScreen(
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DockPillTab(
-    title: String,
-    icon: ImageVector,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                icon,
-                contentDescription = title,
-                tint = if (isSelected) AccentPurple else TextMuted,
-                modifier = Modifier.size(17.dp)
-            )
-            if (isSelected) {
-                Spacer(modifier = Modifier.width(5.dp))
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = AccentPurple)
             }
         }
     }
