@@ -1,10 +1,24 @@
 package com.example.myfin.data
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 
 @Entity(
     tableName = "subcategories",
-    primaryKeys = ["parentCategory", "name", "type"]
+    primaryKeys = ["parentCategory", "name", "type"],
+    foreignKeys = [
+        ForeignKey(
+            entity = CategoryEntity::class,
+            parentColumns = ["name", "type"],
+            childColumns = ["parentCategory", "type"],
+            onDelete = ForeignKey.CASCADE,
+            onUpdate = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["parentCategory", "type"])
+    ]
 )
 data class SubcategoryEntity(
     val parentCategory: String,
