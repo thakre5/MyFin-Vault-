@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -29,7 +30,6 @@ class ReminderReceiver : BroadcastReceiver() {
                 val isBoot = intent?.action == Intent.ACTION_BOOT_COMPLETED ||
                         intent?.action == Intent.ACTION_MY_PACKAGE_REPLACED
 
-                // 1. If device rebooted, restore scheduled alarms without showing instant notifications
                 if (isBoot) {
                     if (profile.reminderEnabled) {
                         ReminderScheduler.scheduleDailyReminder(
@@ -41,7 +41,6 @@ class ReminderReceiver : BroadcastReceiver() {
                     return@launch
                 }
 
-                // 2. Exact alarms do not auto-repeat. Reschedule for tomorrow using saved profile settings
                 if (profile.reminderEnabled) {
                     ReminderScheduler.scheduleDailyReminder(
                         context,
@@ -50,7 +49,6 @@ class ReminderReceiver : BroadcastReceiver() {
                     )
                 }
 
-                // 3. Make sure notification channel exists
                 ReminderScheduler.createNotificationChannels(context)
 
                 val cal = Calendar.getInstance()
@@ -58,9 +56,8 @@ class ReminderReceiver : BroadcastReceiver() {
                 val currentMonth = cal.get(Calendar.MONTH) + 1
                 val currentYear = cal.get(Calendar.YEAR)
 
-                // 4. Targeted query for current month's fixed bills
                 val fixedBills = dao.getFixedBillsForMonthDirect(currentMonth, currentYear)
-                    .filter { !it.isPaid && it.dueDay != null }
+                    .filter { !it.isPaid && it.dueDay != null && it.dueDay in 1..31 }
 
                 val dueToday = fixedBills.filter { it.dueDay == currentDay }
                 val dueWithin48h = if (profile.isAutoPayReminderEnabled) {
@@ -105,13 +102,12 @@ class ReminderReceiver : BroadcastReceiver() {
                     .setContentIntent(pendingIntent)
                     .setAutoCancel(true)
 
-                // 5. Post notification safely with permission check
                 val hasPermission = ContextCompat.checkSelfPermission(
                     context,
                     Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED
 
-                if (hasPermission || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
+                if (hasPermission || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                     try {
                         NotificationManagerCompat.from(context).notify(1001, builder.build())
                     } catch (_: SecurityException) { }
