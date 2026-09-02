@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
+import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -148,7 +149,8 @@ fun TransactionDetailBottomSheet(
                         text = transaction.title,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDark
+                        color = TextDark,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -188,6 +190,22 @@ fun TransactionDetailBottomSheet(
                     )
                     HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
 
+                    if (transaction.type == TransactionType.TRANSFER && transaction.transferSubtype != TransferSubtype.NONE) {
+                        val subtypeLabel = when (transaction.transferSubtype) {
+                            TransferSubtype.BILL_FUNDING -> "Bill Funding"
+                            TransferSubtype.WEALTH_ALLOCATION -> "Fortress Sweep"
+                            TransferSubtype.REBALANCE -> "Vault Rebalance"
+                            TransferSubtype.CASH_WITHDRAWAL -> "Cash ATM Withdrawal"
+                            TransferSubtype.NONE -> "Unclassified"
+                        }
+                        DetailInfoRow(
+                            icon = Icons.Default.SyncAlt,
+                            label = "Transfer Classification",
+                            value = subtypeLabel
+                        )
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                    }
+
                     DetailInfoRow(
                         icon = Icons.Default.Schedule,
                         label = "Date & Time",
@@ -215,8 +233,8 @@ fun TransactionDetailBottomSheet(
                         onDismiss()
                         onDelete(transaction)
                     },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(13.dp),
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftRed),
                     border = BorderStroke(1.dp, SoftRed.copy(alpha = 0.5f))
                 ) {
@@ -230,8 +248,8 @@ fun TransactionDetailBottomSheet(
                         onDismiss()
                         onEdit(transaction)
                     },
-                    modifier = Modifier.weight(1.3f),
-                    shape = RoundedCornerShape(13.dp),
+                    modifier = Modifier.weight(1.3f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
                     Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
