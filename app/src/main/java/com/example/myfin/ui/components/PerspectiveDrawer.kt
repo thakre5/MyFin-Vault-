@@ -1,19 +1,21 @@
 package com.example.myfin.ui.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 
@@ -33,7 +35,7 @@ fun PerspectiveDrawer(
 
     val transitionProgress by animateFloatAsState(
         targetValue = if (isDrawerOpen) 1f else 0f,
-        animationSpec = tween(durationMillis = 320),
+        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
         label = "drawerAnimation"
     )
 
@@ -82,11 +84,13 @@ fun PerspectiveDrawer(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.18f * transitionProgress))
-                        .pointerInput(isDrawerOpen) {
-                            if (isDrawerOpen) {
-                                detectTapGestures { onCloseDrawer() }
-                            }
+                        .background(Color.Black.copy(alpha = 0.22f * transitionProgress))
+                        .clickable(
+                            enabled = isDrawerOpen,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            onCloseDrawer()
                         }
                 )
             }
