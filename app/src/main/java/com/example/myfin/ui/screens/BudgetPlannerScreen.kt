@@ -43,6 +43,8 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
 
+private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
 private val EXPENSE_PRIORITY = listOf(
     "Debt & Financial Obligations",
     "Utilities & Living Bills",
@@ -83,7 +85,6 @@ fun BudgetPlannerScreen(
     val userProfile by viewModel.userProfile.collectAsState()
 
     var selectedSegment by remember { mutableStateOf(TransactionType.EXPENSE) }
-    var categoryToConfirm by remember { mutableStateOf<CategoryPerformance?>(null) }
     var lockedCategoryAlert by remember { mutableStateOf<CategoryPerformance?>(null) }
     var editingCategory by remember { mutableStateOf<CategoryPerformance?>(null) }
     var showQuickSelectTargetSheet by remember { mutableStateOf(false) }
@@ -91,7 +92,6 @@ fun BudgetPlannerScreen(
     var showMonthPicker by remember { mutableStateOf(false) }
 
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
-    val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
     // Timeline calculations for 5th-of-the-month discipline freeze
     val todayCal = remember { Calendar.getInstance() }
@@ -116,10 +116,12 @@ fun BudgetPlannerScreen(
     } else 0
     val isOverAllocated = effectiveIncomeBaseline > 0 && unallocatedBuffer < 0
 
-    // Prioritized Category Resolution
+    // Prioritized Category Resolution with type isolation to prevent collisions
     val displayedCategories = remember(uiState.masterCategories, uiState.categories, selectedSegment) {
         val masterList = uiState.masterCategories.filter { it.type == selectedSegment }
-        val performanceMap = uiState.categories.associateBy { it.category }
+        val performanceMap = uiState.categories
+            .filter { it.type == selectedSegment }
+            .associateBy { it.category }
 
         val priorityList = when (selectedSegment) {
             TransactionType.EXPENSE -> EXPENSE_PRIORITY
@@ -293,7 +295,7 @@ fun BudgetPlannerScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
+                                    text = "${MONTH_NAMES[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextDark
@@ -507,7 +509,7 @@ fun BudgetPlannerScreen(
                 contentPadding = PaddingValues(top = 4.dp, bottom = 125.dp)
             ) {
                 if (displayedCategories.isEmpty()) {
-                    item {
+                    item(key = "empty_categories") {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
@@ -519,7 +521,7 @@ fun BudgetPlannerScreen(
                         }
                     }
                 } else {
-                    items(displayedCategories, key = { it.category }) { cat ->
+                    items(displayedCategories, key = { "${it.type.name}_${it.category}" }) { cat ->
                         val committedAmount = remember(uiState.fixedBills, cat) {
                             uiState.fixedBills.filter { it.category == cat.category && it.type == cat.type }.sumOf { it.amount }
                         }
@@ -536,7 +538,7 @@ fun BudgetPlannerScreen(
                                 } else if (isCurrentMonth && isPastFifth && cat.plannedAmount > 0.0) {
                                     lockedCategoryAlert = cat
                                 } else {
-                                    categoryToConfirm = cat
+                                    editingCategory = cat
                                 }
                             }
                         )
@@ -605,7 +607,6 @@ fun BudgetPlannerScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             for (i in 0 until 4) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -625,7 +626,7 @@ fun BudgetPlannerScreen(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = months[monthIdx - 1],
+                                                text = MONTH_NAMES[monthIdx - 1],
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                                 fontSize = 12.sp,
                                                 color = if (isSelected) Color.White else TextDark
@@ -658,34 +659,6 @@ fun BudgetPlannerScreen(
             )
         }
 
-        // Alert: Confirm Edit Target
-        categoryToConfirm?.let { cat ->
-            AlertDialog(
-                onDismissRequest = { categoryToConfirm = null },
-                title = { Text("Modify Budget Target?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-                text = {
-                    Text("Do you want to adjust the monthly baseline ceiling for '${cat.category}'?")
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            editingCategory = cat
-                            categoryToConfirm = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Proceed", fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { categoryToConfirm = null }) {
-                        Text("Cancel", color = TextDark)
-                    }
-                }
-            )
-        }
-
         // Alert: Copy Last Month's Plan Confirmation
         if (showCopyPlanDialog) {
             AlertDialog(
@@ -693,7 +666,7 @@ fun BudgetPlannerScreen(
                 title = { Text("Copy Last Month's Plan?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                 text = {
                     Text(
-                        "This will copy all planned category limits and baseline goals from the previous month into ${monthNames[uiState.selectedMonth - 1]} ${uiState.selectedYear}.",
+                        "This will copy all planned category limits and baseline goals from the previous month into ${MONTH_NAMES[uiState.selectedMonth - 1]} ${uiState.selectedYear}.",
                         fontSize = 13.sp,
                         color = TextDark
                     )
@@ -755,7 +728,7 @@ fun BudgetPlannerScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                        items(displayedCategories) { cat ->
+                        items(displayedCategories, key = { "${it.type.name}_${it.category}" }) { cat ->
                             val isFrozen = isCurrentMonth && isPastFifth && (cat.plannedAmount > 0.0)
                             Surface(
                                 modifier = Modifier
@@ -879,9 +852,13 @@ fun BudgetPlannerScreen(
 
                     OutlinedTextField(
                         value = customAmountText,
-                        onValueChange = { customAmountText = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            customAmountText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
                         label = { Text("Planned Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -905,7 +882,8 @@ fun BudgetPlannerScreen(
                                     .clip(RoundedCornerShape(9.dp))
                                     .clickable {
                                         val current = customAmountText.toDoubleOrNull() ?: 0.0
-                                        customAmountText = (current + inc).toInt().toString()
+                                        val sum = current + inc
+                                        customAmountText = if (sum % 1.0 == 0.0) sum.toLong().toString() else String.format(Locale.US, "%.2f", sum)
                                     },
                                 color = CanvasLight,
                                 border = BorderStroke(0.6.dp, BorderLight)
@@ -935,7 +913,7 @@ fun BudgetPlannerScreen(
                                 viewModel.updateCategoryBudget(cat.category, resetTarget, cat.type)
                                 editingCategory = null
                             },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).height(48.dp),
                             shape = RoundedCornerShape(12.dp),
                             border = BorderStroke(1.dp, SoftRed.copy(alpha = 0.5f)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftRed)
@@ -957,7 +935,7 @@ fun BudgetPlannerScreen(
                                     editingCategory = null
                                 }
                             },
-                            modifier = Modifier.weight(1.3f),
+                            modifier = Modifier.weight(1.3f).height(48.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                         ) {
