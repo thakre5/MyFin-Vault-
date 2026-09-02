@@ -21,7 +21,7 @@ data class AccountBalanceResult(
      * The shortfall amount required to restore the account to its MAB floor.
      */
     val mabDeficit: Double
-        get() = if (isMabBreached) minBalance - currentBalance else 0.0
+        get() = if (isMabBreached) (minBalance - currentBalance).coerceAtLeast(0.0) else 0.0
 
     /**
      * Available liquid funds above the MAB floor that are safe to spend or sweep.
@@ -41,7 +41,9 @@ data class MonthlySummary(
 
     val savingsRate: Int
         get() = if (totalActualIncome > 0.0) {
-            (((totalActualIncome - totalActualExpense) / totalActualIncome) * 100).toInt()
+            (((totalActualIncome - totalActualExpense) / totalActualIncome) * 100)
+                .toInt()
+                .coerceIn(-100, 100)
         } else 0
 }
 
