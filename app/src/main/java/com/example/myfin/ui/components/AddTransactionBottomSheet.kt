@@ -118,7 +118,7 @@ fun AddTransactionBottomSheet(
                     .background(BorderLight.copy(alpha = 0.5f))
                     .padding(3.dp)
             ) {
-                val types = if (isEditing && editingTransaction.type == TransactionType.TRANSFER) {
+                val types = if (editingTransaction?.type == TransactionType.TRANSFER) {
                     listOf(
                         TransactionType.EXPENSE to "Expense",
                         TransactionType.INCOME to "Income",
