@@ -4,6 +4,7 @@ package com.example.myfin.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -62,9 +63,7 @@ fun UserGuideScreen(
             .background(CanvasLight)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // ==========================================
             // 1. PINNED HEADER SECTION (STATIC ON TOP)
-            // ==========================================
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -106,7 +105,7 @@ fun UserGuideScreen(
                                 IconButton(
                                     onClick = onBack,
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(40.dp)
                                         .clip(CircleShape)
                                         .background(Color.White.copy(alpha = 0.22f))
                                 ) {
@@ -131,7 +130,7 @@ fun UserGuideScreen(
                             }
                         }
 
-                        // 50:50 Overlapping Hero Icon on Horizon Line
+                        // Overlapping Hero Icon on Horizon Line
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
@@ -197,13 +196,12 @@ fun UserGuideScreen(
                 )
             }
 
-            // ==========================================
             // 2. SCROLLABLE HANDBOOK CARDS CONTAINER
-            // ==========================================
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .navigationBarsPadding()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
                     .padding(top = 6.dp, bottom = 24.dp),
@@ -338,14 +336,14 @@ fun UserGuideScreen(
 
                     GuideSubheading("B. Fixed Commitments Load")
                     GuideFormulaBox(
-                        formula = "C_fixed = Σ FixedBills_EXPENSE + Σ Transactions_ASSET\nLoad_% = (C_fixed / I_base) * 100",
+                        formula = "C_fixed = Σ FixedBills_EXPENSE + max(A_planned, A_actual)\nLoad_% = (C_fixed / I_base) * 100",
                         explanation = "Evaluates the percentage of monthly inflow strictly pre-committed to recurring bills and fixed asset investments."
                     )
 
-                    GuideSubheading("C. Safe-to-Spend (S2S) Liquidity")
+                    GuideSubheading("C. Safe-to-Spend (S2S) Dual Engine")
                     GuideFormulaBox(
-                        formula = "S2S = max(0, I_base - C_fixed - E_variable)\nS2S_% = (S2S / I_base) * 100",
-                        explanation = "Where E_variable is the sum of unlinked discretionary expenses. S2S dynamically prevents overspending by ring-fencing upcoming fixed obligations."
+                        formula = "S2S_theoretical = max(0, I_base - C_fixed - E_variable)\nS2S_real = min(S2S_theoretical, Liquid_Operating_Cash)",
+                        explanation = "S2S dynamically bounds theoretical budget surplus by actual real liquid cash in your Operating accounts minus MAB thresholds."
                     )
 
                     GuideSubheading("D. Net Capital Retained & Retention Rate")
@@ -446,11 +444,11 @@ fun UserGuideScreen(
                     }
                 ) {
                     GuideSymbolRow(symbol = "I_base", meaning = "Effective Base Inflow", formula = "max(I_planned, I_actual)")
-                    GuideSymbolRow(symbol = "C_fixed", meaning = "Total Fixed Commitments", formula = "Σ Bills_EXPENSE + Σ Tx_ASSET")
+                    GuideSymbolRow(symbol = "C_fixed", meaning = "Total Fixed Commitments", formula = "Σ Bills_EXPENSE + max(A_plan, A_act)")
                     GuideSymbolRow(symbol = "E_variable", meaning = "Discretionary Outflow", formula = "Σ Unlinked Expenses")
                     GuideSymbolRow(symbol = "MAB", meaning = "Minimum Average Balance Floor", formula = "Protected Account Minimum")
                     GuideSymbolRow(symbol = "Surplus", meaning = "Spendable Cash Above Floor", formula = "max(0, Balance - MAB)")
-                    GuideSymbolRow(symbol = "S2S", meaning = "Safe-to-Spend Liquidity", formula = "max(0, I_base - C_fixed - E_variable)")
+                    GuideSymbolRow(symbol = "S2S", meaning = "Safe-to-Spend Liquidity", formula = "min(S2S_theo, Operating_Cash)")
                     GuideSymbolRow(symbol = "R_net", meaning = "Net Retained Capital", formula = "I_actual - E_actual - A_actual")
                     GuideSymbolRow(symbol = "B_daily", meaning = "7-Day Daily Burn Rate", formula = "(Σ 7-Day Outflow) / 7")
                     GuideSymbolRow(symbol = "M_runway", meaning = "Emergency Cushion Months", formula = "Liquid Vaults / max(1.0, E_monthly)")
@@ -489,7 +487,7 @@ private fun GuideAccordionCard(
 
     LaunchedEffect(isExpanded) {
         if (isExpanded) {
-            delay(150)
+            delay(220)
             bringIntoViewRequester.bringIntoView()
         }
     }
@@ -562,8 +560,8 @@ private fun GuideAccordionCard(
 
             AnimatedVisibility(
                 visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = expandVertically(animationSpec = tween(200)) + fadeIn(animationSpec = tween(200)),
+                exit = shrinkVertically(animationSpec = tween(150)) + fadeOut(animationSpec = tween(150))
             ) {
                 Column(
                     modifier = Modifier
