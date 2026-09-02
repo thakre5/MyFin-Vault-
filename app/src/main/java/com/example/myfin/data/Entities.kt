@@ -51,7 +51,7 @@ data class AccountEntity(
 @Entity(
     tableName = "fixed_bills",
     indices = [
-        Index(value = ["title", "month", "year"], unique = true),
+        Index(value = ["title", "month", "year"]),
         Index(value = ["month", "year"]),
         Index(value = ["accountName"]),
         Index(value = ["category"])
@@ -107,5 +107,5 @@ data class UserProfile(
     val reminderHour: Int = 20,
     val reminderMinute: Int = 30,
     val fortressThreshold: Double = 25000.0,
-    val vaultMode: String = "3_VAULT"
+    val vaultMode: String = "3-VAULT"
 )
