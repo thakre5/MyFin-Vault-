@@ -59,7 +59,7 @@ private fun DrawScope.drawTriVaultLogo() {
     val w = size.width
     val h = size.height
 
-    // Brand Gradients
+    // Tri-Vault Brand Gradients
     val operatingBrush = Brush.verticalGradient(
         colors = listOf(Color(0xFF00D2EE), Color(0xFF2563EB)),
         startY = h * 0.2f,
@@ -78,7 +78,7 @@ private fun DrawScope.drawTriVaultLogo() {
         endY = h * 0.9f
     )
 
-    // Shard 1: Left Pillar (Operating)
+    // Shard 1: Left Pillar (Operating Cash)
     val leftShard = Path().apply {
         moveTo(w * 0.12f, h * 0.88f)
         lineTo(w * 0.32f, h * 0.28f)
@@ -90,7 +90,7 @@ private fun DrawScope.drawTriVaultLogo() {
     }
     drawPath(leftShard, brush = operatingBrush)
 
-    // Shard 2: Right Pillar (Fortress)
+    // Shard 2: Right Pillar (Fortress Wealth)
     val rightShard = Path().apply {
         moveTo(w * 0.88f, h * 0.88f)
         lineTo(w * 0.68f, h * 0.28f)
@@ -102,7 +102,7 @@ private fun DrawScope.drawTriVaultLogo() {
     }
     drawPath(rightShard, brush = fortressBrush)
 
-    // Shard 3: Center Apex Roof (Commitments Vault)
+    // Shard 3: Center Apex Roof (Commitments AutoPay)
     val centerApex = Path().apply {
         moveTo(w * 0.50f, h * 0.10f)
         lineTo(w * 0.62f, h * 0.44f)
@@ -112,7 +112,7 @@ private fun DrawScope.drawTriVaultLogo() {
     }
     drawPath(centerApex, brush = commitmentsBrush)
 
-    // Central Core Security Node (Aperture Lock)
+    // Central Core Security Node
     val coreCenter = Offset(w * 0.50f, h * 0.44f)
     drawCircle(
         color = Color(0xFF0F111E),
