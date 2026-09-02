@@ -95,7 +95,8 @@ fun MonthlyScreen(
 
     val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
     val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-    
+
+    // Synchronize active accounts and isolate archived accounts
     val activeAccounts = remember(uiState.activeAccounts, uiState.accounts) {
         uiState.activeAccounts.ifEmpty { uiState.accounts.filter { !it.isArchived } }
     }
@@ -1207,7 +1208,7 @@ fun MonthlyScreen(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Account Selector Filter Chips
+                                // Account Selector Filter Chips (Strictly Active Accounts)
                                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     item {
                                         FilterChip(
@@ -1552,9 +1553,15 @@ fun MonthlyScreen(
             )
         }
 
-        // Settle Fixed Bill Dialog
+        // Settle Fixed Bill Dialog (With Funding Balance & MAB Safety Check)
         settlingFixedBill?.let { bill ->
             var finalAmountText by remember { mutableStateOf(bill.amount.toString()) }
+            val fundingAccount = remember(bill.accountName, activeAccounts) {
+                activeAccounts.find { it.accountName.equals(bill.accountName, ignoreCase = true) }
+            }
+            val amt = finalAmountText.toDoubleOrNull() ?: bill.amount
+            val willBreachMab = fundingAccount != null && fundingAccount.minBalance > 0.0 &&
+                    (fundingAccount.currentBalance - amt) < fundingAccount.minBalance
 
             val actionPrompt = when (bill.type) {
                 TransactionType.INCOME -> "Confirm Inflow Received?"
@@ -1577,6 +1584,48 @@ fun MonthlyScreen(
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(text = descPrompt, fontSize = 12.sp, color = TextMuted)
 
+                        if (fundingAccount != null) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = CanvasLight,
+                                border = BorderStroke(0.6.dp, BorderLight)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(text = "Available in ${fundingAccount.accountName}:", fontSize = 11.sp, color = TextMuted)
+                                    Text(
+                                        text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", fundingAccount.currentBalance)}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = TextDark
+                                    )
+                                }
+                            }
+                        }
+
+                        if (willBreachMab) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = SoftRed.copy(alpha = 0.12f),
+                                border = BorderStroke(0.6.dp, SoftRed.copy(alpha = 0.35f))
+                            ) {
+                                Text(
+                                    text = "⚠️ MAB Risk: Settling this bill will reduce balance below ${userProfile.currencySymbol}${fundingAccount?.minBalance?.toInt()} minimum balance threshold.",
+                                    fontSize = 10.5.sp,
+                                    color = SoftRed,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(14.dp))
                         OutlinedTextField(
                             value = finalAmountText,
@@ -1597,7 +1646,6 @@ fun MonthlyScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(
                                 onClick = {
-                                    val amt = finalAmountText.toDoubleOrNull() ?: bill.amount
                                     viewModel.toggleFixedBillPaid(bill, customAmount = amt)
                                     settlingFixedBill = null
                                 },
@@ -1619,13 +1667,21 @@ fun MonthlyScreen(
             }
         }
 
-        // Transfer Bottom Sheet
+        // Transfer Bottom Sheet (With Subtype Engine & MAB Protection)
         if (showTransferSheet) {
-            var fromAccount by remember(accountsList) { mutableStateOf(accountsList.firstOrNull().orEmpty()) }
-            var toAccount by remember(accountsList) { mutableStateOf(accountsList.getOrNull(1) ?: accountsList.firstOrNull().orEmpty()) }
+            var fromAccount by remember(accountsList) { mutableStateOf(operatingAccountName) }
+            var toAccount by remember(accountsList) { mutableStateOf(accountsList.firstOrNull { it != operatingAccountName }.orEmpty()) }
             var amountText by remember { mutableStateOf("") }
             var noteText by remember { mutableStateOf("") }
+            var selectedSubtype by remember { mutableStateOf(TransferSubtype.BILL_FUNDING) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+            val sourceAccountObj = remember(fromAccount, activeAccounts) {
+                activeAccounts.find { it.accountName == fromAccount }
+            }
+            val enteredAmount = amountText.toDoubleOrNull() ?: 0.0
+            val willBreachMab = sourceAccountObj != null && sourceAccountObj.minBalance > 0.0 &&
+                    (sourceAccountObj.currentBalance - enteredAmount) < sourceAccountObj.minBalance
 
             ModalBottomSheet(
                 onDismissRequest = { showTransferSheet = false },
@@ -1650,21 +1706,64 @@ fun MonthlyScreen(
                         .imePadding()
                         .padding(horizontal = 22.dp, vertical = 8.dp)
                 ) {
-                    Text(text = "Transfer Funds", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                    Text(text = "Vault Sweep & Transfer", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(text = "Move money between your bank accounts & vaults", fontSize = 11.5.sp, color = TextMuted)
+                    Text(text = "Move money between your active vaults & bank ledgers", fontSize = 11.5.sp, color = TextMuted)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Text(text = "From (Source)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "From (Source Vault)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(accountsList) { acc ->
                             val isSel = fromAccount == acc
+                            val accObj = activeAccounts.find { it.accountName == acc }
                             Surface(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { fromAccount = acc },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
+                                border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                    Text(
+                                        text = acc,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSel) AccentPurple else TextDark
+                                    )
+                                    if (accObj != null) {
+                                        Text(
+                                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", accObj.currentBalance)}",
+                                            fontSize = 9.5.sp,
+                                            color = TextMuted
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(text = "To (Destination Vault)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(accountsList) { acc ->
+                            val isSel = toAccount == acc
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        toAccount = acc
+                                        selectedSubtype = when {
+                                            acc.contains("Commitment", ignoreCase = true) || acc.contains("Bill", ignoreCase = true) -> TransferSubtype.BILL_FUNDING
+                                            acc.contains("Fortress", ignoreCase = true) || acc.contains("Reserve", ignoreCase = true) -> TransferSubtype.WEALTH_ALLOCATION
+                                            acc.contains("Cash", ignoreCase = true) -> TransferSubtype.CASH_WITHDRAWAL
+                                            else -> TransferSubtype.REBALANCE
+                                        }
+                                    },
                                 shape = RoundedCornerShape(8.dp),
                                 color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
                                 border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
@@ -1682,25 +1781,35 @@ fun MonthlyScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text(text = "To (Destination)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text(text = "Sweep Classification", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(accountsList) { acc ->
-                            val isSel = toAccount == acc
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            TransferSubtype.BILL_FUNDING to "Bill Funding",
+                            TransferSubtype.WEALTH_ALLOCATION to "Fortress Sweep",
+                            TransferSubtype.REBALANCE to "Rebalance",
+                            TransferSubtype.CASH_WITHDRAWAL to "Cash Out"
+                        ).forEach { (subtype, label) ->
+                            val isSel = selectedSubtype == subtype
                             Surface(
                                 modifier = Modifier
+                                    .weight(1f)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .clickable { toAccount = acc },
+                                    .clickable { selectedSubtype = subtype },
                                 shape = RoundedCornerShape(8.dp),
                                 color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
                                 border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
                             ) {
                                 Text(
-                                    text = acc,
-                                    fontSize = 11.5.sp,
+                                    text = label,
+                                    fontSize = 10.sp,
                                     fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isSel) AccentPurple else TextDark,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 7.dp)
                                 )
                             }
                         }
@@ -1722,12 +1831,22 @@ fun MonthlyScreen(
                         )
                     )
 
+                    if (willBreachMab && enteredAmount > 0.0) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "⚠️ Warning: This transfer will dip ${sourceAccountObj?.accountName} below its ${userProfile.currencySymbol}${sourceAccountObj?.minBalance?.toInt()} MAB floor.",
+                            fontSize = 10.5.sp,
+                            color = SoftRed,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedTextField(
                         value = noteText,
                         onValueChange = { noteText = it },
-                        label = { Text(text = "Note / Purpose (Optional)", fontSize = 12.sp) },
+                        label = { Text(text = "Note / Purpose (e.g. Rent Staging, SIP Allocation)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1742,17 +1861,16 @@ fun MonthlyScreen(
 
                     Button(
                         onClick = {
-                            val amt = amountText.toDoubleOrNull() ?: 0.0
-                            if (amt > 0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount != toAccount) {
-                                val subtype = when {
-                                    toAccount.contains("Commitment", ignoreCase = true) || toAccount.contains("AutoPay", ignoreCase = true) -> TransferSubtype.BILL_FUNDING
-                                    toAccount.contains("Fortress", ignoreCase = true) || toAccount.contains("FD", ignoreCase = true) -> TransferSubtype.WEALTH_ALLOCATION
-                                    toAccount.contains("Cash", ignoreCase = true) -> TransferSubtype.CASH_WITHDRAWAL
-                                    else -> TransferSubtype.REBALANCE
-                                }
-                                viewModel.executeInstantTransfer(fromAccount, toAccount, amt, noteText, subtype)
+                            if (enteredAmount > 0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount != toAccount) {
+                                viewModel.executeInstantTransfer(
+                                    fromAccount = fromAccount,
+                                    toAccount = toAccount,
+                                    amount = enteredAmount,
+                                    note = noteText,
+                                    subtype = selectedSubtype
+                                )
                                 showTransferSheet = false
-                                Toast.makeText(context, "Transferred ${userProfile.currencySymbol}$amt", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Transferred ${userProfile.currencySymbol}$enteredAmount", Toast.LENGTH_SHORT).show()
                             } else {
                                 Toast.makeText(context, "Enter a valid amount and distinct accounts", Toast.LENGTH_SHORT).show()
                             }
@@ -1825,7 +1943,7 @@ fun MonthlyScreen(
             }
         }
 
-        // Filter Bottom Sheet
+        // Filter Bottom Sheet (Strictly Active Accounts)
         if (showFilterSheet) {
             FilterBottomSheet(
                 currentFilter = filterCriteria,
@@ -1842,7 +1960,7 @@ fun MonthlyScreen(
             )
         }
 
-        // Add / Edit Transaction Sheet
+        // Add / Edit Transaction Sheet (Strictly Active Accounts)
         if (showAddSheet) {
             AddTransactionBottomSheet(
                 editingTransaction = editingTx,
@@ -1857,7 +1975,7 @@ fun MonthlyScreen(
             )
         }
 
-        // Add AutoPay Dialog
+        // Add AutoPay Dialog (Strictly Active Accounts)
         if (showAddFixedBill) {
             AddEditFixedBillDialog(
                 currencySymbol = userProfile.currencySymbol,
@@ -1873,7 +1991,7 @@ fun MonthlyScreen(
             )
         }
 
-        // Edit AutoPay Dialog
+        // Edit AutoPay Dialog (Strictly Active Accounts)
         editingFixedBill?.let { bill ->
             AddEditFixedBillDialog(
                 initialBill = bill,
