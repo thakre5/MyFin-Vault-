@@ -1,15 +1,17 @@
 package com.example.myfin.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.HorizontalDivider
@@ -30,7 +32,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,18 +40,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.ui.theme.*
 
-/**
- * Model representing an action inside the Contextual FAB popup menu.
- */
 data class DockFabAction(
     val icon: ImageVector,
     val label: String,
     val onClick: () -> Unit
 )
 
-/**
- * Model representing a destination item on the bottom navigation island.
- */
 data class DockNavItem(
     val target: NavigationTarget,
     val label: String,
@@ -77,6 +72,11 @@ fun AppBottomDock(
     val haptic = LocalHapticFeedback.current
     var isFabMenuExpanded by remember { mutableStateOf(false) }
 
+    // Intercept hardware back button to dismiss expanded FAB actions menu
+    BackHandler(enabled = isFabMenuExpanded) {
+        isFabMenuExpanded = false
+    }
+
     LaunchedEffect(isVisible, currentSelection) {
         if (!isVisible) {
             isFabMenuExpanded = false
@@ -102,7 +102,7 @@ fun AppBottomDock(
     )
 
     Box(modifier = modifier) {
-        // 1. Full-Screen Dimmed Backdrop Scrim (Closes menu on tap)
+        // 1. Scrim Backdrop
         AnimatedVisibility(
             visible = isFabMenuExpanded && fabActions.isNotEmpty(),
             enter = fadeIn(tween(180)),
@@ -115,13 +115,16 @@ fun AppBottomDock(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.28f))
-                    .pointerInput(Unit) {
-                        detectTapGestures { isFabMenuExpanded = false }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        isFabMenuExpanded = false
                     }
             )
         }
 
-        // 2. Floating Contextual Actions Popup (Independent Overlap Layer)
+        // 2. Floating Contextual Actions Popup
         AnimatedVisibility(
             visible = isFabMenuExpanded && fabActions.isNotEmpty(),
             enter = scaleIn(
@@ -140,7 +143,7 @@ fun AppBottomDock(
         ) {
             Surface(
                 modifier = Modifier
-                    .width(185.dp)
+                    .width(190.dp)
                     .shadow(
                         elevation = 18.dp,
                         shape = RoundedCornerShape(18.dp),
@@ -152,7 +155,11 @@ fun AppBottomDock(
                 color = CardWhite,
                 border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
             ) {
-                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                Column(
+                    modifier = Modifier
+                        .padding(vertical = 4.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
                     fabActions.forEachIndexed { index, action ->
                         Row(
                             modifier = Modifier
@@ -192,7 +199,7 @@ fun AppBottomDock(
             }
         }
 
-        // 3. Main Bottom Dock Row (Fixed strictly at Alignment.BottomCenter)
+        // 3. Main Bottom Dock Row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -207,7 +214,6 @@ fun AppBottomDock(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Navigation Capsule Island with Proportional Flex Weights
             Surface(
                 modifier = Modifier
                     .height(58.dp)
@@ -281,7 +287,6 @@ fun AppBottomDock(
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            // Contextual Action FAB Button
             Surface(
                 modifier = Modifier
                     .size(58.dp)
@@ -324,9 +329,6 @@ fun AppBottomDock(
     }
 }
 
-/**
- * Scroll connection helper with debounce threshold to eliminate touch cancellation jitter.
- */
 @Composable
 fun rememberAutoScrollVisibilityConnection(): Pair<MutableState<Boolean>, NestedScrollConnection> {
     val isVisible = remember { mutableStateOf(true) }
