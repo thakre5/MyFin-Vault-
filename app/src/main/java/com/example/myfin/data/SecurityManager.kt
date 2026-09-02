@@ -12,6 +12,7 @@ import androidx.security.crypto.MasterKey
 import java.io.File
 import java.security.GeneralSecurityException
 import java.security.KeyStore
+import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
@@ -87,7 +88,7 @@ class SecurityManager(private val context: Context) {
         return sharedPreferences.edit()
             .putString(KEY_PIN_HASH, hashBase64)
             .putString(KEY_PIN_SALT, saltBase64)
-            .remove(KEY_PIN_LEGACY) // Purge plaintext legacy storage
+            .remove(KEY_PIN_LEGACY)
             .commit()
     }
 
@@ -103,10 +104,10 @@ class SecurityManager(private val context: Context) {
             return constantTimeEquals(storedHashBase64, computedHashBase64)
         }
 
-        // Seamless migration for legacy unhashed PINs
+        // Migration for unhashed legacy PINs
         val legacyPin = sharedPreferences.getString(KEY_PIN_LEGACY, null)
         if (legacyPin != null && legacyPin == trimmedEntered) {
-            setPin(trimmedEntered) // Auto-upgrade to salted hash
+            setPin(trimmedEntered)
             return true
         }
 
@@ -127,18 +128,14 @@ class SecurityManager(private val context: Context) {
     }
 
     private fun constantTimeEquals(a: String, b: String): Boolean {
-        if (a.length != b.length) return false
-        var result = 0
-        for (i in a.indices) {
-            result = result or (a[i].code xor b[i].code)
-        }
-        return result == 0
+        return MessageDigest.isEqual(a.toByteArray(Charsets.UTF_8), b.toByteArray(Charsets.UTF_8))
     }
 
-    // --- RECOVERY DOB KEYS ---
+    // --- RECOVERY DOB KEYS & NORMALIZATION ---
 
     fun setRecoveryDob(dob: String): Boolean {
-        return sharedPreferences.edit().putString(KEY_RECOVERY_DOB, dob.trim()).commit()
+        val normalized = normalizeDobToDmy(dob.replace("[^0-9]".toRegex(), "")) ?: dob.trim()
+        return sharedPreferences.edit().putString(KEY_RECOVERY_DOB, normalized).commit()
     }
 
     fun getRecoveryDob(): String? {
@@ -150,25 +147,36 @@ class SecurityManager(private val context: Context) {
         val cleanStored = storedDob.replace("[^0-9]".toRegex(), "")
         val cleanEntered = enteredDob.replace("[^0-9]".toRegex(), "")
 
-        if (cleanStored.isEmpty() || cleanEntered.isEmpty()) return false
-        if (cleanStored == cleanEntered) return true
-
-        // Check format inversions (YYYYMMDD vs DDMMYYYY)
-        if (cleanStored.length == 8 && cleanEntered.length == 8) {
-            val storedAsDmy = if (cleanStored.take(4).toIntOrNull() ?: 0 > 1900) {
-                // Stored is YYYYMMDD -> convert to DDMMYYYY
-                cleanStored.takeLast(2) + cleanStored.substring(4, 6) + cleanStored.take(4)
-            } else cleanStored
-
-            val enteredAsDmy = if (cleanEntered.take(4).toIntOrNull() ?: 0 > 1900) {
-                // Entered is YYYYMMDD -> convert to DDMMYYYY
-                cleanEntered.takeLast(2) + cleanEntered.substring(4, 6) + cleanEntered.take(4)
-            } else cleanEntered
-
-            return storedAsDmy == enteredAsDmy
+        if (cleanStored.length != 8 || cleanEntered.length != 8) {
+            return cleanStored.isNotEmpty() && cleanStored == cleanEntered
         }
 
-        return false
+        val normalizedStored = normalizeDobToDmy(cleanStored) ?: cleanStored
+        val normalizedEntered = normalizeDobToDmy(cleanEntered) ?: cleanEntered
+
+        return normalizedStored == normalizedEntered
+    }
+
+    private fun normalizeDobToDmy(digits: String): String? {
+        if (digits.length != 8) return null
+
+        // Check if already DDMMYYYY (Day: 1..31, Month: 1..12, Year: 1900..2100)
+        val dmyDay = digits.substring(0, 2).toIntOrNull() ?: 0
+        val dmyMonth = digits.substring(2, 4).toIntOrNull() ?: 0
+        val dmyYear = digits.substring(4, 8).toIntOrNull() ?: 0
+        val isDmy = dmyDay in 1..31 && dmyMonth in 1..12 && dmyYear in 1900..2100
+
+        // Check if YYYYMMDD
+        val ymdYear = digits.substring(0, 4).toIntOrNull() ?: 0
+        val ymdMonth = digits.substring(4, 6).toIntOrNull() ?: 0
+        val ymdDay = digits.substring(6, 8).toIntOrNull() ?: 0
+        val isYmd = ymdDay in 1..31 && ymdMonth in 1..12 && ymdYear in 1900..2100
+
+        return when {
+            isDmy -> digits
+            isYmd -> "%02d%02d%04d".format(ymdDay, ymdMonth, ymdYear)
+            else -> digits
+        }
     }
 
     fun resetPinWithDob(enteredDob: String, newPin: String): Boolean {
@@ -210,14 +218,9 @@ class SecurityManager(private val context: Context) {
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 super.onAuthenticationError(errorCode, errString)
-                // If user deliberately canceled or tapped "Use PIN", do not trigger error flash
                 if (errorCode != BiometricPrompt.ERROR_USER_CANCELED && errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
                     onError()
                 }
-            }
-
-            override fun onAuthenticationFailed() {
-                super.onAuthenticationFailed()
             }
         })
 
@@ -240,6 +243,7 @@ class SecurityManager(private val context: Context) {
     }
 
     fun shouldLockOnResume(timeoutMillis: Long = DEFAULT_LOCK_TIMEOUT_MILLIS): Boolean {
+        if (!isPinSet()) return false
         val lastBackground = sharedPreferences.getLong(KEY_LAST_BACKGROUND_TIME, 0L)
         if (lastBackground == 0L) return false
         val elapsed = System.currentTimeMillis() - lastBackground
@@ -251,8 +255,6 @@ class SecurityManager(private val context: Context) {
             .putLong(KEY_LAST_BACKGROUND_TIME, 0L)
             .apply()
     }
-
-    // --- VAULT RESET & WIPES ---
 
     fun clearSecurity(): Boolean {
         return sharedPreferences.edit().clear().commit()
@@ -275,6 +277,6 @@ class SecurityManager(private val context: Context) {
 
         private const val HASH_ITERATIONS = 10000
         private const val HASH_KEY_LENGTH = 256
-        const val DEFAULT_LOCK_TIMEOUT_MILLIS = 60_000L // 60 Seconds
+        const val DEFAULT_LOCK_TIMEOUT_MILLIS = 60_000L
     }
 }
