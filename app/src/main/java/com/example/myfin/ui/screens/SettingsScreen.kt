@@ -57,6 +57,7 @@ import com.example.myfin.BuildConfig
 import com.example.myfin.data.ExcelExportManager
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AppBrandingFooter
+import com.example.myfin.ui.components.SettingsActiveSheet
 import com.example.myfin.ui.onboarding.SupportedCountries
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.Dispatchers
@@ -66,24 +67,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
-
-enum class SettingsActiveSheet {
-    NONE,
-    PERSONAL_INFO,
-    VAULT_STRATEGY,
-    AUTO_SWEEP_THRESHOLD,
-    FORTRESS_SAFETY_NET,
-    BIOMETRIC_CONFIRM,
-    CHANGE_PIN,
-    DAILY_REMINDER,
-    COUNTRY_CURRENCY_PICKER,
-    RESET_CONFIRM,
-    STRATEGY,
-    SECURITY,
-    NOTIFICATIONS,
-    CURRENCY,
-    DATA_MANAGEMENT
-}
 
 enum class SettingsAccordionSection {
     NONE,
