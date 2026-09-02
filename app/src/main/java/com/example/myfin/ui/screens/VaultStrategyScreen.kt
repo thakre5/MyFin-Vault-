@@ -55,6 +55,11 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+// Add these missing imports to:
+// - app/src/main/java/com/example/myfin/ui/screens/VaultStrategyScreen.kt
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+
 
 enum class VaultTier(
     val title: String,
