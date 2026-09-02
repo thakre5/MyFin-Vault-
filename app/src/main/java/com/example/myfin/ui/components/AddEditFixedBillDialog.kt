@@ -2,7 +2,6 @@ package com.example.myfin.ui.components
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -126,6 +125,7 @@ fun AddEditFixedBillDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .imePadding()
                 .padding(horizontal = 20.dp, vertical = 6.dp)
                 .verticalScroll(rememberScrollState())
         ) {
@@ -197,16 +197,20 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Amount & Due Day Side-by-Side
+            // Amount & Due Day
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it },
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() || it == '.' }
+                        val parts = filtered.split('.')
+                        amountText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                    },
                     label = { Text("Amount ($currencySymbol)", fontSize = 12.sp) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.weight(1.2f),
                     shape = RoundedCornerShape(12.dp),
@@ -218,7 +222,7 @@ fun AddEditFixedBillDialog(
 
                 OutlinedTextField(
                     value = dueDayText,
-                    onValueChange = { if (it.length <= 2) dueDayText = it },
+                    onValueChange = { if (it.length <= 2) dueDayText = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Due Day (1-31)", fontSize = 12.sp) },
                     placeholder = { Text("Opt", fontSize = 12.sp) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -234,7 +238,7 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Optional Note / Description Field
+            // Optional Note / Description
             OutlinedTextField(
                 value = noteText,
                 onValueChange = { noteText = it },
@@ -286,7 +290,7 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Subcategory Chips (Acts as Primary Title)
+            // Subcategory Chips
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -308,7 +312,7 @@ fun AddEditFixedBillDialog(
             }
 
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(availableSubcategories) { sub ->
+                items(availableSubcategories.ifEmpty { listOf("General") }) { sub ->
                     val isSelected = selectedSubcategory == sub
                     FilterChip(
                         selected = isSelected,
@@ -379,7 +383,7 @@ fun AddEditFixedBillDialog(
             ) {
                 OutlinedButton(
                     onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextDark)
                 ) {
@@ -394,7 +398,10 @@ fun AddEditFixedBillDialog(
                             return@Button
                         }
 
-                        val parsedDueDay = dueDayText.toIntOrNull()?.coerceIn(1, 31)
+                        val parsedDueDay = dueDayText.toIntOrNull()?.let { day ->
+                            if (day in 1..31) day else null
+                        }
+
                         val finalTitle = if (noteText.isNotBlank()) noteText.trim() else selectedSubcategory.ifBlank { selectedCategory }
 
                         onSave(
@@ -409,7 +416,7 @@ fun AddEditFixedBillDialog(
                         )
                         onDismiss()
                     },
-                    modifier = Modifier.weight(1.3f),
+                    modifier = Modifier.weight(1.3f).height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
@@ -424,7 +431,6 @@ fun AddEditFixedBillDialog(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // Add New Category Dialog
         if (showNewCategoryDialog) {
             AlertDialog(
                 onDismissRequest = { showNewCategoryDialog = false },
@@ -458,7 +464,6 @@ fun AddEditFixedBillDialog(
             )
         }
 
-        // Add New Subcategory Dialog
         if (showNewSubcategoryDialog) {
             AlertDialog(
                 onDismissRequest = { showNewSubcategoryDialog = false },
