@@ -30,7 +30,6 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        // Non-destructive Migration: Version 1 -> Version 2
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // 1. Add minBalance, isArchived, and sortOrder columns to accounts
@@ -42,7 +41,7 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE transactions ADD COLUMN transferSubtype TEXT NOT NULL DEFAULT 'NONE'")
 
                 // 3. Add vaultMode and fortressThreshold columns to user_profile
-                db.execSQL("ALTER TABLE user_profile ADD COLUMN vaultMode TEXT NOT NULL DEFAULT '3_VAULT'")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN vaultMode TEXT NOT NULL DEFAULT '3-VAULT'")
                 db.execSQL("ALTER TABLE user_profile ADD COLUMN fortressThreshold REAL NOT NULL DEFAULT 25000.0")
 
                 // 4. Create indices to match Room Schema v2 requirements
@@ -60,7 +59,28 @@ abstract class AppDatabase : RoomDatabase() {
                     "myfin_vault.db"
                 )
                     .addMigrations(MIGRATION_1_2)
-                    .fallbackToDestructiveMigration() // Safe fallback if schema verification fails during testing
+                    .fallbackToDestructiveMigration()
+                    .addCallback(object : RoomDatabase.Callback() {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            super.onCreate(db)
+                            // Seed default categories
+                            db.beginTransaction()
+                            try {
+                                CategoryEntity.defaultCategories.forEach { category ->
+                                    val catNameEscaped = category.name.replace("'", "''")
+                                    db.execSQL("INSERT OR IGNORE INTO categories (name, type) VALUES ('$catNameEscaped', '${category.type.name}')")
+                                }
+                                SubcategoryEntity.defaultSubcategories.forEach { subcategory ->
+                                    val parentEscaped = subcategory.parentCategory.replace("'", "''")
+                                    val subNameEscaped = subcategory.name.replace("'", "''")
+                                    db.execSQL("INSERT OR IGNORE INTO subcategories (parentCategory, name, type) VALUES ('$parentEscaped', '$subNameEscaped', '${subcategory.type.name}')")
+                                }
+                                db.setTransactionSuccessful()
+                            } finally {
+                                db.endTransaction()
+                            }
+                        }
+                    })
                     .build()
                 INSTANCE = instance
                 instance
