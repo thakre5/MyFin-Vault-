@@ -3,8 +3,10 @@ package com.example.myfin.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
@@ -38,6 +40,8 @@ fun DrawerMenuContent(
     onEditProfile: () -> Unit,
     onLockApp: () -> Unit
 ) {
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxHeight()
@@ -47,7 +51,11 @@ fun DrawerMenuContent(
             .padding(horizontal = 16.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Column {
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(scrollState)
+        ) {
             // Profile Header
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -132,7 +140,7 @@ fun DrawerMenuContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Navigation Items
             DrawerNavItem(
@@ -185,7 +193,9 @@ fun DrawerMenuContent(
             )
         }
 
-        // Bottom Section: Centered Lock Action + Dynamic Version Footer
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Bottom Section: Centered Lock Action + Version Footer
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
