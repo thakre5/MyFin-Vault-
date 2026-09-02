@@ -19,7 +19,6 @@ object ReminderScheduler {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
             
-            // Avoid recreating if already registered
             if (notificationManager.getNotificationChannel(CHANNEL_ID_REMINDERS) == null) {
                 val name = "Daily Check-in & AutoPay Alerts"
                 val descriptionText = "Notifications for recurring bill reminders and end-of-day spend logging"
@@ -82,12 +81,13 @@ object ReminderScheduler {
                 )
             }
         } catch (_: SecurityException) {
-            // Safe fallback if exact alarm permission is revoked at runtime on Android 12+
-            alarmManager.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                calendar.timeInMillis,
-                pendingIntent
-            )
+            try {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            } catch (_: Exception) { }
         }
     }
 
