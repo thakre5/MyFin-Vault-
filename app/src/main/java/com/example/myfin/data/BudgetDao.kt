@@ -12,6 +12,9 @@ interface BudgetDao {
     @Query("SELECT * FROM user_profile WHERE id = 1")
     fun getUserProfile(): Flow<UserProfile?>
 
+    @Query("SELECT * FROM user_profile WHERE id = 1 LIMIT 1")
+    suspend fun getUserProfileDirect(): UserProfile?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveUserProfile(profile: UserProfile)
 
@@ -24,13 +27,16 @@ interface BudgetDao {
     @Query("SELECT * FROM accounts ORDER BY isArchived ASC, sortOrder ASC, accountName ASC")
     fun getAllAccounts(): Flow<List<AccountEntity>>
 
+    @Query("SELECT * FROM accounts ORDER BY isArchived ASC, sortOrder ASC, accountName ASC")
+    suspend fun getAllAccountsDirect(): List<AccountEntity>
+
     @Query("SELECT * FROM accounts WHERE isArchived = 0 ORDER BY sortOrder ASC, accountName ASC")
     fun getActiveAccounts(): Flow<List<AccountEntity>>
 
     @Query("SELECT * FROM accounts WHERE isArchived = 1 ORDER BY sortOrder ASC, accountName ASC")
     fun getArchivedAccounts(): Flow<List<AccountEntity>>
 
-    @Query("SELECT * FROM accounts WHERE accountName = :name LIMIT 1")
+    @Query("SELECT * FROM accounts WHERE accountName = :name COLLATE NOCASE LIMIT 1")
     suspend fun getAccountByName(name: String): AccountEntity?
 
     @Query("SELECT COUNT(*) FROM accounts")
@@ -45,20 +51,23 @@ interface BudgetDao {
     @Delete
     suspend fun deleteAccount(account: AccountEntity)
 
-    @Query("DELETE FROM accounts WHERE accountName = :name")
+    @Query("DELETE FROM accounts WHERE accountName = :name COLLATE NOCASE")
     suspend fun deleteAccountByName(name: String)
 
-    @Query("UPDATE accounts SET isArchived = 1 WHERE accountName = :name")
+    @Query("UPDATE accounts SET isArchived = 1 WHERE accountName = :name COLLATE NOCASE")
     suspend fun archiveAccount(name: String)
 
-    @Query("UPDATE accounts SET isArchived = 0 WHERE accountName = :name")
+    @Query("UPDATE accounts SET isArchived = 0 WHERE accountName = :name COLLATE NOCASE")
     suspend fun unarchiveAccount(name: String)
 
     @Query("DELETE FROM accounts")
     suspend fun clearAllAccounts()
 
-    @Query("SELECT COUNT(*) FROM transactions WHERE accountName = :accName OR toAccountName = :accName")
+    @Query("SELECT COUNT(*) FROM transactions WHERE accountName = :accName COLLATE NOCASE OR toAccountName = :accName COLLATE NOCASE")
     suspend fun getTransactionCountForAccount(accName: String): Int
+
+    @Query("SELECT COUNT(*) FROM fixed_bills WHERE accountName = :accName COLLATE NOCASE OR toAccountName = :accName COLLATE NOCASE")
+    suspend fun getLinkedBillCountForAccount(accName: String): Int
 
     @Query("""
         SELECT 
@@ -69,16 +78,16 @@ interface BudgetDao {
             COALESCE(a.isArchived, 0) AS isArchived,
             a.sortOrder,
             (a.startingBalance + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName), 0.0) - 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName), 0.0) - 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName), 0.0)
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName COLLATE NOCASE), 0.0) - 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0) - 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS currentBalance,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName), 0.0)
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS totalInflow,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName), 0.0)
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS totalOutflow
         FROM accounts a
         ORDER BY a.isArchived ASC, a.sortOrder ASC, a.accountName ASC
@@ -94,16 +103,16 @@ interface BudgetDao {
             COALESCE(a.isArchived, 0) AS isArchived,
             a.sortOrder,
             (a.startingBalance + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName), 0.0) - 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName), 0.0) - 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName), 0.0)
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName COLLATE NOCASE), 0.0) - 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0) - 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS currentBalance,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName), 0.0)
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS totalInflow,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName), 0.0)
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS totalOutflow
         FROM accounts a
         WHERE a.isArchived = 0
@@ -116,6 +125,9 @@ interface BudgetDao {
     // ========================================================================
     @Query("SELECT * FROM categories ORDER BY type ASC, name ASC")
     fun getAllCategories(): Flow<List<CategoryEntity>>
+
+    @Query("SELECT * FROM categories ORDER BY type ASC, name ASC")
+    suspend fun getAllCategoriesDirect(): List<CategoryEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategory(category: CategoryEntity)
@@ -137,6 +149,9 @@ interface BudgetDao {
 
     @Query("SELECT * FROM subcategories ORDER BY parentCategory ASC, name ASC")
     fun getAllSubcategories(): Flow<List<SubcategoryEntity>>
+
+    @Query("SELECT * FROM subcategories ORDER BY parentCategory ASC, name ASC")
+    suspend fun getAllSubcategoriesDirect(): List<SubcategoryEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSubcategory(subcategory: SubcategoryEntity)
@@ -164,6 +179,9 @@ interface BudgetDao {
     // ========================================================================
     @Query("SELECT * FROM fixed_bills WHERE month = :month AND year = :year ORDER BY isPaid ASC, dueDay ASC, title ASC")
     fun getFixedBillsForMonth(month: Int, year: Int): Flow<List<FixedBillEntity>>
+
+    @Query("SELECT * FROM fixed_bills WHERE month = :month AND year = :year ORDER BY isPaid ASC, dueDay ASC, title ASC")
+    suspend fun getFixedBillsForMonthDirect(month: Int, year: Int): List<FixedBillEntity>
 
     @Query("SELECT * FROM fixed_bills ORDER BY year DESC, month DESC, id ASC")
     suspend fun getAllFixedBills(): List<FixedBillEntity>
@@ -203,6 +221,9 @@ interface BudgetDao {
     // ========================================================================
     @Query("SELECT * FROM budget_plans WHERE month = :month AND year = :year ORDER BY category ASC")
     fun getBudgetPlansForMonth(month: Int, year: Int): Flow<List<BudgetPlanEntity>>
+
+    @Query("SELECT * FROM budget_plans WHERE month = :month AND year = :year ORDER BY category ASC")
+    suspend fun getBudgetPlansForMonthDirect(month: Int, year: Int): List<BudgetPlanEntity>
 
     @Query("SELECT * FROM budget_plans ORDER BY year DESC, month DESC, category ASC")
     suspend fun getAllBudgetPlans(): List<BudgetPlanEntity>
@@ -249,16 +270,16 @@ interface BudgetDao {
     // ========================================================================
     // 7. Cascading Rename Operations
     // ========================================================================
-    @Query("UPDATE transactions SET accountName = :newName WHERE accountName = :oldName")
+    @Query("UPDATE transactions SET accountName = :newName WHERE accountName = :oldName COLLATE NOCASE")
     suspend fun cascadeRenameAccountInTransactions(oldName: String, newName: String)
 
-    @Query("UPDATE transactions SET toAccountName = :newName WHERE toAccountName = :oldName")
+    @Query("UPDATE transactions SET toAccountName = :newName WHERE toAccountName = :oldName COLLATE NOCASE")
     suspend fun cascadeRenameToAccountInTransactions(oldName: String, newName: String)
 
-    @Query("UPDATE fixed_bills SET accountName = :newName WHERE accountName = :oldName")
+    @Query("UPDATE fixed_bills SET accountName = :newName WHERE accountName = :oldName COLLATE NOCASE")
     suspend fun cascadeRenameAccountInFixedBills(oldName: String, newName: String)
 
-    @Query("UPDATE fixed_bills SET toAccountName = :newName WHERE toAccountName = :oldName")
+    @Query("UPDATE fixed_bills SET toAccountName = :newName WHERE toAccountName = :oldName COLLATE NOCASE")
     suspend fun cascadeRenameToAccountInFixedBills(oldName: String, newName: String)
 
     @Query("UPDATE transactions SET category = :newName WHERE category = :oldName")
@@ -295,8 +316,11 @@ interface BudgetDao {
         isArchived: Boolean = false,
         sortOrder: Int = 0
     ) {
+        val cleanOldName = oldName.trim()
+        val cleanNewName = newName.trim().uppercase()
+
         val updatedAccount = AccountEntity(
-            accountName = newName.trim().uppercase(),
+            accountName = cleanNewName,
             startingBalance = startingBalance,
             accountType = accountType,
             minBalance = minBalance,
@@ -304,15 +328,15 @@ interface BudgetDao {
             sortOrder = sortOrder
         )
 
-        if (oldName.equals(newName, ignoreCase = true)) {
+        if (cleanOldName.equals(cleanNewName, ignoreCase = true)) {
             insertAccount(updatedAccount)
         } else {
             insertAccount(updatedAccount)
-            cascadeRenameAccountInTransactions(oldName, newName)
-            cascadeRenameToAccountInTransactions(oldName, newName)
-            cascadeRenameAccountInFixedBills(oldName, newName)
-            cascadeRenameToAccountInFixedBills(oldName, newName)
-            deleteAccountByName(oldName)
+            cascadeRenameAccountInTransactions(cleanOldName, cleanNewName)
+            cascadeRenameToAccountInTransactions(cleanOldName, cleanNewName)
+            cascadeRenameAccountInFixedBills(cleanOldName, cleanNewName)
+            cascadeRenameToAccountInFixedBills(cleanOldName, cleanNewName)
+            deleteAccountByName(cleanOldName)
         }
     }
 
@@ -321,13 +345,14 @@ interface BudgetDao {
         oldCategory: CategoryEntity,
         newName: String
     ) {
-        if (oldCategory.name == newName) return
+        val trimmedNew = newName.trim()
+        if (oldCategory.name == trimmedNew) return
 
-        insertCategory(CategoryEntity(name = newName, type = oldCategory.type))
-        cascadeRenameCategoryInTransactions(oldCategory.name, newName)
-        cascadeRenameCategoryInBudgetPlans(oldCategory.name, newName)
-        cascadeRenameCategoryInFixedBills(oldCategory.name, newName)
-        cascadeRenameCategoryInSubcategories(oldCategory.name, newName)
+        insertCategory(CategoryEntity(name = trimmedNew, type = oldCategory.type))
+        cascadeRenameCategoryInTransactions(oldCategory.name, trimmedNew)
+        cascadeRenameCategoryInBudgetPlans(oldCategory.name, trimmedNew)
+        cascadeRenameCategoryInFixedBills(oldCategory.name, trimmedNew)
+        cascadeRenameCategoryInSubcategories(oldCategory.name, trimmedNew)
         deleteCategory(oldCategory)
     }
 
@@ -336,17 +361,18 @@ interface BudgetDao {
         oldSubcategory: SubcategoryEntity,
         newName: String
     ) {
-        if (oldSubcategory.name == newName) return
+        val trimmedNew = newName.trim()
+        if (oldSubcategory.name == trimmedNew) return
 
         insertSubcategory(
             SubcategoryEntity(
                 parentCategory = oldSubcategory.parentCategory,
-                name = newName,
+                name = trimmedNew,
                 type = oldSubcategory.type
             )
         )
-        cascadeRenameSubcategoryInTransactions(oldSubcategory.parentCategory, oldSubcategory.name, newName)
-        cascadeRenameSubcategoryInFixedBills(oldSubcategory.parentCategory, oldSubcategory.name, newName)
+        cascadeRenameSubcategoryInTransactions(oldSubcategory.parentCategory, oldSubcategory.name, trimmedNew)
+        cascadeRenameSubcategoryInFixedBills(oldSubcategory.parentCategory, oldSubcategory.name, trimmedNew)
         deleteSubcategory(oldSubcategory)
     }
 
