@@ -773,10 +773,10 @@ fun SettingsScreen(
 
     // Sheets & Modals
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
-        var nameInput by remember(userProfile.displayName) { mutableStateOf(userProfile.displayName.ifBlank { "Alex Doe" }) }
-        var emailInput by remember(userProfile.email) { mutableStateOf(userProfile.email.ifBlank { "alex.doe@example.com" }) }
-        var dobInput by remember(userProfile.dateOfBirth) { mutableStateOf(userProfile.dateOfBirth.ifBlank { "1995-01-01" }) }
-        var incomeInput by remember(userProfile.baseMonthlyIncome) {
+        var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName.ifBlank { "Alex Doe" }) }
+        var emailInput by remember(userProfile) { mutableStateOf(userProfile.email.ifBlank { "alex.doe@example.com" }) }
+        var dobInput by remember(userProfile) { mutableStateOf(userProfile.dateOfBirth.ifBlank { "1995-01-01" }) }
+        var incomeInput by remember(userProfile) {
             mutableStateOf(String.format(Locale.US, "%.0f", userProfile.baseMonthlyIncome))
         }
 
@@ -834,12 +834,16 @@ fun SettingsScreen(
 
                 OutlinedTextField(
                     value = incomeInput,
-                    onValueChange = { incomeInput = it },
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() || it == '.' }
+                        val parts = filtered.split('.')
+                        incomeInput = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                    },
                     label = { Text("Expected Monthly Salary / Inflow (${userProfile.currencySymbol})") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -1007,7 +1011,7 @@ fun SettingsScreen(
 
     // Auto-Sweep Threshold Sheet
     if (activeSheet == SettingsActiveSheet.AUTO_SWEEP_THRESHOLD) {
-        var thresholdInput by remember(userProfile.fortressThreshold) {
+        var thresholdInput by remember(userProfile) {
             val currentVal = if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
             mutableStateOf(String.format(Locale.US, "%.0f", currentVal))
         }
@@ -1031,12 +1035,16 @@ fun SettingsScreen(
 
                 OutlinedTextField(
                     value = thresholdInput,
-                    onValueChange = { thresholdInput = it },
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() || it == '.' }
+                        val parts = filtered.split('.')
+                        thresholdInput = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                    },
                     label = { Text("Savings Cap Amount (${userProfile.currencySymbol})") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -1062,7 +1070,7 @@ fun SettingsScreen(
         }
     }
 
-    // Fortress Safety Net Target Sheet (Linked to fortressThreshold)
+    // Fortress Safety Net Target Sheet
     if (activeSheet == SettingsActiveSheet.FORTRESS_SAFETY_NET) {
         var selectedMonths by remember { mutableIntStateOf(6) }
 
@@ -1270,8 +1278,8 @@ fun SettingsScreen(
 
                 OutlinedTextField(
                     value = newPin,
-                    onValueChange = { if (it.length <= 6) { newPin = it; errorMessage = null } },
-                    label = { Text("New Master PIN") },
+                    onValueChange = { if (it.length <= 6) { newPin = it.filter { ch -> ch.isDigit() }; errorMessage = null } },
+                    label = { Text("New Master PIN (4-6 digits)") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
@@ -1283,7 +1291,7 @@ fun SettingsScreen(
 
                 OutlinedTextField(
                     value = confirmPin,
-                    onValueChange = { if (it.length <= 6) { confirmPin = it; errorMessage = null } },
+                    onValueChange = { if (it.length <= 6) { confirmPin = it.filter { ch -> ch.isDigit() }; errorMessage = null } },
                     label = { Text("Confirm New PIN") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
@@ -1301,20 +1309,8 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        val inputDigits = verifyDob.filter { it.isDigit() }
-                        val expectedDigits = userProfile.dateOfBirth.filter { it.isDigit() }
-
-                        val isDobValid = expectedDigits.isNotBlank() && (
-                            inputDigits == expectedDigits ||
-                            (inputDigits.length == 8 && expectedDigits.length == 8 && (
-                                (inputDigits.take(2) == expectedDigits.takeLast(2) &&
-                                 inputDigits.substring(2, 4) == expectedDigits.substring(4, 6) &&
-                                 inputDigits.takeLast(4) == expectedDigits.take(4)) ||
-                                (inputDigits.take(4) == expectedDigits.takeLast(4) &&
-                                 inputDigits.substring(4, 6) == expectedDigits.substring(2, 4) &&
-                                 inputDigits.takeLast(2) == expectedDigits.take(2))
-                            ))
-                        )
+                        val isDobValid = viewModel.securityManager.verifyRecoveryDob(verifyDob) ||
+                                (userProfile.dateOfBirth.isNotBlank() && verifyDob.replace("[^0-9]".toRegex(), "") == userProfile.dateOfBirth.replace("[^0-9]".toRegex(), ""))
 
                         if (!isDobValid) {
                             errorMessage = "DOB verification failed. Please enter your correct birth date."
@@ -1343,8 +1339,8 @@ fun SettingsScreen(
     }
 
     if (activeSheet == SettingsActiveSheet.DAILY_REMINDER || activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
-        var hourInput by remember(userProfile.reminderHour) { mutableIntStateOf(userProfile.reminderHour) }
-        var minInput by remember(userProfile.reminderMinute) { mutableIntStateOf(userProfile.reminderMinute) }
+        var hourInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderHour) }
+        var minInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderMinute) }
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
