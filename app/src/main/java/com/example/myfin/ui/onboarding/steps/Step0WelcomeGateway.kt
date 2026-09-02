@@ -77,6 +77,7 @@ import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import java.util.Calendar
+import java.util.Locale
 
 enum class GatewayStage {
     CAROUSEL,
