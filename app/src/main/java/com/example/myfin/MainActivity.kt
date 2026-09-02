@@ -237,10 +237,14 @@ class MainActivity : FragmentActivity() {
                                                 onNavigateToVaultSettings = { currentTarget = NavigationTarget.SETTINGS }
                                             )
                                         } else {
-                                            VaultAccountsScreen(
+                                            VaultStrategyScreen(
                                                 viewModel = viewModel,
                                                 onOpenDrawer = { isDrawerOpen = true },
-                                                onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW }
+                                                onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
+                                                onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
+                                                onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
+                                                onNavigateToVaultAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS },
+                                                onNavigateToVaultSettings = { currentTarget = NavigationTarget.SETTINGS }
                                             )
                                         }
                                     }
