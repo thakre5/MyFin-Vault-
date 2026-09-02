@@ -29,9 +29,10 @@ object ExcelExportManager {
 
                 // SECTION 1: VAULT ACCOUNTS OVERVIEW
                 writer.write("=== VAULT ACCOUNTS & BALANCES ===\n")
-                writer.write("Account Name,Type,Starting Balance ($currencySymbol),Current Balance ($currencySymbol)\n")
+                writer.write("Account Name,Type,Starting Balance ($currencySymbol),Current Balance ($currencySymbol),Minimum Balance (MAB),Status\n")
                 allAccounts.forEach { acc ->
-                    writer.write("\"${escapeCsv(acc.accountName)}\",\"${acc.accountType}\",${acc.startingBalance},${acc.currentBalance}\n")
+                    val status = if (acc.isArchived) "Archived" else "Active"
+                    writer.write("\"${escapeCsv(acc.accountName)}\",\"${acc.accountType}\",${acc.startingBalance},${acc.currentBalance},${acc.minBalance},\"$status\"\n")
                 }
                 writer.write("\n\n")
 
@@ -49,12 +50,13 @@ object ExcelExportManager {
 
                 // SECTION 3: TRANSACTION LEDGER
                 writer.write("=== COMPLETE TRANSACTION LEDGER ===\n")
-                writer.write("Timestamp,Title,Flow Type,Category,Subcategory,Amount ($currencySymbol),Source Vault,Destination Vault,Month,Year\n")
+                writer.write("Timestamp,Title,Flow Type,Category,Subcategory,Amount ($currencySymbol),Source Vault,Destination Vault,Transfer Subtype,Month,Year\n")
                 allTransactions.forEach { tx ->
                     val dateStr = dateFormat.format(Date(tx.date))
                     val dest = tx.toAccountName ?: ""
+                    val subtype = if (tx.transferSubtype != TransferSubtype.NONE) tx.transferSubtype.name else ""
                     writer.write(
-                        "\"$dateStr\",\"${escapeCsv(tx.title)}\",\"${tx.type.name}\",\"${escapeCsv(tx.category)}\",\"${escapeCsv(tx.subcategory)}\",${tx.amount},\"${escapeCsv(tx.accountName)}\",\"${escapeCsv(dest)}\",${tx.month},${tx.year}\n"
+                        "\"$dateStr\",\"${escapeCsv(tx.title)}\",\"${tx.type.name}\",\"${escapeCsv(tx.category)}\",\"${escapeCsv(tx.subcategory)}\",${tx.amount},\"${escapeCsv(tx.accountName)}\",\"${escapeCsv(dest)}\",\"$subtype\",${tx.month},${tx.year}\n"
                     )
                 }
             }
