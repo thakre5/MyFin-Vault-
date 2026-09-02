@@ -50,14 +50,14 @@ fun MyFinAppLogo(
             modifier = Modifier
                 .fillMaxSize(if (showBackgroundContainer) 0.68f else 1.0f)
         ) {
-            drawTriVaultLogo(this)
+            drawTriVaultLogo()
         }
     }
 }
 
-private fun drawTriVaultLogo(drawScope: DrawScope) {
-    val w = drawScope.size.width
-    val h = drawScope.size.height
+private fun DrawScope.drawTriVaultLogo() {
+    val w = size.width
+    val h = size.height
 
     // Brand Gradients
     val operatingBrush = Brush.verticalGradient(
@@ -88,7 +88,7 @@ private fun drawTriVaultLogo(drawScope: DrawScope) {
         cubicTo(w * 0.26f, h * 0.94f, w * 0.16f, h * 0.94f, w * 0.12f, h * 0.88f)
         close()
     }
-    drawScope.drawPath(leftShard, brush = operatingBrush)
+    drawPath(leftShard, brush = operatingBrush)
 
     // Shard 2: Right Pillar (Fortress)
     val rightShard = Path().apply {
@@ -100,7 +100,7 @@ private fun drawTriVaultLogo(drawScope: DrawScope) {
         cubicTo(w * 0.74f, h * 0.94f, w * 0.84f, h * 0.94f, w * 0.88f, h * 0.88f)
         close()
     }
-    drawScope.drawPath(rightShard, brush = fortressBrush)
+    drawPath(rightShard, brush = fortressBrush)
 
     // Shard 3: Center Apex Roof (Commitments Vault)
     val centerApex = Path().apply {
@@ -110,17 +110,17 @@ private fun drawTriVaultLogo(drawScope: DrawScope) {
         lineTo(w * 0.38f, h * 0.44f)
         close()
     }
-    drawScope.drawPath(centerApex, brush = commitmentsBrush)
+    drawPath(centerApex, brush = commitmentsBrush)
 
     // Central Core Security Node (Aperture Lock)
     val coreCenter = Offset(w * 0.50f, h * 0.44f)
-    drawScope.drawCircle(
+    drawCircle(
         color = Color(0xFF0F111E),
         radius = w * 0.11f,
         center = coreCenter,
         style = Fill
     )
-    drawScope.drawCircle(
+    drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(Color(0xFFFFFFFF), Color(0xFF00D2EE)),
             center = coreCenter,
@@ -130,7 +130,7 @@ private fun drawTriVaultLogo(drawScope: DrawScope) {
         center = coreCenter,
         style = Fill
     )
-    drawScope.drawCircle(
+    drawCircle(
         color = Color.White.copy(alpha = 0.85f),
         radius = w * 0.12f,
         center = coreCenter,
