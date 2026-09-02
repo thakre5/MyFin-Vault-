@@ -36,6 +36,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -1820,7 +1822,7 @@ fun MonthlyScreen(
                     OutlinedTextField(
                         value = amountText,
                         onValueChange = { amountText = it },
-                        label = { Text(text = "Transfer Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
+                        label = { Text(text = "Transfer Amount (${userProfile.currencySymbol})") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1846,7 +1848,7 @@ fun MonthlyScreen(
                     OutlinedTextField(
                         value = noteText,
                         onValueChange = { noteText = it },
-                        label = { Text(text = "Note / Purpose (e.g. Rent Staging, SIP Allocation)", fontSize = 12.sp) },
+                        label = { Text(text = "Note / Purpose (e.g. Rent Staging, SIP Allocation)") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
