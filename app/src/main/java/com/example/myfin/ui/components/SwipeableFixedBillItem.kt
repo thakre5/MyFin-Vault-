@@ -3,7 +3,9 @@ package com.example.myfin.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.FixedBillEntity
@@ -42,7 +45,6 @@ fun SwipeableFixedBillItem(
 ) {
     val haptic = LocalHapticFeedback.current
 
-    // Retain latest state references to prevent stale lambda closures on rapid status toggles
     val currentBill by rememberUpdatedState(bill)
     val currentOnEdit by rememberUpdatedState(onEdit)
     val currentOnDelete by rememberUpdatedState(onDelete)
@@ -170,7 +172,9 @@ fun SwipeableFixedBillItem(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(1.5.dp, RoundedCornerShape(18.dp))
+                .shadow(1.dp, RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(18.dp))
+                .border(0.8.dp, BorderLight.copy(alpha = 0.6f), RoundedCornerShape(18.dp))
                 .clickable { currentOnTap(currentBill) },
             shape = RoundedCornerShape(18.dp),
             color = CardWhite
@@ -182,7 +186,10 @@ fun SwipeableFixedBillItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     IconButton(
                         onClick = { currentOnTap(currentBill) },
                         modifier = Modifier.size(36.dp)
@@ -196,19 +203,26 @@ fun SwipeableFixedBillItem(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(
                                 text = currentBill.title,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
-                                color = TextDark
+                                color = TextDark,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             if (currentBill.dueDay != null) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = CanvasLight
+                                    color = CanvasLight,
+                                    border = BorderStroke(0.6.dp, BorderLight)
                                 ) {
                                     Text(
                                         text = "Due Day ${currentBill.dueDay}",
@@ -224,10 +238,14 @@ fun SwipeableFixedBillItem(
                         Text(
                             text = "${currentBill.category} • ${currentBill.accountName}${if (currentBill.toAccountName != null) " ➔ " + currentBill.toAccountName else ""}",
                             fontSize = 11.sp,
-                            color = TextMuted
+                            color = TextMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.width(14.dp))
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
