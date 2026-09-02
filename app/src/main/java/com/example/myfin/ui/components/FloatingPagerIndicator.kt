@@ -31,9 +31,6 @@ import androidx.compose.ui.unit.sp
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.launch
 
-/**
- * Floating segmented indicator pill anchored above the active bottom dock tab.
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FloatingPagerIndicator(
@@ -122,6 +119,7 @@ fun FloatingPagerIndicator(
                                 .clip(CircleShape)
                                 .background(if (isSelected) activeColor else inactiveColor)
                                 .clickable(
+                                    enabled = isVisible,
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) {
