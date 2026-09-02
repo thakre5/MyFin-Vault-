@@ -3,6 +3,7 @@ package com.example.myfin.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -244,7 +245,7 @@ fun SwipeableTransactionItem(
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = CanvasLight,
-                                border = androidx.compose.foundation.BorderStroke(0.6.dp, BorderLight)
+                                border = BorderStroke(0.6.dp, BorderLight)
                             ) {
                                 Text(
                                     text = if (currentTx.type == TransactionType.TRANSFER && currentTx.toAccountName != null) {
@@ -256,17 +257,17 @@ fun SwipeableTransactionItem(
                                     fontWeight = FontWeight.Bold,
                                     color = if (currentTx.type == TransactionType.TRANSFER) AccentPurple else TextDark.copy(alpha = 0.75f),
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
                     }
                 }
 
-                // Generous Spacer to prevent amount overlap
                 Spacer(modifier = Modifier.width(16.dp))
 
-                // Right Block: Amount & Time
+                // Right Block: Amount & Timestamp
                 Column(horizontalAlignment = Alignment.End) {
                     val amountPrefix = when (currentTx.type) {
                         TransactionType.EXPENSE -> "-"
