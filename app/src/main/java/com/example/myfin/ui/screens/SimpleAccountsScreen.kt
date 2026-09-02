@@ -1,19 +1,11 @@
 package com.example.myfin.ui.screens
 
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,12 +19,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -45,15 +34,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
-import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
+import com.example.myfin.ui.components.AccountTransferDialog
 import com.example.myfin.ui.components.AppBottomDock
 import com.example.myfin.ui.components.DockFabAction
 import com.example.myfin.ui.components.NavigationTarget
 import com.example.myfin.ui.components.rememberAutoScrollVisibilityConnection
 import com.example.myfin.ui.theme.*
 import java.util.Locale
-import kotlin.math.abs
 
 data class SimplePendingEditConfirmation(
     val originalAccount: AccountBalanceResult,
@@ -81,7 +69,6 @@ fun SimpleAccountsScreen(
 
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
 
-    var showActionMenu by remember { mutableStateOf(false) }
     var showTransferSheet by remember { mutableStateOf(false) }
     var showAddAccountSheet by remember { mutableStateOf(false) }
 
@@ -90,7 +77,7 @@ fun SimpleAccountsScreen(
     var accountToDelete by remember { mutableStateOf<AccountEntity?>(null) }
 
     val displayAccounts = remember(uiState.accounts) {
-        uiState.accounts.filter { !it.isArchived }
+        uiState.accounts.filter { !it.isArchived }.sortedBy { it.sortOrder }
     }
     val archivedAccounts = remember(uiState.accounts) {
         uiState.accounts.filter { it.isArchived }
@@ -141,7 +128,7 @@ fun SimpleAccountsScreen(
                         .clip(CircleShape)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ChevronLeft,
+                        imageVector = Icons.Default.Menu,
                         contentDescription = "Drawer",
                         tint = TextDark,
                         modifier = Modifier.size(24.dp)
@@ -213,7 +200,7 @@ fun SimpleAccountsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // Overview Liquidity Card
-                item {
+                item(key = "overview_liquidity_card") {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -335,7 +322,7 @@ fun SimpleAccountsScreen(
                 }
 
                 // Active Accounts List Header
-                item {
+                item(key = "active_accounts_header") {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -356,7 +343,7 @@ fun SimpleAccountsScreen(
                 }
 
                 if (displayAccounts.isEmpty()) {
-                    item {
+                    item(key = "empty_accounts") {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
@@ -434,8 +421,8 @@ fun SimpleAccountsScreen(
                                                 Text(
                                                     text = "MAB: ${userProfile.currencySymbol}${account.minBalance.toInt()}",
                                                     fontSize = 9.5.sp,
-                                                    color = AccentPurple,
-                                                    fontWeight = FontWeight.Medium
+                                                    color = if (account.isMabBreached) SoftRed else AccentPurple,
+                                                    fontWeight = if (account.isMabBreached) FontWeight.Bold else FontWeight.Medium
                                                 )
                                             }
                                         }
@@ -478,7 +465,7 @@ fun SimpleAccountsScreen(
 
                 // Archived Accounts Section
                 if (archivedAccounts.isNotEmpty()) {
-                    item {
+                    item(key = "archived_accounts_header") {
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = "Archived Accounts (${archivedAccounts.size})",
@@ -533,7 +520,7 @@ fun SimpleAccountsScreen(
             }
         }
 
-        // 3. BOTTOM GRADIENT SCRIM
+        // Bottom Gradient Scrim
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -551,7 +538,7 @@ fun SimpleAccountsScreen(
                 .zIndex(2.5f)
         )
 
-        // 4. STANDARDIZED FLOATING BOTTOM NAVIGATION DOCK WITH FAB
+        // Floating Bottom Navigation Dock with FAB
         AppBottomDock(
             currentSelection = NavigationTarget.VAULT_ACCOUNTS,
             onSelectTarget = { target ->
@@ -576,7 +563,10 @@ fun SimpleAccountsScreen(
             var nameText by remember(acc) { mutableStateOf(acc.accountName) }
             var typeText by remember(acc) { mutableStateOf(acc.accountType) }
             var balanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%.2f", acc.currentBalance)) }
-            var minBalanceText by remember(acc) { mutableStateOf(acc.minBalance.toString()) }
+            val formattedMab = remember(acc.minBalance) {
+                if (acc.minBalance % 1.0 == 0.0) acc.minBalance.toLong().toString() else acc.minBalance.toString()
+            }
+            var minBalanceText by remember(acc) { mutableStateOf(formattedMab) }
             var isArchivedState by remember(acc) { mutableStateOf(acc.isArchived) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -593,6 +583,7 @@ fun SimpleAccountsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Row(
@@ -647,12 +638,16 @@ fun SimpleAccountsScreen(
 
                     OutlinedTextField(
                         value = balanceText,
-                        onValueChange = { balanceText = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            balanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
                         label = { Text("Current Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
@@ -660,12 +655,16 @@ fun SimpleAccountsScreen(
 
                     OutlinedTextField(
                         value = minBalanceText,
-                        onValueChange = { minBalanceText = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            minBalanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
                         label = { Text("Minimum Balance (MAB)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
@@ -726,6 +725,7 @@ fun SimpleAccountsScreen(
             val isNameChanged = !conf.originalAccount.accountName.equals(conf.updatedName, ignoreCase = true)
             val isTypeChanged = !conf.originalAccount.accountType.equals(conf.updatedType, ignoreCase = true)
             val isBalChanged = conf.targetBalance != conf.originalAccount.currentBalance
+            val isMabChanged = conf.minBalance != conf.originalAccount.minBalance
             val isArchiveChanged = conf.isArchived != conf.originalAccount.isArchived
 
             AlertDialog(
@@ -743,8 +743,14 @@ fun SimpleAccountsScreen(
                             val diff = conf.targetBalance - conf.originalAccount.currentBalance
                             Text("• Balance Adjustment: ${if (diff > 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", diff)}")
                         }
+                        if (isMabChanged) {
+                            Text("• Minimum Balance (MAB): ${userProfile.currencySymbol}${conf.minBalance.toInt()}")
+                        }
                         if (isArchiveChanged) {
                             Text("• Archive Status: ${if (conf.isArchived) "Archived" else "Active"}")
+                        }
+                        if (!isNameChanged && !isTypeChanged && !isBalChanged && !isMabChanged && !isArchiveChanged) {
+                            Text("No changes detected.")
                         }
                     }
                 },
@@ -757,16 +763,10 @@ fun SimpleAccountsScreen(
                                 newName = conf.updatedName,
                                 startingBalance = orig.startingBalance,
                                 accountType = conf.updatedType,
+                                minBalance = conf.minBalance,
+                                isArchived = conf.isArchived,
                                 sortOrder = orig.sortOrder
                             )
-
-                            if (conf.isArchived != orig.isArchived) {
-                                if (conf.isArchived) {
-                                    viewModel.archiveAccount(conf.updatedName)
-                                } else {
-                                    viewModel.unarchiveAccount(conf.updatedName)
-                                }
-                            }
 
                             if (isBalChanged) {
                                 viewModel.adjustAccountBalance(conf.updatedName, conf.targetBalance)
@@ -821,133 +821,23 @@ fun SimpleAccountsScreen(
             )
         }
 
-        // Instant Transfer Bottom Sheet
+        // Standardized Instant Transfer Bottom Sheet
         if (showTransferSheet) {
-            var fromAccount by remember { mutableStateOf(accountNames.firstOrNull().orEmpty()) }
-            var toAccount by remember { mutableStateOf(accountNames.getOrNull(1) ?: accountNames.firstOrNull().orEmpty()) }
-            var amountText by remember { mutableStateOf("") }
-            var noteText by remember { mutableStateOf("Internal Transfer") }
-            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-            ModalBottomSheet(
-                onDismissRequest = { showTransferSheet = false },
-                sheetState = sheetState,
-                containerColor = CardWhite,
-                shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
-                dragHandle = {
-                    Surface(modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp), shape = CircleShape, color = BorderLight) {}
-                }
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 22.dp, vertical = 8.dp)
-                ) {
-                    Text("Instant Transfer", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text("Move money across your active accounts", fontSize = 11.5.sp, color = TextMuted)
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text("From Account", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(accountNames) { acc ->
-                            val isSel = fromAccount == acc
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { fromAccount = acc },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
-                                border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
-                            ) {
-                                Text(
-                                    text = acc,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSel) AccentPurple else TextDark,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text("To Account", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(accountNames) { acc ->
-                            val isSel = toAccount == acc
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { toAccount = acc },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
-                                border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
-                            ) {
-                                Text(
-                                    text = acc,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSel) AccentPurple else TextDark,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    OutlinedTextField(
-                        value = amountText,
-                        onValueChange = { amountText = it },
-                        label = { Text("Transfer Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+            AccountTransferDialog(
+                accounts = accountNames,
+                currencySymbol = userProfile.currencySymbol,
+                onDismiss = { showTransferSheet = false },
+                onTransfer = { from, to, amt, note, subtype ->
+                    viewModel.executeInstantTransfer(
+                        fromAccount = from,
+                        toAccount = to,
+                        amount = amt,
+                        note = note,
+                        subtype = subtype
                     )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    OutlinedTextField(
-                        value = noteText,
-                        onValueChange = { noteText = it },
-                        label = { Text("Note / Purpose", fontSize = 12.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
-                    )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    Button(
-                        onClick = {
-                            val amt = amountText.toDoubleOrNull() ?: 0.0
-                            if (amt > 0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount != toAccount) {
-                                viewModel.executeInstantTransfer(fromAccount, toAccount, amt, noteText)
-                                showTransferSheet = false
-                                Toast.makeText(context, "Transferred ${userProfile.currencySymbol}$amt to $toAccount", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "Please enter a valid amount and distinct accounts", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
-                    ) {
-                        Text("Confirm Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amt)} to $to", Toast.LENGTH_SHORT).show()
                 }
-            }
+            )
         }
 
         // Add Account Bottom Sheet
@@ -955,6 +845,7 @@ fun SimpleAccountsScreen(
             var name by remember { mutableStateOf("") }
             var type by remember { mutableStateOf("Bank") }
             var balanceText by remember { mutableStateOf("") }
+            var minBalanceText by remember { mutableStateOf("0") }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -970,6 +861,7 @@ fun SimpleAccountsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Text("Add Account", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
@@ -981,7 +873,7 @@ fun SimpleAccountsScreen(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Account Name (e.g. HDFC Salary, Cash Wallet)", fontSize = 12.sp) },
+                        label = { Text("Account Name (e.g., HDFC Salary, Cash Wallet)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1005,12 +897,33 @@ fun SimpleAccountsScreen(
 
                     OutlinedTextField(
                         value = balanceText,
-                        onValueChange = { balanceText = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            balanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
                         label = { Text("Starting Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = minBalanceText,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            minBalanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
+                        label = { Text("Minimum Balance (MAB)", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
@@ -1020,21 +933,23 @@ fun SimpleAccountsScreen(
                         onClick = {
                             if (name.isNotBlank()) {
                                 val bal = balanceText.toDoubleOrNull() ?: 0.0
+                                val minBal = minBalanceText.toDoubleOrNull() ?: 0.0
                                 viewModel.addAccount(
                                     name = name.trim().uppercase(),
                                     startingBalance = bal,
-                                    type = type.trim()
+                                    type = type.trim(),
+                                    minBalance = minBal
                                 )
                                 showAddAccountSheet = false
                                 Toast.makeText(context, "Account '${name.trim().uppercase()}' added", Toast.LENGTH_SHORT).show()
                             }
                         },
                         enabled = name.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
