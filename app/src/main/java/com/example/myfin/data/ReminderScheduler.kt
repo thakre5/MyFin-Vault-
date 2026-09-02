@@ -17,20 +17,26 @@ object ReminderScheduler {
 
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "Daily Check-in & AutoPay Alerts"
-            val descriptionText = "Notifications for recurring bill reminders and end-of-day spend logging"
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(CHANNEL_ID_REMINDERS, name, importance).apply {
-                description = descriptionText
-                enableLights(true)
-                enableVibration(true)
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+            
+            // Avoid recreating if already registered
+            if (notificationManager.getNotificationChannel(CHANNEL_ID_REMINDERS) == null) {
+                val name = "Daily Check-in & AutoPay Alerts"
+                val descriptionText = "Notifications for recurring bill reminders and end-of-day spend logging"
+                val importance = NotificationManager.IMPORTANCE_DEFAULT
+                val channel = NotificationChannel(CHANNEL_ID_REMINDERS, name, importance).apply {
+                    description = descriptionText
+                    enableLights(true)
+                    enableVibration(true)
+                }
+                notificationManager.createNotificationChannel(channel)
             }
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
         }
     }
 
     fun scheduleDailyReminder(context: Context, hour: Int, minute: Int) {
+        createNotificationChannels(context)
+
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val intent = Intent(context, ReminderReceiver::class.java).apply {
             action = ACTION_DAILY_REMINDER
@@ -76,8 +82,8 @@ object ReminderScheduler {
                 )
             }
         } catch (_: SecurityException) {
-            // Safe fallback if exact alarm permission is revoked at runtime
-            alarmManager.set(
+            // Safe fallback if exact alarm permission is revoked at runtime on Android 12+
+            alarmManager.setAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 calendar.timeInMillis,
                 pendingIntent
