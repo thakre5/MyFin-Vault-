@@ -78,11 +78,6 @@ import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import java.util.Calendar
 import java.util.Locale
-// Add this import to:
-// - app/src/main/java/com/example/myfin/ui/onboarding/steps/Step0WelcomeGateway.kt
-// - app/src/main/java/com/example/myfin/ui/onboarding/steps/Step6VaultSealingScreen.kt
-import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
-
 
 enum class GatewayStage {
     CAROUSEL,
@@ -167,7 +162,6 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Hardware Back Handler
     BackHandler(enabled = currentStage != GatewayStage.CAROUSEL) {
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         focusManager.clearFocus()
@@ -182,7 +176,6 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Carousel Auto-Scroll Loop
     val virtualPageCount = 3000
     val initialPage = (virtualPageCount / 2) - ((virtualPageCount / 2) % WelcomeCarouselSlides.size)
     val carouselPagerState = rememberPagerState(
@@ -210,7 +203,6 @@ fun OnboardingStep0WelcomeGateway(
         }
     }
 
-    // Responsive Hero Sizing
     val isCompactHero = currentStage == GatewayStage.ACCOUNTS || currentStage == GatewayStage.COMMITMENTS
     val heroScale by animateFloatAsState(
         targetValue = when {
@@ -233,7 +225,6 @@ fun OnboardingStep0WelcomeGateway(
         label = "heroHeight"
     )
 
-    // Button Morphing Fractions
     val primaryButtonWidthFraction by animateFloatAsState(
         targetValue = if (currentStage == GatewayStage.CAROUSEL || currentStage == GatewayStage.IDENTITY) 1.0f else 0.58f,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
@@ -250,12 +241,10 @@ fun OnboardingStep0WelcomeGateway(
         label = "restoreHeight"
     )
 
-    // Live Aggregate Liquidity Calculation
     val totalLiquidBalance = remember(accounts.map { it.initialBalanceText }) {
         accounts.sumOf { it.initialBalanceText.toDoubleOrNull() ?: 0.0 }
     }
 
-    // Live Tri-Metric Cash Flow Totals
     val totalIncome = remember(commitments.map { it.isSelected to it.amountText }) {
         commitments.filter { it.isSelected && it.type == TransactionType.INCOME }
             .sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
@@ -283,7 +272,6 @@ fun OnboardingStep0WelcomeGateway(
                 )
             )
     ) {
-        // LAYER 1: SCROLLABLE BODY
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val minScreenHeight = maxHeight
 
@@ -301,7 +289,6 @@ fun OnboardingStep0WelcomeGateway(
             ) {
                 Spacer(modifier = Modifier.height(if (isCompactHero) 48.dp else 56.dp))
 
-                // Hero Cards
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -319,7 +306,6 @@ fun OnboardingStep0WelcomeGateway(
 
                 Spacer(modifier = Modifier.height(if (isCompactHero) 8.dp else 16.dp))
 
-                // Multi-Stage Animated Content
                 AnimatedContent(
                     targetState = currentStage,
                     transitionSpec = {
@@ -329,14 +315,13 @@ fun OnboardingStep0WelcomeGateway(
                                 .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeOut(tween(420)))
                         } else {
                             (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeIn(tween(420)))
-                                .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> fullWidth } + fadeOut(tween(420)))
+                                .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeOut(tween(420)))
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = "gatewayStageTransition"
                 ) { stage ->
                     when (stage) {
-                        // STAGE 0: Welcome Carousel
                         GatewayStage.CAROUSEL -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -400,7 +385,6 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
 
-                        // STAGE 1: Profile Identity
                         GatewayStage.IDENTITY -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -534,7 +518,6 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
 
-                        // STAGE 2: Security Lock
                         GatewayStage.SECURITY -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -715,7 +698,6 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
 
-                        // STAGE 3: Strategy Selection
                         GatewayStage.STRATEGY -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -846,7 +828,6 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
 
-                        // STAGE 4: Configure Accounts & Opening Balances + Dynamic MAB Chip
                         GatewayStage.ACCOUNTS -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1144,7 +1125,6 @@ fun OnboardingStep0WelcomeGateway(
                             }
                         }
 
-                        // STAGE 5: Recurring Cash Flow & AutoPay Commitments
                         GatewayStage.COMMITMENTS -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1183,7 +1163,6 @@ fun OnboardingStep0WelcomeGateway(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceEvenly
                                     ) {
-                                        // Inflow
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1210,7 +1189,6 @@ fun OnboardingStep0WelcomeGateway(
 
                                         Box(modifier = Modifier.width(1.dp).height(18.dp).background(BorderLight))
 
-                                        // Outflow
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1237,7 +1215,6 @@ fun OnboardingStep0WelcomeGateway(
 
                                         Box(modifier = Modifier.width(1.dp).height(18.dp).background(BorderLight))
 
-                                        // Assets
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1457,7 +1434,6 @@ fun OnboardingStep0WelcomeGateway(
 
                 Spacer(modifier = Modifier.height(if (isImeVisible) 10.dp else 16.dp))
 
-                // Bottom Action Buttons
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1577,7 +1553,6 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // LAYER 2: FLOATING PINNED HEADER WITH MYFIN BRAND HEADER
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1602,7 +1577,6 @@ fun OnboardingStep0WelcomeGateway(
             )
         }
 
-        // QUICK MAB SELECTOR BOTTOM SHEET
         editingMabAccountIndex?.let { accIdx ->
             val targetAccount = accounts.getOrNull(accIdx)
             if (targetAccount != null) {
@@ -1727,7 +1701,6 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // STRATEGY DETAIL & CONFIRMATION BOTTOM SHEET
         strategyDetailTarget?.let { target ->
             ModalBottomSheet(
                 onDismissRequest = { strategyDetailTarget = null },
@@ -1886,7 +1859,6 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // COUNTRY / CURRENCY SELECTOR SHEET
         if (showCountryPickerSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showCountryPickerSheet = false },
@@ -1962,7 +1934,6 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // RESTORE VAULT CONFIRMATION BOTTOM SHEET
         if (showRestoreConfirmationSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showRestoreConfirmationSheet = false },
@@ -2019,7 +1990,6 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
-        // BIOMETRIC CONFIRMATION BOTTOM SHEET
         if (showBiometricSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showBiometricSheet = false },
