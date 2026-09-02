@@ -1013,6 +1013,7 @@ private fun HeartLiquidProgressCanvas(
         val w = size.width
         val h = size.height
 
+        // Precise Symmetric Heart Bézier Path
         val heartPath = Path().apply {
             moveTo(w / 2f, h * 0.82f)
             cubicTo(
@@ -1038,40 +1039,27 @@ private fun HeartLiquidProgressCanvas(
             close()
         }
 
+        // Clip all liquid drawing strictly inside the flat heart boundary
         clipPath(heartPath) {
-            drawRect(color = primaryColor.copy(alpha = 0.10f))
+            // Flat background container tint
+            drawRect(color = primaryColor.copy(alpha = 0.12f))
 
+            // Clean flat bottom-up liquid fill
             val fillHeight = h * fillPercentage.coerceIn(0f, 1f)
             val fillTop = h - fillHeight
 
             drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(secondaryColor, primaryColor),
-                    startY = fillTop,
-                    endY = h
-                ),
+                color = primaryColor,
                 topLeft = Offset(0f, fillTop),
                 size = Size(w, fillHeight + 10f)
             )
-
-            val wavePath = Path().apply {
-                moveTo(0f, fillTop)
-                quadraticBezierTo(w * 0.25f, fillTop - 6f, w * 0.5f, fillTop)
-                quadraticBezierTo(w * 0.75f, fillTop + 6f, w, fillTop)
-                lineTo(w, h)
-                lineTo(0f, h)
-                close()
-            }
-            drawPath(
-                path = wavePath,
-                color = Color.White.copy(alpha = 0.25f)
-            )
         }
 
+        // Clean, flat vector outline
         drawPath(
             path = heartPath,
-            color = primaryColor.copy(alpha = 0.45f),
-            style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+            color = primaryColor,
+            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
         )
     }
 }
