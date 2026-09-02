@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -43,7 +44,7 @@ fun AddTransactionBottomSheet(
     var selectedType by remember { mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE) }
     var title by remember { mutableStateOf(editingTransaction?.title.orEmpty()) }
     var amountText by remember { mutableStateOf(editingTransaction?.amount?.let { if (it > 0) it.toString() else "" }.orEmpty()) }
-    
+
     var selectedAccount by remember(accountList) {
         mutableStateOf(editingTransaction?.accountName ?: accountList.firstOrNull().orEmpty())
     }
@@ -64,13 +65,23 @@ fun AddTransactionBottomSheet(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
-    val isInputValid = parsedAmount > 0.0
+    val isInputValid = parsedAmount > 0.0 && selectedAccount.isNotBlank()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = CardWhite,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        dragHandle = {
+            Surface(
+                modifier = Modifier
+                    .padding(vertical = 10.dp)
+                    .width(40.dp)
+                    .height(4.dp),
+                shape = CircleShape,
+                color = BorderLight
+            ) {}
+        }
     ) {
         Column(
             modifier = Modifier
@@ -107,11 +118,22 @@ fun AddTransactionBottomSheet(
                     .background(BorderLight.copy(alpha = 0.5f))
                     .padding(3.dp)
             ) {
-                listOf(
-                    TransactionType.EXPENSE to "Expense",
-                    TransactionType.INCOME to "Income",
-                    TransactionType.ASSET to "Asset / SIP"
-                ).forEach { (type, label) ->
+                val types = if (isEditing && editingTransaction.type == TransactionType.TRANSFER) {
+                    listOf(
+                        TransactionType.EXPENSE to "Expense",
+                        TransactionType.INCOME to "Income",
+                        TransactionType.ASSET to "Asset / SIP",
+                        TransactionType.TRANSFER to "Transfer"
+                    )
+                } else {
+                    listOf(
+                        TransactionType.EXPENSE to "Expense",
+                        TransactionType.INCOME to "Income",
+                        TransactionType.ASSET to "Asset / SIP"
+                    )
+                }
+
+                types.forEach { (type, label) ->
                     val isSelected = selectedType == type
                     Box(
                         modifier = Modifier
@@ -131,13 +153,13 @@ fun AddTransactionBottomSheet(
                         Text(
                             text = label,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
                             color = if (isSelected) {
                                 when (type) {
                                     TransactionType.EXPENSE -> SoftRed
                                     TransactionType.INCOME -> SoftGreen
                                     TransactionType.ASSET -> SoftTeal
-                                    else -> TextDark
+                                    TransactionType.TRANSFER -> AccentPurple
                                 }
                             } else TextMuted
                         )
@@ -149,7 +171,11 @@ fun AddTransactionBottomSheet(
 
             OutlinedTextField(
                 value = amountText,
-                onValueChange = { amountText = it },
+                onValueChange = { input ->
+                    val filtered = input.filter { it.isDigit() || it == '.' }
+                    val parts = filtered.split('.')
+                    amountText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                },
                 label = { Text("Amount ($currencySymbol)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
@@ -167,6 +193,7 @@ fun AddTransactionBottomSheet(
                 value = title,
                 onValueChange = { title = it },
                 label = { Text("Title / Merchant (Optional)") },
+                placeholder = { Text(selectedSubcategory.ifBlank { "e.g., Grocery Store" }) },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -177,44 +204,23 @@ fun AddTransactionBottomSheet(
                 )
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            if (selectedType != TransactionType.TRANSFER) {
+                Spacer(modifier = Modifier.height(14.dp))
 
-            // Category Chips
-            Text("Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-            Spacer(modifier = Modifier.height(6.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(availableCategories) { cat ->
-                    val isSelected = selectedCategory == cat
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            selectedCategory = cat
-                            val subs = masterSubcategories.filter { it.parentCategory == cat }.map { it.name }
-                            selectedSubcategory = subs.firstOrNull().orEmpty()
-                        },
-                        label = { Text(cat, fontSize = 11.5.sp) },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Subcategory Chips
-            if (availableSubcategories.isNotEmpty()) {
-                Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                // Category Chips
+                Text("Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(availableSubcategories) { sub ->
-                        val isSelected = selectedSubcategory == sub
+                    items(availableCategories.ifEmpty { listOf("General") }) { cat ->
+                        val isSelected = selectedCategory == cat
                         FilterChip(
                             selected = isSelected,
-                            onClick = { selectedSubcategory = sub },
-                            label = { Text(sub, fontSize = 11.5.sp) },
+                            onClick = {
+                                selectedCategory = cat
+                                val subs = masterSubcategories.filter { it.parentCategory == cat }.map { it.name }
+                                selectedSubcategory = subs.firstOrNull().orEmpty()
+                            },
+                            label = { Text(cat, fontSize = 11.5.sp) },
                             shape = RoundedCornerShape(8.dp),
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = AccentPurpleLight,
@@ -223,7 +229,30 @@ fun AddTransactionBottomSheet(
                         )
                     }
                 }
+
                 Spacer(modifier = Modifier.height(10.dp))
+
+                // Subcategory Chips
+                if (availableSubcategories.isNotEmpty()) {
+                    Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(availableSubcategories) { sub ->
+                            val isSelected = selectedSubcategory == sub
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedSubcategory = sub },
+                                label = { Text(sub, fontSize = 11.5.sp) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = AccentPurpleLight,
+                                    selectedLabelColor = AccentPurple
+                                )
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
             }
 
             // Vault Account Chips
