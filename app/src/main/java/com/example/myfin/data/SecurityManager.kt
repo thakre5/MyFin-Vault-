@@ -149,7 +149,26 @@ class SecurityManager(private val context: Context) {
         val storedDob = getRecoveryDob() ?: return false
         val cleanStored = storedDob.replace("[^0-9]".toRegex(), "")
         val cleanEntered = enteredDob.replace("[^0-9]".toRegex(), "")
-        return cleanStored.isNotEmpty() && cleanStored == cleanEntered
+
+        if (cleanStored.isEmpty() || cleanEntered.isEmpty()) return false
+        if (cleanStored == cleanEntered) return true
+
+        // Check format inversions (YYYYMMDD vs DDMMYYYY)
+        if (cleanStored.length == 8 && cleanEntered.length == 8) {
+            val storedAsDmy = if (cleanStored.take(4).toIntOrNull() ?: 0 > 1900) {
+                // Stored is YYYYMMDD -> convert to DDMMYYYY
+                cleanStored.takeLast(2) + cleanStored.substring(4, 6) + cleanStored.take(4)
+            } else cleanStored
+
+            val enteredAsDmy = if (cleanEntered.take(4).toIntOrNull() ?: 0 > 1900) {
+                // Entered is YYYYMMDD -> convert to DDMMYYYY
+                cleanEntered.takeLast(2) + cleanEntered.substring(4, 6) + cleanEntered.take(4)
+            } else cleanEntered
+
+            return storedAsDmy == enteredAsDmy
+        }
+
+        return false
     }
 
     fun resetPinWithDob(enteredDob: String, newPin: String): Boolean {
@@ -185,12 +204,16 @@ class SecurityManager(private val context: Context) {
         val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 super.onAuthenticationSucceeded(result)
+                clearSessionLock()
                 onSuccess()
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 super.onAuthenticationError(errorCode, errString)
-                onError()
+                // If user deliberately canceled or tapped "Use PIN", do not trigger error flash
+                if (errorCode != BiometricPrompt.ERROR_USER_CANCELED && errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                    onError()
+                }
             }
 
             override fun onAuthenticationFailed() {
@@ -213,7 +236,7 @@ class SecurityManager(private val context: Context) {
     fun recordAppBackgrounded() {
         sharedPreferences.edit()
             .putLong(KEY_LAST_BACKGROUND_TIME, System.currentTimeMillis())
-            .commit()
+            .apply()
     }
 
     fun shouldLockOnResume(timeoutMillis: Long = DEFAULT_LOCK_TIMEOUT_MILLIS): Boolean {
@@ -226,7 +249,7 @@ class SecurityManager(private val context: Context) {
     fun clearSessionLock() {
         sharedPreferences.edit()
             .putLong(KEY_LAST_BACKGROUND_TIME, 0L)
-            .commit()
+            .apply()
     }
 
     // --- VAULT RESET & WIPES ---
