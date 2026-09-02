@@ -44,16 +44,44 @@ fun SpendingSparkline(
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
         )
 
-        val stepX = size.width / (points.size - 1).coerceAtLeast(1)
+        // Pre-compute pixel values outside the drawing loop
+        val paddingTopPx = 8.dp.toPx()
+        val paddingBottomPx = 18.dp.toPx()
+        val usableHeightPx = size.height - paddingBottomPx
+        val strokeWidthPx = 3.dp.toPx()
+        val haloRadiusPx = 8.dp.toPx()
+        val nodeRadiusPx = 4.dp.toPx()
+        val coreRadiusPx = 2.dp.toPx()
+
+        // Handle single-point edge case
+        if (points.size == 1) {
+            val y = (1f - ((points[0] - minVal) / range)) * usableHeightPx + paddingTopPx
+            val centerPoint = Offset(size.width * 0.5f, y)
+
+            drawLine(
+                color = lineColor,
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = strokeWidthPx,
+                cap = StrokeCap.Round
+            )
+            drawCircle(color = lineColor.copy(alpha = 0.18f), radius = haloRadiusPx, center = centerPoint)
+            drawCircle(color = lineColor, radius = nodeRadiusPx, center = centerPoint)
+            drawCircle(color = Color.White, radius = coreRadiusPx, center = centerPoint)
+            return@Canvas
+        }
+
+        val stepX = size.width / (points.size - 1)
         val strokePath = Path()
         val fillPath = Path()
 
         var lastPoint = Offset(0f, size.height)
 
-        points.forEachIndexed { i, value ->
+        points.forEachIndexed { i, rawValue ->
+            val value = rawValue.coerceAtLeast(0f)
             val x = i * stepX
             val normalizedY = 1f - ((value - minVal) / range)
-            val y = normalizedY * (size.height - 18.dp.toPx()) + 8.dp.toPx()
+            val y = normalizedY * usableHeightPx + paddingTopPx
 
             if (i == 0) {
                 strokePath.moveTo(x, y)
@@ -61,8 +89,9 @@ fun SpendingSparkline(
                 fillPath.lineTo(x, y)
             } else {
                 val prevX = (i - 1) * stepX
-                val prevNormY = 1f - ((points[i - 1] - minVal) / range)
-                val prevY = prevNormY * (size.height - 18.dp.toPx()) + 8.dp.toPx()
+                val prevValue = points[i - 1].coerceAtLeast(0f)
+                val prevNormY = 1f - ((prevValue - minVal) / range)
+                val prevY = prevNormY * usableHeightPx + paddingTopPx
 
                 val controlPoint1 = Offset(prevX + (x - prevX) / 2f, prevY)
                 val controlPoint2 = Offset(prevX + (x - prevX) / 2f, y)
@@ -100,24 +129,12 @@ fun SpendingSparkline(
         drawPath(
             path = strokePath,
             color = lineColor,
-            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+            style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
         )
 
-        // Halo & endpoint nodes
-        drawCircle(
-            color = lineColor.copy(alpha = 0.18f),
-            radius = 8.dp.toPx(),
-            center = lastPoint
-        )
-        drawCircle(
-            color = lineColor,
-            radius = 4.dp.toPx(),
-            center = lastPoint
-        )
-        drawCircle(
-            color = Color.White,
-            radius = 2.dp.toPx(),
-            center = lastPoint
-        )
+        // Endpoint nodes
+        drawCircle(color = lineColor.copy(alpha = 0.18f), radius = haloRadiusPx, center = lastPoint)
+        drawCircle(color = lineColor, radius = nodeRadiusPx, center = lastPoint)
+        drawCircle(color = Color.White, radius = coreRadiusPx, center = lastPoint)
     }
 }
