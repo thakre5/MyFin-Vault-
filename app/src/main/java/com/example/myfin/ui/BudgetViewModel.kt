@@ -253,7 +253,12 @@ class BudgetViewModel(
             // Real Liquid Safe-To-Spend (Actual Bank Liquid Cash perspective)
             val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
             val operatingAccounts = if (is3VaultMode) {
-                activeAccounts.filter { it.accountType.equals("Operating", ignoreCase = true) || it.accountType.equals("Cash", ignoreCase = true) }
+                activeAccounts.filter {
+                    it.accountType.equals("Operating", ignoreCase = true) ||
+                    it.accountType.equals("Cash", ignoreCase = true) ||
+                    it.accountName.contains("CASH", ignoreCase = true) ||
+                    it.accountName.contains("OPERATING", ignoreCase = true)
+                }
             } else {
                 activeAccounts
             }
@@ -279,8 +284,11 @@ class BudgetViewModel(
             val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
 
             // Commitments Vault Shortfall Engine
-            val commitmentsAccount = activeAccounts.find { it.accountType.equals("Commitments", ignoreCase = true) }
-                ?: activeAccounts.firstOrNull()
+            val commitmentsAccount = activeAccounts.find {
+                it.accountType.equals("Commitments", ignoreCase = true) ||
+                it.accountName.contains("COMMITMENT", ignoreCase = true) ||
+                it.accountName.contains("BILL", ignoreCase = true)
+            } ?: activeAccounts.firstOrNull()
 
             val unpaidFixedBills = fixedBills.filter { !it.isPaid && it.type == TransactionType.EXPENSE }
             val unpaidBillsSum = unpaidFixedBills.sumOf { it.amount }
@@ -304,7 +312,9 @@ class BudgetViewModel(
             // Automated Payday Allocation Suggestion
             val salaryTx = regularTxs.find {
                 it.type == TransactionType.INCOME &&
-                (it.category.contains("Salary", ignoreCase = true) || it.subcategory.contains("Salary", ignoreCase = true))
+                (it.category.contains("Salary", ignoreCase = true) ||
+                 it.subcategory.contains("Salary", ignoreCase = true) ||
+                 it.title.contains("Salary", ignoreCase = true))
             }
             val paydaySuggestion = if (salaryTx != null && is3VaultMode) {
                 val neededForCommitments = (unpaidBillsSum + commitmentsFloor - commitmentsBalance).coerceAtLeast(0.0)
@@ -1002,6 +1012,8 @@ class BudgetViewModel(
                 val txMonth = calTx.get(Calendar.MONTH) + 1
                 val txYear = calTx.get(Calendar.YEAR)
 
+                val subtype = if (bill.type == TransactionType.TRANSFER) TransferSubtype.BILL_FUNDING else TransferSubtype.NONE
+
                 dao.insertTransaction(
                     TransactionEntity(
                         title = bill.title,
@@ -1014,7 +1026,8 @@ class BudgetViewModel(
                         date = customDateMillis,
                         month = txMonth,
                         year = txYear,
-                        linkedFixedBillId = bill.id
+                        linkedFixedBillId = bill.id,
+                        transferSubtype = subtype
                     )
                 )
             } else {
@@ -1115,19 +1128,24 @@ class BudgetViewModel(
         newName: String,
         startingBalance: Double,
         accountType: String,
-        minBalance: Double = 0.0,
-        isArchived: Boolean = false,
-        sortOrder: Int = 0
+        minBalance: Double? = null,
+        isArchived: Boolean? = null,
+        sortOrder: Int? = null
     ) {
         viewModelScope.launch(Dispatchers.IO) {
+            val existing = dao.getAccountByName(oldName)
+            val resolvedMinBal = minBalance ?: existing?.minBalance ?: 0.0
+            val resolvedArchived = isArchived ?: existing?.isArchived ?: false
+            val resolvedSortOrder = sortOrder ?: existing?.sortOrder ?: 0
+
             dao.updateAccountAndCascade(
                 oldName = oldName,
                 newName = newName,
                 startingBalance = startingBalance,
                 accountType = accountType,
-                minBalance = minBalance,
-                isArchived = isArchived,
-                sortOrder = sortOrder
+                minBalance = resolvedMinBal,
+                isArchived = resolvedArchived,
+                sortOrder = resolvedSortOrder
             )
         }
     }
@@ -1152,10 +1170,18 @@ class BudgetViewModel(
 
     fun deleteAccount(account: AccountEntity, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
-            val count = dao.getTransactionCountForAccount(account.accountName)
-            if (count > 0) {
+            val txCount = dao.getTransactionCountForAccount(account.accountName)
+            val billCount = dao.getAllFixedBills().count {
+                it.accountName.equals(account.accountName, ignoreCase = true) ||
+                it.toAccountName.equals(account.accountName, ignoreCase = true)
+            }
+
+            if (txCount > 0 || billCount > 0) {
+                val reasons = mutableListOf<String>()
+                if (txCount > 0) reasons.add("$txCount linked transactions")
+                if (billCount > 0) reasons.add("$billCount scheduled bills")
                 withContext(Dispatchers.Main) {
-                    onResult(false, "Cannot delete account with $count linked transactions. Archive it instead.")
+                    onResult(false, "Cannot delete account with ${reasons.joinToString(" and ")}. Archive it instead.")
                 }
             } else {
                 dao.deleteAccount(account)
@@ -1523,8 +1549,10 @@ class BudgetViewModel(
 
         var currentIterMonth = historicalBills.first().month
         var currentIterYear = historicalBills.first().year
+        var latestKnownBills: List<FixedBillEntity> = historicalBills.filter {
+            it.month == currentIterMonth && it.year == currentIterYear
+        }
 
-        // Iteratively rollover chronologically through every skipped month up to targetMonth/targetYear
         while (currentIterYear < targetYear || (currentIterYear == targetYear && currentIterMonth < targetMonth)) {
             val prevMonth = currentIterMonth
             val prevYear = currentIterYear
@@ -1538,7 +1566,7 @@ class BudgetViewModel(
 
             val countInIter = dao.getFixedBillCount(currentIterMonth, currentIterYear)
             if (countInIter == 0) {
-                val sourceBills = dao.getFixedBillsForMonth(prevMonth, prevYear).first()
+                val sourceBills = dao.getFixedBillsForMonth(prevMonth, prevYear).first().ifEmpty { latestKnownBills }
                 if (sourceBills.isNotEmpty()) {
                     val cloned = sourceBills.distinctBy {
                         "${it.title.trim().lowercase()}_${it.category.trim().lowercase()}_${it.type.name}"
@@ -1558,7 +1586,10 @@ class BudgetViewModel(
                         )
                     }
                     dao.insertFixedBills(cloned)
+                    latestKnownBills = cloned
                 }
+            } else {
+                latestKnownBills = dao.getFixedBillsForMonth(currentIterMonth, currentIterYear).first()
             }
         }
     }
