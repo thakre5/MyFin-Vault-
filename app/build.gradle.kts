@@ -1,7 +1,18 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+}
+
+// Optional release keystore configuration (untracked)
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        load(FileInputStream(keystorePropertiesFile))
+    }
 }
 
 android {
@@ -22,6 +33,7 @@ android {
     }
 
     signingConfigs {
+        // Fallback debug key for local developer builds
         create("staticSigning") {
             val appKeystore = file("${projectDir}/debug.keystore")
             val rootKeystore = file("${rootProject.projectDir}/debug.keystore")
@@ -36,22 +48,61 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+
+        // Production Release Key
+        create("releaseSigning") {
+            val isCiBuild = System.getenv("CI") == "true"
+            if (isCiBuild) {
+                // CI/CD Environment Secrets (e.g. GitHub Actions)
+                storeFile = file(System.getenv("KEYSTORE_FILE_PATH") ?: "release.jks")
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            } else if (keystorePropertiesFile.exists()) {
+                // Local untracked keystore.properties file
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            } else {
+                // Fallback to debug signature if release key is not configured
+                val appKeystore = file("${projectDir}/debug.keystore")
+                val rootKeystore = file("${rootProject.projectDir}/debug.keystore")
+                val homeKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+
+                storeFile = when {
+                    appKeystore.exists() -> appKeystore
+                    rootKeystore.exists() -> rootKeystore
+                    else -> homeKeystore
+                }
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
         getByName("debug") {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("staticSigning")
+            applicationIdSuffix = ".debug"
         }
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("staticSigning")
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("releaseSigning")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
+    }
+
+    sourceSets {
+        // Makes Room schema files available to Android instrumented migration tests
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
     }
 
     buildFeatures {
@@ -70,6 +121,10 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi"
+        )
     }
 
     packaging {
@@ -97,10 +152,14 @@ android {
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+    arg("room.incremental", "true")
 }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    val composeBom = platform("androidx.compose:compose-bom:2024.02.00")
+    implementation(composeBom)
+    androidTestImplementation(composeBom)
+
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
@@ -124,6 +183,7 @@ dependencies {
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
+    androidTestImplementation("androidx.room:room-testing:$roomVersion")
 
     // Lifecycle & Coroutines
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
