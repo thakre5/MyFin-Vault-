@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalFoundationApi::class)
-
 package com.example.myfin.ui.onboarding
 
 import android.widget.Toast
@@ -7,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -18,10 +15,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -34,14 +29,14 @@ import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
+import com.example.myfin.ui.components.MyFinAppLogo
 import com.example.myfin.ui.onboarding.steps.*
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
-import kotlin.math.cos
-import kotlin.math.sin
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MultiStepOnboardingFlow(
     viewModel: BudgetViewModel,
@@ -241,34 +236,11 @@ fun MultiStepOnboardingFlow(
                     verticalArrangement = Arrangement.Center,
                     modifier = Modifier.padding(horizontal = 32.dp)
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.15f),
-                        modifier = Modifier.size(76.dp)
-                    ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    colors = listOf(Color.White, CyanPrimary, AccentPurple)
-                                )
-                            )
-                            val c = center
-                            val r = size.minDimension * 0.32f
-                            repeat(8) { i ->
-                                val angleRad = Math.toRadians((i * 45.0))
-                                val px = c.x + (r * cos(angleRad)).toFloat()
-                                val py = c.y + (r * sin(angleRad)).toFloat()
-                                drawLine(
-                                    color = Color.White,
-                                    start = c,
-                                    end = Offset(px, py),
-                                    strokeWidth = 3.5.dp.toPx(),
-                                    cap = StrokeCap.Round
-                                )
-                            }
-                            drawCircle(color = Color.White, radius = 4.dp.toPx(), center = c)
-                        }
-                    }
+                    MyFinAppLogo(
+                        size = 80.dp,
+                        showBackgroundContainer = true,
+                        elevation = 8.dp
+                    )
 
                     Spacer(modifier = Modifier.height(18.dp))
 
