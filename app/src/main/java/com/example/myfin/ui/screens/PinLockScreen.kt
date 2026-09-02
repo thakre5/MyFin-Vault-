@@ -69,7 +69,7 @@ fun PinLockScreen(
             securityManager.showBiometricPrompt(
                 activity = activity,
                 onSuccess = { onUnlockSuccess() },
-                onError = { /* Allow fallback to keypad entry */ }
+                onError = { /* Fallback to keypad */ }
             )
         }
     }
@@ -299,8 +299,10 @@ fun PinLockScreen(
 
                                                     // Test PIN validity once length reaches 4 or higher
                                                     if (newPin.length >= 4 && securityManager.verifyPin(newPin)) {
+                                                        enteredPin = ""
                                                         onUnlockSuccess()
                                                     } else if (newPin.length >= 6) {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                         Toast.makeText(context, "Incorrect PIN", Toast.LENGTH_SHORT).show()
                                                         enteredPin = ""
                                                     }
@@ -326,7 +328,7 @@ fun PinLockScreen(
                 }
             }
 
-            // Forgot PIN In-Place Password Recovery Trigger
+            // Forgot PIN Recovery
             TextButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -347,10 +349,13 @@ fun PinLockScreen(
             }
         }
 
-        // NON-DESTRUCTIVE IN-PLACE PASSWORD RESET DIALOG
+        // Non-destructive in-place password reset dialog
         if (showResetDialog) {
             AlertDialog(
-                onDismissRequest = { showResetDialog = false },
+                onDismissRequest = {
+                    showResetDialog = false
+                    enteredPin = ""
+                },
                 icon = {
                     Icon(
                         imageVector = Icons.Default.LockReset,
@@ -403,8 +408,8 @@ fun PinLockScreen(
                             )
                             OutlinedTextField(
                                 value = newMasterPinInput,
-                                onValueChange = { if (it.length <= 6) newMasterPinInput = it },
-                                placeholder = { Text("New Master PIN", fontSize = 12.5.sp) },
+                                onValueChange = { if (it.length <= 6) newMasterPinInput = it.filter { ch -> ch.isDigit() } },
+                                placeholder = { Text("New Master PIN (4-6 digits)", fontSize = 12.5.sp) },
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -417,7 +422,7 @@ fun PinLockScreen(
                             )
                             OutlinedTextField(
                                 value = confirmNewPinInput,
-                                onValueChange = { if (it.length <= 6) confirmNewPinInput = it },
+                                onValueChange = { if (it.length <= 6) confirmNewPinInput = it.filter { ch -> ch.isDigit() } },
                                 placeholder = { Text("Confirm New Master PIN", fontSize = 12.5.sp) },
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation(),
@@ -436,29 +441,18 @@ fun PinLockScreen(
                     Button(
                         onClick = {
                             if (recoveryStep == 1) {
-                                val inputDigits = recoveryDobInput.filter { it.isDigit() }
-                                val expectedDigits = recoveryDob.filter { it.isDigit() }
-
-                                val isDobMatched = expectedDigits.isNotBlank() && (
-                                    inputDigits == expectedDigits ||
-                                    (inputDigits.length == 8 && expectedDigits.length == 8 && (
-                                        (inputDigits.take(2) == expectedDigits.takeLast(2) &&
-                                         inputDigits.substring(2, 4) == expectedDigits.substring(4, 6) &&
-                                         inputDigits.takeLast(4) == expectedDigits.take(4)) ||
-                                        (inputDigits.take(4) == expectedDigits.takeLast(4) &&
-                                         inputDigits.substring(4, 6) == expectedDigits.substring(2, 4) &&
-                                         inputDigits.takeLast(2) == expectedDigits.take(2))
-                                    ))
-                                )
+                                val isDobMatched = securityManager.verifyRecoveryDob(recoveryDobInput) ||
+                                        (recoveryDob.isNotBlank() && recoveryDobInput.replace("[^0-9]".toRegex(), "") == recoveryDob.replace("[^0-9]".toRegex(), ""))
 
                                 if (isDobMatched) {
                                     recoveryStep = 2
                                 } else {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     Toast.makeText(context, "Recovery Date of Birth does not match", Toast.LENGTH_SHORT).show()
                                 }
                             } else {
                                 if (newMasterPinInput.length < 4) {
-                                    Toast.makeText(context, "PIN must be at least 4 characters", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "PIN must be at least 4 digits", Toast.LENGTH_SHORT).show()
                                 } else if (newMasterPinInput != confirmNewPinInput) {
                                     Toast.makeText(context, "PINs do not match", Toast.LENGTH_SHORT).show()
                                 } else {
@@ -466,6 +460,7 @@ fun PinLockScreen(
                                     onResetPasswordOnly(newMasterPinInput)
                                     Toast.makeText(context, "Master PIN updated successfully", Toast.LENGTH_SHORT).show()
                                     showResetDialog = false
+                                    enteredPin = ""
                                     onUnlockSuccess()
                                 }
                             }
@@ -480,7 +475,10 @@ fun PinLockScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showResetDialog = false }) {
+                    TextButton(onClick = {
+                        showResetDialog = false
+                        enteredPin = ""
+                    }) {
                         Text("Cancel", color = TextMuted)
                     }
                 }
