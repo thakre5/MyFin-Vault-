@@ -399,7 +399,7 @@ fun MasterDataSetScreen(
                 contentPadding = PaddingValues(top = 4.dp, bottom = 125.dp)
             ) {
                 if (filteredCategories.isEmpty()) {
-                    item {
+                    item(key = "empty_taxonomy") {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
@@ -411,7 +411,7 @@ fun MasterDataSetScreen(
                         }
                     }
                 } else {
-                    items(filteredCategories, key = { "${it.type}_${it.name}" }) { cat ->
+                    items(filteredCategories, key = { "${it.type.name}_${it.name}" }) { cat ->
                         val isProtected = viewModel.protectedCategories.contains(cat.name)
                         val subList = segmentSubcategories.filter { it.parentCategory == cat.name }
                         val isExpanded = expandedCategories[cat.name] ?: false
@@ -507,7 +507,7 @@ fun MasterDataSetScreen(
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            viewModel.deleteCategory(cat) { success, msg ->
+                            viewModel.deleteCategory(cat) { _, msg ->
                                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                             }
                             categoryToDelete = null
@@ -615,7 +615,7 @@ fun MasterDataSetScreen(
                             }
                         },
                         enabled = newCategoryName.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
@@ -628,7 +628,7 @@ fun MasterDataSetScreen(
 
         // Sheet: Add Subcategory
         if (showAddSubcategorySheet) {
-            var selectedParent by remember(selectedSegment, segmentCategories) {
+            var selectedParent by remember(showAddSubcategorySheet, selectedSegment) {
                 mutableStateOf(segmentCategories.firstOrNull()?.name.orEmpty())
             }
             var newSubName by remember { mutableStateOf("") }
@@ -664,7 +664,7 @@ fun MasterDataSetScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     LazyColumn(modifier = Modifier.heightIn(max = 140.dp)) {
-                        items(segmentCategories) { cat ->
+                        items(segmentCategories, key = { it.name }) { cat ->
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -723,7 +723,7 @@ fun MasterDataSetScreen(
                             }
                         },
                         enabled = newSubName.isNotBlank() && selectedParent.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
@@ -736,7 +736,7 @@ fun MasterDataSetScreen(
 
         // Sheet: Rename Category
         categoryToEdit?.let { cat ->
-            var renameText by remember { mutableStateOf(cat.name) }
+            var renameText by remember(cat) { mutableStateOf(cat.name) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -784,13 +784,24 @@ fun MasterDataSetScreen(
                     Button(
                         onClick = {
                             val trimmedNew = renameText.trim()
-                            if (trimmedNew.isNotBlank() && trimmedNew != cat.name) {
-                                viewModel.updateCategory(cat, trimmedNew)
+                            if (trimmedNew.isNotBlank()) {
+                                if (trimmedNew.equals(cat.name, ignoreCase = false)) {
+                                    categoryToEdit = null
+                                } else {
+                                    val alreadyExists = segmentCategories.any {
+                                        it.name.equals(trimmedNew, ignoreCase = true) && !it.name.equals(cat.name, ignoreCase = true)
+                                    }
+                                    if (alreadyExists) {
+                                        Toast.makeText(context, "A category named '$trimmedNew' already exists", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        viewModel.updateCategory(cat, trimmedNew)
+                                        categoryToEdit = null
+                                    }
+                                }
                             }
-                            categoryToEdit = null
                         },
                         enabled = renameText.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
@@ -803,7 +814,7 @@ fun MasterDataSetScreen(
 
         // Sheet: Rename Subcategory
         subcategoryToEdit?.let { sub ->
-            var renameText by remember { mutableStateOf(sub.name) }
+            var renameText by remember(sub) { mutableStateOf(sub.name) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -851,13 +862,26 @@ fun MasterDataSetScreen(
                     Button(
                         onClick = {
                             val trimmedNew = renameText.trim()
-                            if (trimmedNew.isNotBlank() && trimmedNew != sub.name) {
-                                viewModel.updateSubcategory(sub, trimmedNew)
+                            if (trimmedNew.isNotBlank()) {
+                                if (trimmedNew == sub.name) {
+                                    subcategoryToEdit = null
+                                } else {
+                                    val alreadyExists = segmentSubcategories.any {
+                                        it.parentCategory == sub.parentCategory &&
+                                                it.name.equals(trimmedNew, ignoreCase = true) &&
+                                                !it.name.equals(sub.name, ignoreCase = true)
+                                    }
+                                    if (alreadyExists) {
+                                        Toast.makeText(context, "Subcategory '$trimmedNew' already exists under ${sub.parentCategory}", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        viewModel.updateSubcategory(sub, trimmedNew)
+                                        subcategoryToEdit = null
+                                    }
+                                }
                             }
-                            subcategoryToEdit = null
                         },
                         enabled = renameText.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
@@ -940,13 +964,13 @@ private fun IntegratedCategoryTreeCard(
             SwipeToDismissBox(
                 state = dismissState,
                 enableDismissFromStartToEnd = true,
-                enableDismissFromEndToStart = true,
+                enableDismissFromEndToStart = !isProtected,
                 backgroundContent = {
                     val direction = dismissState.dismissDirection
                     val backgroundColor by animateColorAsState(
                         targetValue = when (dismissState.targetValue) {
                             SwipeToDismissBoxValue.StartToEnd -> AccentPurple
-                            SwipeToDismissBoxValue.EndToStart -> SoftRed
+                            SwipeToDismissBoxValue.EndToStart -> if (!isProtected) SoftRed else Color.Transparent
                             SwipeToDismissBoxValue.Settled -> Color.Transparent
                         },
                         animationSpec = tween(200),
@@ -966,7 +990,7 @@ private fun IntegratedCategoryTreeCard(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("Rename", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
-                        } else if (direction == SwipeToDismissBoxValue.EndToStart) {
+                        } else if (direction == SwipeToDismissBoxValue.EndToStart && !isProtected) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 Spacer(modifier = Modifier.width(8.dp))
