@@ -1,0 +1,97 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Background Obsidian Squircle -->
+    <path
+        android:pathData="M 28,0 L 80,0 A 28,28 0 0,1 108,28 L 108,80 A 28,28 0 0,1 80,108 L 28,108 A 28,28 0 0,1 0,80 L 0,28 A 28,28 0 0,1 28,0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="0"
+                android:endX="54"
+                android:endY="108"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF1E2034"/>
+                <item android:offset="0.6" android:color="#FF131522"/>
+                <item android:offset="1.0" android:color="#FF0C0D15"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Left Vault Shard: Operating Liquidity -->
+    <path
+        android:pathData="M 24,80 L 40,32 C 41.5,27.5 46.5,27.5 48,32 L 54,48 L 38,84 C 35,88 26,88 24,80 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="24"
+                android:startY="28"
+                android:endX="54"
+                android:endY="86"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF00D2EE"/>
+                <item android:offset="1.0" android:color="#FF2563EB"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Right Vault Shard: Fortress Reserve -->
+    <path
+        android:pathData="M 84,80 L 68,32 C 66.5,27.5 61.5,27.5 60,32 L 54,48 L 70,84 C 73,88 82,88 84,80 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="84"
+                android:startY="28"
+                android:endX="54"
+                android:endY="86"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF34D399"/>
+                <item android:offset="1.0" android:color="#FF0D9488"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Center Apex Shard: Commitments Vault -->
+    <path
+        android:pathData="M 54,18 L 65,48 L 54,72 L 43,48 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="18"
+                android:endX="54"
+                android:endY="72"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFA855F7"/>
+                <item android:offset="1.0" android:color="#FF6C5CE7"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Center Vault Security Node -->
+    <path
+        android:pathData="M 54,48 m -11,0 a 11,11 0 1,1 22,0 a 11,11 0 1,1 -22,0"
+        android:fillColor="#FF0F111E"/>
+
+    <path
+        android:pathData="M 54,48 m -6,0 a 6,6 0 1,1 12,0 a 6,6 0 1,1 -12,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="42"
+                android:endX="54"
+                android:endY="54"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFFFFFFF"/>
+                <item android:offset="1.0" android:color="#FF00D2EE"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path
+        android:pathData="M 54,48 m -12,0 a 12,12 0 1,1 24,0 a 12,12 0 1,1 -24,0"
+        android:strokeWidth="1"
+        android:strokeColor="#55FFFFFF"/>
+</vector>
