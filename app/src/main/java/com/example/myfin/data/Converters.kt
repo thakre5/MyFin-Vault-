@@ -11,8 +11,9 @@ class Converters {
 
     @TypeConverter
     fun toTransactionType(value: String?): TransactionType {
+        if (value.isNullOrBlank()) return TransactionType.EXPENSE
         return try {
-            if (value != null) TransactionType.valueOf(value) else TransactionType.EXPENSE
+            TransactionType.valueOf(value.trim().uppercase())
         } catch (_: Exception) {
             TransactionType.EXPENSE
         }
@@ -25,8 +26,9 @@ class Converters {
 
     @TypeConverter
     fun toTransferSubtype(value: String?): TransferSubtype {
+        if (value.isNullOrBlank()) return TransferSubtype.NONE
         return try {
-            if (value != null) TransferSubtype.valueOf(value) else TransferSubtype.NONE
+            TransferSubtype.valueOf(value.trim().uppercase())
         } catch (_: Exception) {
             TransferSubtype.NONE
         }
