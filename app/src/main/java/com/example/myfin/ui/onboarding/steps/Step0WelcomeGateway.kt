@@ -78,6 +78,11 @@ import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import java.util.Calendar
 import java.util.Locale
+// Add this import to:
+// - app/src/main/java/com/example/myfin/ui/onboarding/steps/Step0WelcomeGateway.kt
+// - app/src/main/java/com/example/myfin/ui/onboarding/steps/Step6VaultSealingScreen.kt
+import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
+
 
 enum class GatewayStage {
     CAROUSEL,
