@@ -115,6 +115,17 @@ fun SettingsScreen(
     var expandedSection by rememberSaveable { mutableStateOf(SettingsAccordionSection.NONE) }
     var avatarRefreshKey by remember { mutableStateOf(0L) }
 
+    // Staging variables for permission requests
+    var pendingReminderHour by remember { mutableIntStateOf(userProfile.reminderHour) }
+    var pendingReminderMinute by remember { mutableIntStateOf(userProfile.reminderMinute) }
+
+    // Sync external navigation requests from DrawerMenuContent
+    LaunchedEffect(initialActiveSheet) {
+        if (initialActiveSheet != SettingsActiveSheet.NONE) {
+            activeSheet = initialActiveSheet
+        }
+    }
+
     val is3VaultActive = remember(userProfile.vaultMode) {
         !userProfile.vaultMode.equals("SIMPLE", ignoreCase = true)
     }
@@ -201,7 +212,10 @@ fun SettingsScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            viewModel.updateReminderSettings(context, true, userProfile.reminderHour, userProfile.reminderMinute)
+            viewModel.updateReminderSettings(context, true, pendingReminderHour, pendingReminderMinute)
+            Toast.makeText(context, "Reminder enabled for ${String.format(Locale.US, "%02d:%02d", pendingReminderHour, pendingReminderMinute)}", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Notification permission is required for daily reminders", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -469,7 +483,7 @@ fun SettingsScreen(
                     )
                     SettingsChildNavRow(
                         title = "Fortress Safety Net Target",
-                        value = "6 Months (${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgMonthlySpend * 6)})",
+                        value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.fortressThreshold)}",
                         onClick = { activeSheet = SettingsActiveSheet.FORTRESS_SAFETY_NET }
                     )
                     SettingsChildNavRow(
@@ -506,9 +520,9 @@ fun SettingsScreen(
                     SettingsChildSwitchRow(
                         title = "Anti-Spy Screen Protection",
                         isChecked = !userProfile.isScreenCaptureAllowed,
-                        onToggle = {
-                            viewModel.updateScreenCaptureAllowed(!userProfile.isScreenCaptureAllowed)
-                            Toast.makeText(context, if (userProfile.isScreenCaptureAllowed) "Screen privacy enabled" else "Screen capture allowed", Toast.LENGTH_SHORT).show()
+                        onToggle = { isAntiSpyChecked ->
+                            viewModel.updateScreenCaptureAllowed(!isAntiSpyChecked)
+                            Toast.makeText(context, if (isAntiSpyChecked) "Anti-spy protection enabled" else "Screen capture allowed", Toast.LENGTH_SHORT).show()
                         }
                     )
                 }
@@ -967,10 +981,10 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        val targetMode = if (is3VaultActive) "SIMPLE" else "3-VAULT"
+                        val targetMode = if (is3VaultActive) "SIMPLE" else "3_VAULT"
                         viewModel.updateVaultMode(targetMode)
                         activeSheet = SettingsActiveSheet.NONE
-                        Toast.makeText(context, if (targetMode == "3-VAULT") "Switched to 3-Vault Strategy" else "Switched to Simple Mode", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, if (targetMode == "3_VAULT") "Switched to 3-Vault Strategy" else "Switched to Simple Mode", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1048,7 +1062,7 @@ fun SettingsScreen(
         }
     }
 
-    // Fortress Safety Net Target Sheet
+    // Fortress Safety Net Target Sheet (Linked to fortressThreshold)
     if (activeSheet == SettingsActiveSheet.FORTRESS_SAFETY_NET) {
         var selectedMonths by remember { mutableIntStateOf(6) }
 
@@ -1127,8 +1141,9 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
+                        viewModel.updateFortressThreshold(computedTarget)
                         activeSheet = SettingsActiveSheet.NONE
-                        Toast.makeText(context, "Runway target set to $selectedMonths Months", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Fortress target set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)} ($selectedMonths Months)", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1136,7 +1151,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
-                    Text("Done", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Apply as Fortress Target", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -1286,7 +1301,21 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        val isDobValid = viewModel.securityManager.verifyRecoveryDob(verifyDob)
+                        val inputDigits = verifyDob.filter { it.isDigit() }
+                        val expectedDigits = userProfile.dateOfBirth.filter { it.isDigit() }
+
+                        val isDobValid = expectedDigits.isNotBlank() && (
+                            inputDigits == expectedDigits ||
+                            (inputDigits.length == 8 && expectedDigits.length == 8 && (
+                                (inputDigits.take(2) == expectedDigits.takeLast(2) &&
+                                 inputDigits.substring(2, 4) == expectedDigits.substring(4, 6) &&
+                                 inputDigits.takeLast(4) == expectedDigits.take(4)) ||
+                                (inputDigits.take(4) == expectedDigits.takeLast(4) &&
+                                 inputDigits.substring(4, 6) == expectedDigits.substring(2, 4) &&
+                                 inputDigits.takeLast(2) == expectedDigits.take(2))
+                            ))
+                        )
+
                         if (!isDobValid) {
                             errorMessage = "DOB verification failed. Please enter your correct birth date."
                         } else if (newPin.length < 4) {
@@ -1378,15 +1407,17 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
+                        pendingReminderHour = hourInput
+                        pendingReminderMinute = minInput
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                         ) {
                             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         } else {
                             viewModel.updateReminderSettings(context, true, hourInput, minInput)
+                            Toast.makeText(context, "Reminder set for ${String.format(Locale.US, "%02d:%02d", hourInput, minInput)}", Toast.LENGTH_SHORT).show()
                         }
                         activeSheet = SettingsActiveSheet.NONE
-                        Toast.makeText(context, "Reminder set for ${String.format(Locale.US, "%02d:%02d", hourInput, minInput)}", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
