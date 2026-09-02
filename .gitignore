@@ -1,35 +1,56 @@
-# Gradle files
+# ============================================================================
+# Gradle & Build Artifacts
+# ============================================================================
 .gradle/
+**/build/
 build/
+.kotlin/
 
-# Local configuration file (sdk path, etc)
+# ============================================================================
+# Local Configuration & Sensitive Credentials
+# ============================================================================
 local.properties
+keystore.properties
+secrets.properties
 
-# Log/OS Files
-*.log
-
-# Android Studio generated files and folders
-captures/
-.externalNativeBuild/
-.cxx/
-*.aab
-*.apk
-output-metadata.json
-
-# IntelliJ
-*.iml
-.idea/
-misc.xml
-deploymentTargetDropDown.xml
-render.experimental.xml
-
-# Keystore files
+# Keystore & Signing Certificates
 *.jks
 *.keystore
 !app/debug.keystore
 
-# Google Services (e.g. APIs or Firebase)
-google-services.json
+# Built Binaries & Release Packages
+*.apk
+*.aab
+*.idsig
+output-metadata.json
 
-# Android Profiling
+# ============================================================================
+# Android Studio / IntelliJ IDEA
+# ============================================================================
+*.iml
+.idea/
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Specific legacy XMLs (in case .idea was partially tracked earlier)
+misc.xml
+deploymentTargetDropDown.xml
+render.experimental.xml
+
+# ============================================================================
+# Logs, Profiling & OS Cache Files
+# ============================================================================
+*.log
 *.hprof
+
+# OS Metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================================
+# Google Services & Optional External Configs
+# ============================================================================
+google-services.json
