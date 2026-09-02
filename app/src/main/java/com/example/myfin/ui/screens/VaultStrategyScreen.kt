@@ -140,6 +140,13 @@ fun VaultStrategyScreen(
     }
 
     var activeSelectedCardIndex by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(displayAccounts.size) {
+        if (displayAccounts.isNotEmpty() && activeSelectedCardIndex >= displayAccounts.size) {
+            activeSelectedCardIndex = displayAccounts.size - 1
+        }
+    }
+
     val activeAccount = remember(displayAccounts, activeSelectedCardIndex) {
         displayAccounts.getOrNull(activeSelectedCardIndex.coerceIn(0, (displayAccounts.size - 1).coerceAtLeast(0)))
     }
@@ -270,7 +277,7 @@ fun VaultStrategyScreen(
                         .clip(CircleShape)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ChevronLeft,
+                        imageVector = Icons.Default.Menu,
                         contentDescription = "Drawer",
                         tint = TextDark,
                         modifier = Modifier.size(24.dp)
@@ -341,7 +348,7 @@ fun VaultStrategyScreen(
                 contentPadding = PaddingValues(top = 8.dp, bottom = 125.dp)
             ) {
                 // Vault Asset Allocation Card
-                item {
+                item(key = "allocation_card") {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -404,10 +411,10 @@ fun VaultStrategyScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val opFraction = if (totalLiquidBalance > 0) (opTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0.25f
-                                val comFraction = if (totalLiquidBalance > 0) (comTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0.25f
-                                val fortFraction = if (totalLiquidBalance > 0) (fortTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0.25f
-                                val cashFraction = if (totalLiquidBalance > 0) (cashTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0.25f
+                                val opFraction = if (totalLiquidBalance > 0) (opTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
+                                val comFraction = if (totalLiquidBalance > 0) (comTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
+                                val fortFraction = if (totalLiquidBalance > 0) (fortTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
+                                val cashFraction = if (totalLiquidBalance > 0) (cashTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
 
                                 Box(
                                     modifier = Modifier.size(110.dp),
@@ -470,7 +477,7 @@ fun VaultStrategyScreen(
                 }
 
                 // Dedicated Fortress Emergency FD & Savings Split Card
-                item {
+                item(key = "fortress_split_card") {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -642,7 +649,7 @@ fun VaultStrategyScreen(
                 }
 
                 // Connected Bank Accounts Header
-                item {
+                item(key = "connected_accounts_header") {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -677,7 +684,7 @@ fun VaultStrategyScreen(
 
                 // Physical Bank Cards Horizontal Carousel
                 if (displayAccounts.isEmpty()) {
-                    item {
+                    item(key = "empty_accounts") {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
@@ -690,12 +697,15 @@ fun VaultStrategyScreen(
                         }
                     }
                 } else {
-                    item {
+                    item(key = "accounts_carousel") {
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(horizontal = 2.dp)
                         ) {
-                            itemsIndexed(displayAccounts) { idx, acc ->
+                            itemsIndexed(
+                                items = displayAccounts,
+                                key = { _, acc -> acc.accountName }
+                            ) { idx, acc ->
                                 val tier = getVaultTier(acc.accountType, acc.accountName)
                                 val isSelected = activeSelectedCardIndex == idx
 
@@ -717,7 +727,7 @@ fun VaultStrategyScreen(
 
                 // Focused Account Cashflow Matrix & MAB Protection
                 activeAccount?.let { acc ->
-                    item {
+                    item(key = "focused_account_${acc.accountName}") {
                         val isMabBreached = acc.minBalance > 0 && acc.currentBalance < acc.minBalance
                         val deficit = (acc.minBalance - acc.currentBalance).coerceAtLeast(0.0)
 
@@ -899,7 +909,7 @@ fun VaultStrategyScreen(
 
                 // Archived Accounts Section
                 if (archivedAccounts.isNotEmpty()) {
-                    item {
+                    item(key = "archived_accounts_section") {
                         Spacer(modifier = Modifier.height(20.dp))
                         Text(
                             text = "Archived Accounts (${archivedAccounts.size})",
@@ -1000,7 +1010,7 @@ fun VaultStrategyScreen(
             var nameText by remember(acc) { mutableStateOf(acc.accountName) }
             var selectedRole by remember(acc) { mutableStateOf(getVaultTier(acc.accountType, acc.accountName)) }
             var balanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%.2f", acc.currentBalance)) }
-            var minBalanceText by remember(acc) { mutableStateOf(acc.minBalance.toString()) }
+            var minBalanceText by remember(acc) { mutableStateOf(if (acc.minBalance % 1.0 == 0.0) acc.minBalance.toLong().toString() else acc.minBalance.toString()) }
             var isArchivedState by remember(acc) { mutableStateOf(acc.isArchived) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -1017,6 +1027,7 @@ fun VaultStrategyScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Row(
@@ -1060,7 +1071,7 @@ fun VaultStrategyScreen(
                     Text("Strategic Vault Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        VaultTier.values().forEach { tier ->
+                        VaultTier.entries.forEach { tier ->
                             val isSel = selectedRole == tier
                             Surface(
                                 modifier = Modifier
@@ -1087,12 +1098,16 @@ fun VaultStrategyScreen(
 
                     OutlinedTextField(
                         value = balanceText,
-                        onValueChange = { balanceText = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            balanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
                         label = { Text("Current Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
@@ -1100,12 +1115,16 @@ fun VaultStrategyScreen(
 
                     OutlinedTextField(
                         value = minBalanceText,
-                        onValueChange = { minBalanceText = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            minBalanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
                         label = { Text("Minimum Balance Threshold / MAB (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
@@ -1228,16 +1247,9 @@ fun VaultStrategyScreen(
                                 startingBalance = orig.startingBalance,
                                 accountType = conf.updatedRole.title,
                                 minBalance = conf.minBalance,
+                                isArchived = conf.isArchived,
                                 sortOrder = orig.sortOrder
                             )
-
-                            if (conf.isArchived != orig.isArchived) {
-                                if (conf.isArchived) {
-                                    viewModel.archiveAccount(conf.updatedName)
-                                } else {
-                                    viewModel.unarchiveAccount(conf.updatedName)
-                                }
-                            }
 
                             if (isBalChanged) {
                                 viewModel.adjustAccountBalance(conf.updatedName, conf.targetBalance)
@@ -1289,7 +1301,10 @@ fun VaultStrategyScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        itemsIndexed(reorderedList) { index, account ->
+                        itemsIndexed(
+                            items = reorderedList,
+                            key = { _, acc -> acc.accountName }
+                        ) { index, account ->
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
@@ -1562,6 +1577,7 @@ fun VaultStrategyScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 8.dp)
                 ) {
                     Text("Strategic Vault Sweep & Transfer", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
@@ -1572,8 +1588,9 @@ fun VaultStrategyScreen(
                     Text("Source Vault (From)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(accountNames) { acc ->
+                        items(accountNames, key = { it }) { acc ->
                             val isSel = fromAccount == acc
+                            val accObj = displayAccounts.find { it.accountName == acc }
                             Surface(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
@@ -1582,13 +1599,21 @@ fun VaultStrategyScreen(
                                 color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
                                 border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
                             ) {
-                                Text(
-                                    text = acc,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSel) AccentPurple else TextDark,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                )
+                                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                    Text(
+                                        text = acc,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSel) AccentPurple else TextDark
+                                    )
+                                    if (accObj != null) {
+                                        Text(
+                                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", accObj.currentBalance)}",
+                                            fontSize = 9.5.sp,
+                                            color = TextMuted
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -1598,7 +1623,7 @@ fun VaultStrategyScreen(
                     Text("Destination Vault (To)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(accountNames) { acc ->
+                        items(accountNames, key = { it }) { acc ->
                             val isSel = toAccount == acc
                             Surface(
                                 modifier = Modifier
@@ -1658,12 +1683,16 @@ fun VaultStrategyScreen(
 
                     OutlinedTextField(
                         value = amountText,
-                        onValueChange = { amountText = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            amountText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
                         label = { Text("Transfer Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
@@ -1736,6 +1765,7 @@ fun VaultStrategyScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                        .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
                     Text("Add Vault Account", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
@@ -1759,7 +1789,7 @@ fun VaultStrategyScreen(
                     Text("Strategic Vault Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        VaultTier.values().forEach { tier ->
+                        VaultTier.entries.forEach { tier ->
                             val isSel = selectedTier == tier
                             Surface(
                                 modifier = Modifier
@@ -1786,12 +1816,16 @@ fun VaultStrategyScreen(
 
                     OutlinedTextField(
                         value = balanceText,
-                        onValueChange = { balanceText = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            balanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
                         label = { Text("Initial Starting Balance (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
@@ -1799,12 +1833,16 @@ fun VaultStrategyScreen(
 
                     OutlinedTextField(
                         value = minBalanceText,
-                        onValueChange = { minBalanceText = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            minBalanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
                         label = { Text("Minimum Balance Threshold / MAB (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
@@ -1948,7 +1986,8 @@ private fun BankAccountPhysicalCard(
     modifier: Modifier = Modifier
 ) {
     val maskedDigits = remember(account.accountName) {
-        String.format(Locale.US, "%04d", abs(account.accountName.hashCode() % 9000 + 1000))
+        val safeHash = abs(account.accountName.hashCode().toLong())
+        String.format(Locale.US, "%04d", safeHash % 9000 + 1000)
     }
     val isMabBreached = account.minBalance > 0 && account.currentBalance < account.minBalance
 
@@ -2100,56 +2139,45 @@ private fun FourWayDonutAllocationChart(
         val arcSize = Size(diameter, diameter)
         val topLeft = Offset((size.width - diameter) / 2, (size.height - diameter) / 2)
 
-        val total = (opFraction + comFraction + fortFraction + cashFraction).coerceAtLeast(0.001f)
-        val opAngle = (opFraction / total) * 360f
-        val comAngle = (comFraction / total) * 360f
-        val fortAngle = (fortFraction / total) * 360f
-        val cashAngle = (cashFraction / total) * 360f
+        val slices = listOf(
+            Triple(Color(0xFFE57A28), opFraction, "Operating"),
+            Triple(AccentPurple, comFraction, "Commitments"),
+            Triple(SoftTeal, fortFraction, "Fortress"),
+            Triple(SoftGreen, cashFraction, "Cash")
+        ).filter { it.second > 0.001f }
+
+        val total = slices.sumOf { it.second.toDouble() }.toFloat().coerceAtLeast(0.001f)
+
+        if (slices.isEmpty()) {
+            drawArc(
+                color = Color(0xFFE2E8F0),
+                startAngle = 0f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidth)
+            )
+            return@Canvas
+        }
 
         var startAngle = -90f
+        val gap = if (slices.size > 1) 4f else 0f
 
-        drawArc(
-            color = Color(0xFFE57A28),
-            startAngle = startAngle,
-            sweepAngle = (opAngle - 4f).coerceAtLeast(2f),
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-        )
-        startAngle += opAngle
-
-        drawArc(
-            color = AccentPurple,
-            startAngle = startAngle,
-            sweepAngle = (comAngle - 4f).coerceAtLeast(2f),
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-        )
-        startAngle += comAngle
-
-        drawArc(
-            color = SoftTeal,
-            startAngle = startAngle,
-            sweepAngle = (fortAngle - 4f).coerceAtLeast(2f),
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-        )
-        startAngle += fortAngle
-
-        drawArc(
-            color = SoftGreen,
-            startAngle = startAngle,
-            sweepAngle = (cashAngle - 4f).coerceAtLeast(2f),
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-        )
+        slices.forEach { (color, fraction, _) ->
+            val angle = (fraction / total) * 360f
+            val sweep = (angle - gap).coerceAtLeast(1f)
+            drawArc(
+                color = color,
+                startAngle = startAngle + (gap / 2f),
+                sweepAngle = sweep,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            )
+            startAngle += angle
+        }
     }
 }
 
