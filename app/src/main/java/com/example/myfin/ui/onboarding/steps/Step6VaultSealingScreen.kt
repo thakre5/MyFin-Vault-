@@ -41,6 +41,11 @@ import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
 import com.example.myfin.ui.theme.*
 import java.io.File
 import java.util.Locale
+// Add this import to:
+// - app/src/main/java/com/example/myfin/ui/onboarding/steps/Step0WelcomeGateway.kt
+// - app/src/main/java/com/example/myfin/ui/onboarding/steps/Step6VaultSealingScreen.kt
+import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
+
 
 @Composable
 fun OnboardingStep6VaultSealing(
