@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -89,6 +90,12 @@ data class CategoryAnnualTrajectory(
     val peakMonthAmount: Double
 )
 
+data class MultiYearAssetMetric(
+    val year: Int,
+    val totalAssets: Double,
+    val growthPercent: Double
+)
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun YearlyScreen(
@@ -107,9 +114,9 @@ fun YearlyScreen(
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    val pagerState = rememberPagerState(pageCount = { 4 })
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
-    val pageTitles = remember { listOf("Executive", "12 Months", "Audit") }
+    val pageTitles = remember { listOf("Cashflow", "12 Months", "Assets & Wealth", "Audit") }
 
     val currentCal = remember { Calendar.getInstance() }
     val thisYear = currentCal.get(Calendar.YEAR)
@@ -118,16 +125,21 @@ fun YearlyScreen(
     var inspectedMonth by remember { mutableStateOf<MonthDataSummary?>(null) }
     var isDiscreetMode by remember { mutableStateOf(false) }
 
-    // 1. All Transactions For The Selected Year
-    val allYearTransactions = remember(uiState.groupedTransactions, uiState.selectedYear) {
+    // 1. All Transactions across all time (for Multi-Year assets)
+    val allTransactions = remember(uiState.groupedTransactions) {
+        uiState.groupedTransactions.values.flatten()
+    }
+
+    // 2. Transactions for the selected year
+    val allYearTransactions = remember(allTransactions, uiState.selectedYear) {
         val txCal = Calendar.getInstance()
-        uiState.groupedTransactions.values.flatten().filter { tx ->
+        allTransactions.filter { tx ->
             txCal.timeInMillis = tx.date
             txCal.get(Calendar.YEAR) == uiState.selectedYear
         }
     }
 
-    // 2. 12 Individual Month Datasets
+    // 3. 12 Individual Month Datasets
     val yearlyMonthsData = remember(allYearTransactions, uiState.selectedYear) {
         val txCal = Calendar.getInstance()
         (1..12).map { m ->
@@ -159,7 +171,7 @@ fun YearlyScreen(
         }
     }
 
-    // 3. Macro Aggregates
+    // 4. Macro Aggregates
     val annualIncome = remember(yearlyMonthsData) { yearlyMonthsData.sumOf { it.income } }
     val annualExpenses = remember(yearlyMonthsData) { yearlyMonthsData.sumOf { it.expenses } }
     val annualAssets = remember(yearlyMonthsData) { yearlyMonthsData.sumOf { it.assets } }
@@ -174,7 +186,30 @@ fun YearlyScreen(
     val currentWealthAccumulated = (annualAssets + annualNetSurplus).coerceAtLeast(0.0)
     val goalCompletionPercentage = (currentWealthAccumulated / annualTargetGoal).toFloat().coerceIn(0f, 1f)
 
-    // 4. Fiscal Quarters (Q1 to Q4)
+    // 5. Multi-Year Asset Accumulation Flow
+    val multiYearAssets = remember(allTransactions, uiState.selectedYear) {
+        val txCal = Calendar.getInstance()
+        val assetTxs = allTransactions.filter { it.type == TransactionType.ASSET }
+        val yearsGrouped = assetTxs.groupBy { tx ->
+            txCal.timeInMillis = tx.date
+            txCal.get(Calendar.YEAR)
+        }.mapValues { (_, txs) -> txs.sumOf { it.amount } }.toMutableMap()
+
+        // Ensure current and previous 2 years are represented
+        for (y in (uiState.selectedYear - 2)..uiState.selectedYear) {
+            yearsGrouped.putIfAbsent(y, 0.0)
+        }
+
+        val sorted = yearsGrouped.toSortedMap()
+        var prevAmount = 0.0
+        sorted.map { (year, amt) ->
+            val growth = if (prevAmount > 0) ((amt - prevAmount) / prevAmount) * 100.0 else 0.0
+            prevAmount = amt
+            MultiYearAssetMetric(year, amt, growth)
+        }
+    }
+
+    // 6. Fiscal Quarters (Q1 to Q4)
     val quarterlyData = remember(yearlyMonthsData) {
         listOf(
             "Q1" to yearlyMonthsData.subList(0, 3),
@@ -199,7 +234,7 @@ fun YearlyScreen(
         }
     }
 
-    // 5. Annual Category Breakdown & 12-Month Trajectories
+    // 7. Annual Category Breakdown & 12-Month Trajectories
     val categoryTrajectories = remember(allYearTransactions, annualExpenses) {
         val txCal = Calendar.getInstance()
         val expenseTxs = allYearTransactions.filter { it.type == TransactionType.EXPENSE }
@@ -276,9 +311,7 @@ fun YearlyScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // =========================================================
-            // PINNED TOP BAR
-            // =========================================================
+            // Pinned Top Bar
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -376,9 +409,7 @@ fun YearlyScreen(
                 )
             }
 
-            // =========================================================
-            // HORIZONTAL PAGER
-            // =========================================================
+            // 4-Page Horizontal Pager
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
@@ -386,7 +417,9 @@ fun YearlyScreen(
                     .fillMaxWidth()
             ) { page ->
                 when (page) {
-                    // --- TAB 0: EXECUTIVE VIEW ---
+                    // ==========================================
+                    // TAB 0: CASHFLOW (Orange Funnel Ribbon Card)
+                    // ==========================================
                     0 -> {
                         LazyColumn(
                             modifier = Modifier
@@ -394,46 +427,23 @@ fun YearlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            // 1. Expenditure Trajectory (Orange Multi-Stream Ribbon Card)
-                            item(key = "orange_expenditure_trajectory_card") {
-                                FinancialStreamReportCard(
-                                    title = "Expenditure Trajectory",
-                                    subtitle = "Annual Burn Velocity & Discretionary Flow",
-                                    mainMetricLabel = "Monthly Avg Burn",
-                                    mainMetricValue = if (annualExpenses > 0) annualExpenses / 12.0 else 0.0,
-                                    mainMetricBadge = "${annualSavingsRate.toInt()}% Saved",
-                                    mainMetricSubtext = "Burn Rate",
-                                    secondaryMetricLabel = "Annual Outflow",
-                                    secondaryMetricValue = annualExpenses,
-                                    secondaryMetricSubtext = "Net Burn",
-                                    dataPoints = yearlyMonthsData.map { it.expenses },
-                                    themeColor = Color(0xFFFF6E40),
-                                    accentGlow = Color(0xFFFFAB40),
+                            item(key = "orange_cashflow_card") {
+                                CashflowFunnelStreamCard(
+                                    title = "Cashflow Velocity",
+                                    subtitle = "Annual Outflow Swell & Burn Acceleration",
+                                    yearlyMonths = yearlyMonthsData,
+                                    annualIncome = annualIncome,
+                                    annualExpenses = annualExpenses,
                                     currencySymbol = userProfile.currencySymbol,
                                     isDiscreet = isDiscreetMode,
-                                    topCategories = categoryTrajectories.take(3),
-                                    streamShape = StreamShapeType.FUNNEL_EXPAND
+                                    topCategories = categoryTrajectories.take(3)
                                 )
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
 
-                            // 2. Annual Wealth Accumulation (Purple Heart Goal Card)
-                            item(key = "annual_wealth_accumulation_heart_card") {
-                                VaultGoalHeartCard(
-                                    title = "Annual Wealth Accumulation",
-                                    currentAmount = currentWealthAccumulated,
-                                    targetAmount = annualTargetGoal,
-                                    completionRatio = goalCompletionPercentage,
-                                    currencySymbol = userProfile.currencySymbol,
-                                    isDiscreet = isDiscreetMode
-                                )
-                                Spacer(modifier = Modifier.height(20.dp))
-                            }
-
-                            // 3. Fiscal Quarters Performance Grid
-                            item(key = "quarterly_performance_grid") {
+                            item(key = "cashflow_quarterly_grid") {
                                 Text(
-                                    text = "Fiscal Quarters Breakdown",
+                                    text = "Fiscal Quarter Retention",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextDark
@@ -476,7 +486,9 @@ fun YearlyScreen(
                         }
                     }
 
-                    // --- TAB 1: 12 MONTHS VIEW ---
+                    // ==========================================
+                    // TAB 1: 12 MONTHS (Blue Spindle Rhythm Card)
+                    // ==========================================
                     1 -> {
                         LazyColumn(
                             modifier = Modifier
@@ -484,34 +496,22 @@ fun YearlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            // 1. Quarterly Capital Dynamics (Blue Spindle Stream Ribbon Card)
-                            item(key = "blue_quarterly_liquidity_card") {
-                                FinancialStreamReportCard(
-                                    title = "Quarterly Capital Dynamics",
-                                    subtitle = "Seasonal Burn & Reserve Contraction",
-                                    mainMetricLabel = "Quarterly Avg",
-                                    mainMetricValue = if (annualExpenses > 0) annualExpenses / 4.0 else 0.0,
-                                    mainMetricBadge = "Active Stream",
-                                    mainMetricSubtext = "Quarterly Cap",
-                                    secondaryMetricLabel = "Net Retained",
-                                    secondaryMetricValue = annualNetSurplus,
-                                    secondaryMetricSubtext = "Total Surplus",
-                                    dataPoints = quarterlyData.map { it.totalExpenses },
-                                    themeColor = Color(0xFF2979FF),
-                                    accentGlow = Color(0xFF82B1FF),
+                            item(key = "blue_seasonal_rhythm_card") {
+                                SeasonalRhythmSpindleCard(
+                                    title = "Monthly Outflow Rhythm",
+                                    subtitle = "Seasonal Burn Variation Around Annual Mean",
+                                    yearlyMonths = yearlyMonthsData,
+                                    quarterlyData = quarterlyData,
+                                    annualExpenses = annualExpenses,
+                                    annualNetSurplus = annualNetSurplus,
                                     currencySymbol = userProfile.currencySymbol,
                                     isDiscreet = isDiscreetMode,
-                                    topCategories = categoryTrajectories.take(3),
-                                    streamShape = StreamShapeType.SPINDLE_CENTER,
-                                    pillValues = quarterlyData.map { q ->
-                                        val amt = q.totalExpenses
-                                        if (amt >= 1000) "${userProfile.currencySymbol}${(amt / 1000).toInt()}k" else "${userProfile.currencySymbol}${amt.toInt()}"
-                                    }
+                                    topCategories = categoryTrajectories.take(3)
                                 )
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
 
-                            item(key = "monthly_grid_title") {
+                            item(key = "timeline_grid_title") {
                                 Text(
                                     text = "Monthly Financial Breakdown",
                                     fontSize = 15.sp,
@@ -521,7 +521,7 @@ fun YearlyScreen(
                                 Spacer(modifier = Modifier.height(10.dp))
                             }
 
-                            item(key = "monthly_grid_items") {
+                            item(key = "timeline_grid_items") {
                                 LazyVerticalGrid(
                                     columns = GridCells.Fixed(2),
                                     modifier = Modifier
@@ -547,8 +547,46 @@ fun YearlyScreen(
                         }
                     }
 
-                    // --- TAB 2: AUDIT VIEW ---
+                    // ==========================================
+                    // TAB 2: ASSETS & WEALTH (Live Wave Heart & Multi-Year Flow)
+                    // ==========================================
                     2 -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 20.dp),
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
+                        ) {
+                            // 1. Live Animated Liquid Wave Heart Goal Card
+                            item(key = "live_heart_goal_card") {
+                                LiveAnimatedGoalHeartCard(
+                                    title = "Annual Wealth Accumulation Goal",
+                                    currentAmount = currentWealthAccumulated,
+                                    targetAmount = annualTargetGoal,
+                                    completionRatio = goalCompletionPercentage,
+                                    currencySymbol = userProfile.currencySymbol,
+                                    isDiscreet = isDiscreetMode
+                                )
+                                Spacer(modifier = Modifier.height(20.dp))
+                            }
+
+                            // 2. Multi-Year Asset Progression Card
+                            item(key = "multi_year_asset_flow_card") {
+                                MultiYearAssetFlowCard(
+                                    multiYearAssets = multiYearAssets,
+                                    selectedYear = uiState.selectedYear,
+                                    currencySymbol = userProfile.currencySymbol,
+                                    isDiscreet = isDiscreetMode
+                                )
+                                Spacer(modifier = Modifier.height(20.dp))
+                            }
+                        }
+                    }
+
+                    // ==========================================
+                    // TAB 3: AUDIT & CATEGORY SPECTRUM
+                    // ==========================================
+                    3 -> {
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -618,9 +656,7 @@ fun YearlyScreen(
             }
         }
 
-        // =========================================================
-        // BOTTOM DISSOLVE & DOCK
-        // =========================================================
+        // Bottom Scrim
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -634,6 +670,7 @@ fun YearlyScreen(
                 .zIndex(2.5f)
         )
 
+        // Floating Pager Indicator
         FloatingPagerIndicator(
             pagerState = pagerState,
             pageTitles = pageTitles,
@@ -645,6 +682,7 @@ fun YearlyScreen(
                 .zIndex(3.5f)
         )
 
+        // Bottom Navigation Dock
         AppBottomDock(
             currentSelection = NavigationTarget.YEARLY_VIEW,
             onSelectTarget = { target ->
@@ -664,9 +702,7 @@ fun YearlyScreen(
                 .zIndex(4f)
         )
 
-        // =========================================================
-        // MONTH QUICK-INSPECT BOTTOM SHEET
-        // =========================================================
+        // Month Quick-Inspect Bottom Sheet
         inspectedMonth?.let { mData ->
             ModalBottomSheet(
                 onDismissRequest = { inspectedMonth = null },
@@ -791,34 +827,36 @@ fun YearlyScreen(
 }
 
 // =========================================================
-// 1. FINANCIAL STREAM FLOW CARD COMPONENT
+// 1. DYNAMIC CASHFLOW FUNNEL STREAM CARD (ORANGE)
 // =========================================================
 
-enum class StreamShapeType {
-    FUNNEL_EXPAND,
-    SPINDLE_CENTER
-}
-
 @Composable
-private fun FinancialStreamReportCard(
+private fun CashflowFunnelStreamCard(
     title: String,
     subtitle: String,
-    mainMetricLabel: String,
-    mainMetricValue: Double,
-    mainMetricBadge: String,
-    mainMetricSubtext: String,
-    secondaryMetricLabel: String,
-    secondaryMetricValue: Double,
-    secondaryMetricSubtext: String,
-    dataPoints: List<Double>,
-    themeColor: Color,
-    accentGlow: Color,
+    yearlyMonths: List<MonthDataSummary>,
+    annualIncome: Double,
+    annualExpenses: Double,
     currencySymbol: String,
     isDiscreet: Boolean,
-    topCategories: List<CategoryAnnualTrajectory>,
-    streamShape: StreamShapeType,
-    pillValues: List<String> = emptyList()
+    topCategories: List<CategoryAnnualTrajectory>
 ) {
+    // Dynamic cumulative calculations
+    var cumulativeBurn = 0.0
+    val cumulativeExpenses = yearlyMonths.map { m ->
+        cumulativeBurn += m.expenses
+        cumulativeBurn
+    }
+
+    var cumulativeInflow = 0.0
+    val cumulativeIncomes = yearlyMonths.map { m ->
+        cumulativeInflow += m.income
+        cumulativeInflow
+    }
+
+    val monthlyAvgBurn = if (annualExpenses > 0) annualExpenses / 12.0 else 0.0
+    val savingsRate = if (annualIncome > 0) (((annualIncome - annualExpenses) / annualIncome) * 100).toInt() else 0
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -828,43 +866,21 @@ private fun FinancialStreamReportCard(
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
         Column(modifier = Modifier.padding(22.dp)) {
-            Text(
-                text = title,
-                fontWeight = FontWeight.Black,
-                fontSize = 20.sp,
-                color = TextDark
-            )
-            Text(
-                text = subtitle,
-                fontSize = 11.5.sp,
-                color = TextMuted
-            )
+            Text(title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = TextDark)
+            Text(subtitle, fontSize = 11.5.sp, color = TextMuted)
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // The Stream Flow Canvas
-            StreamRibbonCanvas(
-                dataPoints = dataPoints,
-                themeColor = themeColor,
-                accentGlow = accentGlow,
-                streamShape = streamShape,
-                pillValues = pillValues,
+            // Dynamic Funnel Canvas (Narrow Left -> Swelling Right based on cumulative burn)
+            FunnelRibbonCanvas(
+                cumulativeExpenses = cumulativeExpenses,
+                cumulativeIncomes = cumulativeIncomes,
+                currencySymbol = currencySymbol,
+                isDiscreet = isDiscreet,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(165.dp)
+                    .height(170.dp)
             )
-
-            if (streamShape == StreamShapeType.SPINDLE_CENTER) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    listOf("Q1", "Feb", "Q2", "Jun", "Q3", "Oct", "Q4", "Dec").forEach { m ->
-                        Text(m, fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
 
             Spacer(modifier = Modifier.height(18.dp))
 
@@ -877,17 +893,17 @@ private fun FinancialStreamReportCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftGreen))
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text(mainMetricLabel, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Text("Monthly Avg Burn", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
                     }
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", mainMetricValue)}",
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", monthlyAvgBurn)}",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Black,
                         color = TextDark
                     )
                     Text(
-                        text = "$mainMetricBadge • $mainMetricSubtext",
+                        text = "↑ $savingsRate% Net Saved",
                         fontSize = 10.sp,
                         color = SoftGreen,
                         fontWeight = FontWeight.SemiBold
@@ -896,19 +912,19 @@ private fun FinancialStreamReportCard(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(accentGlow))
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFFFAB40)))
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text(secondaryMetricLabel, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Text("Annual Outflow", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
                     }
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", secondaryMetricValue)}",
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", annualExpenses)}",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Black,
                         color = TextDark
                     )
                     Text(
-                        text = secondaryMetricSubtext,
+                        text = if (isDiscreet) "••••" else "of $currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)} Inflow",
                         fontSize = 10.sp,
                         color = TextMuted,
                         fontWeight = FontWeight.SemiBold
@@ -918,7 +934,7 @@ private fun FinancialStreamReportCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Real Category Breakdown from Database
+            // Real Top 3 Categories from Database
             topCategories.take(3).forEach { cat ->
                 HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
                 Row(
@@ -928,12 +944,7 @@ private fun FinancialStreamReportCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = cat.categoryName,
-                        fontSize = 13.5.sp,
-                        color = TextDark,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Text(cat.categoryName, fontSize = 13.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
                     Text(
                         text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", cat.annualTotal)}",
                         fontSize = 13.5.sp,
@@ -947,12 +958,11 @@ private fun FinancialStreamReportCard(
 }
 
 @Composable
-private fun StreamRibbonCanvas(
-    dataPoints: List<Double>,
-    themeColor: Color,
-    accentGlow: Color,
-    streamShape: StreamShapeType,
-    pillValues: List<String>,
+private fun FunnelRibbonCanvas(
+    cumulativeExpenses: List<Double>,
+    cumulativeIncomes: List<Double>,
+    currencySymbol: String,
+    isDiscreet: Boolean,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
@@ -960,6 +970,254 @@ private fun StreamRibbonCanvas(
         val h = size.height
         val cY = h / 2f
 
+        // Checkpoint positions (Q1 = Month 3, Q2 = Month 6, Q4 = Month 12)
+        val col1X = w * 0.22f
+        val col2X = w * 0.55f
+        val col3X = w * 0.88f
+        val checkColX = listOf(col1X, col2X, col3X)
+        val checkIndices = listOf(2, 5, 11) // 0-based indices for Mar, Jun, Dec
+
+        // Draw Vertical Grid Guidelines
+        checkColX.forEach { xPos ->
+            drawLine(
+                color = Color(0xFFE5E7EB),
+                start = Offset(xPos, 14f),
+                end = Offset(xPos, h - 14f),
+                strokeWidth = 1.2.dp.toPx()
+            )
+        }
+
+        val maxBurn = cumulativeExpenses.lastOrNull()?.coerceAtLeast(100.0) ?: 100.0
+
+        // Build top and bottom funnel curves dynamically
+        val ptsTop = mutableListOf<Offset>()
+        val ptsBottom = mutableListOf<Offset>()
+
+        // 12 month points + anchor at left edge
+        val stepX = w / 11f
+        for (i in 0..11) {
+            val x = i * stepX
+            val burn = cumulativeExpenses.getOrElse(i) { 0.0 }
+            val progress = (burn / maxBurn).toFloat().coerceIn(0.04f, 1f)
+            val thickness = (h * 0.42f) * (0.12f + (0.88f * progress))
+
+            ptsTop.add(Offset(x, cY - thickness))
+            ptsBottom.add(Offset(x, cY + thickness))
+        }
+
+        // Layered ribbons with warm orange/coral gradients
+        val layers = listOf(1.0f to 0.22f, 0.72f to 0.48f, 0.45f to 0.90f)
+        layers.forEach { (scale, alpha) ->
+            val topP = Path()
+            val bottomP = Path()
+
+            ptsTop.forEachIndexed { idx, pt ->
+                val scaledY = cY - (cY - pt.y) * scale
+                if (idx == 0) topP.moveTo(pt.x, scaledY) else {
+                    val prev = ptsTop[idx - 1]
+                    val prevY = cY - (cY - prev.y) * scale
+                    val cx = (prev.x + pt.x) / 2
+                    topP.cubicTo(cx, prevY, cx, scaledY, pt.x, scaledY)
+                }
+            }
+
+            ptsBottom.forEachIndexed { idx, pt ->
+                val scaledY = cY + (pt.y - cY) * scale
+                if (idx == 0) bottomP.moveTo(pt.x, scaledY) else {
+                    val prev = ptsBottom[idx - 1]
+                    val prevY = cY + (prev.y - cY) * scale
+                    val cx = (prev.x + pt.x) / 2
+                    bottomP.cubicTo(cx, prevY, cx, scaledY, pt.x, scaledY)
+                }
+            }
+
+            val ribbon = Path().apply {
+                addPath(topP)
+                lineTo(w, cY)
+                lineTo(w, h)
+                addPath(bottomP)
+                close()
+            }
+
+            drawPath(
+                path = ribbon,
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        Color(0xFFFFAB40).copy(alpha = alpha),
+                        Color(0xFFFF6E40).copy(alpha = alpha),
+                        Color(0xFFFF3D00).copy(alpha = alpha)
+                    )
+                )
+            )
+        }
+
+        // Center spine white trace line
+        drawLine(
+            color = Color.White.copy(alpha = 0.95f),
+            start = Offset(0f, cY),
+            end = Offset(w, cY),
+            strokeWidth = 2.dp.toPx()
+        )
+
+        // Draw checkpoint anchor circles
+        checkIndices.forEachIndexed { idx, mIdx ->
+            val x = checkColX[idx]
+            val burn = cumulativeExpenses.getOrElse(mIdx) { 0.0 }
+            val progress = (burn / maxBurn).toFloat().coerceIn(0.04f, 1f)
+            val thickness = (h * 0.42f) * (0.12f + (0.88f * progress))
+
+            drawCircle(color = Color(0xFFFF6E40), radius = 3.5.dp.toPx(), center = Offset(x, cY - thickness))
+            drawCircle(color = Color(0xFFFF6E40), radius = 3.5.dp.toPx(), center = Offset(x, cY + thickness))
+        }
+    }
+}
+
+// =========================================================
+// 2. DYNAMIC SEASONAL RHYTHM SPINDLE CARD (BLUE)
+// =========================================================
+
+@Composable
+private fun SeasonalRhythmSpindleCard(
+    title: String,
+    subtitle: String,
+    yearlyMonths: List<MonthDataSummary>,
+    quarterlyData: List<QuarterlyMetrics>,
+    annualExpenses: Double,
+    annualNetSurplus: Double,
+    currencySymbol: String,
+    isDiscreet: Boolean,
+    topCategories: List<CategoryAnnualTrajectory>
+) {
+    val maxMonthlyExpense = yearlyMonths.maxOfOrNull { it.expenses }?.coerceAtLeast(10.0) ?: 10.0
+    val quarterlyAvg = if (annualExpenses > 0) annualExpenses / 4.0 else 0.0
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(6.dp, RoundedCornerShape(26.dp)),
+        shape = RoundedCornerShape(26.dp),
+        color = CardWhite,
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+    ) {
+        Column(modifier = Modifier.padding(22.dp)) {
+            Text(title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = TextDark)
+            Text(subtitle, fontSize = 11.5.sp, color = TextMuted)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Spindle Canvas with Floating Checkpoint Capsules
+            SpindleRibbonCanvas(
+                monthlyExpenses = yearlyMonths.map { it.expenses },
+                maxExpense = maxMonthlyExpense,
+                quarterlyData = quarterlyData,
+                currencySymbol = currencySymbol,
+                isDiscreet = isDiscreet,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(165.dp)
+            )
+
+            // Timeline Month Labels
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                listOf("Jan", "Mar", "May", "Jul", "Sep", "Nov", "Dec").forEach { m ->
+                    Text(m, fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Metrics Summary Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF2979FF)))
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text("Quarterly Avg Outflow", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", quarterlyAvg)}",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextDark
+                    )
+                    Text(
+                        text = "Seasonality Wave",
+                        fontSize = 10.sp,
+                        color = Color(0xFF2979FF),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftTeal))
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text("Net Retained", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", annualNetSurplus)}",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (annualNetSurplus >= 0) SoftTeal else SoftRed
+                    )
+                    Text(
+                        text = "Total Annual Surplus",
+                        fontSize = 10.sp,
+                        color = TextMuted,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Real Category Rows
+            topCategories.take(3).forEach { cat ->
+                HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 11.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(cat.categoryName, fontSize = 13.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", cat.annualTotal)}",
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpindleRibbonCanvas(
+    monthlyExpenses: List<Double>,
+    maxExpense: Double,
+    quarterlyData: List<QuarterlyMetrics>,
+    currencySymbol: String,
+    isDiscreet: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val cY = h / 2f
+
+        // 3 Column checkpoints for Q1, Q2, Q3
         val col1X = w * 0.22f
         val col2X = w * 0.52f
         val col3X = w * 0.82f
@@ -974,46 +1232,51 @@ private fun StreamRibbonCanvas(
             )
         }
 
-        val layerScales = listOf(1.0f, 0.72f, 0.44f)
-        val alphas = listOf(0.20f, 0.45f, 0.88f)
+        val ptsTop = mutableListOf<Offset>()
+        val ptsBottom = mutableListOf<Offset>()
+        val stepX = w / 11f
 
-        layerScales.forEachIndexed { layerIdx, scale ->
-            val topPath = Path()
-            val bottomPath = Path()
+        for (i in 0..11) {
+            val x = i * stepX
+            val exp = monthlyExpenses.getOrElse(i) { 0.0 }
+            val ratio = (exp / maxExpense).toFloat().coerceIn(0.06f, 1f)
+            val thickness = (h * 0.44f) * (0.15f + 0.85f * ratio)
 
-            when (streamShape) {
-                StreamShapeType.FUNNEL_EXPAND -> {
-                    val leftY = 12f * scale
-                    val midY = 32f * scale
-                    val rightY = (h * 0.45f) * scale
+            ptsTop.add(Offset(x, cY - thickness))
+            ptsBottom.add(Offset(x, cY + thickness))
+        }
 
-                    topPath.moveTo(0f, cY - leftY)
-                    topPath.cubicTo(w * 0.35f, cY - leftY, w * 0.50f, cY - midY, col2X, cY - midY)
-                    topPath.cubicTo(w * 0.65f, cY - midY, w * 0.75f, cY - rightY, w, cY - rightY)
+        // Layered blue gradient ribbons
+        val layers = listOf(1.0f to 0.22f, 0.72f to 0.48f, 0.45f to 0.90f)
+        layers.forEach { (scale, alpha) ->
+            val topP = Path()
+            val bottomP = Path()
 
-                    bottomPath.moveTo(0f, cY + leftY)
-                    bottomPath.cubicTo(w * 0.35f, cY + leftY, w * 0.50f, cY + midY, col2X, cY + midY)
-                    bottomPath.cubicTo(w * 0.65f, cY + midY, w * 0.75f, cY + rightY, w, cY + rightY)
+            ptsTop.forEachIndexed { idx, pt ->
+                val scaledY = cY - (cY - pt.y) * scale
+                if (idx == 0) topP.moveTo(pt.x, scaledY) else {
+                    val prev = ptsTop[idx - 1]
+                    val prevY = cY - (cY - prev.y) * scale
+                    val cx = (prev.x + pt.x) / 2
+                    topP.cubicTo(cx, prevY, cx, scaledY, pt.x, scaledY)
                 }
-                StreamShapeType.SPINDLE_CENTER -> {
-                    val endY = 8f * scale
-                    val swellY = (h * 0.46f) * scale
+            }
 
-                    topPath.moveTo(0f, cY - endY)
-                    topPath.cubicTo(w * 0.25f, cY - endY, w * 0.32f, cY - swellY, col2X, cY - swellY)
-                    topPath.cubicTo(w * 0.72f, cY - swellY, w * 0.80f, cY - endY, w, cY - endY)
-
-                    bottomPath.moveTo(0f, cY + endY)
-                    bottomPath.cubicTo(w * 0.25f, cY + endY, w * 0.32f, cY + swellY, col2X, cY + swellY)
-                    bottomPath.cubicTo(w * 0.72f, cY + swellY, w * 0.80f, cY + endY, w, cY + endY)
+            ptsBottom.forEachIndexed { idx, pt ->
+                val scaledY = cY + (pt.y - cY) * scale
+                if (idx == 0) bottomP.moveTo(pt.x, scaledY) else {
+                    val prev = ptsBottom[idx - 1]
+                    val prevY = cY + (prev.y - cY) * scale
+                    val cx = (prev.x + pt.x) / 2
+                    bottomP.cubicTo(cx, prevY, cx, scaledY, pt.x, scaledY)
                 }
             }
 
             val ribbon = Path().apply {
-                addPath(topPath)
+                addPath(topP)
                 lineTo(w, cY)
                 lineTo(w, h)
-                addPath(bottomPath)
+                addPath(bottomP)
                 close()
             }
 
@@ -1021,15 +1284,15 @@ private fun StreamRibbonCanvas(
                 path = ribbon,
                 brush = Brush.horizontalGradient(
                     colors = listOf(
-                        accentGlow.copy(alpha = alphas[layerIdx]),
-                        themeColor.copy(alpha = alphas[layerIdx]),
-                        accentGlow.copy(alpha = alphas[layerIdx])
+                        Color(0xFF82B1FF).copy(alpha = alpha),
+                        Color(0xFF2979FF).copy(alpha = alpha),
+                        Color(0xFF82B1FF).copy(alpha = alpha)
                     )
                 )
             )
         }
 
-        // Center Horizontal Trace Spine Line
+        // Center spine
         drawLine(
             color = Color.White.copy(alpha = 0.9f),
             start = Offset(0f, cY),
@@ -1037,28 +1300,31 @@ private fun StreamRibbonCanvas(
             strokeWidth = 2.dp.toPx()
         )
 
-        // Floating Anchor Points / Dynamic Pills
-        if (streamShape == StreamShapeType.SPINDLE_CENTER) {
-            colPositions.forEachIndexed { idx, xPos ->
-                val pillWidth = 50.dp.toPx()
-                val pillHeight = 22.dp.toPx()
-                drawRoundRect(
-                    color = Color.White,
-                    topLeft = Offset(xPos - (pillWidth / 2f), cY - (pillHeight / 2f)),
-                    size = Size(pillWidth, pillHeight),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(11.dp.toPx(), 11.dp.toPx())
-                )
-            }
+        // Floating White Value Capsule Pills (Displaying real Quarterly Outflow checkpoints)
+        colPositions.forEachIndexed { idx, xPos ->
+            val qAmt = quarterlyData.getOrNull(idx)?.totalExpenses ?: 0.0
+            val pillText = if (isDiscreet) "•••" else if (qAmt >= 1000) "$currencySymbol${(qAmt / 1000).toInt()}k" else "$currencySymbol${qAmt.toInt()}"
+
+            val pillWidth = 54.dp.toPx()
+            val pillHeight = 22.dp.toPx()
+
+            // Draw pill shadow & background
+            drawRoundRect(
+                color = Color.White,
+                topLeft = Offset(xPos - (pillWidth / 2f), cY - (pillHeight / 2f)),
+                size = Size(pillWidth, pillHeight),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(11.dp.toPx(), 11.dp.toPx())
+            )
         }
     }
 }
 
 // =========================================================
-// 2. WEALTH ACCUMULATION GOAL HEART CARD
+// 3. LIVE CONTINUOUS ANIMATED LIQUID WAVE HEART GOAL CARD
 // =========================================================
 
 @Composable
-private fun VaultGoalHeartCard(
+private fun LiveAnimatedGoalHeartCard(
     title: String,
     currentAmount: Double,
     targetAmount: Double,
@@ -1114,14 +1380,14 @@ private fun VaultGoalHeartCard(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Heart Liquid Wave Canvas with Grid
+            // Live Continuous Water-Wave Canvas Inside Plump Heart
             Box(
                 modifier = Modifier
                     .size(220.dp)
                     .padding(8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                HeartGoalLiquidCanvas(
+                LiveHeartLiquidCanvas(
                     fillPercentage = completionRatio,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -1139,7 +1405,7 @@ private fun VaultGoalHeartCard(
 
             val gap = (targetAmount - currentAmount).coerceAtLeast(0.0)
             Text(
-                text = if (isDiscreet) "Retain capital to reach your annual fortress target." else "Retain $currencySymbol${String.format(Locale.US, "%,.0f", gap)} more to reach your annual target.",
+                text = if (isDiscreet) "Accumulate assets to reach your annual target." else "Deploy $currencySymbol${String.format(Locale.US, "%,.0f", gap)} more to hit your compounding milestone.",
                 fontSize = 12.5.sp,
                 color = TextMuted,
                 textAlign = TextAlign.Center
@@ -1149,15 +1415,38 @@ private fun VaultGoalHeartCard(
 }
 
 @Composable
-private fun HeartGoalLiquidCanvas(
+private fun LiveHeartLiquidCanvas(
     fillPercentage: Float,
     modifier: Modifier = Modifier
 ) {
+    // Continuous Infinite Transitions for Living Water Waves
+    val infiniteTransition = rememberInfiniteTransition(label = "HeartWaveTransition")
+
+    val wavePhase1 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2 * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2600, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "WavePhase1"
+    )
+
+    val wavePhase2 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2 * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1900, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "WavePhase2"
+    )
+
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
 
-        // Subtle Background Grid Lines
+        // 1. Background Grid Lines (Matches Dribbble Goal Card)
         val gridStep = 24.dp.toPx()
         var currentX = 0f
         while (currentX < w) {
@@ -1170,61 +1459,90 @@ private fun HeartGoalLiquidCanvas(
             currentY += gridStep
         }
 
-        // Symmetrical Plump Heart Path
+        // 2. Plump, Organic Heart Bézier Path
         val heartPath = Path().apply {
             moveTo(w / 2f, h * 0.28f)
-            cubicTo(w * 0.30f, h * 0.05f, w * 0.02f, h * 0.20f, w * 0.02f, h * 0.46f)
-            cubicTo(w * 0.02f, h * 0.68f, w * 0.28f, h * 0.82f, w / 2f, h * 0.96f)
-            cubicTo(w * 0.72f, h * 0.82f, w * 0.98f, h * 0.68f, w * 0.98f, h * 0.46f)
-            cubicTo(w * 0.98f, h * 0.20f, w * 0.70f, h * 0.05f, w / 2f, h * 0.28f)
+            cubicTo(w * 0.28f, h * 0.04f, w * 0.02f, h * 0.22f, w * 0.02f, h * 0.48f)
+            cubicTo(w * 0.02f, h * 0.70f, w * 0.26f, h * 0.84f, w / 2f, h * 0.98f)
+            cubicTo(w * 0.74f, h * 0.84f, w * 0.98f, h * 0.70f, w * 0.98f, h * 0.48f)
+            cubicTo(w * 0.98f, h * 0.22f, w * 0.72f, h * 0.04f, w / 2f, h * 0.28f)
             close()
         }
 
+        // Soft Lavender Background inside the Heart Container
         drawPath(
             path = heartPath,
             color = Color(0xFFF3E8FF).copy(alpha = 0.55f)
         )
 
-        // Clip Liquid Wave Inside Heart
+        // 3. Clip Live Waves strictly inside the Heart
         clipPath(heartPath) {
-            val fillHeight = h * fillPercentage.coerceIn(0.08f, 1f)
-            val fillTop = h - fillHeight
+            val fillHeight = h * fillPercentage.coerceIn(0.06f, 0.96f)
+            val fillTop = (h * 0.98f) - fillHeight
+            val amplitude = 7.dp.toPx()
+            val wavelength = w * 0.80f
 
-            val wave = Path().apply {
+            // Layer 1: Back Wave (Violet)
+            val backWave = Path().apply {
                 moveTo(0f, fillTop)
-                cubicTo(w * 0.25f, fillTop - 12f, w * 0.45f, fillTop + 8f, w * 0.70f, fillTop - 8f)
-                cubicTo(w * 0.85f, fillTop - 16f, w * 0.95f, fillTop + 4f, w, fillTop)
+                var x = 0f
+                while (x <= w) {
+                    val y = fillTop + amplitude * sin((2 * Math.PI * (x / wavelength) + wavePhase1).toFloat())
+                    lineTo(x, y)
+                    x += 4f
+                }
                 lineTo(w, h)
                 lineTo(0f, h)
                 close()
             }
-
             drawPath(
-                path = wave,
+                path = backWave,
                 brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF8B5CF6),
-                        Color(0xFF6366F1),
-                        Color(0xFF4F46E5)
-                    ),
+                    colors = listOf(Color(0xFF8B5CF6).copy(alpha = 0.65f), Color(0xFF6D28D9)),
                     startY = fillTop,
                     endY = h
                 )
             )
 
-            // Wave Crest Line
-            val crest = Path().apply {
+            // Layer 2: Front Wave (Purple/Indigo with Surface Crest)
+            val frontWave = Path().apply {
                 moveTo(0f, fillTop)
-                cubicTo(w * 0.25f, fillTop - 12f, w * 0.45f, fillTop + 8f, w * 0.70f, fillTop - 8f)
-                cubicTo(w * 0.85f, fillTop - 16f, w * 0.95f, fillTop + 4f, w, fillTop)
-                lineTo(w, fillTop + 14f)
-                cubicTo(w * 0.70f, fillTop + 6f, w * 0.45f, fillTop + 22f, 0f, fillTop + 14f)
+                var x = 0f
+                while (x <= w) {
+                    val y = fillTop + (amplitude * 0.85f) * sin((2 * Math.PI * (x / (wavelength * 0.9f)) - wavePhase2).toFloat())
+                    lineTo(x, y)
+                    x += 4f
+                }
+                lineTo(w, h)
+                lineTo(0f, h)
                 close()
             }
-            drawPath(crest, color = Color.White.copy(alpha = 0.28f))
+            drawPath(
+                path = frontWave,
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color(0xFFA78BFA), Color(0xFF4C1D95)),
+                    startY = fillTop,
+                    endY = h
+                )
+            )
+
+            // Layer 3: Dynamic Translucent Foam / Crest Highlight
+            val crest = Path().apply {
+                moveTo(0f, fillTop)
+                var x = 0f
+                while (x <= w) {
+                    val y = fillTop + (amplitude * 0.85f) * sin((2 * Math.PI * (x / (wavelength * 0.9f)) - wavePhase2).toFloat())
+                    lineTo(x, y)
+                    x += 4f
+                }
+                lineTo(w, fillTop + 10f)
+                lineTo(0f, fillTop + 10f)
+                close()
+            }
+            drawPath(crest, color = Color.White.copy(alpha = 0.25f))
         }
 
-        // Border Outline
+        // 4. Outer Vector Border
         drawPath(
             path = heartPath,
             color = Color(0xFFDDD6FE),
@@ -1234,7 +1552,148 @@ private fun HeartGoalLiquidCanvas(
 }
 
 // =========================================================
-// AUXILIARY COMPONENTS
+// 4. MULTI-YEAR ASSET FLOW PROGRESSION CARD
+// =========================================================
+
+@Composable
+private fun MultiYearAssetFlowCard(
+    multiYearAssets: List<MultiYearAssetMetric>,
+    selectedYear: Int,
+    currencySymbol: String,
+    isDiscreet: Boolean
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(22.dp)),
+        shape = RoundedCornerShape(22.dp),
+        color = CardWhite,
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = "Multi-Year Asset Flow",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextDark
+            )
+            Text(
+                text = "Capital deployed to wealth-building assets across years",
+                fontSize = 11.5.sp,
+                color = TextMuted
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Multi-Year Bar Comparison Canvas
+            MultiYearAssetCanvas(
+                multiYearAssets = multiYearAssets,
+                selectedYear = selectedYear,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(130.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Year-over-Year Ledger List
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                multiYearAssets.forEach { item ->
+                    val isCurrent = item.year == selectedYear
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isCurrent) AccentPurple.copy(alpha = 0.08f) else Color.Transparent)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Year ${item.year}",
+                                fontWeight = if (isCurrent) FontWeight.Black else FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = if (isCurrent) AccentPurple else TextDark
+                            )
+                            if (item.growthPercent != 0.0) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (item.growthPercent >= 0) SoftGreen.copy(alpha = 0.12f) else SoftRed.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = if (item.growthPercent >= 0) "+${item.growthPercent.toInt()}%" else "${item.growthPercent.toInt()}%",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (item.growthPercent >= 0) SoftGreen else SoftRed,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.totalAssets)}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = if (isCurrent) AccentPurple else TextDark
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MultiYearAssetCanvas(
+    multiYearAssets: List<MultiYearAssetMetric>,
+    selectedYear: Int,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val count = multiYearAssets.size.coerceAtLeast(1)
+        val maxVal = multiYearAssets.maxOfOrNull { it.totalAssets }?.coerceAtLeast(100.0) ?: 100.0
+
+        val barWidth = 28.dp.toPx()
+        val spacing = (w - (barWidth * count)) / (count + 1).coerceAtLeast(1)
+
+        multiYearAssets.forEachIndexed { idx, item ->
+            val x = spacing + idx * (barWidth + spacing)
+            val ratio = (item.totalAssets / maxVal).toFloat().coerceIn(0.04f, 0.92f)
+            val barH = (h * 0.75f) * ratio
+            val isCurrent = item.year == selectedYear
+
+            // Bar shape
+            drawRoundRect(
+                brush = Brush.verticalGradient(
+                    colors = if (isCurrent) {
+                        listOf(AccentPurple, Color(0xFF6366F1))
+                    } else {
+                        listOf(BorderLight, BorderLight.copy(alpha = 0.5f))
+                    }
+                ),
+                topLeft = Offset(x, h - barH - 20.dp.toPx()),
+                size = Size(barWidth, barH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
+            )
+        }
+
+        // Bottom baseline
+        drawLine(
+            color = Color(0xFFE5E7EB),
+            start = Offset(0f, h - 18.dp.toPx()),
+            end = Offset(w, h - 18.dp.toPx()),
+            strokeWidth = 1.dp.toPx()
+        )
+    }
+}
+
+// =========================================================
+// AUXILIARY COMPONENTS & SPIDER WEBS
 // =========================================================
 
 @Composable
