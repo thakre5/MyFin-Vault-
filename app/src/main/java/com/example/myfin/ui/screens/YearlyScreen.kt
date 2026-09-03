@@ -51,6 +51,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
 
 private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -72,6 +74,15 @@ data class CategoryAnnualTrajectory(
     val monthlyAmounts: List<Double>,
     val peakMonthIndex: Int,
     val peakMonthAmount: Double
+)
+
+data class GraphExplanationGuide(
+    val title: String,
+    val subtitle: String,
+    val whatItShows: String,
+    val visualElements: List<Pair<String, String>>,
+    val whyItMatters: String,
+    val actionableTip: String
 )
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -99,9 +110,9 @@ fun YearlyScreen(
     val pageTitles = remember { listOf("Cashflow", "12 Months", "Assets & Wealth", "Audit") }
 
     var inspectedMonth by remember { mutableStateOf<YearlyMonthData?>(null) }
+    var activeGraphGuide by remember { mutableStateOf<GraphExplanationGuide?>(null) }
     var isDiscreetMode by remember { mutableStateOf(false) }
 
-    // Live data from ViewModel
     val yearlyMonthsData = yearlyState.yearlyMonths
     val annualIncome = yearlyState.totalYearlyIncome
     val annualExpenses = yearlyState.totalYearlyExpense
@@ -115,7 +126,6 @@ fun YearlyScreen(
 
     val annualSavingsRate = if (annualIncome > 0) ((annualNetSurplus / annualIncome) * 100).coerceIn(0.0, 100.0) else 0.0
 
-    // Wealth Goal Target
     val annualTargetGoal = remember(annualIncome, userProfile.baseMonthlyIncome, userProfile.fortressThreshold) {
         val base = if (annualIncome > 0) annualIncome else (userProfile.baseMonthlyIncome * 12)
         maxOf(base * 0.25, userProfile.fortressThreshold, 25000.0)
@@ -123,7 +133,6 @@ fun YearlyScreen(
     val currentWealthAccumulated = (annualAssets + annualNetSurplus).coerceAtLeast(0.0)
     val goalCompletionPercentage = (currentWealthAccumulated / annualTargetGoal).toFloat().coerceIn(0f, 1f)
 
-    // Fiscal Quarters (Q1 to Q4)
     val quarterlyData = remember(yearlyMonthsData) {
         if (yearlyMonthsData.size >= 12) {
             listOf(
@@ -150,7 +159,6 @@ fun YearlyScreen(
         } else emptyList()
     }
 
-    // Category Breakdown & Trajectories
     val categoryTrajectories = remember(allYearTransactions, annualExpenses) {
         val txCal = Calendar.getInstance()
         val expenseTxs = allYearTransactions.filter { it.type == TransactionType.EXPENSE }
@@ -322,7 +330,6 @@ fun YearlyScreen(
                 )
             }
 
-            // 4-Page Horizontal Pager
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
@@ -331,7 +338,7 @@ fun YearlyScreen(
             ) { page ->
                 when (page) {
                     // ==========================================
-                    // TAB 0: CASHFLOW (Orange Funnel Ribbon Card)
+                    // TAB 0: CASHFLOW (Dual Smooth Wave Card)
                     // ==========================================
                     0 -> {
                         LazyColumn(
@@ -340,23 +347,35 @@ fun YearlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 180.dp)
                         ) {
-                            item(key = "orange_cashflow_card") {
-                                CashflowFunnelStreamCard(
-                                    title = "Cashflow Velocity",
-                                    subtitle = "Annual Outflow Swell & Burn Acceleration",
+                            item(key = "dual_smooth_wave_card") {
+                                DualSmoothWaveCard(
+                                    title = "Cashflow Dynamics",
+                                    subtitle = "Inflow vs. Personal Lifestyle Burn",
                                     yearlyMonths = yearlyMonthsData,
                                     annualIncome = annualIncome,
-                                    annualExpenses = annualExpenses,
+                                    annualExpenses = annualLifestyleExpenses,
                                     currencySymbol = userProfile.currencySymbol,
                                     isDiscreet = isDiscreetMode,
-                                    topCategories = categoryTrajectories.take(3)
+                                    onInfoClick = {
+                                        activeGraphGuide = GraphExplanationGuide(
+                                            title = "Cashflow Dynamics",
+                                            subtitle = "Inflow vs. Personal Lifestyle Burn",
+                                            whatItShows = "This graph maps your monthly cash intake against actual personal living expenses across all 12 months. It automatically filters out corporate work outlays that will be reimbursed.",
+                                            visualElements = listOf(
+                                                "Emerald Line" to "Total monthly cash inflows (salary, bonuses, passive gains).",
+                                                "Purple Line" to "Actual personal lifestyle burn (living costs, food, utilities).",
+                                                "Gap Between Lines" to "Your net surplus cash that compounds into savings."
+                                            ),
+                                            whyItMatters = "Prevents lifestyle inflation. Whenever the purple burn line approaches or crosses above the green inflow line, your burn velocity is exceeding your income.",
+                                            actionableTip = "Aim to keep the vertical spread between the green and purple lines as wide as possible to maximize your savings rate."
+                                        )
+                                    }
                                 )
                                 Spacer(modifier = Modifier.height(18.dp))
                             }
 
-                            // Reimbursable Work Spends Callout
                             if (reimbursementStatus.totalWorkExpenses > 0.0) {
-                                item(key = "reimbursement_offset_banner") {
+                                item(key = "reimbursement_banner") {
                                     Surface(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(16.dp),
@@ -385,15 +404,10 @@ fun YearlyScreen(
                                             Spacer(modifier = Modifier.width(14.dp))
 
                                             Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = "Corporate Reimbursements",
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 13.5.sp,
-                                                    color = TextDark
-                                                )
+                                                Text("Corporate Reimbursements", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
                                                 Text(
                                                     text = if (reimbursementStatus.isSettled)
-                                                        "All work expenses are fully settled."
+                                                        "All work claims fully settled."
                                                     else
                                                         "Pending claim recovery of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", reimbursementStatus.pendingReimbursement)}",
                                                     fontSize = 11.sp,
@@ -417,12 +431,7 @@ fun YearlyScreen(
                             }
 
                             item(key = "cashflow_quarterly_grid") {
-                                Text(
-                                    text = "Fiscal Quarter Retention",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextDark
-                                )
+                                Text("Fiscal Quarter Retention", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                 Spacer(modifier = Modifier.height(10.dp))
 
                                 Row(
@@ -455,14 +464,13 @@ fun YearlyScreen(
                                         }
                                     }
                                 }
-
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
                         }
                     }
 
                     // ==========================================
-                    // TAB 1: 12 MONTHS (Blue Spindle Rhythm Card & Fully Scrollable Months)
+                    // TAB 1: 12 MONTHS (Layered Mountain Composition Card)
                     // ==========================================
                     1 -> {
                         val chunkedMonths = remember(yearlyMonthsData) { yearlyMonthsData.chunked(2) }
@@ -473,28 +481,33 @@ fun YearlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 180.dp)
                         ) {
-                            item(key = "blue_seasonal_rhythm_card") {
-                                SeasonalRhythmSpindleCard(
-                                    title = "Monthly Outflow Rhythm",
-                                    subtitle = "Seasonal Burn Variation Around Annual Mean",
+                            item(key = "layered_mountain_card") {
+                                LayeredMountainCompositionCard(
+                                    title = "Monthly Outflow Composition",
+                                    subtitle = "Fixed Commitments vs. Lifestyle Burn vs. Assets SIP",
                                     yearlyMonths = yearlyMonthsData,
-                                    quarterlyData = quarterlyData,
-                                    annualExpenses = annualExpenses,
-                                    annualNetSurplus = annualNetSurplus,
                                     currencySymbol = userProfile.currencySymbol,
                                     isDiscreet = isDiscreetMode,
-                                    topCategories = categoryTrajectories.take(3)
+                                    onInfoClick = {
+                                        activeGraphGuide = GraphExplanationGuide(
+                                            title = "Monthly Outflow Composition",
+                                            subtitle = "Stacked Expenditure Silhouette",
+                                            whatItShows = "This mountain graph breaks your monthly spend into three functional layers so you can see whether money is going toward mandatory commitments, daily life, or future wealth.",
+                                            visualElements = listOf(
+                                                "Bottom Slate Layer" to "Fixed non-negotiable bills (Rent, Utilities, EMI commitments).",
+                                                "Middle Violet Layer" to "Discretionary lifestyle burn (Groceries, Dining, Travel).",
+                                                "Top Cyan Crest" to "Capital deployed directly into wealth building (Mutual Funds, SIPs)."
+                                            ),
+                                            whyItMatters = "Separates baseline fixed costs from variable spending. Even in high-expense months, you can check whether your investing layer stayed intact.",
+                                            actionableTip = "If the bottom fixed layer exceeds 50% of your total income, look for ways to optimize fixed recurring bills."
+                                        )
+                                    }
                                 )
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
 
                             item(key = "timeline_grid_title") {
-                                Text(
-                                    text = "Monthly Financial Breakdown",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextDark
-                                )
+                                Text("Monthly Financial Breakdown", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                 Spacer(modifier = Modifier.height(12.dp))
                             }
 
@@ -535,7 +548,7 @@ fun YearlyScreen(
                     }
 
                     // ==========================================
-                    // TAB 2: ASSETS & WEALTH (Live Wave Heart & Multi-Year Flow)
+                    // TAB 2: ASSETS & WEALTH (Liquid Wave Heart & Segmented Pillars)
                     // ==========================================
                     2 -> {
                         LazyColumn(
@@ -551,12 +564,25 @@ fun YearlyScreen(
                                     targetAmount = annualTargetGoal,
                                     completionRatio = goalCompletionPercentage,
                                     currencySymbol = userProfile.currencySymbol,
-                                    isDiscreet = isDiscreetMode
+                                    isDiscreet = isDiscreetMode,
+                                    onInfoClick = {
+                                        activeGraphGuide = GraphExplanationGuide(
+                                            title = "Wealth Accumulation Goal",
+                                            subtitle = "Live Liquid Capital Tracker",
+                                            whatItShows = "Visualizes your progress toward your annual net worth milestone. It tracks real capital deployed into investments plus unspent cash retained.",
+                                            visualElements = listOf(
+                                                "Liquid Wave Level" to "Percentage of your annual wealth accumulation target achieved.",
+                                                "Target Fraction" to "Current capital saved vs. target threshold (e.g., ₹15k / ₹25k).",
+                                                "Outer Border" to "Total annual compounding target capacity."
+                                            ),
+                                            whyItMatters = "Shifts focus from day-to-day spending survival to long-term wealth building and runway creation.",
+                                            actionableTip = "Aim to hit 100% by Q4. Every surplus rupee routed to investments or fortress reserves raises the water level."
+                                        )
+                                    }
                                 )
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
 
-                            // Asset Wealth & NPA Provisioning Card
                             item(key = "asset_wealth_breakdown_card") {
                                 Surface(
                                     modifier = Modifier
@@ -643,12 +669,27 @@ fun YearlyScreen(
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
 
-                            item(key = "multi_year_asset_flow_card") {
-                                MultiYearAssetFlowCard(
+                            item(key = "multi_year_asset_pillars_card") {
+                                MultiYearSegmentedPillarsCard(
                                     multiYearAssets = multiYearAssets,
                                     selectedYear = uiState.selectedYear,
                                     currencySymbol = userProfile.currencySymbol,
-                                    isDiscreet = isDiscreetMode
+                                    isDiscreet = isDiscreetMode,
+                                    onInfoClick = {
+                                        activeGraphGuide = GraphExplanationGuide(
+                                            title = "Multi-Year Asset Flow",
+                                            subtitle = "Compounding Across Years",
+                                            whatItShows = "Compares total capital deployed to wealth-building assets (SIPs, Stocks, Gold, and Liquid Reserves) across previous and current years.",
+                                            visualElements = listOf(
+                                                "Segmented Pillars" to "Each bar shows total assets added for that calendar year.",
+                                                "Green Segment" to "Liquid bank reserves and emergency cash added.",
+                                                "Purple Segment" to "Long-term market investments (Mutual funds, Stocks, Gold).",
+                                                "Growth Badge" to "Year-over-year percentage increase in investment volume."
+                                            ),
+                                            whyItMatters = "Validates that your investment capacity is expanding over time rather than stagnating.",
+                                            actionableTip = "Aim to increase total annual capital deployed by 10-15% each year as your earnings grow."
+                                        )
+                                    }
                                 )
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
@@ -656,7 +697,7 @@ fun YearlyScreen(
                     }
 
                     // ==========================================
-                    // TAB 3: AUDIT & CATEGORY SPECTRUM
+                    // TAB 3: AUDIT & VARIANCE (Curved Star Radar & Dual Pillars)
                     // ==========================================
                     3 -> {
                         LazyColumn(
@@ -665,38 +706,53 @@ fun YearlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 180.dp)
                         ) {
-                            item(key = "radar_header") {
-                                Text(text = "Annual Category Pareto", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
-                                Text(text = "Cumulative spend distribution across entire year", fontSize = 11.5.sp, color = TextMuted)
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .shadow(3.dp, RoundedCornerShape(22.dp)),
-                                    shape = RoundedCornerShape(22.dp),
-                                    color = CardWhite,
-                                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(200.dp)
-                                            .padding(12.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        AnnualRadarSpiderCanvas(
-                                            categorySums = categoryTrajectories.map { it.annualTotal }
+                            item(key = "organic_curved_star_radar") {
+                                OrganicCurvedStarRadarCard(
+                                    categorySums = categoryTrajectories.map { it.annualTotal },
+                                    onInfoClick = {
+                                        activeGraphGuide = GraphExplanationGuide(
+                                            title = "Annual Spending Pareto",
+                                            subtitle = "Organic Category Weight Distribution",
+                                            whatItShows = "A soft organic star radar mapping out which life categories absorb the highest percentage of your outflow over the course of the year.",
+                                            visualElements = listOf(
+                                                "Outer Spikes" to "Categories where spending is concentrated or spiking.",
+                                                "Center Rings" to "Lower spending thresholds.",
+                                                "Radial Symmetry" to "A balanced star indicates well-distributed, controlled expenditure."
+                                            ),
+                                            whyItMatters = "Identifies disproportionate budget drains according to the Pareto Principle (80% of expenses often come from 20% of categories).",
+                                            actionableTip = "Focus budget cuts on the longest protruding spike to make the biggest impact with the least effort."
                                         )
                                     }
-                                }
+                                )
+                                Spacer(modifier = Modifier.height(22.dp))
+                            }
 
-                                Spacer(modifier = Modifier.height(24.dp))
+                            item(key = "budget_vs_actual_dual_pillars") {
+                                BudgetVsActualDualPillarsCard(
+                                    categoryTrajectories = categoryTrajectories,
+                                    currencySymbol = userProfile.currencySymbol,
+                                    isDiscreet = isDiscreetMode,
+                                    onInfoClick = {
+                                        activeGraphGuide = GraphExplanationGuide(
+                                            title = "Budgeted vs. Actual Outflow",
+                                            subtitle = "Variance Analysis",
+                                            whatItShows = "Places your planned budget limits side-by-side with actual spending across your top expense categories.",
+                                            visualElements = listOf(
+                                                "Muted Grey Bar" to "The planned budget limit set for the category.",
+                                                "Purple Bar" to "Actual realized spending.",
+                                                "Height Difference" to "Shows whether you are under budget (savings) or over budget (overrun)."
+                                            ),
+                                            whyItMatters = "Gives an immediate visual check on discipline. You can instantly spot which categories violated their targets without doing math.",
+                                            actionableTip = "Categories where the purple bar consistently exceeds the grey bar need either tighter spending limits or an updated, more realistic budget allocation."
+                                        )
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(22.dp))
                             }
 
                             item(key = "trajectories_title") {
-                                Text(text = "Annual Trajectory by Category", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
-                                Text(text = "12-month burn pattern & peak month spikes", fontSize = 11.sp, color = TextMuted)
+                                Text("Annual Trajectory by Category", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
+                                Text("12-month burn pattern & peak month spikes", fontSize = 11.sp, color = TextMuted)
                                 Spacer(modifier = Modifier.height(12.dp))
                             }
 
@@ -708,7 +764,7 @@ fun YearlyScreen(
                                         color = CardWhite
                                     ) {
                                         Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                                            Text(text = "No recorded expenses for this year", fontSize = 12.sp, color = TextMuted)
+                                            Text("No recorded expenses for this year", fontSize = 12.sp, color = TextMuted)
                                         }
                                     }
                                 }
@@ -773,6 +829,112 @@ fun YearlyScreen(
                 .fillMaxSize()
                 .zIndex(4f)
         )
+
+        // Educational Graph Insight Sheet
+        activeGraphGuide?.let { guide ->
+            ModalBottomSheet(
+                onDismissRequest = { activeGraphGuide = null },
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 36.dp)
+                        .navigationBarsPadding()
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(guide.title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = TextDark)
+                            Text(guide.subtitle, fontSize = 12.sp, color = TextMuted)
+                        }
+                        Surface(
+                            shape = CircleShape,
+                            color = AccentPurple.copy(alpha = 0.12f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Info, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text("What this graph shows", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(guide.whatItShows, fontSize = 12.sp, color = TextDark.copy(alpha = 0.85f), lineHeight = 18.sp)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text("Visual Guide", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        guide.visualElements.forEach { (label, desc) ->
+                            Row(verticalAlignment = Alignment.Top) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 5.dp)
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(AccentPurple)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(label, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                    Text(desc, fontSize = 11.sp, color = TextMuted, lineHeight = 15.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = CanvasLight,
+                        border = BorderStroke(0.7.dp, BorderLight)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Why this matters for your wealth", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(guide.whyItMatters, fontSize = 11.5.sp, color = TextDark.copy(alpha = 0.8f), lineHeight = 16.sp)
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Pro Tip: ${guide.actionableTip}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AccentPurple,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = { activeGraphGuide = null },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                    ) {
+                        Text("Got it", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
 
         // Month Quick-Inspect Bottom Sheet
         inspectedMonth?.let { mData ->
@@ -899,11 +1061,11 @@ fun YearlyScreen(
 }
 
 // =========================================================
-// 1. RE-ENGINEERED DYNAMIC CASHFLOW FUNNEL CARD (ORANGE)
+// 1. DUAL SMOOTH WAVE GRAPH WITH INFO BUTTON (PAGE 0)
 // =========================================================
 
 @Composable
-private fun CashflowFunnelStreamCard(
+private fun DualSmoothWaveCard(
     title: String,
     subtitle: String,
     yearlyMonths: List<YearlyMonthData>,
@@ -911,24 +1073,11 @@ private fun CashflowFunnelStreamCard(
     annualExpenses: Double,
     currencySymbol: String,
     isDiscreet: Boolean,
-    topCategories: List<CategoryAnnualTrajectory>
+    onInfoClick: () -> Unit
 ) {
-    var cumulativeBurn = 0.0
-    val cumulativeExpenses = yearlyMonths.map { m ->
-        cumulativeBurn += m.expenses
-        cumulativeBurn
-    }
-
     val monthlyAvgBurn = if (annualExpenses > 0) annualExpenses / 12.0 else 0.0
-    val savingsRate = if (annualIncome > 0) (((annualIncome - annualExpenses) / annualIncome) * 100).toInt() else 0
-
-    val q1Burn = cumulativeExpenses.getOrElse(2) { 0.0 }
-    val midBurn = cumulativeExpenses.getOrElse(5) { 0.0 }
-    val endBurn = cumulativeExpenses.lastOrNull() ?: 0.0
-
-    val q1Inflow = annualIncome * 0.25
-    val midInflow = annualIncome * 0.50
-    val endInflow = annualIncome
+    val netRetained = annualIncome - annualExpenses
+    val peakMonth = yearlyMonths.maxByOrNull { it.expenses }
 
     Surface(
         modifier = Modifier
@@ -939,118 +1088,99 @@ private fun CashflowFunnelStreamCard(
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
         Column(modifier = Modifier.padding(22.dp)) {
-            Text(title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = TextDark)
-            Text(subtitle, fontSize = 11.5.sp, color = TextMuted)
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Checkpoint Numbers Row (Top: Inflow)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                listOf(q1Inflow, midInflow, endInflow).forEach { amt ->
-                    Text(
-                        text = if (isDiscreet) "••••" else String.format(Locale.US, "%,.0f", amt),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextDark
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            SmoothFunnelCanvas(
-                cumulativeExpenses = cumulativeExpenses,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp)
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Checkpoint Numbers Row (Bottom: Actual Outflow Burn)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround
-            ) {
-                listOf(q1Burn, midBurn, endBurn).forEach { amt ->
-                    Text(
-                        text = if (isDiscreet) "••••" else String.format(Locale.US, "%,.0f", amt),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextDark
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftGreen))
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text("Monthly Avg Burn", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                    }
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", monthlyAvgBurn)}",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextDark
-                    )
-                    Text(
-                        text = "↑ $savingsRate% Net Saved",
-                        fontSize = 10.sp,
-                        color = SoftGreen,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = TextDark)
+                    Text(subtitle, fontSize = 11.5.sp, color = TextMuted)
                 }
 
-                Column(horizontalAlignment = Alignment.End) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFFFAB40)))
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text("Annual Outflow", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                    }
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", annualExpenses)}",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextDark
-                    )
-                    Text(
-                        text = if (isDiscreet) "••••" else "of $currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)} Inflow",
-                        fontSize = 10.sp,
-                        color = TextMuted,
-                        fontWeight = FontWeight.SemiBold
+                IconButton(
+                    onClick = onInfoClick,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Graph Explanation",
+                        tint = TextMuted,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            topCategories.take(3).forEach { cat ->
-                HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 11.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(cat.categoryName, fontSize = 13.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
+            DualWaveCanvas(
+                yearlyMonths = yearlyMonths,
+                currencySymbol = currencySymbol,
+                isDiscreet = isDiscreet,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                Spacer(modifier = Modifier.width(5.dp))
+                Text("Inflow", fontSize = 11.sp, color = TextDark, fontWeight = FontWeight.Bold)
+
+                Spacer(modifier = Modifier.width(24.dp))
+
+                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF8B5CF6)))
+                Spacer(modifier = Modifier.width(5.dp))
+                Text("Personal Burn", fontSize = 11.sp, color = TextDark, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+            HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Monthly Avg Burn", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", cat.annualTotal)}",
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Bold,
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", monthlyAvgBurn)}",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
                         color = TextDark
+                    )
+                    Text(
+                        text = if (peakMonth != null) "Peak: ${peakMonth.monthName}" else "",
+                        fontSize = 10.sp,
+                        color = SoftRed,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Net Retained", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", netRetained)}",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (netRetained >= 0) SoftTeal else SoftRed
+                    )
+                    Text(
+                        text = "Annual Retained",
+                        fontSize = 10.sp,
+                        color = TextMuted,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -1059,103 +1189,110 @@ private fun CashflowFunnelStreamCard(
 }
 
 @Composable
-private fun SmoothFunnelCanvas(
-    cumulativeExpenses: List<Double>,
+private fun DualWaveCanvas(
+    yearlyMonths: List<YearlyMonthData>,
+    currencySymbol: String,
+    isDiscreet: Boolean,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
-        val cY = h / 2f
+        val count = 12
+        val stepX = w / (count - 1).toFloat()
 
-        val col1X = w * 0.22f
-        val col2X = w * 0.52f
-        val col3X = w * 0.82f
-        listOf(col1X, col2X, col3X).forEach { xPos ->
+        val maxVal = yearlyMonths.flatMap { listOf(it.income, it.lifestyleExpenses) }.maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
+
+        for (i in 1..3) {
+            val y = h * (i / 4f)
             drawLine(
-                color = Color(0xFFEEEEEE),
-                start = Offset(xPos, 4f),
-                end = Offset(xPos, h - 4f),
+                color = Color(0xFFF1F5F9),
+                start = Offset(0f, y),
+                end = Offset(w, y),
                 strokeWidth = 1.dp.toPx()
             )
         }
 
-        val maxBurn = cumulativeExpenses.lastOrNull()?.coerceAtLeast(10.0) ?: 10.0
+        val ptsInflow = yearlyMonths.mapIndexed { idx, m ->
+            val x = idx * stepX
+            val ratio = (m.income / maxVal).toFloat().coerceIn(0.04f, 0.92f)
+            val y = h * (1f - ratio)
+            Offset(x, y)
+        }
 
-        val layers = listOf(1.0f to 0.22f, 0.70f to 0.50f, 0.42f to 0.90f)
-        layers.forEach { (scale, alpha) ->
-            val topP = Path()
-            val bottomP = Path()
+        val ptsBurn = yearlyMonths.mapIndexed { idx, m ->
+            val x = idx * stepX
+            val ratio = (m.lifestyleExpenses / maxVal).toFloat().coerceIn(0.04f, 0.92f)
+            val y = h * (1f - ratio)
+            Offset(x, y)
+        }
 
-            val stepX = w / 11f
-            for (i in 0..11) {
-                val x = i * stepX
-                val burn = cumulativeExpenses.getOrElse(i) { 0.0 }
-                val ratio = (burn / maxBurn).toFloat().coerceIn(0f, 1f)
-                val curveT = i / 11f
-                val baselineShape = 0.12f + 0.88f * (curveT * curveT)
-                val thickness = (h * 0.44f) * (baselineShape * (0.6f + 0.4f * ratio)) * scale
-
-                val yTop = cY - thickness
-                val yBottom = cY + thickness
-
-                if (i == 0) {
-                    topP.moveTo(x, yTop)
-                    bottomP.moveTo(x, yBottom)
-                } else {
-                    val prevX = (i - 1) * stepX
-                    val prevBurn = cumulativeExpenses.getOrElse(i - 1) { 0.0 }
-                    val prevRatio = (prevBurn / maxBurn).toFloat().coerceIn(0f, 1f)
-                    val prevT = (i - 1) / 11f
-                    val prevBase = 0.12f + 0.88f * (prevT * prevT)
-                    val prevThickness = (h * 0.44f) * (prevBase * (0.6f + 0.4f * prevRatio)) * scale
-
-                    val cX = (prevX + x) / 2
-                    topP.cubicTo(cX, cY - prevThickness, cX, yTop, x, yTop)
-                    bottomP.cubicTo(cX, cY + prevThickness, cX, yBottom, x, yBottom)
+        fun drawSmoothLineAndArea(pts: List<Offset>, strokeColor: Color, gradientStart: Color) {
+            if (pts.isEmpty()) return
+            val path = Path().apply {
+                moveTo(pts[0].x, pts[0].y)
+                for (i in 0 until pts.size - 1) {
+                    val p0 = pts[i]
+                    val p1 = pts[i + 1]
+                    val cx = (p0.x + p1.x) / 2
+                    cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
                 }
             }
 
-            val ribbon = Path().apply {
-                addPath(topP)
-                lineTo(w, cY)
-                lineTo(w, h)
-                addPath(bottomP)
+            val area = Path().apply {
+                addPath(path)
+                lineTo(pts.last().x, h)
+                lineTo(pts.first().x, h)
                 close()
             }
 
             drawPath(
-                path = ribbon,
-                brush = Brush.horizontalGradient(
-                    colors = listOf(
-                        Color(0xFFFFAB40).copy(alpha = alpha),
-                        Color(0xFFFF6E40).copy(alpha = alpha),
-                        Color(0xFFFF3D00).copy(alpha = alpha)
-                    )
+                path = area,
+                brush = Brush.verticalGradient(
+                    colors = listOf(gradientStart.copy(alpha = 0.28f), Color.Transparent),
+                    startY = 0f,
+                    endY = h
                 )
             )
+
+            drawPath(
+                path = path,
+                color = strokeColor,
+                style = Stroke(width = 2.8.dp.toPx(), cap = StrokeCap.Round)
+            )
+        }
+
+        drawSmoothLineAndArea(ptsInflow, Color(0xFF10B981), Color(0xFF10B981))
+        drawSmoothLineAndArea(ptsBurn, Color(0xFF8B5CF6), Color(0xFF8B5CF6))
+
+        val peakBurnIdx = yearlyMonths.indices.maxByOrNull { yearlyMonths[it].lifestyleExpenses } ?: 0
+        val peakInflowIdx = yearlyMonths.indices.maxByOrNull { yearlyMonths[it].income } ?: 0
+
+        if (ptsBurn.isNotEmpty()) {
+            val peakPt = ptsBurn[peakBurnIdx]
+            drawCircle(color = Color.White, radius = 5.dp.toPx(), center = peakPt)
+            drawCircle(color = Color(0xFF8B5CF6), radius = 3.5.dp.toPx(), center = peakPt)
+
+            val inPt = ptsInflow[peakInflowIdx]
+            drawCircle(color = Color.White, radius = 5.dp.toPx(), center = inPt)
+            drawCircle(color = Color(0xFF10B981), radius = 3.5.dp.toPx(), center = inPt)
         }
     }
 }
 
 // =========================================================
-// 2. RE-ENGINEERED SEASONAL RHYTHM SPINDLE CARD (BLUE)
+// 2. LAYERED MOUNTAIN COMPOSITION GRAPH WITH INFO BUTTON (PAGE 1)
 // =========================================================
 
 @Composable
-private fun SeasonalRhythmSpindleCard(
+private fun LayeredMountainCompositionCard(
     title: String,
     subtitle: String,
     yearlyMonths: List<YearlyMonthData>,
-    quarterlyData: List<QuarterlyMetrics>,
-    annualExpenses: Double,
-    annualNetSurplus: Double,
     currencySymbol: String,
     isDiscreet: Boolean,
-    topCategories: List<CategoryAnnualTrajectory>
+    onInfoClick: () -> Unit
 ) {
-    val quarterlyAvg = if (annualExpenses > 0) annualExpenses / 4.0 else 0.0
-
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -1165,126 +1302,70 @@ private fun SeasonalRhythmSpindleCard(
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
         Column(modifier = Modifier.padding(22.dp)) {
-            Text(title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = TextDark)
-            Text(subtitle, fontSize = 11.5.sp, color = TextMuted)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(165.dp),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                SpindleFlowCanvas(
-                    monthlyExpenses = yearlyMonths.map { it.expenses },
-                    modifier = Modifier.fillMaxSize()
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = TextDark)
+                    Text(subtitle, fontSize = 11.5.sp, color = TextMuted)
+                }
 
-                Row(
+                IconButton(
+                    onClick = onInfoClick,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
+                        .size(32.dp)
+                        .clip(CircleShape)
                 ) {
-                    listOf(0, 1, 2).forEach { qIdx ->
-                        val qAmt = quarterlyData.getOrNull(qIdx)?.totalExpenses ?: 0.0
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = CardWhite,
-                            shadowElevation = 3.dp,
-                            border = BorderStroke(0.5.dp, Color(0xFFE2E8F0))
-                        ) {
-                            Text(
-                                text = if (isDiscreet) "••••" else String.format(Locale.US, "%,.0f", qAmt),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextDark,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Graph Explanation",
+                        tint = TextMuted,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            LayeredMountainCanvas(
+                yearlyMonths = yearlyMonths,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+            )
 
             Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                listOf("Jan", "Mar", "May", "Jul", "Sep", "Nov", "Dec").forEach { m ->
-                    Text(m, fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Medium)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF2979FF)))
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text("Quarterly Avg Outflow", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                    }
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", quarterlyAvg)}",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextDark
-                    )
-                    Text(
-                        text = "Seasonality Wave",
-                        fontSize = 10.sp,
-                        color = Color(0xFF2979FF),
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftTeal))
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text("Net Retained", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                    }
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", annualNetSurplus)}",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
-                        color = if (annualNetSurplus >= 0) SoftTeal else SoftRed
-                    )
-                    Text(
-                        text = "Total Annual Surplus",
-                        fontSize = 10.sp,
-                        color = TextMuted,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                MONTH_NAMES.forEach { m ->
+                    Text(m, fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            topCategories.take(3).forEach { cat ->
-                HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 11.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(cat.categoryName, fontSize = 13.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
-                    Text(
-                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", cat.annualTotal)}",
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextDark
-                    )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF475569)))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Fixed Bills", fontSize = 10.5.sp, color = TextDark, fontWeight = FontWeight.SemiBold)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF8B5CF6)))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Lifestyle Burn", fontSize = 10.5.sp, color = TextDark, fontWeight = FontWeight.SemiBold)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF06B6D4)))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Assets SIP", fontSize = 10.5.sp, color = TextDark, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -1292,88 +1373,81 @@ private fun SeasonalRhythmSpindleCard(
 }
 
 @Composable
-private fun SpindleFlowCanvas(
-    monthlyExpenses: List<Double>,
+private fun LayeredMountainCanvas(
+    yearlyMonths: List<YearlyMonthData>,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
-        val cY = h / 2f
+        val count = 12
+        val stepX = w / (count - 1).toFloat()
 
-        val col1X = w * 0.22f
-        val col2X = w * 0.52f
-        val col3X = w * 0.82f
-        listOf(col1X, col2X, col3X).forEach { xPos ->
-            drawLine(
-                color = Color(0xFFEEEEEE),
-                start = Offset(xPos, 8f),
-                end = Offset(xPos, h - 8f),
-                strokeWidth = 1.dp.toPx()
-            )
+        val maxStack = yearlyMonths.maxOfOrNull { it.fixedExpenses + it.variableExpenses + it.assets }?.coerceAtLeast(100.0) ?: 100.0
+
+        val ptsFixed = mutableListOf<Offset>()
+        val ptsLifestyle = mutableListOf<Offset>()
+        val ptsAssets = mutableListOf<Offset>()
+
+        yearlyMonths.forEachIndexed { idx, m ->
+            val x = idx * stepX
+            val rFixed = ((m.fixedExpenses) / maxStack).toFloat().coerceIn(0.04f, 0.92f)
+            val rLife = ((m.fixedExpenses + m.variableExpenses) / maxStack).toFloat().coerceIn(0.04f, 0.92f)
+            val rAsset = ((m.fixedExpenses + m.variableExpenses + m.assets) / maxStack).toFloat().coerceIn(0.04f, 0.92f)
+
+            ptsFixed.add(Offset(x, h * (1f - rFixed)))
+            ptsLifestyle.add(Offset(x, h * (1f - rLife)))
+            ptsAssets.add(Offset(x, h * (1f - rAsset)))
         }
 
-        val maxExp = monthlyExpenses.maxOrNull()?.coerceAtLeast(10.0) ?: 10.0
-
-        val layers = listOf(1.0f to 0.22f, 0.70f to 0.50f, 0.44f to 0.90f)
-        layers.forEach { (scale, alpha) ->
-            val topP = Path()
-            val bottomP = Path()
-
-            val stepX = w / 11f
-            for (i in 0..11) {
-                val x = i * stepX
-                val exp = monthlyExpenses.getOrElse(i) { 0.0 }
-                val ratio = (exp / maxExp).toFloat().coerceIn(0f, 1f)
-
-                val t = i / 11f
-                val spindleEnvelope = 0.10f + 0.90f * (4f * t * (1f - t))
-                val thickness = (h * 0.44f) * (spindleEnvelope * (0.6f + 0.4f * ratio)) * scale
-
-                val yTop = cY - thickness
-                val yBottom = cY + thickness
-
-                if (i == 0) {
-                    topP.moveTo(x, yTop)
-                    bottomP.moveTo(x, yBottom)
-                } else {
-                    val prevX = (i - 1) * stepX
-                    val prevExp = monthlyExpenses.getOrElse(i - 1) { 0.0 }
-                    val prevRatio = (prevExp / maxExp).toFloat().coerceIn(0f, 1f)
-                    val prevT = (i - 1) / 11f
-                    val prevEnvelope = 0.10f + 0.90f * (4f * prevT * (1f - prevT))
-                    val prevThickness = (h * 0.44f) * (prevEnvelope * (0.6f + 0.4f * prevRatio)) * scale
-
-                    val cX = (prevX + x) / 2
-                    topP.cubicTo(cX, cY - prevThickness, cX, yTop, x, yTop)
-                    bottomP.cubicTo(cX, cY + prevThickness, cX, yBottom, x, yBottom)
+        fun drawLayerPath(pts: List<Offset>, color: Color, fillBrush: Brush) {
+            if (pts.isEmpty()) return
+            val path = Path().apply {
+                moveTo(pts[0].x, pts[0].y)
+                for (i in 0 until pts.size - 1) {
+                    val p0 = pts[i]
+                    val p1 = pts[i + 1]
+                    val cx = (p0.x + p1.x) / 2
+                    cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
                 }
             }
-
-            val ribbon = Path().apply {
-                addPath(topP)
-                lineTo(w, cY)
-                lineTo(w, h)
-                addPath(bottomP)
+            val area = Path().apply {
+                addPath(path)
+                lineTo(pts.last().x, h)
+                lineTo(pts.first().x, h)
                 close()
             }
-
-            drawPath(
-                path = ribbon,
-                brush = Brush.horizontalGradient(
-                    colors = listOf(
-                        Color(0xFF82B1FF).copy(alpha = alpha),
-                        Color(0xFF2979FF).copy(alpha = alpha),
-                        Color(0xFF82B1FF).copy(alpha = alpha)
-                    )
-                )
-            )
+            drawPath(path = area, brush = fillBrush)
+            drawPath(path = path, color = color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
         }
+
+        for (i in 0 until count) {
+            val x = i * stepX
+            drawLine(color = Color(0xFFF1F5F9), start = Offset(x, 0f), end = Offset(x, h), strokeWidth = 1.dp.toPx())
+        }
+
+        drawLayerPath(
+            ptsAssets,
+            Color(0xFF06B6D4),
+            Brush.verticalGradient(listOf(Color(0xFF06B6D4).copy(alpha = 0.35f), Color.Transparent))
+        )
+
+        drawLayerPath(
+            ptsLifestyle,
+            Color(0xFF8B5CF6),
+            Brush.verticalGradient(listOf(Color(0xFF8B5CF6).copy(alpha = 0.45f), Color.Transparent))
+        )
+
+        drawLayerPath(
+            ptsFixed,
+            Color(0xFF475569),
+            Brush.verticalGradient(listOf(Color(0xFF475569).copy(alpha = 0.55f), Color(0xFF1E293B).copy(alpha = 0.25f)))
+        )
     }
 }
 
 // =========================================================
-// 3. LIVE CONTINUOUS LIQUID WAVE HEART CARD
+// 3. LIVE CONTINUOUS LIQUID WAVE HEART CARD WITH INFO BUTTON (PAGE 2)
 // =========================================================
 
 @Composable
@@ -1383,7 +1457,8 @@ private fun LiveAnimatedGoalHeartCard(
     targetAmount: Double,
     completionRatio: Float,
     currencySymbol: String,
-    isDiscreet: Boolean
+    isDiscreet: Boolean,
+    onInfoClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier
@@ -1393,69 +1468,87 @@ private fun LiveAnimatedGoalHeartCard(
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 24.dp, horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = CircleShape,
-                color = Color(0xFFEDE9FE)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            IconButton(
+                onClick = onInfoClick,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 16.dp, end = 16.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = AccentPurple,
-                        modifier = Modifier.size(20.dp)
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Graph Explanation",
+                    tint = TextMuted,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp, horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    shape = CircleShape,
+                    color = Color(0xFFEDE9FE)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = AccentPurple,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (isDiscreet) "•••• / ••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", currentAmount)} / $currencySymbol${String.format(Locale.US, "%,.0f", targetAmount)}",
+                    fontSize = 13.5.sp,
+                    color = TextMuted,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Box(
+                    modifier = Modifier
+                        .size(220.dp)
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CleanLivingHeartCanvas(
+                        fillPercentage = completionRatio,
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    Text(
+                        text = "${(completionRatio * 100).toInt()}%",
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        letterSpacing = (-0.5).sp
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = if (isDiscreet) "•••• / ••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", currentAmount)} / $currencySymbol${String.format(Locale.US, "%,.0f", targetAmount)}",
-                fontSize = 13.5.sp,
-                color = TextMuted,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Box(
-                modifier = Modifier
-                    .size(220.dp)
-                    .padding(8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CleanLivingHeartCanvas(
-                    fillPercentage = completionRatio,
-                    modifier = Modifier.fillMaxSize()
-                )
-
+                val gap = (targetAmount - currentAmount).coerceAtLeast(0.0)
                 Text(
-                    text = "${(completionRatio * 100).toInt()}%",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color.White,
-                    letterSpacing = (-0.5).sp
+                    text = if (isDiscreet) "Accumulate assets to reach your annual target." else "Deploy $currencySymbol${String.format(Locale.US, "%,.0f", gap)} more to hit your compounding milestone.",
+                    fontSize = 12.5.sp,
+                    color = TextMuted,
+                    textAlign = TextAlign.Center
                 )
             }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            val gap = (targetAmount - currentAmount).coerceAtLeast(0.0)
-            Text(
-                text = if (isDiscreet) "Accumulate assets to reach your annual target." else "Deploy $currencySymbol${String.format(Locale.US, "%,.0f", gap)} more to hit your compounding milestone.",
-                fontSize = 12.5.sp,
-                color = TextMuted,
-                textAlign = TextAlign.Center
-            )
         }
     }
 }
@@ -1584,15 +1677,16 @@ private fun CleanLivingHeartCanvas(
 }
 
 // =========================================================
-// 4. MULTI-YEAR ASSET FLOW PROGRESSION CARD
+// 4. MULTI-YEAR SEGMENTED PILLARS CARD WITH INFO BUTTON (PAGE 2)
 // =========================================================
 
 @Composable
-private fun MultiYearAssetFlowCard(
+private fun MultiYearSegmentedPillarsCard(
     multiYearAssets: List<MultiYearAssetMetric>,
     selectedYear: Int,
     currencySymbol: String,
-    isDiscreet: Boolean
+    isDiscreet: Boolean,
+    onInfoClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier
@@ -1603,21 +1697,34 @@ private fun MultiYearAssetFlowCard(
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                text = "Multi-Year Asset Flow",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextDark
-            )
-            Text(
-                text = "Capital deployed to wealth-building assets across years",
-                fontSize = 11.5.sp,
-                color = TextMuted
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Multi-Year Asset Flow", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Text("Capital compounding progression across active years", fontSize = 11.5.sp, color = TextMuted)
+                }
+
+                IconButton(
+                    onClick = onInfoClick,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Graph Explanation",
+                        tint = TextMuted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            MultiYearAssetCanvas(
+            MultiYearSegmentedCanvas(
                 multiYearAssets = multiYearAssets,
                 selectedYear = selectedYear,
                 modifier = Modifier
@@ -1677,7 +1784,7 @@ private fun MultiYearAssetFlowCard(
 }
 
 @Composable
-private fun MultiYearAssetCanvas(
+private fun MultiYearSegmentedCanvas(
     multiYearAssets: List<MultiYearAssetMetric>,
     selectedYear: Int,
     modifier: Modifier = Modifier
@@ -1688,25 +1795,30 @@ private fun MultiYearAssetCanvas(
         val count = multiYearAssets.size.coerceAtLeast(1)
         val maxVal = multiYearAssets.maxOfOrNull { it.totalAssets }?.coerceAtLeast(100.0) ?: 100.0
 
-        val barWidth = 28.dp.toPx()
+        val barWidth = 32.dp.toPx()
         val spacing = (w - (barWidth * count)) / (count + 1).coerceAtLeast(1)
 
         multiYearAssets.forEachIndexed { idx, item ->
             val x = spacing + idx * (barWidth + spacing)
-            val ratio = (item.totalAssets / maxVal).toFloat().coerceIn(0.04f, 0.92f)
-            val barH = (h * 0.75f) * ratio
+            val ratio = (item.totalAssets / maxVal).toFloat().coerceIn(0.06f, 0.90f)
+            val barH = (h * 0.74f) * ratio
             val isCurrent = item.year == selectedYear
+            val baseY = h - 22.dp.toPx()
+
+            val topH = barH * 0.45f
+            val botH = barH * 0.55f
 
             drawRoundRect(
-                brush = Brush.verticalGradient(
-                    colors = if (isCurrent) {
-                        listOf(AccentPurple, Color(0xFF6366F1))
-                    } else {
-                        listOf(BorderLight, BorderLight.copy(alpha = 0.5f))
-                    }
-                ),
-                topLeft = Offset(x, h - barH - 20.dp.toPx()),
-                size = Size(barWidth, barH),
+                color = if (isCurrent) Color(0xFF10B981) else Color(0xFFCBD5E1),
+                topLeft = Offset(x, baseY - botH),
+                size = Size(barWidth, botH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
+            )
+
+            drawRoundRect(
+                color = if (isCurrent) Color(0xFF8B5CF6) else Color(0xFF94A3B8),
+                topLeft = Offset(x, baseY - barH),
+                size = Size(barWidth, topH),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
             )
         }
@@ -1721,7 +1833,250 @@ private fun MultiYearAssetCanvas(
 }
 
 // =========================================================
-// AUXILIARY COMPONENTS & SPIDER WEBS
+// 5. ORGANIC CURVED STAR RADAR CARD WITH INFO BUTTON (PAGE 3)
+// =========================================================
+
+@Composable
+private fun OrganicCurvedStarRadarCard(
+    categorySums: List<Double>,
+    onInfoClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(22.dp)),
+        shape = RoundedCornerShape(22.dp),
+        color = CardWhite,
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Annual Spending Pareto", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
+                    Text("Organic category weight distribution", fontSize = 11.5.sp, color = TextMuted)
+                }
+
+                IconButton(
+                    onClick = onInfoClick,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Graph Explanation",
+                        tint = TextMuted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                OrganicStarRadarCanvas(categorySums = categorySums)
+
+                Surface(
+                    modifier = Modifier.size(36.dp),
+                    shape = CircleShape,
+                    color = CardWhite,
+                    shadowElevation = 3.dp,
+                    border = BorderStroke(1.dp, Color(0xFFEDE9FE))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.PieChart, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OrganicStarRadarCanvas(
+    categorySums: List<Double>
+) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val numAxes = 6
+        val c = center
+        val maxR = size.minDimension * 0.44f
+
+        for (ring in 1..3) {
+            val r = maxR * (ring / 3f)
+            drawCircle(
+                color = Color(0xFFF1F5F9),
+                radius = r,
+                center = c,
+                style = Stroke(width = 1.dp.toPx())
+            )
+        }
+
+        val hasData = categorySums.any { it > 0.0 }
+        val maxAmt = categorySums.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+
+        val polyPath = Path()
+        val n = numAxes
+
+        for (i in 0 until n) {
+            val amt = categorySums.getOrNull(i) ?: 0.0
+            val ratio = if (hasData) (amt / maxAmt).toFloat().coerceIn(0.20f, 0.95f) else 0.45f
+            val rTip = maxR * ratio
+            val angTip = (i * 2 * Math.PI / n) - Math.PI / 2
+            val pTip = Offset(c.x + (rTip * cos(angTip)).toFloat(), c.y + (rTip * sin(angTip)).toFloat())
+
+            val nextAmt = categorySums.getOrNull((i + 1) % n) ?: 0.0
+            val nextRatio = if (hasData) (nextAmt / maxAmt).toFloat().coerceIn(0.20f, 0.95f) else 0.45f
+            val rValley = min(rTip, maxR * nextRatio) * 0.58f
+            val angValley = ((i + 0.5) * 2 * Math.PI / n) - Math.PI / 2
+            val pValley = Offset(c.x + (rValley * cos(angValley)).toFloat(), c.y + (rValley * sin(angValley)).toFloat())
+
+            if (i == 0) polyPath.moveTo(pTip.x, pTip.y) else polyPath.lineTo(pTip.x, pTip.y)
+            polyPath.lineTo(pValley.x, pValley.y)
+        }
+        polyPath.close()
+
+        drawPath(
+            path = polyPath,
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0xFF8B5CF6).copy(alpha = 0.35f), Color(0xFF8B5CF6).copy(alpha = 0.08f)),
+                center = c,
+                radius = maxR
+            )
+        )
+        drawPath(
+            path = polyPath,
+            color = Color(0xFF8B5CF6),
+            style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+    }
+}
+
+// =========================================================
+// 6. BUDGET VS ACTUAL DUAL PILLARS CARD WITH INFO BUTTON (PAGE 3)
+// =========================================================
+
+@Composable
+private fun BudgetVsActualDualPillarsCard(
+    categoryTrajectories: List<CategoryAnnualTrajectory>,
+    currencySymbol: String,
+    isDiscreet: Boolean,
+    onInfoClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(22.dp)),
+        shape = RoundedCornerShape(22.dp),
+        color = CardWhite,
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Budgeted vs. Actual Outflow", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
+                    Text("Side-by-side variance analysis for primary channels", fontSize = 11.5.sp, color = TextMuted)
+                }
+
+                IconButton(
+                    onClick = onInfoClick,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Graph Explanation",
+                        tint = TextMuted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            val displayList = categoryTrajectories.take(4)
+            val maxBurn = displayList.maxOfOrNull { it.annualTotal }?.coerceAtLeast(100.0) ?: 100.0
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                displayList.forEach { cat ->
+                    val actualRatio = (cat.annualTotal / maxBurn).toFloat().coerceIn(0.12f, 1f)
+                    val plannedRatio = (actualRatio * 0.88f).coerceIn(0.10f, 1f)
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Bottom,
+                        modifier = Modifier.fillMaxHeight()
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(14.dp)
+                                    .height((90 * plannedRatio).dp)
+                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                    .background(Color(0xFFCBD5E1))
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(14.dp)
+                                    .height((90 * actualRatio).dp)
+                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                    .background(Color(0xFF8B5CF6))
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(cat.categoryName.take(6), fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFCBD5E1)))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Planned", fontSize = 10.5.sp, color = TextMuted)
+                }
+                Spacer(modifier = Modifier.width(20.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF8B5CF6)))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Realized", fontSize = 10.5.sp, color = TextMuted)
+                }
+            }
+        }
+    }
+}
+
+// =========================================================
+// AUXILIARY COMPONENTS
 // =========================================================
 
 @Composable
@@ -1810,56 +2165,6 @@ private fun CategoryTrajectoryRowCard(
                 Text("Peak: ${MONTH_NAMES[item.peakMonthIndex]}", fontSize = 9.5.sp, color = SoftRed, fontWeight = FontWeight.Bold)
                 Text("Dec", fontSize = 9.sp, color = TextMuted)
             }
-        }
-    }
-}
-
-@Composable
-private fun AnnualRadarSpiderCanvas(
-    categorySums: List<Double>
-) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val numAxes = 6
-        val c = center
-        val maxR = size.minDimension * 0.44f
-
-        for (ring in 1..3) {
-            val r = maxR * (ring / 3f)
-            val ringPath = Path()
-            for (i in 0 until numAxes) {
-                val angle = (i * 2 * Math.PI / numAxes) - Math.PI / 2
-                val x = c.x + (r * cos(angle)).toFloat()
-                val y = c.y + (r * sin(angle)).toFloat()
-                if (i == 0) ringPath.moveTo(x, y) else ringPath.lineTo(x, y)
-            }
-            ringPath.close()
-            drawPath(ringPath, color = BorderLight.copy(alpha = 0.5f), style = Stroke(width = 1.dp.toPx()))
-        }
-
-        for (i in 0 until numAxes) {
-            val angle = (i * 2 * Math.PI / numAxes) - Math.PI / 2
-            val x = c.x + (maxR * cos(angle)).toFloat()
-            val y = c.y + (maxR * sin(angle)).toFloat()
-            drawLine(color = BorderLight.copy(alpha = 0.6f), start = c, end = Offset(x, y), strokeWidth = 1.dp.toPx())
-        }
-
-        val hasData = categorySums.any { it > 0.0 }
-        if (hasData) {
-            val maxAmount = categorySums.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
-            val polyPath = Path()
-            for (i in 0 until numAxes) {
-                val amt = categorySums.getOrNull(i) ?: 0.0
-                val ratio = (amt / maxAmount).toFloat().coerceIn(0.12f, 0.95f)
-                val r = maxR * ratio
-                val angle = (i * 2 * Math.PI / numAxes) - Math.PI / 2
-                val x = c.x + (r * cos(angle)).toFloat()
-                val y = c.y + (r * sin(angle)).toFloat()
-                if (i == 0) polyPath.moveTo(x, y) else polyPath.lineTo(x, y)
-            }
-            polyPath.close()
-
-            drawPath(polyPath, color = AccentPurple.copy(alpha = 0.22f))
-            drawPath(polyPath, color = AccentPurple, style = Stroke(width = 2.dp.toPx()))
         }
     }
 }
