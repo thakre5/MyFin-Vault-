@@ -12,9 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -53,7 +50,6 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.sin
 
 private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -195,7 +191,6 @@ fun YearlyScreen(
             txCal.get(Calendar.YEAR)
         }.mapValues { (_, txs) -> txs.sumOf { it.amount } }.toMutableMap()
 
-        // Ensure current and previous 2 years are represented
         for (y in (uiState.selectedYear - 2)..uiState.selectedYear) {
             yearsGrouped.putIfAbsent(y, 0.0)
         }
@@ -260,7 +255,6 @@ fun YearlyScreen(
         }.sortedByDescending { it.annualTotal }
     }
 
-    // Export Statement Launchers
     val xlsxExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     ) { uri ->
@@ -339,7 +333,6 @@ fun YearlyScreen(
                         )
                     }
 
-                    // Year Selection Capsule
                     Surface(
                         modifier = Modifier.align(Alignment.Center),
                         shape = RoundedCornerShape(20.dp),
@@ -381,7 +374,6 @@ fun YearlyScreen(
                         }
                     }
 
-                    // Balance Privacy Toggle
                     IconButton(
                         onClick = { isDiscreetMode = !isDiscreetMode },
                         modifier = Modifier
@@ -425,7 +417,7 @@ fun YearlyScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 20.dp),
-                            contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 180.dp)
                         ) {
                             item(key = "orange_cashflow_card") {
                                 CashflowFunnelStreamCard(
@@ -487,14 +479,16 @@ fun YearlyScreen(
                     }
 
                     // ==========================================
-                    // TAB 1: 12 MONTHS (Blue Spindle Rhythm Card)
+                    // TAB 1: 12 MONTHS (Blue Spindle Rhythm Card & Fully Scrollable Months)
                     // ==========================================
                     1 -> {
+                        val chunkedMonths = remember(yearlyMonthsData) { yearlyMonthsData.chunked(2) }
+
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 20.dp),
-                            contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 180.dp)
                         ) {
                             item(key = "blue_seasonal_rhythm_card") {
                                 SeasonalRhythmSpindleCard(
@@ -518,29 +512,40 @@ fun YearlyScreen(
                                     fontWeight = FontWeight.Bold,
                                     color = TextDark
                                 )
-                                Spacer(modifier = Modifier.height(10.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
                             }
 
-                            item(key = "timeline_grid_items") {
-                                LazyVerticalGrid(
-                                    columns = GridCells.Fixed(2),
+                            // Fully Scrollable 12 Months (Chunked Rows - Jan to Dec)
+                            items(chunkedMonths, key = { it.first().monthIndex }) { rowPair ->
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(460.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                                    userScrollEnabled = false
+                                        .padding(bottom = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    items(yearlyMonthsData, key = { it.monthIndex }) { mData ->
+                                    MonthGridTimelineCard(
+                                        data = rowPair[0],
+                                        currencySymbol = userProfile.currencySymbol,
+                                        isDiscreet = isDiscreetMode,
+                                        onTapMonth = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            inspectedMonth = rowPair[0]
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (rowPair.size > 1) {
                                         MonthGridTimelineCard(
-                                            data = mData,
+                                            data = rowPair[1],
                                             currencySymbol = userProfile.currencySymbol,
                                             isDiscreet = isDiscreetMode,
                                             onTapMonth = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                inspectedMonth = mData
-                                            }
+                                                inspectedMonth = rowPair[1]
+                                            },
+                                            modifier = Modifier.weight(1f)
                                         )
+                                    } else {
+                                        Spacer(modifier = Modifier.weight(1f))
                                     }
                                 }
                             }
@@ -555,9 +560,8 @@ fun YearlyScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 20.dp),
-                            contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 180.dp)
                         ) {
-                            // 1. Live Animated Liquid Wave Heart Goal Card
                             item(key = "live_heart_goal_card") {
                                 LiveAnimatedGoalHeartCard(
                                     title = "Annual Wealth Accumulation Goal",
@@ -570,7 +574,6 @@ fun YearlyScreen(
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
 
-                            // 2. Multi-Year Asset Progression Card
                             item(key = "multi_year_asset_flow_card") {
                                 MultiYearAssetFlowCard(
                                     multiYearAssets = multiYearAssets,
@@ -591,7 +594,7 @@ fun YearlyScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 20.dp),
-                            contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 180.dp)
                         ) {
                             item(key = "radar_header") {
                                 Text(text = "Annual Category Pareto", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
@@ -656,7 +659,7 @@ fun YearlyScreen(
             }
         }
 
-        // Bottom Scrim
+        // Bottom Dissolve Gradient
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -827,7 +830,7 @@ fun YearlyScreen(
 }
 
 // =========================================================
-// 1. DYNAMIC CASHFLOW FUNNEL STREAM CARD (ORANGE)
+// 1. RE-ENGINEERED DYNAMIC CASHFLOW FUNNEL CARD (ORANGE)
 // =========================================================
 
 @Composable
@@ -841,21 +844,23 @@ private fun CashflowFunnelStreamCard(
     isDiscreet: Boolean,
     topCategories: List<CategoryAnnualTrajectory>
 ) {
-    // Dynamic cumulative calculations
     var cumulativeBurn = 0.0
     val cumulativeExpenses = yearlyMonths.map { m ->
         cumulativeBurn += m.expenses
         cumulativeBurn
     }
 
-    var cumulativeInflow = 0.0
-    val cumulativeIncomes = yearlyMonths.map { m ->
-        cumulativeInflow += m.income
-        cumulativeInflow
-    }
-
     val monthlyAvgBurn = if (annualExpenses > 0) annualExpenses / 12.0 else 0.0
     val savingsRate = if (annualIncome > 0) (((annualIncome - annualExpenses) / annualIncome) * 100).toInt() else 0
+
+    // Dynamic checkpoint calculations for columns
+    val q1Burn = cumulativeExpenses.getOrElse(2) { 0.0 }
+    val midBurn = cumulativeExpenses.getOrElse(5) { 0.0 }
+    val endBurn = cumulativeExpenses.lastOrNull() ?: 0.0
+
+    val q1Inflow = annualIncome * 0.25
+    val midInflow = annualIncome * 0.50
+    val endInflow = annualIncome
 
     Surface(
         modifier = Modifier
@@ -869,18 +874,49 @@ private fun CashflowFunnelStreamCard(
             Text(title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = TextDark)
             Text(subtitle, fontSize = 11.5.sp, color = TextMuted)
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Dynamic Funnel Canvas (Narrow Left -> Swelling Right based on cumulative burn)
-            FunnelRibbonCanvas(
+            // Checkpoint Numbers Row (Top: Inflow)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                listOf(q1Inflow, midInflow, endInflow).forEach { amt ->
+                    Text(
+                        text = if (isDiscreet) "••••" else String.format(Locale.US, "%,.0f", amt),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Dynamic Funnel Canvas (Pure Layered Bézier Flow, no harsh ruler line)
+            SmoothFunnelCanvas(
                 cumulativeExpenses = cumulativeExpenses,
-                cumulativeIncomes = cumulativeIncomes,
-                currencySymbol = currencySymbol,
-                isDiscreet = isDiscreet,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(170.dp)
+                    .height(140.dp)
             )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Checkpoint Numbers Row (Bottom: Actual Outflow Burn)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                listOf(q1Burn, midBurn, endBurn).forEach { amt ->
+                    Text(
+                        text = if (isDiscreet) "••••" else String.format(Locale.US, "%,.0f", amt),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(18.dp))
 
@@ -934,7 +970,7 @@ private fun CashflowFunnelStreamCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Real Top 3 Categories from Database
+            // Top 3 Real Categories
             topCategories.take(3).forEach { cat ->
                 HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
                 Row(
@@ -958,11 +994,8 @@ private fun CashflowFunnelStreamCard(
 }
 
 @Composable
-private fun FunnelRibbonCanvas(
+private fun SmoothFunnelCanvas(
     cumulativeExpenses: List<Double>,
-    cumulativeIncomes: List<Double>,
-    currencySymbol: String,
-    isDiscreet: Boolean,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
@@ -970,64 +1003,54 @@ private fun FunnelRibbonCanvas(
         val h = size.height
         val cY = h / 2f
 
-        // Checkpoint positions (Q1 = Month 3, Q2 = Month 6, Q4 = Month 12)
+        // 3 Vertical Guidelines matching reference design
         val col1X = w * 0.22f
-        val col2X = w * 0.55f
-        val col3X = w * 0.88f
-        val checkColX = listOf(col1X, col2X, col3X)
-        val checkIndices = listOf(2, 5, 11) // 0-based indices for Mar, Jun, Dec
-
-        // Draw Vertical Grid Guidelines
-        checkColX.forEach { xPos ->
+        val col2X = w * 0.52f
+        val col3X = w * 0.82f
+        listOf(col1X, col2X, col3X).forEach { xPos ->
             drawLine(
-                color = Color(0xFFE5E7EB),
-                start = Offset(xPos, 14f),
-                end = Offset(xPos, h - 14f),
-                strokeWidth = 1.2.dp.toPx()
+                color = Color(0xFFEEEEEE),
+                start = Offset(xPos, 4f),
+                end = Offset(xPos, h - 4f),
+                strokeWidth = 1.dp.toPx()
             )
         }
 
-        val maxBurn = cumulativeExpenses.lastOrNull()?.coerceAtLeast(100.0) ?: 100.0
+        val maxBurn = cumulativeExpenses.lastOrNull()?.coerceAtLeast(10.0) ?: 10.0
 
-        // Build top and bottom funnel curves dynamically
-        val ptsTop = mutableListOf<Offset>()
-        val ptsBottom = mutableListOf<Offset>()
-
-        // 12 month points + anchor at left edge
-        val stepX = w / 11f
-        for (i in 0..11) {
-            val x = i * stepX
-            val burn = cumulativeExpenses.getOrElse(i) { 0.0 }
-            val progress = (burn / maxBurn).toFloat().coerceIn(0.04f, 1f)
-            val thickness = (h * 0.42f) * (0.12f + (0.88f * progress))
-
-            ptsTop.add(Offset(x, cY - thickness))
-            ptsBottom.add(Offset(x, cY + thickness))
-        }
-
-        // Layered ribbons with warm orange/coral gradients
-        val layers = listOf(1.0f to 0.22f, 0.72f to 0.48f, 0.45f to 0.90f)
+        // Create organic 3-tier flowing ribbons
+        val layers = listOf(1.0f to 0.22f, 0.70f to 0.50f, 0.42f to 0.90f)
         layers.forEach { (scale, alpha) ->
             val topP = Path()
             val bottomP = Path()
 
-            ptsTop.forEachIndexed { idx, pt ->
-                val scaledY = cY - (cY - pt.y) * scale
-                if (idx == 0) topP.moveTo(pt.x, scaledY) else {
-                    val prev = ptsTop[idx - 1]
-                    val prevY = cY - (cY - prev.y) * scale
-                    val cx = (prev.x + pt.x) / 2
-                    topP.cubicTo(cx, prevY, cx, scaledY, pt.x, scaledY)
-                }
-            }
+            val stepX = w / 11f
+            for (i in 0..11) {
+                val x = i * stepX
+                val burn = cumulativeExpenses.getOrElse(i) { 0.0 }
+                val ratio = (burn / maxBurn).toFloat().coerceIn(0f, 1f)
+                // Smooth geometric funnel base curve
+                val curveT = i / 11f
+                val baselineShape = 0.12f + 0.88f * (curveT * curveT)
+                val thickness = (h * 0.44f) * (baselineShape * (0.6f + 0.4f * ratio)) * scale
 
-            ptsBottom.forEachIndexed { idx, pt ->
-                val scaledY = cY + (pt.y - cY) * scale
-                if (idx == 0) bottomP.moveTo(pt.x, scaledY) else {
-                    val prev = ptsBottom[idx - 1]
-                    val prevY = cY + (prev.y - cY) * scale
-                    val cx = (prev.x + pt.x) / 2
-                    bottomP.cubicTo(cx, prevY, cx, scaledY, pt.x, scaledY)
+                val yTop = cY - thickness
+                val yBottom = cY + thickness
+
+                if (i == 0) {
+                    topP.moveTo(x, yTop)
+                    bottomP.moveTo(x, yBottom)
+                } else {
+                    val prevX = (i - 1) * stepX
+                    val prevBurn = cumulativeExpenses.getOrElse(i - 1) { 0.0 }
+                    val prevRatio = (prevBurn / maxBurn).toFloat().coerceIn(0f, 1f)
+                    val prevT = (i - 1) / 11f
+                    val prevBase = 0.12f + 0.88f * (prevT * prevT)
+                    val prevThickness = (h * 0.44f) * (prevBase * (0.6f + 0.4f * prevRatio)) * scale
+
+                    val cX = (prevX + x) / 2
+                    topP.cubicTo(cX, cY - prevThickness, cX, yTop, x, yTop)
+                    bottomP.cubicTo(cX, cY + prevThickness, cX, yBottom, x, yBottom)
                 }
             }
 
@@ -1050,30 +1073,11 @@ private fun FunnelRibbonCanvas(
                 )
             )
         }
-
-        // Center spine white trace line
-        drawLine(
-            color = Color.White.copy(alpha = 0.95f),
-            start = Offset(0f, cY),
-            end = Offset(w, cY),
-            strokeWidth = 2.dp.toPx()
-        )
-
-        // Draw checkpoint anchor circles
-        checkIndices.forEachIndexed { idx, mIdx ->
-            val x = checkColX[idx]
-            val burn = cumulativeExpenses.getOrElse(mIdx) { 0.0 }
-            val progress = (burn / maxBurn).toFloat().coerceIn(0.04f, 1f)
-            val thickness = (h * 0.42f) * (0.12f + (0.88f * progress))
-
-            drawCircle(color = Color(0xFFFF6E40), radius = 3.5.dp.toPx(), center = Offset(x, cY - thickness))
-            drawCircle(color = Color(0xFFFF6E40), radius = 3.5.dp.toPx(), center = Offset(x, cY + thickness))
-        }
     }
 }
 
 // =========================================================
-// 2. DYNAMIC SEASONAL RHYTHM SPINDLE CARD (BLUE)
+// 2. RE-ENGINEERED SEASONAL RHYTHM SPINDLE CARD (BLUE)
 // =========================================================
 
 @Composable
@@ -1088,7 +1092,6 @@ private fun SeasonalRhythmSpindleCard(
     isDiscreet: Boolean,
     topCategories: List<CategoryAnnualTrajectory>
 ) {
-    val maxMonthlyExpense = yearlyMonths.maxOfOrNull { it.expenses }?.coerceAtLeast(10.0) ?: 10.0
     val quarterlyAvg = if (annualExpenses > 0) annualExpenses / 4.0 else 0.0
 
     Surface(
@@ -1105,20 +1108,47 @@ private fun SeasonalRhythmSpindleCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Spindle Canvas with Floating Checkpoint Capsules
-            SpindleRibbonCanvas(
-                monthlyExpenses = yearlyMonths.map { it.expenses },
-                maxExpense = maxMonthlyExpense,
-                quarterlyData = quarterlyData,
-                currencySymbol = currencySymbol,
-                isDiscreet = isDiscreet,
+            // Box overlay hosting Spindle Canvas and Floating White Data Pills
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(165.dp)
-            )
+                    .height(165.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                SpindleFlowCanvas(
+                    monthlyExpenses = yearlyMonths.map { it.expenses },
+                    modifier = Modifier.fillMaxSize()
+                )
 
-            // Timeline Month Labels
-            Spacer(modifier = Modifier.height(4.dp))
+                // 3 Centered Floating White Pill Badges with Real Data
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    listOf(0, 1, 2).forEach { qIdx ->
+                        val qAmt = quarterlyData.getOrNull(qIdx)?.totalExpenses ?: 0.0
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = CardWhite,
+                            shadowElevation = 3.dp,
+                            border = BorderStroke(0.5.dp, Color(0xFFE2E8F0))
+                        ) {
+                            Text(
+                                text = if (isDiscreet) "••••" else String.format(Locale.US, "%,.0f", qAmt),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextDark,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -1180,7 +1210,7 @@ private fun SeasonalRhythmSpindleCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Real Category Rows
+            // Top Categories
             topCategories.take(3).forEach { cat ->
                 HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
                 Row(
@@ -1204,12 +1234,8 @@ private fun SeasonalRhythmSpindleCard(
 }
 
 @Composable
-private fun SpindleRibbonCanvas(
+private fun SpindleFlowCanvas(
     monthlyExpenses: List<Double>,
-    maxExpense: Double,
-    quarterlyData: List<QuarterlyMetrics>,
-    currencySymbol: String,
-    isDiscreet: Boolean,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
@@ -1217,58 +1243,54 @@ private fun SpindleRibbonCanvas(
         val h = size.height
         val cY = h / 2f
 
-        // 3 Column checkpoints for Q1, Q2, Q3
+        // 3 Vertical Guidelines
         val col1X = w * 0.22f
         val col2X = w * 0.52f
         val col3X = w * 0.82f
-        val colPositions = listOf(col1X, col2X, col3X)
-
-        colPositions.forEach { xPos ->
+        listOf(col1X, col2X, col3X).forEach { xPos ->
             drawLine(
-                color = Color(0xFFE5E7EB),
+                color = Color(0xFFEEEEEE),
                 start = Offset(xPos, 8f),
                 end = Offset(xPos, h - 8f),
-                strokeWidth = 1.2.dp.toPx()
+                strokeWidth = 1.dp.toPx()
             )
         }
 
-        val ptsTop = mutableListOf<Offset>()
-        val ptsBottom = mutableListOf<Offset>()
-        val stepX = w / 11f
+        val maxExp = monthlyExpenses.maxOrNull()?.coerceAtLeast(10.0) ?: 10.0
 
-        for (i in 0..11) {
-            val x = i * stepX
-            val exp = monthlyExpenses.getOrElse(i) { 0.0 }
-            val ratio = (exp / maxExpense).toFloat().coerceIn(0.06f, 1f)
-            val thickness = (h * 0.44f) * (0.15f + 0.85f * ratio)
-
-            ptsTop.add(Offset(x, cY - thickness))
-            ptsBottom.add(Offset(x, cY + thickness))
-        }
-
-        // Layered blue gradient ribbons
-        val layers = listOf(1.0f to 0.22f, 0.72f to 0.48f, 0.45f to 0.90f)
+        val layers = listOf(1.0f to 0.22f, 0.70f to 0.50f, 0.44f to 0.90f)
         layers.forEach { (scale, alpha) ->
             val topP = Path()
             val bottomP = Path()
 
-            ptsTop.forEachIndexed { idx, pt ->
-                val scaledY = cY - (cY - pt.y) * scale
-                if (idx == 0) topP.moveTo(pt.x, scaledY) else {
-                    val prev = ptsTop[idx - 1]
-                    val prevY = cY - (cY - prev.y) * scale
-                    val cx = (prev.x + pt.x) / 2
-                    topP.cubicTo(cx, prevY, cx, scaledY, pt.x, scaledY)
-                }
-            }
+            val stepX = w / 11f
+            for (i in 0..11) {
+                val x = i * stepX
+                val exp = monthlyExpenses.getOrElse(i) { 0.0 }
+                val ratio = (exp / maxExp).toFloat().coerceIn(0f, 1f)
 
-            ptsBottom.forEachIndexed { idx, pt ->
-                val scaledY = cY + (pt.y - cY) * scale
-                if (idx == 0) bottomP.moveTo(pt.x, scaledY) else {
-                    val prev = ptsBottom[idx - 1]
-                    val prevY = cY + (prev.y - cY) * scale
-                    val cx = (prev.x + pt.x) / 2
-                    bottomP.cubicTo(cx, prevY, cx, scaledY, pt.x, scaledY)
+                // Smooth spindle envelope (narrow ends, swollen center)
+                val t = i / 11f
+                val spindleEnvelope = 0.10f + 0.90f * (4f * t * (1f - t))
+                val thickness = (h * 0.44f) * (spindleEnvelope * (0.6f + 0.4f * ratio)) * scale
+
+                val yTop = cY - thickness
+                val yBottom = cY + thickness
+
+                if (i == 0) {
+                    topP.moveTo(x, yTop)
+                    bottomP.moveTo(x, yBottom)
+                } else {
+                    val prevX = (i - 1) * stepX
+                    val prevExp = monthlyExpenses.getOrElse(i - 1) { 0.0 }
+                    val prevRatio = (prevExp / maxExp).toFloat().coerceIn(0f, 1f)
+                    val prevT = (i - 1) / 11f
+                    val prevEnvelope = 0.10f + 0.90f * (4f * prevT * (1f - prevT))
+                    val prevThickness = (h * 0.44f) * (prevEnvelope * (0.6f + 0.4f * prevRatio)) * scale
+
+                    val cX = (prevX + x) / 2
+                    topP.cubicTo(cX, cY - prevThickness, cX, yTop, x, yTop)
+                    bottomP.cubicTo(cX, cY + prevThickness, cX, yBottom, x, yBottom)
                 }
             }
 
@@ -1291,36 +1313,11 @@ private fun SpindleRibbonCanvas(
                 )
             )
         }
-
-        // Center spine
-        drawLine(
-            color = Color.White.copy(alpha = 0.9f),
-            start = Offset(0f, cY),
-            end = Offset(w, cY),
-            strokeWidth = 2.dp.toPx()
-        )
-
-        // Floating White Value Capsule Pills (Displaying real Quarterly Outflow checkpoints)
-        colPositions.forEachIndexed { idx, xPos ->
-            val qAmt = quarterlyData.getOrNull(idx)?.totalExpenses ?: 0.0
-            val pillText = if (isDiscreet) "•••" else if (qAmt >= 1000) "$currencySymbol${(qAmt / 1000).toInt()}k" else "$currencySymbol${qAmt.toInt()}"
-
-            val pillWidth = 54.dp.toPx()
-            val pillHeight = 22.dp.toPx()
-
-            // Draw pill shadow & background
-            drawRoundRect(
-                color = Color.White,
-                topLeft = Offset(xPos - (pillWidth / 2f), cY - (pillHeight / 2f)),
-                size = Size(pillWidth, pillHeight),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(11.dp.toPx(), 11.dp.toPx())
-            )
-        }
     }
 }
 
 // =========================================================
-// 3. LIVE CONTINUOUS ANIMATED LIQUID WAVE HEART GOAL CARD
+// 3. LIVE CONTINUOUS LIQUID WAVE HEART CARD (NO STATIC LINES)
 // =========================================================
 
 @Composable
@@ -1346,7 +1343,6 @@ private fun LiveAnimatedGoalHeartCard(
                 .padding(vertical = 24.dp, horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Circular Top Badge
             Surface(
                 modifier = Modifier.size(44.dp),
                 shape = CircleShape,
@@ -1364,12 +1360,7 @@ private fun LiveAnimatedGoalHeartCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Text(
-                text = title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextDark
-            )
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = if (isDiscreet) "•••• / ••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", currentAmount)} / $currencySymbol${String.format(Locale.US, "%,.0f", targetAmount)}",
@@ -1380,14 +1371,14 @@ private fun LiveAnimatedGoalHeartCard(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Live Continuous Water-Wave Canvas Inside Plump Heart
+            // Living Continuous Water-Wave Canvas Inside Plump Heart
             Box(
                 modifier = Modifier
                     .size(220.dp)
                     .padding(8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                LiveHeartLiquidCanvas(
+                CleanLivingHeartCanvas(
                     fillPercentage = completionRatio,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -1415,18 +1406,17 @@ private fun LiveAnimatedGoalHeartCard(
 }
 
 @Composable
-private fun LiveHeartLiquidCanvas(
+private fun CleanLivingHeartCanvas(
     fillPercentage: Float,
     modifier: Modifier = Modifier
 ) {
-    // Continuous Infinite Transitions for Living Water Waves
     val infiniteTransition = rememberInfiniteTransition(label = "HeartWaveTransition")
 
     val wavePhase1 by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = (2 * Math.PI).toFloat(),
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2600, easing = LinearEasing),
+            animation = tween(durationMillis = 2800, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "WavePhase1"
@@ -1436,7 +1426,7 @@ private fun LiveHeartLiquidCanvas(
         initialValue = 0f,
         targetValue = (2 * Math.PI).toFloat(),
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1900, easing = LinearEasing),
+            animation = tween(durationMillis = 2000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "WavePhase2"
@@ -1446,7 +1436,7 @@ private fun LiveHeartLiquidCanvas(
         val w = size.width
         val h = size.height
 
-        // 1. Background Grid Lines (Matches Dribbble Goal Card)
+        // 1. Subtle Background Grid Lines (Behind the heart)
         val gridStep = 24.dp.toPx()
         var currentX = 0f
         while (currentX < w) {
@@ -1459,7 +1449,7 @@ private fun LiveHeartLiquidCanvas(
             currentY += gridStep
         }
 
-        // 2. Plump, Organic Heart Bézier Path
+        // 2. Plump, Organic Symmetrical Heart Path
         val heartPath = Path().apply {
             moveTo(w / 2f, h * 0.28f)
             cubicTo(w * 0.28f, h * 0.04f, w * 0.02f, h * 0.22f, w * 0.02f, h * 0.48f)
@@ -1469,27 +1459,26 @@ private fun LiveHeartLiquidCanvas(
             close()
         }
 
-        // Soft Lavender Background inside the Heart Container
-        drawPath(
-            path = heartPath,
-            color = Color(0xFFF3E8FF).copy(alpha = 0.55f)
-        )
+        // 3. OPAQUE WHITE BACKING: Blocks all grid lines from slicing through the heart!
+        drawPath(path = heartPath, color = Color.White)
+        drawPath(path = heartPath, color = Color(0xFFF3E8FF).copy(alpha = 0.65f))
 
-        // 3. Clip Live Waves strictly inside the Heart
+        // 4. Live Water Waves (Zero Straight Lines Across Middle)
         clipPath(heartPath) {
             val fillHeight = h * fillPercentage.coerceIn(0.06f, 0.96f)
             val fillTop = (h * 0.98f) - fillHeight
             val amplitude = 7.dp.toPx()
-            val wavelength = w * 0.80f
+            val wavelength = w * 0.85f
 
-            // Layer 1: Back Wave (Violet)
+            // Layer 1: Violet Back Wave
             val backWave = Path().apply {
-                moveTo(0f, fillTop)
+                val startY = fillTop + amplitude * sin(wavePhase1)
+                moveTo(0f, startY)
                 var x = 0f
                 while (x <= w) {
                     val y = fillTop + amplitude * sin((2 * Math.PI * (x / wavelength) + wavePhase1).toFloat())
                     lineTo(x, y)
-                    x += 4f
+                    x += 3f
                 }
                 lineTo(w, h)
                 lineTo(0f, h)
@@ -1499,19 +1488,23 @@ private fun LiveHeartLiquidCanvas(
                 path = backWave,
                 brush = Brush.verticalGradient(
                     colors = listOf(Color(0xFF8B5CF6).copy(alpha = 0.65f), Color(0xFF6D28D9)),
-                    startY = fillTop,
+                    startY = fillTop - 10f,
                     endY = h
                 )
             )
 
-            // Layer 2: Front Wave (Purple/Indigo with Surface Crest)
+            // Layer 2: Deep Indigo Front Wave
+            val frontSurface = Path()
             val frontWave = Path().apply {
-                moveTo(0f, fillTop)
+                val startY = fillTop + (amplitude * 0.85f) * sin(-wavePhase2)
+                moveTo(0f, startY)
+                frontSurface.moveTo(0f, startY)
                 var x = 0f
                 while (x <= w) {
-                    val y = fillTop + (amplitude * 0.85f) * sin((2 * Math.PI * (x / (wavelength * 0.9f)) - wavePhase2).toFloat())
+                    val y = fillTop + (amplitude * 0.85f) * sin((2 * Math.PI * (x / (wavelength * 0.92f)) - wavePhase2).toFloat())
                     lineTo(x, y)
-                    x += 4f
+                    frontSurface.lineTo(x, y)
+                    x += 3f
                 }
                 lineTo(w, h)
                 lineTo(0f, h)
@@ -1521,28 +1514,20 @@ private fun LiveHeartLiquidCanvas(
                 path = frontWave,
                 brush = Brush.verticalGradient(
                     colors = listOf(Color(0xFFA78BFA), Color(0xFF4C1D95)),
-                    startY = fillTop,
+                    startY = fillTop - 10f,
                     endY = h
                 )
             )
 
-            // Layer 3: Dynamic Translucent Foam / Crest Highlight
-            val crest = Path().apply {
-                moveTo(0f, fillTop)
-                var x = 0f
-                while (x <= w) {
-                    val y = fillTop + (amplitude * 0.85f) * sin((2 * Math.PI * (x / (wavelength * 0.9f)) - wavePhase2).toFloat())
-                    lineTo(x, y)
-                    x += 4f
-                }
-                lineTo(w, fillTop + 10f)
-                lineTo(0f, fillTop + 10f)
-                close()
-            }
-            drawPath(crest, color = Color.White.copy(alpha = 0.25f))
+            // Layer 3: Organic Wave Crest Stroke (No flat cutting rectangles)
+            drawPath(
+                path = frontSurface,
+                color = Color.White.copy(alpha = 0.45f),
+                style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+            )
         }
 
-        // 4. Outer Vector Border
+        // 5. Crisp Outer Border
         drawPath(
             path = heartPath,
             color = Color(0xFFDDD6FE),
@@ -1585,7 +1570,6 @@ private fun MultiYearAssetFlowCard(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Multi-Year Bar Comparison Canvas
             MultiYearAssetCanvas(
                 multiYearAssets = multiYearAssets,
                 selectedYear = selectedYear,
@@ -1596,7 +1580,6 @@ private fun MultiYearAssetFlowCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Year-over-Year Ledger List
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 multiYearAssets.forEach { item ->
                     val isCurrent = item.year == selectedYear
@@ -1667,7 +1650,6 @@ private fun MultiYearAssetCanvas(
             val barH = (h * 0.75f) * ratio
             val isCurrent = item.year == selectedYear
 
-            // Bar shape
             drawRoundRect(
                 brush = Brush.verticalGradient(
                     colors = if (isCurrent) {
@@ -1682,7 +1664,6 @@ private fun MultiYearAssetCanvas(
             )
         }
 
-        // Bottom baseline
         drawLine(
             color = Color(0xFFE5E7EB),
             start = Offset(0f, h - 18.dp.toPx()),
@@ -1841,7 +1822,8 @@ private fun MonthGridTimelineCard(
     data: MonthDataSummary,
     currencySymbol: String,
     isDiscreet: Boolean,
-    onTapMonth: () -> Unit
+    onTapMonth: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val isSurplus = data.netSavings >= 0
     val hasActivity = data.income > 0 || data.expenses > 0 || data.assets > 0
@@ -1857,7 +1839,7 @@ private fun MonthGridTimelineCard(
     }
 
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .shadow(2.dp, RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
