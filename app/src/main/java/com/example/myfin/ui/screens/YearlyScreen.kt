@@ -50,6 +50,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.sin
 
 private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -600,7 +601,6 @@ fun YearlyScreen(
                                         HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
                                         Spacer(modifier = Modifier.height(14.dp))
 
-                                        // 4 Asset Pillars
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1512,7 +1512,6 @@ private fun CleanLivingHeartCanvas(
             close()
         }
 
-        // Opaque white backing blocks grid lines slicing through
         drawPath(path = heartPath, color = Color.White)
         drawPath(path = heartPath, color = Color(0xFFF3E8FF).copy(alpha = 0.65f))
 
@@ -1665,7 +1664,7 @@ private fun MultiYearAssetFlowCard(
                         }
 
                         Text(
-                            text = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.totalAssets)}",
+                            text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.totalAssets)}",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.5.sp,
                             color = if (isCurrent) AccentPurple else TextDark
