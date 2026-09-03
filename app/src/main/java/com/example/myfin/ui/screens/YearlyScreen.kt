@@ -57,13 +57,6 @@ import kotlin.math.sin
 
 private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
-private val HeroDarkGradient = Brush.verticalGradient(
-    colors = listOf(
-        Color(0xFF1E1F30),
-        Color(0xFF131422)
-    )
-)
-
 data class MonthDataSummary(
     val monthIndex: Int,
     val monthName: String,
@@ -393,7 +386,7 @@ fun YearlyScreen(
                     .fillMaxWidth()
             ) { page ->
                 when (page) {
-                    // --- TAB 0: EXECUTIVE SUMMARY ---
+                    // --- TAB 0: EXECUTIVE SUMMARY (Monthly Stream Report) ---
                     0 -> {
                         LazyColumn(
                             modifier = Modifier
@@ -401,105 +394,20 @@ fun YearlyScreen(
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            // Multi-Stream Ribbon Flow Graph Hero Card
-                            item(key = "executive_hero_card") {
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .shadow(8.dp, RoundedCornerShape(26.dp)),
-                                    shape = RoundedCornerShape(26.dp),
-                                    color = Color(0xFF171827),
-                                    border = BorderStroke(0.8.dp, Color(0xFF2E3048))
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .background(HeroDarkGradient)
-                                            .padding(20.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.Top
-                                        ) {
-                                            Column {
-                                                Text(
-                                                    text = "ANNUAL NET RETAINED",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    color = Color(0xFF9E9EBA),
-                                                    letterSpacing = 0.8.sp
-                                                )
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", annualNetSurplus)}",
-                                                    fontSize = 30.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    color = if (annualNetSurplus >= 0) Color.White else SoftRed,
-                                                    letterSpacing = (-0.5).sp
-                                                )
-                                            }
-
-                                            Surface(
-                                                shape = RoundedCornerShape(12.dp),
-                                                color = SoftTeal.copy(alpha = 0.18f),
-                                                border = BorderStroke(0.6.dp, SoftTeal.copy(alpha = 0.4f))
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                                                        contentDescription = null,
-                                                        tint = SoftTeal,
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(
-                                                        text = if (isDiscreetMode) "••%" else "${annualSavingsRate.toInt()}% Saved",
-                                                        color = SoftTeal,
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(18.dp))
-
-                                        // Sales-Report Style Multi-Stream Ribbon Graph
-                                        AnnualStreamFlowCanvas(
-                                            yearlyData = yearlyMonthsData,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(145.dp)
-                                        )
-
-                                        Spacer(modifier = Modifier.height(14.dp))
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SoftGreen))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(text = if (isDiscreetMode) "Inflow: ••••" else "Inflow ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualIncome)}", fontSize = 10.5.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
-                                            }
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SoftTeal))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(text = if (isDiscreetMode) "Assets: ••••" else "Assets ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualAssets)}", fontSize = 10.5.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
-                                            }
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFFF7043)))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(text = if (isDiscreetMode) "Burn: ••••" else "Burn ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualExpenses)}", fontSize = 10.5.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold)
-                                            }
-                                        }
-                                    }
-                                }
-
+                            item(key = "sales_report_monthly_card") {
+                                SalesReportCardView(
+                                    title = "Monthly Outflow Report",
+                                    subtitle = "Monthly Spend Stream",
+                                    values = yearlyMonthsData.map { it.expenses },
+                                    primaryColor = Color(0xFFFF7043),
+                                    accentColor = Color(0xFFFFA726),
+                                    currencySymbol = userProfile.currencySymbol,
+                                    isDiscreet = isDiscreetMode,
+                                    mainMetricLabel = "Monthly Avg Burn",
+                                    mainMetricValue = annualExpenses / 12.0,
+                                    yearlyMetricValue = annualExpenses,
+                                    topCategories = categoryTrajectories.take(3)
+                                )
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
 
@@ -594,155 +502,67 @@ fun YearlyScreen(
 
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
-
-                            // Commitments vs Discretionary Ratio
-                            item(key = "commitments_vs_discretionary") {
-                                Surface(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(18.dp),
-                                    color = CardWhite,
-                                    border = BorderStroke(0.8.dp, BorderLight)
-                                ) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        Text("Annual Outflow Structure", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                        Text("Fixed AutoPay Obligations vs. Variable Lifestyle Spending", fontSize = 11.sp, color = TextMuted)
-
-                                        Spacer(modifier = Modifier.height(12.dp))
-
-                                        val fixedRatio = if (annualExpenses > 0) (annualFixedBills / annualExpenses).toFloat() else 0.5f
-                                        val varRatio = 1f - fixedRatio
-
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(8.dp)
-                                                .clip(CircleShape)
-                                                .background(BorderLight.copy(alpha = 0.4f))
-                                        ) {
-                                            Box(modifier = Modifier.weight(fixedRatio.coerceIn(0.05f, 0.95f)).fillMaxHeight().background(SoftRed))
-                                            Box(modifier = Modifier.weight(varRatio.coerceIn(0.05f, 0.95f)).fillMaxHeight().background(AccentPurple))
-                                        }
-
-                                        Spacer(modifier = Modifier.height(10.dp))
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Column {
-                                                Text("Fixed Obligations", fontSize = 11.sp, color = TextMuted)
-                                                Text(
-                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualFixedBills)} (${(fixedRatio * 100).toInt()}%)",
-                                                    fontSize = 12.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = SoftRed
-                                                )
-                                            }
-                                            Column(horizontalAlignment = Alignment.End) {
-                                                Text("Variable Discretionary", fontSize = 11.sp, color = TextMuted)
-                                                Text(
-                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualVariable)} (${(varRatio * 100).toInt()}%)",
-                                                    fontSize = 12.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = AccentPurple
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(20.dp))
-                            }
-
-                            // Peak Performance Extremes
-                            item(key = "extremes_row") {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Surface(
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = CardWhite,
-                                        border = BorderStroke(0.7.dp, SoftTeal.copy(alpha = 0.4f))
-                                    ) {
-                                        Column(modifier = Modifier.padding(14.dp)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.Star, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Peak Savings Month", fontSize = 10.5.sp, color = TextMuted, fontWeight = FontWeight.Bold)
-                                            }
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            Text(
-                                                text = bestSurplusMonth?.monthName ?: "N/A",
-                                                fontSize = 18.sp,
-                                                fontWeight = FontWeight.Black,
-                                                color = TextDark
-                                            )
-                                            Text(
-                                                text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", bestSurplusMonth?.netSavings ?: 0.0)}",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = SoftTeal
-                                            )
-                                        }
-                                    }
-
-                                    Surface(
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = CardWhite,
-                                        border = BorderStroke(0.7.dp, SoftRed.copy(alpha = 0.4f))
-                                    ) {
-                                        Column(modifier = Modifier.padding(14.dp)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.Whatshot, contentDescription = null, tint = SoftRed, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Peak Outflow Month", fontSize = 10.5.sp, color = TextMuted, fontWeight = FontWeight.Bold)
-                                            }
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            Text(
-                                                text = worstBurnMonth?.monthName ?: "N/A",
-                                                fontSize = 18.sp,
-                                                fontWeight = FontWeight.Black,
-                                                color = TextDark
-                                            )
-                                            Text(
-                                                text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", worstBurnMonth?.expenses ?: 0.0)}",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = SoftRed
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(20.dp))
-                            }
                         }
                     }
 
-                    // --- TAB 1: 12 MONTHS TIMELINE GRID ---
+                    // --- TAB 1: 12 MONTHS TIMELINE GRID (Quarterly Stream Report View) ---
                     1 -> {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
+                        LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 16.dp),
-                            contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                .padding(horizontal = 20.dp),
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            items(yearlyMonthsData, key = { it.monthIndex }) { mData ->
-                                MonthGridTimelineCard(
-                                    data = mData,
+                            item(key = "sales_report_quarterly_card") {
+                                SalesReportCardView(
+                                    title = "Quarterly Outflow Report",
+                                    subtitle = "Quarterly Burn Stream",
+                                    values = quarterlyData.map { it.totalExpenses },
+                                    primaryColor = Color(0xFF2196F3),
+                                    accentColor = Color(0xFF64B5F6),
                                     currencySymbol = userProfile.currencySymbol,
                                     isDiscreet = isDiscreetMode,
-                                    onTapMonth = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        inspectedMonth = mData
-                                    }
+                                    mainMetricLabel = "Quarterly Avg Burn",
+                                    mainMetricValue = annualExpenses / 4.0,
+                                    yearlyMetricValue = annualExpenses,
+                                    topCategories = categoryTrajectories.take(3),
+                                    isQuarterly = true
                                 )
+                                Spacer(modifier = Modifier.height(20.dp))
+                            }
+
+                            item(key = "monthly_grid_section_title") {
+                                Text(
+                                    text = "Individual Month Breakdown",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                            }
+
+                            item(key = "monthly_grid_container") {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(2),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(420.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                    userScrollEnabled = false
+                                ) {
+                                    items(yearlyMonthsData, key = { it.monthIndex }) { mData ->
+                                        MonthGridTimelineCard(
+                                            data = mData,
+                                            currencySymbol = userProfile.currencySymbol,
+                                            isDiscreet = isDiscreetMode,
+                                            onTapMonth = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                inspectedMonth = mData
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -997,8 +817,230 @@ fun YearlyScreen(
 }
 
 // =========================================================
-// VECTOR CANVASES & AUXILIARY COMPONENTS
+// VECTOR CANVASES & AUXILIARY COMPONENTS (Sales Report Style)
 // =========================================================
+
+@Composable
+private fun SalesReportCardView(
+    title: String,
+    subtitle: String,
+    values: List<Double>,
+    primaryColor: Color,
+    accentColor: Color,
+    currencySymbol: String,
+    isDiscreet: Boolean,
+    mainMetricLabel: String,
+    mainMetricValue: Double,
+    yearlyMetricValue: Double,
+    topCategories: List<CategoryAnnualTrajectory>,
+    isQuarterly: Boolean = false
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(6.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        color = CardWhite,
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(text = title, fontWeight = FontWeight.Black, fontSize = 18.sp, color = TextDark)
+            Text(text = subtitle, fontSize = 11.5.sp, color = TextMuted)
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Sales Report Stream Flow Canvas
+            SalesStreamFlowCanvas(
+                values = values,
+                primaryColor = primaryColor,
+                accentColor = accentColor,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp),
+                isQuarterly = isQuarterly
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+            HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Metrics Footer Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftGreen))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(mainMetricLabel, fontSize = 10.5.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", mainMetricValue)}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextDark
+                    )
+                    Text(text = "↑ Active Stream", fontSize = 9.5.sp, color = SoftGreen, fontWeight = FontWeight.Bold)
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(accentColor))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Annual Aggregate", fontSize = 10.5.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", yearlyMetricValue)}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextDark
+                    )
+                    Text(text = "12-Month Total", fontSize = 9.5.sp, color = TextMuted)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Top Itemized Breakdown List
+            topManagerRows(topCategories, currencySymbol, isDiscreet)
+        }
+    }
+}
+
+@Composable
+private fun topManagerRows(
+    categories: List<CategoryAnnualTrajectory>,
+    currencySymbol: String,
+    isDiscreet: Boolean
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        categories.take(3).forEach { cat ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = cat.categoryName, fontSize = 13.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                Text(
+                    text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", cat.annualTotal)}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AccentPurple
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SalesStreamFlowCanvas(
+    values: List<Double>,
+    primaryColor: Color,
+    accentColor: Color,
+    modifier: Modifier = Modifier,
+    isQuarterly: Boolean = false
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val count = values.size.coerceAtLeast(1)
+        val maxVal = values.maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
+        val centerY = h / 2f
+
+        // Draw vertical grid lines with value indicator pills
+        val stepX = w / (count - 1).coerceAtLeast(1)
+        
+        // Pick 3 representative index sample points for top/bottom pills
+        val sampleIndices = if (isQuarterly) listOf(0, 1, 3) else listOf(2, 6, 10)
+
+        sampleIndices.forEach { idx ->
+            if (idx < values.size) {
+                val x = idx * stepX
+                val v = values[idx]
+                val ratio = (v / maxVal).toFloat().coerceIn(0.1f, 0.75f)
+                val bandHeight = ratio * (h * 0.38f)
+
+                // Vertical column line
+                drawLine(
+                    color = Color(0xFFE0E0E0).copy(alpha = 0.7f),
+                    start = Offset(x, 10f),
+                    end = Offset(x, h - 10f),
+                    strokeWidth = 1.dp.toPx()
+                )
+
+                // Value numbers simulation
+                val formattedVal = if (v >= 1000) "${(v / 1000).toInt()},${String.format(Locale.US, "%03d", (v % 1000).toInt())}" else "${v.toInt()}"
+                
+                // Draw top/bottom value anchors
+                drawCircle(color = primaryColor, radius = 3.dp.toPx(), center = Offset(x, centerY - bandHeight))
+                drawCircle(color = primaryColor, radius = 3.dp.toPx(), center = Offset(x, centerY + bandHeight))
+            }
+        }
+
+        // Generate organic flow ribbon path
+        val ptsTop = values.mapIndexed { idx, v ->
+            val x = idx * stepX
+            val ratio = (v / maxVal).toFloat().coerceIn(0.1f, 0.75f)
+            Offset(x, centerY - (ratio * (h * 0.38f)))
+        }
+
+        val ptsBottom = values.mapIndexed { idx, v ->
+            val x = idx * stepX
+            val ratio = (v / maxVal).toFloat().coerceIn(0.1f, 0.75f)
+            Offset(x, centerY + (ratio * (h * 0.38f)))
+        }
+
+        val ribbonPath = Path().apply {
+            if (ptsTop.isNotEmpty()) {
+                moveTo(ptsTop[0].x, ptsTop[0].y)
+                for (i in 0 until ptsTop.size - 1) {
+                    val p0 = ptsTop[i]
+                    val p1 = ptsTop[i + 1]
+                    val cx = (p0.x + p1.x) / 2
+                    cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                }
+                for (i in ptsBottom.size - 1 downTo 1) {
+                    val p0 = ptsBottom[i]
+                    val p1 = ptsBottom[i - 1]
+                    val cx = (p0.x + p1.x) / 2
+                    cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                }
+                close()
+            }
+        }
+
+        // Draw glowing gradient ribbon stream
+        drawPath(
+            path = ribbonPath,
+            brush = Brush.horizontalGradient(
+                colors = listOf(accentColor.copy(alpha = 0.85f), primaryColor.copy(alpha = 0.95f), accentColor.copy(alpha = 0.85f))
+            )
+        )
+
+        // Center spine trace line
+        val spinePath = Path().apply {
+            if (ptsTop.isNotEmpty()) {
+                moveTo(ptsTop[0].x, centerY)
+                for (i in 0 until ptsTop.size - 1) {
+                    val p0 = ptsTop[i]
+                    val p1 = ptsTop[i + 1]
+                    val cx = (p0.x + p1.x) / 2
+                    cubicTo(cx, centerY, cx, centerY, p1.x, centerY)
+                }
+            }
+        }
+        drawPath(
+            path = spinePath,
+            color = Color.White,
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+        )
+    }
+}
 
 @Composable
 private fun HeartLiquidProgressCanvas(
@@ -1147,74 +1189,6 @@ private fun CategoryTrajectoryRowCard(
 }
 
 @Composable
-private fun AnnualStreamFlowCanvas(
-    yearlyData: List<MonthDataSummary>,
-    modifier: Modifier = Modifier
-) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val pointsCount = yearlyData.size
-
-        val maxVal = yearlyData.maxOfOrNull { maxOf(it.income, it.expenses, it.assets) }?.coerceAtLeast(100.0) ?: 100.0
-
-        fun createStreamPath(values: List<Double>, offsetY: Float, invert: Boolean = false): Path {
-            val pts = values.mapIndexed { idx, v ->
-                val x = (idx.toFloat() / (pointsCount - 1).coerceAtLeast(1)) * w
-                val ratio = (v / maxVal).toFloat().coerceIn(0.05f, 0.75f)
-                val delta = ratio * (h * 0.38f)
-                val y = if (invert) offsetY - delta else offsetY + delta
-                Offset(x, y)
-            }
-            return Path().apply {
-                if (pts.isNotEmpty()) {
-                    moveTo(pts[0].x, pts[0].y)
-                    for (i in 0 until pts.size - 1) {
-                        val p0 = pts[i]
-                        val p1 = pts[i + 1]
-                        val cx = (p0.x + p1.x) / 2
-                        cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
-                    }
-                }
-            }
-        }
-
-        val centerY = h / 2f
-
-        // Draw multi-layer organic stream bands matching the Sales Report aesthetic
-        val expTop = createStreamPath(yearlyData.map { it.expenses }, centerY, invert = true)
-        val expBottom = createStreamPath(yearlyData.map { it.expenses }, centerY, invert = false)
-
-        val assetTop = createStreamPath(yearlyData.map { it.assets }, centerY, invert = true)
-        val assetBottom = createStreamPath(yearlyData.map { it.assets }, centerY, invert = false)
-
-        // Expense stream band (Warm orange/coral gradient)
-        drawPath(
-            path = expTop,
-            brush = Brush.horizontalGradient(
-                colors = listOf(Color(0xFFFFB74D), Color(0xFFFF7043), Color(0xFFEF5350))
-            ),
-            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
-        )
-        drawPath(
-            path = expBottom,
-            brush = Brush.horizontalGradient(
-                colors = listOf(Color(0xFFFFB74D), Color(0xFFFF7043), Color(0xFFEF5350))
-            ),
-            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
-        )
-
-        // Center spine indicator line
-        drawLine(
-            color = Color.White.copy(alpha = 0.25f),
-            start = Offset(w * 0.5f, 0f),
-            end = Offset(w * 0.5f, h),
-            strokeWidth = 1.dp.toPx()
-        )
-    }
-}
-
-@Composable
 private fun AnnualRadarSpiderCanvas(
     categorySums: List<Double>
 ) {
@@ -1315,7 +1289,7 @@ private fun MonthGridTimelineCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+Spacer(modifier = Modifier.height(10.dp))
 
             Text(
                 text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", data.expenses)}",
