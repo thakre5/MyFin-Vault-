@@ -43,7 +43,7 @@ import androidx.compose.ui.zIndex
 import com.example.myfin.data.ExcelExportManager
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
-import com.example.myfin.ui.BudgetViewModel
+import com.example.myfin.ui.*
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.launch
@@ -53,19 +53,6 @@ import kotlin.math.abs
 import kotlin.math.sin
 
 private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-
-data class MonthDataSummary(
-    val monthIndex: Int,
-    val monthName: String,
-    val income: Double,
-    val expenses: Double,
-    val assets: Double,
-    val netSavings: Double,
-    val fixedExpenses: Double,
-    val variableExpenses: Double,
-    val isFuture: Boolean,
-    val transactions: List<TransactionEntity>
-)
 
 data class QuarterlyMetrics(
     val quarterLabel: String,
@@ -86,12 +73,6 @@ data class CategoryAnnualTrajectory(
     val peakMonthAmount: Double
 )
 
-data class MultiYearAssetMetric(
-    val year: Int,
-    val totalAssets: Double,
-    val growthPercent: Double
-)
-
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun YearlyScreen(
@@ -107,74 +88,33 @@ fun YearlyScreen(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
+
     val uiState by viewModel.monthlyUiState.collectAsState()
+    val yearlyState by viewModel.yearlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
     val pagerState = rememberPagerState(pageCount = { 4 })
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
     val pageTitles = remember { listOf("Cashflow", "12 Months", "Assets & Wealth", "Audit") }
 
-    val currentCal = remember { Calendar.getInstance() }
-    val thisYear = currentCal.get(Calendar.YEAR)
-    val thisMonth = currentCal.get(Calendar.MONTH) + 1
-
-    var inspectedMonth by remember { mutableStateOf<MonthDataSummary?>(null) }
+    var inspectedMonth by remember { mutableStateOf<YearlyMonthData?>(null) }
     var isDiscreetMode by remember { mutableStateOf(false) }
 
-    // 1. All Transactions across all time (for Multi-Year assets)
-    val allTransactions = remember(uiState.groupedTransactions) {
-        uiState.groupedTransactions.values.flatten()
-    }
+    // Live data from ViewModel
+    val yearlyMonthsData = yearlyState.yearlyMonths
+    val annualIncome = yearlyState.totalYearlyIncome
+    val annualExpenses = yearlyState.totalYearlyExpense
+    val annualAssets = yearlyState.totalYearlyAssets
+    val annualNetSurplus = yearlyState.annualNetSurplus
+    val annualLifestyleExpenses = yearlyState.annualLifestyleExpenses
+    val reimbursementStatus = yearlyState.reimbursementStatus
+    val wealthMetrics = yearlyState.assetWealthMetrics
+    val multiYearAssets = yearlyState.multiYearAssets
+    val allYearTransactions = yearlyState.allYearTransactions
 
-    // 2. Transactions for the selected year
-    val allYearTransactions = remember(allTransactions, uiState.selectedYear) {
-        val txCal = Calendar.getInstance()
-        allTransactions.filter { tx ->
-            txCal.timeInMillis = tx.date
-            txCal.get(Calendar.YEAR) == uiState.selectedYear
-        }
-    }
-
-    // 3. 12 Individual Month Datasets
-    val yearlyMonthsData = remember(allYearTransactions, uiState.selectedYear) {
-        val txCal = Calendar.getInstance()
-        (1..12).map { m ->
-            val isFutureMonth = (uiState.selectedYear == thisYear && m > thisMonth) || (uiState.selectedYear > thisYear)
-            val monthTxs = allYearTransactions.filter { tx ->
-                txCal.timeInMillis = tx.date
-                (txCal.get(Calendar.MONTH) + 1) == m
-            }
-
-            val inc = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-            val exp = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-            val ast = monthTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
-            val fixedExp = monthTxs.filter { it.type == TransactionType.EXPENSE && it.linkedFixedBillId != null }.sumOf { it.amount }
-            val varExp = exp - fixedExp
-            val net = inc - exp - ast
-
-            MonthDataSummary(
-                monthIndex = m,
-                monthName = MONTH_NAMES[m - 1],
-                income = inc,
-                expenses = exp,
-                assets = ast,
-                netSavings = net,
-                fixedExpenses = fixedExp,
-                variableExpenses = varExp,
-                isFuture = isFutureMonth,
-                transactions = monthTxs
-            )
-        }
-    }
-
-    // 4. Macro Aggregates
-    val annualIncome = remember(yearlyMonthsData) { yearlyMonthsData.sumOf { it.income } }
-    val annualExpenses = remember(yearlyMonthsData) { yearlyMonthsData.sumOf { it.expenses } }
-    val annualAssets = remember(yearlyMonthsData) { yearlyMonthsData.sumOf { it.assets } }
-    val annualNetSurplus = annualIncome - annualExpenses - annualAssets
     val annualSavingsRate = if (annualIncome > 0) ((annualNetSurplus / annualIncome) * 100).coerceIn(0.0, 100.0) else 0.0
 
-    // Wealth Accumulation Goal (Target: 25% of annual income or configured Fortress threshold)
+    // Wealth Goal Target
     val annualTargetGoal = remember(annualIncome, userProfile.baseMonthlyIncome, userProfile.fortressThreshold) {
         val base = if (annualIncome > 0) annualIncome else (userProfile.baseMonthlyIncome * 12)
         maxOf(base * 0.25, userProfile.fortressThreshold, 25000.0)
@@ -182,54 +122,34 @@ fun YearlyScreen(
     val currentWealthAccumulated = (annualAssets + annualNetSurplus).coerceAtLeast(0.0)
     val goalCompletionPercentage = (currentWealthAccumulated / annualTargetGoal).toFloat().coerceIn(0f, 1f)
 
-    // 5. Multi-Year Asset Accumulation Flow
-    val multiYearAssets = remember(allTransactions, uiState.selectedYear) {
-        val txCal = Calendar.getInstance()
-        val assetTxs = allTransactions.filter { it.type == TransactionType.ASSET }
-        val yearsGrouped = assetTxs.groupBy { tx ->
-            txCal.timeInMillis = tx.date
-            txCal.get(Calendar.YEAR)
-        }.mapValues { (_, txs) -> txs.sumOf { it.amount } }.toMutableMap()
-
-        for (y in (uiState.selectedYear - 2)..uiState.selectedYear) {
-            yearsGrouped.putIfAbsent(y, 0.0)
-        }
-
-        val sorted = yearsGrouped.toSortedMap()
-        var prevAmount = 0.0
-        sorted.map { (year, amt) ->
-            val growth = if (prevAmount > 0) ((amt - prevAmount) / prevAmount) * 100.0 else 0.0
-            prevAmount = amt
-            MultiYearAssetMetric(year, amt, growth)
-        }
-    }
-
-    // 6. Fiscal Quarters (Q1 to Q4)
+    // Fiscal Quarters (Q1 to Q4)
     val quarterlyData = remember(yearlyMonthsData) {
-        listOf(
-            "Q1" to yearlyMonthsData.subList(0, 3),
-            "Q2" to yearlyMonthsData.subList(3, 6),
-            "Q3" to yearlyMonthsData.subList(6, 9),
-            "Q4" to yearlyMonthsData.subList(9, 12)
-        ).mapIndexed { qIdx, (label, months) ->
-            val qInc = months.sumOf { it.income }
-            val qExp = months.sumOf { it.expenses }
-            val qAst = months.sumOf { it.assets }
-            val qNet = qInc - qExp - qAst
-            val qRate = if (qInc > 0) ((qNet / qInc) * 100).coerceIn(0.0, 100.0) else 0.0
-            QuarterlyMetrics(
-                quarterLabel = label,
-                quarterIndex = qIdx + 1,
-                totalIncome = qInc,
-                totalExpenses = qExp,
-                totalAssets = qAst,
-                netSurplus = qNet,
-                savingsRate = qRate
-            )
-        }
+        if (yearlyMonthsData.size >= 12) {
+            listOf(
+                "Q1" to yearlyMonthsData.subList(0, 3),
+                "Q2" to yearlyMonthsData.subList(3, 6),
+                "Q3" to yearlyMonthsData.subList(6, 9),
+                "Q4" to yearlyMonthsData.subList(9, 12)
+            ).mapIndexed { qIdx, (label, months) ->
+                val qInc = months.sumOf { it.income }
+                val qExp = months.sumOf { it.expenses }
+                val qAst = months.sumOf { it.assets }
+                val qNet = qInc - qExp - qAst
+                val qRate = if (qInc > 0) ((qNet / qInc) * 100).coerceIn(0.0, 100.0) else 0.0
+                QuarterlyMetrics(
+                    quarterLabel = label,
+                    quarterIndex = qIdx + 1,
+                    totalIncome = qInc,
+                    totalExpenses = qExp,
+                    totalAssets = qAst,
+                    netSurplus = qNet,
+                    savingsRate = qRate
+                )
+            }
+        } else emptyList()
     }
 
-    // 7. Annual Category Breakdown & 12-Month Trajectories
+    // Category Breakdown & Trajectories
     val categoryTrajectories = remember(allYearTransactions, annualExpenses) {
         val txCal = Calendar.getInstance()
         val expenseTxs = allYearTransactions.filter { it.type == TransactionType.EXPENSE }
@@ -430,7 +350,69 @@ fun YearlyScreen(
                                     isDiscreet = isDiscreetMode,
                                     topCategories = categoryTrajectories.take(3)
                                 )
-                                Spacer(modifier = Modifier.height(20.dp))
+                                Spacer(modifier = Modifier.height(18.dp))
+                            }
+
+                            // Reimbursable Work Spends Callout
+                            if (reimbursementStatus.totalWorkExpenses > 0.0) {
+                                item(key = "reimbursement_offset_banner") {
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = CardWhite,
+                                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(16.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .clip(CircleShape)
+                                                    .background(AccentPurple.copy(alpha = 0.12f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.WorkOutline,
+                                                    contentDescription = null,
+                                                    tint = AccentPurple,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.width(14.dp))
+
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "Corporate Reimbursements",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.5.sp,
+                                                    color = TextDark
+                                                )
+                                                Text(
+                                                    text = if (reimbursementStatus.isSettled)
+                                                        "All work expenses are fully settled."
+                                                    else
+                                                        "Pending claim recovery of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", reimbursementStatus.pendingReimbursement)}",
+                                                    fontSize = 11.sp,
+                                                    color = if (reimbursementStatus.isSettled) SoftGreen else SoftRed
+                                                )
+                                            }
+
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text(
+                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualLifestyleExpenses)}",
+                                                    fontWeight = FontWeight.Black,
+                                                    fontSize = 14.sp,
+                                                    color = TextDark
+                                                )
+                                                Text("True Lifestyle", fontSize = 9.5.sp, color = TextMuted)
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(18.dp))
+                                }
                             }
 
                             item(key = "cashflow_quarterly_grid") {
@@ -515,7 +497,6 @@ fun YearlyScreen(
                                 Spacer(modifier = Modifier.height(12.dp))
                             }
 
-                            // Fully Scrollable 12 Months (Chunked Rows - Jan to Dec)
                             items(chunkedMonths, key = { it.first().monthIndex }) { rowPair ->
                                 Row(
                                     modifier = Modifier
@@ -571,6 +552,94 @@ fun YearlyScreen(
                                     currencySymbol = userProfile.currencySymbol,
                                     isDiscreet = isDiscreetMode
                                 )
+                                Spacer(modifier = Modifier.height(20.dp))
+                            }
+
+                            // Asset Wealth & NPA Provisioning Card
+                            item(key = "asset_wealth_breakdown_card") {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .shadow(4.dp, RoundedCornerShape(22.dp)),
+                                    shape = RoundedCornerShape(22.dp),
+                                    color = CardWhite,
+                                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                                ) {
+                                    Column(modifier = Modifier.padding(20.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text("Realizable Net Worth", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", wealthMetrics.realizableNetWorth)}",
+                                                    fontSize = 22.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    color = AccentPurple
+                                                )
+                                            }
+
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = SoftTeal.copy(alpha = 0.14f)
+                                            ) {
+                                                Text(
+                                                    text = "Gross ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", wealthMetrics.grossWealth)}",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = SoftTeal,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+                                        Spacer(modifier = Modifier.height(14.dp))
+
+                                        // 4 Asset Pillars
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            QuickMetricTile(
+                                                modifier = Modifier.weight(1f),
+                                                label = "Investments",
+                                                value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", wealthMetrics.totalInvestments)}",
+                                                tint = SoftTeal
+                                            )
+                                            QuickMetricTile(
+                                                modifier = Modifier.weight(1f),
+                                                label = "Liquid Cash",
+                                                value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", wealthMetrics.liquidReserves)}",
+                                                tint = SoftGreen
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            QuickMetricTile(
+                                                modifier = Modifier.weight(1f),
+                                                label = "Active Loans Out",
+                                                value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", wealthMetrics.activeReceivables)}",
+                                                tint = AccentPurple
+                                            )
+                                            QuickMetricTile(
+                                                modifier = Modifier.weight(1f),
+                                                label = "NPA Bad Debt",
+                                                value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", wealthMetrics.npaWrittenOff)}",
+                                                tint = SoftRed
+                                            )
+                                        }
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(20.dp))
                             }
 
@@ -837,7 +906,7 @@ fun YearlyScreen(
 private fun CashflowFunnelStreamCard(
     title: String,
     subtitle: String,
-    yearlyMonths: List<MonthDataSummary>,
+    yearlyMonths: List<YearlyMonthData>,
     annualIncome: Double,
     annualExpenses: Double,
     currencySymbol: String,
@@ -853,7 +922,6 @@ private fun CashflowFunnelStreamCard(
     val monthlyAvgBurn = if (annualExpenses > 0) annualExpenses / 12.0 else 0.0
     val savingsRate = if (annualIncome > 0) (((annualIncome - annualExpenses) / annualIncome) * 100).toInt() else 0
 
-    // Dynamic checkpoint calculations for columns
     val q1Burn = cumulativeExpenses.getOrElse(2) { 0.0 }
     val midBurn = cumulativeExpenses.getOrElse(5) { 0.0 }
     val endBurn = cumulativeExpenses.lastOrNull() ?: 0.0
@@ -893,7 +961,6 @@ private fun CashflowFunnelStreamCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Dynamic Funnel Canvas (Pure Layered Bézier Flow, no harsh ruler line)
             SmoothFunnelCanvas(
                 cumulativeExpenses = cumulativeExpenses,
                 modifier = Modifier
@@ -920,7 +987,6 @@ private fun CashflowFunnelStreamCard(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Metrics Summary Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -970,7 +1036,6 @@ private fun CashflowFunnelStreamCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Top 3 Real Categories
             topCategories.take(3).forEach { cat ->
                 HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
                 Row(
@@ -1003,7 +1068,6 @@ private fun SmoothFunnelCanvas(
         val h = size.height
         val cY = h / 2f
 
-        // 3 Vertical Guidelines matching reference design
         val col1X = w * 0.22f
         val col2X = w * 0.52f
         val col3X = w * 0.82f
@@ -1018,7 +1082,6 @@ private fun SmoothFunnelCanvas(
 
         val maxBurn = cumulativeExpenses.lastOrNull()?.coerceAtLeast(10.0) ?: 10.0
 
-        // Create organic 3-tier flowing ribbons
         val layers = listOf(1.0f to 0.22f, 0.70f to 0.50f, 0.42f to 0.90f)
         layers.forEach { (scale, alpha) ->
             val topP = Path()
@@ -1029,7 +1092,6 @@ private fun SmoothFunnelCanvas(
                 val x = i * stepX
                 val burn = cumulativeExpenses.getOrElse(i) { 0.0 }
                 val ratio = (burn / maxBurn).toFloat().coerceIn(0f, 1f)
-                // Smooth geometric funnel base curve
                 val curveT = i / 11f
                 val baselineShape = 0.12f + 0.88f * (curveT * curveT)
                 val thickness = (h * 0.44f) * (baselineShape * (0.6f + 0.4f * ratio)) * scale
@@ -1084,7 +1146,7 @@ private fun SmoothFunnelCanvas(
 private fun SeasonalRhythmSpindleCard(
     title: String,
     subtitle: String,
-    yearlyMonths: List<MonthDataSummary>,
+    yearlyMonths: List<YearlyMonthData>,
     quarterlyData: List<QuarterlyMetrics>,
     annualExpenses: Double,
     annualNetSurplus: Double,
@@ -1108,7 +1170,6 @@ private fun SeasonalRhythmSpindleCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Box overlay hosting Spindle Canvas and Floating White Data Pills
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1120,7 +1181,6 @@ private fun SeasonalRhythmSpindleCard(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // 3 Centered Floating White Pill Badges with Real Data
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1160,7 +1220,6 @@ private fun SeasonalRhythmSpindleCard(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Metrics Summary Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -1210,7 +1269,6 @@ private fun SeasonalRhythmSpindleCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Top Categories
             topCategories.take(3).forEach { cat ->
                 HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
                 Row(
@@ -1243,7 +1301,6 @@ private fun SpindleFlowCanvas(
         val h = size.height
         val cY = h / 2f
 
-        // 3 Vertical Guidelines
         val col1X = w * 0.22f
         val col2X = w * 0.52f
         val col3X = w * 0.82f
@@ -1269,7 +1326,6 @@ private fun SpindleFlowCanvas(
                 val exp = monthlyExpenses.getOrElse(i) { 0.0 }
                 val ratio = (exp / maxExp).toFloat().coerceIn(0f, 1f)
 
-                // Smooth spindle envelope (narrow ends, swollen center)
                 val t = i / 11f
                 val spindleEnvelope = 0.10f + 0.90f * (4f * t * (1f - t))
                 val thickness = (h * 0.44f) * (spindleEnvelope * (0.6f + 0.4f * ratio)) * scale
@@ -1317,7 +1373,7 @@ private fun SpindleFlowCanvas(
 }
 
 // =========================================================
-// 3. LIVE CONTINUOUS LIQUID WAVE HEART CARD (NO STATIC LINES)
+// 3. LIVE CONTINUOUS LIQUID WAVE HEART CARD
 // =========================================================
 
 @Composable
@@ -1371,7 +1427,6 @@ private fun LiveAnimatedGoalHeartCard(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Living Continuous Water-Wave Canvas Inside Plump Heart
             Box(
                 modifier = Modifier
                     .size(220.dp)
@@ -1436,7 +1491,6 @@ private fun CleanLivingHeartCanvas(
         val w = size.width
         val h = size.height
 
-        // 1. Subtle Background Grid Lines (Behind the heart)
         val gridStep = 24.dp.toPx()
         var currentX = 0f
         while (currentX < w) {
@@ -1449,7 +1503,6 @@ private fun CleanLivingHeartCanvas(
             currentY += gridStep
         }
 
-        // 2. Plump, Organic Symmetrical Heart Path
         val heartPath = Path().apply {
             moveTo(w / 2f, h * 0.28f)
             cubicTo(w * 0.28f, h * 0.04f, w * 0.02f, h * 0.22f, w * 0.02f, h * 0.48f)
@@ -1459,18 +1512,16 @@ private fun CleanLivingHeartCanvas(
             close()
         }
 
-        // 3. OPAQUE WHITE BACKING: Blocks all grid lines from slicing through the heart!
+        // Opaque white backing blocks grid lines slicing through
         drawPath(path = heartPath, color = Color.White)
         drawPath(path = heartPath, color = Color(0xFFF3E8FF).copy(alpha = 0.65f))
 
-        // 4. Live Water Waves (Zero Straight Lines Across Middle)
         clipPath(heartPath) {
             val fillHeight = h * fillPercentage.coerceIn(0.06f, 0.96f)
             val fillTop = (h * 0.98f) - fillHeight
             val amplitude = 7.dp.toPx()
             val wavelength = w * 0.85f
 
-            // Layer 1: Violet Back Wave
             val backWave = Path().apply {
                 val startY = fillTop + amplitude * sin(wavePhase1)
                 moveTo(0f, startY)
@@ -1493,7 +1544,6 @@ private fun CleanLivingHeartCanvas(
                 )
             )
 
-            // Layer 2: Deep Indigo Front Wave
             val frontSurface = Path()
             val frontWave = Path().apply {
                 val startY = fillTop + (amplitude * 0.85f) * sin(-wavePhase2)
@@ -1519,7 +1569,6 @@ private fun CleanLivingHeartCanvas(
                 )
             )
 
-            // Layer 3: Organic Wave Crest Stroke (No flat cutting rectangles)
             drawPath(
                 path = frontSurface,
                 color = Color.White.copy(alpha = 0.45f),
@@ -1527,7 +1576,6 @@ private fun CleanLivingHeartCanvas(
             )
         }
 
-        // 5. Crisp Outer Border
         drawPath(
             path = heartPath,
             color = Color(0xFFDDD6FE),
@@ -1617,7 +1665,7 @@ private fun MultiYearAssetFlowCard(
                         }
 
                         Text(
-                            text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.totalAssets)}",
+                            text = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.totalAssets)}",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.5.sp,
                             color = if (isCurrent) AccentPurple else TextDark
@@ -1819,7 +1867,7 @@ private fun AnnualRadarSpiderCanvas(
 
 @Composable
 private fun MonthGridTimelineCard(
-    data: MonthDataSummary,
+    data: YearlyMonthData,
     currencySymbol: String,
     isDiscreet: Boolean,
     onTapMonth: () -> Unit,
