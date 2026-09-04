@@ -331,12 +331,18 @@ class BudgetViewModel(
                 else -> 0.0
             }
 
-            // Safe-to-Spend excludes work-related reimbursable expenses from discretionary burn
+            // Safe-to-Spend Engine: Guard against double-deduction for expenses matching bill taxonomy
             val commitments = fixedExpenseTotal + max(plannedAssets, actualAssets)
-            val personalDiscretionaryExpenses = regularTxs.filter {
-                it.type == TransactionType.EXPENSE &&
-                it.linkedFixedBillId == null &&
-                !isWorkExpense(it)
+
+            val unpaidBillTaxonomy = fixedBills.filter { !it.isPaid && it.type == TransactionType.EXPENSE }
+                .map { "${it.category.lowercase()}_${it.subcategory.lowercase()}" }
+                .toSet()
+
+            val personalDiscretionaryExpenses = regularTxs.filter { tx ->
+                tx.type == TransactionType.EXPENSE &&
+                tx.linkedFixedBillId == null &&
+                !isWorkExpense(tx) &&
+                !unpaidBillTaxonomy.contains("${tx.category.lowercase()}_${tx.subcategory.lowercase()}")
             }.sumOf { it.amount }
 
             val rawTheoreticalSafeToSpend = baseIncome - commitments - personalDiscretionaryExpenses
@@ -1032,6 +1038,7 @@ class BudgetViewModel(
         }
     }
 
+    // GAP 1 SOLVED: Handles auto-reconciliation on insert (id == 0L) AND synchronizes edits (id != 0L)
     fun saveTransaction(
         id: Long = 0,
         title: String,
@@ -1052,25 +1059,54 @@ class BudgetViewModel(
 
             var resolvedLinkedBillId: Long? = null
 
-            // Auto-reconcile matching unpaid fixed bills by Category & Subcategory across ANY funding account
-            if (id == 0L && type != TransactionType.INCOME) {
-                val unpaidBills = dao.getFixedBillsForMonthDirect(txMonth, txYear).filter { !it.isPaid }
+            if (id == 0L) {
+                // New transaction: find matching unpaid bill by Taxonomy
+                if (type != TransactionType.INCOME) {
+                    val unpaidBills = dao.getFixedBillsForMonthDirect(txMonth, txYear).filter { !it.isPaid }
+                    val matchingBill = unpaidBills.firstOrNull { bill ->
+                        bill.type == type &&
+                        bill.category.equals(category, ignoreCase = true) &&
+                        bill.subcategory.equals(subcategory, ignoreCase = true)
+                    }
 
-                val matchingBill = unpaidBills.firstOrNull { bill ->
-                    bill.type == type &&
-                    bill.category.equals(category, ignoreCase = true) &&
-                    bill.subcategory.equals(subcategory, ignoreCase = true)
-                }
-
-                if (matchingBill != null) {
-                    resolvedLinkedBillId = matchingBill.id
-                    // Settle the bill and update its amount to reflect actual payment
-                    dao.updateFixedBill(
-                        matchingBill.copy(
-                            isPaid = true,
-                            amount = amount
+                    if (matchingBill != null) {
+                        resolvedLinkedBillId = matchingBill.id
+                        dao.updateFixedBill(
+                            matchingBill.copy(
+                                isPaid = true,
+                                amount = amount
+                            )
                         )
-                    )
+                    }
+                }
+            } else {
+                // Editing existing transaction: keep linked bill in lockstep
+                val existingTx = dao.getTransactionById(id)
+                resolvedLinkedBillId = existingTx?.linkedFixedBillId
+
+                if (resolvedLinkedBillId != null) {
+                    val linkedBill = dao.getFixedBillById(resolvedLinkedBillId)
+                    if (linkedBill != null) {
+                        dao.updateFixedBill(
+                            linkedBill.copy(
+                                amount = amount,
+                                category = category,
+                                subcategory = subcategory
+                            )
+                        )
+                    }
+                } else if (type != TransactionType.INCOME) {
+                    // Try to auto-link if category was changed to match an unpaid bill
+                    val unpaidBills = dao.getFixedBillsForMonthDirect(txMonth, txYear).filter { !it.isPaid }
+                    val matchingBill = unpaidBills.firstOrNull { bill ->
+                        bill.type == type &&
+                        bill.category.equals(category, ignoreCase = true) &&
+                        bill.subcategory.equals(subcategory, ignoreCase = true)
+                    }
+                    if (matchingBill != null) {
+                        resolvedLinkedBillId = matchingBill.id
+                        dao.updateFixedBill(matchingBill.copy(isPaid = true, amount = amount))
+                    }
                 }
             }
 
@@ -1209,6 +1245,10 @@ class BudgetViewModel(
         paidDateMillis: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch(Dispatchers.IO) {
+            val calTx = Calendar.getInstance().apply { timeInMillis = paidDateMillis }
+            val targetMonth = if (isPaid) calTx.get(Calendar.MONTH) + 1 else currentMonth.value
+            val targetYear = if (isPaid) calTx.get(Calendar.YEAR) else currentYear.value
+
             val bill = FixedBillEntity(
                 title = title.trim(),
                 amount = amount,
@@ -1219,21 +1259,13 @@ class BudgetViewModel(
                 type = type,
                 isPaid = isPaid,
                 dueDay = dueDay,
-                month = currentMonth.value,
-                year = currentYear.value
+                month = targetMonth,
+                year = targetYear
             )
-            dao.insertFixedBill(bill)
+            val insertedId = dao.insertFixedBill(bill)
 
             if (isPaid) {
-                val calTx = Calendar.getInstance().apply { timeInMillis = paidDateMillis }
-                val txMonth = calTx.get(Calendar.MONTH) + 1
-                val txYear = calTx.get(Calendar.YEAR)
-
                 val subtype = if (type == TransactionType.TRANSFER) TransferSubtype.BILL_FUNDING else TransferSubtype.NONE
-
-                val insertedBill = dao.getFixedBillsForMonthDirect(currentMonth.value, currentYear.value)
-                    .lastOrNull { it.title == bill.title && it.amount == bill.amount && it.category == bill.category }
-
                 dao.insertTransaction(
                     TransactionEntity(
                         title = bill.title,
@@ -1244,9 +1276,9 @@ class BudgetViewModel(
                         toAccountName = toAccount,
                         type = type,
                         date = paidDateMillis,
-                        month = txMonth,
-                        year = txYear,
-                        linkedFixedBillId = insertedBill?.id,
+                        month = targetMonth,
+                        year = targetYear,
+                        linkedFixedBillId = insertedId,
                         transferSubtype = subtype
                     )
                 )
@@ -1290,35 +1322,50 @@ class BudgetViewModel(
         }
     }
 
+    // GAP 4 SOLVED: Synchronizes bill month/year with cross-cycle custom settlement dates
     fun toggleFixedBillPaid(bill: FixedBillEntity, customAmount: Double = bill.amount, customDateMillis: Long = System.currentTimeMillis()) {
         viewModelScope.launch(Dispatchers.IO) {
             val updatedStatus = !bill.isPaid
-            dao.updateFixedBill(bill.copy(isPaid = updatedStatus))
 
             if (updatedStatus) {
                 val calTx = Calendar.getInstance().apply { timeInMillis = customDateMillis }
                 val txMonth = calTx.get(Calendar.MONTH) + 1
                 val txYear = calTx.get(Calendar.YEAR)
 
-                val subtype = if (bill.type == TransactionType.TRANSFER) TransferSubtype.BILL_FUNDING else TransferSubtype.NONE
+                // If backdated or post-dated across month boundaries, align the bill's cycle
+                val alignedBill = if (bill.month != txMonth || bill.year != txYear) {
+                    val existingInTarget = dao.getFixedBillByKeys(txMonth, txYear, bill.type, bill.category, bill.subcategory)
+                    if (existingInTarget != null) {
+                        existingInTarget.copy(isPaid = true, amount = customAmount)
+                    } else {
+                        bill.copy(month = txMonth, year = txYear, isPaid = true, amount = customAmount)
+                    }
+                } else {
+                    bill.copy(isPaid = true, amount = customAmount)
+                }
+
+                dao.updateFixedBill(alignedBill)
+
+                val subtype = if (alignedBill.type == TransactionType.TRANSFER) TransferSubtype.BILL_FUNDING else TransferSubtype.NONE
 
                 dao.insertTransaction(
                     TransactionEntity(
-                        title = bill.title,
+                        title = alignedBill.title,
                         amount = customAmount,
-                        category = bill.category,
-                        subcategory = bill.subcategory.ifBlank { bill.title },
-                        accountName = bill.accountName,
-                        toAccountName = bill.toAccountName,
-                        type = bill.type,
+                        category = alignedBill.category,
+                        subcategory = alignedBill.subcategory.ifBlank { alignedBill.title },
+                        accountName = alignedBill.accountName,
+                        toAccountName = alignedBill.toAccountName,
+                        type = alignedBill.type,
                         date = customDateMillis,
                         month = txMonth,
                         year = txYear,
-                        linkedFixedBillId = bill.id,
+                        linkedFixedBillId = alignedBill.id,
                         transferSubtype = subtype
                     )
                 )
             } else {
+                dao.updateFixedBill(bill.copy(isPaid = false))
                 dao.deleteTransactionByLinkedBill(bill.id)
             }
         }
@@ -1837,6 +1884,7 @@ class BudgetViewModel(
         }
     }
 
+    // GAP 3 SOLVED: Non-destructive partial rollover inserts missing templates instead of aborting
     private suspend fun checkAndRolloverRecurringBills(targetMonth: Int, targetYear: Int) = withContext(Dispatchers.IO) {
         val historicalBills = dao.getLatestHistoricalFixedBills(targetMonth, targetYear)
         if (historicalBills.isEmpty()) return@withContext
@@ -1858,33 +1906,39 @@ class BudgetViewModel(
                 currentIterMonth += 1
             }
 
-            val countInIter = dao.getFixedBillCount(currentIterMonth, currentIterYear)
-            if (countInIter == 0) {
-                val sourceBills = dao.getFixedBillsForMonthDirect(prevMonth, prevYear).ifEmpty { latestKnownBills }
-                if (sourceBills.isNotEmpty()) {
-                    val cloned = sourceBills.distinctBy {
-                        "${it.title.trim().lowercase()}_${it.category.trim().lowercase()}_${it.type.name}"
-                    }.map {
-                        FixedBillEntity(
-                            title = it.title,
-                            amount = it.amount,
-                            category = it.category,
-                            subcategory = it.subcategory,
-                            accountName = it.accountName,
-                            toAccountName = it.toAccountName,
-                            type = it.type,
-                            isPaid = false,
-                            dueDay = it.dueDay,
-                            month = currentIterMonth,
-                            year = currentIterYear
-                        )
-                    }
-                    dao.insertFixedBills(cloned)
-                    latestKnownBills = cloned
-                }
-            } else {
-                latestKnownBills = dao.getFixedBillsForMonthDirect(currentIterMonth, currentIterYear)
+            val sourceBills = dao.getFixedBillsForMonthDirect(prevMonth, prevYear).ifEmpty { latestKnownBills }
+            val existingInIter = dao.getFixedBillsForMonthDirect(currentIterMonth, currentIterYear)
+
+            val existingSignatures = existingInIter.map {
+                "${it.category.trim().lowercase()}_${it.subcategory.trim().lowercase()}_${it.type.name}"
+            }.toSet()
+
+            val missingToClone = sourceBills.filter { source ->
+                val sig = "${source.category.trim().lowercase()}_${source.subcategory.trim().lowercase()}_${source.type.name}"
+                !existingSignatures.contains(sig)
+            }.distinctBy {
+                "${it.category.trim().lowercase()}_${it.subcategory.trim().lowercase()}_${it.type.name}"
+            }.map {
+                FixedBillEntity(
+                    title = it.title,
+                    amount = it.amount,
+                    category = it.category,
+                    subcategory = it.subcategory,
+                    accountName = it.accountName,
+                    toAccountName = it.toAccountName,
+                    type = it.type,
+                    isPaid = false,
+                    dueDay = it.dueDay,
+                    month = currentIterMonth,
+                    year = currentIterYear
+                )
             }
+
+            if (missingToClone.isNotEmpty()) {
+                dao.insertFixedBills(missingToClone)
+            }
+
+            latestKnownBills = dao.getFixedBillsForMonthDirect(currentIterMonth, currentIterYear)
         }
     }
 
