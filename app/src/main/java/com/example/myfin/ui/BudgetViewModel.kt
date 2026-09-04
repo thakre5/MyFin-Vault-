@@ -1295,7 +1295,14 @@ class BudgetViewModel(
             val insertedId = dao.insertFixedBill(bill)
 
             if (isPaid) {
-                val subtype = if (type == TransactionType.TRANSFER) TransferSubtype.BILL_FUNDING else TransferSubtype.NONE
+                val subtype = if (type == TransactionType.TRANSFER) {
+                    try {
+                        TransferSubtype.valueOf(subcategory)
+                    } catch (_: Exception) {
+                        TransferSubtype.BILL_FUNDING
+                    }
+                } else TransferSubtype.NONE
+
                 dao.insertTransaction(
                     TransactionEntity(
                         title = bill.title,
@@ -1352,7 +1359,7 @@ class BudgetViewModel(
         }
     }
 
-    // GAP 4 SOLVED: Synchronizes bill month/year with cross-cycle custom settlement dates
+    // GAP 4 SOLVED: Synchronizes bill month/year with cross-cycle custom settlement dates & preserves exact transfer subtype
     fun toggleFixedBillPaid(bill: FixedBillEntity, customAmount: Double = bill.amount, customDateMillis: Long = System.currentTimeMillis()) {
         viewModelScope.launch(Dispatchers.IO) {
             val updatedStatus = !bill.isPaid
@@ -1376,7 +1383,13 @@ class BudgetViewModel(
 
                 dao.updateFixedBill(alignedBill)
 
-                val subtype = if (alignedBill.type == TransactionType.TRANSFER) TransferSubtype.BILL_FUNDING else TransferSubtype.NONE
+                val subtype = if (alignedBill.type == TransactionType.TRANSFER) {
+                    try {
+                        TransferSubtype.valueOf(alignedBill.subcategory)
+                    } catch (_: Exception) {
+                        TransferSubtype.BILL_FUNDING
+                    }
+                } else TransferSubtype.NONE
 
                 dao.insertTransaction(
                     TransactionEntity(
