@@ -821,19 +821,20 @@ fun SimpleAccountsScreen(
             )
         }
 
-        // Standardized Instant Transfer Bottom Sheet
+        // Standardized Instant Transfer Bottom Sheet (With Past Date Support)
         if (showTransferSheet) {
             AccountTransferDialog(
                 accounts = accountNames,
                 currencySymbol = userProfile.currencySymbol,
                 onDismiss = { showTransferSheet = false },
-                onTransfer = { from, to, amt, note, subtype ->
+                onTransfer = { from, to, amt, note, subtype, date ->
                     viewModel.executeInstantTransfer(
                         fromAccount = from,
                         toAccount = to,
                         amount = amt,
                         note = note,
-                        subtype = subtype
+                        subtype = subtype,
+                        date = date
                     )
                     Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amt)} to $to", Toast.LENGTH_SHORT).show()
                 }
