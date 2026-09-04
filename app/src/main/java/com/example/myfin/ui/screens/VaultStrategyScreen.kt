@@ -183,6 +183,11 @@ fun VaultStrategyScreen(
         activeAccountTxs.filter { it.type == TransactionType.EXPENSE && it.accountName.equals(name, ignoreCase = true) }
             .sumOf { it.amount }
     }
+    val activeAssets = remember(activeAccountTxs, activeAccount?.accountName) {
+        val name = activeAccount?.accountName.orEmpty()
+        activeAccountTxs.filter { it.type == TransactionType.ASSET && it.accountName.equals(name, ignoreCase = true) }
+            .sumOf { it.amount }
+    }
     val activeIncome = remember(activeAccountTxs, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         activeAccountTxs.filter { it.type == TransactionType.INCOME && it.accountName.equals(name, ignoreCase = true) }
@@ -212,11 +217,12 @@ fun VaultStrategyScreen(
         if (dailyBurnRate > 0 && bal > 0) (bal / dailyBurnRate).toInt() else 90
     }
 
+    // Includes ALL unfulfilled commitments originating from this account (Expenses, Transfers, Asset SIPs)
     val pendingBillsForAccount = remember(uiState.fixedBills, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         uiState.fixedBills.filter {
-            !it.isPaid && it.type == TransactionType.EXPENSE &&
-                    (it.accountName.equals(name, ignoreCase = true) || it.accountName.isBlank())
+            !it.isPaid && it.type != TransactionType.INCOME &&
+                    it.accountName.equals(name, ignoreCase = true)
         }
     }
     val totalPendingBillsAmount = remember(pendingBillsForAccount) {
@@ -799,13 +805,13 @@ fun VaultStrategyScreen(
                                         value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPendingBillsAmount)}",
                                         icon = Icons.Default.Schedule,
                                         iconColor = AccentPurple,
-                                        subtitle = "${pendingBillsForAccount.size} queued fixed bills",
+                                        subtitle = "${pendingBillsForAccount.size} queued obligations",
                                         modifier = Modifier.weight(1f)
                                     )
 
                                     Spacer(modifier = Modifier.width(12.dp))
 
-                                    val netDelta = (activeIncome + activeTransfersIn) - (activeExpenses + activeTransfersOut)
+                                    val netDelta = (activeIncome + activeTransfersIn) - (activeExpenses + activeAssets + activeTransfersOut)
                                     MatrixMetricCell(
                                         title = "Net Cashflow",
                                         value = "${if (netDelta >= 0) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(netDelta))}",
@@ -861,8 +867,8 @@ fun VaultStrategyScreen(
                                         .clip(CircleShape)
                                         .background(CanvasLight)
                                 ) {
-                                    val totalOut = (activeExpenses + totalPendingBillsAmount + activeTransfersOut).coerceAtLeast(1.0)
-                                    Box(modifier = Modifier.weight((activeExpenses / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(Color(0xFFE57A28)))
+                                    val totalOut = (activeExpenses + activeAssets + totalPendingBillsAmount + activeTransfersOut).coerceAtLeast(1.0)
+                                    Box(modifier = Modifier.weight(((activeExpenses + activeAssets) / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(Color(0xFFE57A28)))
                                     Box(modifier = Modifier.weight((totalPendingBillsAmount / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(AccentPurple))
                                     Box(modifier = Modifier.weight(((activeTransfersOut + 1.0) / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(SoftTeal))
                                 }
