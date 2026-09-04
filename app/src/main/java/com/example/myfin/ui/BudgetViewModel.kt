@@ -1063,10 +1063,28 @@ class BudgetViewModel(
                 // New transaction: find matching unpaid bill by Taxonomy
                 if (type != TransactionType.INCOME) {
                     val unpaidBills = dao.getFixedBillsForMonthDirect(txMonth, txYear).filter { !it.isPaid }
+
                     val matchingBill = unpaidBills.firstOrNull { bill ->
-                        bill.type == type &&
-                        bill.category.equals(category, ignoreCase = true) &&
-                        bill.subcategory.equals(subcategory, ignoreCase = true)
+                        if (bill.type != type) return@firstOrNull false
+
+                        if (type == TransactionType.TRANSFER) {
+                            // Match transfer classification subtype (e.g. WEALTH_ALLOCATION)
+                            val matchesSubtype = bill.subcategory.equals(subcategory, ignoreCase = true)
+
+                            // Match destination vault
+                            val matchesDestination = !toAccountName.isNullOrBlank() &&
+                                    !bill.toAccountName.isNullOrBlank() &&
+                                    bill.toAccountName.equals(toAccountName, ignoreCase = true)
+
+                            val matchesTitle = resolvedTitle.contains(bill.title, ignoreCase = true) ||
+                                    bill.title.contains(resolvedTitle, ignoreCase = true)
+
+                            matchesSubtype && (matchesDestination || matchesTitle)
+                        } else {
+                            // Strict category & subcategory matching for Expenses and Assets
+                            bill.category.equals(category, ignoreCase = true) &&
+                            bill.subcategory.equals(subcategory, ignoreCase = true)
+                        }
                     }
 
                     if (matchingBill != null) {
@@ -1096,12 +1114,24 @@ class BudgetViewModel(
                         )
                     }
                 } else if (type != TransactionType.INCOME) {
-                    // Try to auto-link if category was changed to match an unpaid bill
+                    // Try to auto-link if category or transfer subtype was edited to match an unpaid bill
                     val unpaidBills = dao.getFixedBillsForMonthDirect(txMonth, txYear).filter { !it.isPaid }
                     val matchingBill = unpaidBills.firstOrNull { bill ->
-                        bill.type == type &&
-                        bill.category.equals(category, ignoreCase = true) &&
-                        bill.subcategory.equals(subcategory, ignoreCase = true)
+                        if (bill.type != type) return@firstOrNull false
+
+                        if (type == TransactionType.TRANSFER) {
+                            val matchesSubtype = bill.subcategory.equals(subcategory, ignoreCase = true)
+                            val matchesDestination = !toAccountName.isNullOrBlank() &&
+                                    !bill.toAccountName.isNullOrBlank() &&
+                                    bill.toAccountName.equals(toAccountName, ignoreCase = true)
+                            val matchesTitle = resolvedTitle.contains(bill.title, ignoreCase = true) ||
+                                    bill.title.contains(resolvedTitle, ignoreCase = true)
+
+                            matchesSubtype && (matchesDestination || matchesTitle)
+                        } else {
+                            bill.category.equals(category, ignoreCase = true) &&
+                            bill.subcategory.equals(subcategory, ignoreCase = true)
+                        }
                     }
                     if (matchingBill != null) {
                         resolvedLinkedBillId = matchingBill.id
@@ -1708,176 +1738,6 @@ class BudgetViewModel(
             context.contentResolver.openOutputStream(uri)?.use { os ->
                 os.write(root.toString(2).toByteArray(Charsets.UTF_8))
             }
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    suspend fun restoreFromJsonUri(context: Context, uri: Uri, wipeExisting: Boolean = false): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val stringBuilder = java.lang.StringBuilder()
-            context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
-                    var line = reader.readLine()
-                    while (line != null) {
-                        stringBuilder.append(line)
-                        line = reader.readLine()
-                    }
-                }
-            }
-            val jsonContent = stringBuilder.toString()
-            val root = JSONObject(jsonContent)
-
-            if (wipeExisting) {
-                dao.clearAllTransactions()
-                dao.clearAllFixedBills()
-                dao.clearAllBudgetPlans()
-            }
-            if (root.has("categories") && wipeExisting) {
-                dao.clearAllCategories()
-                dao.clearAllSubcategories()
-                val catArray = root.getJSONArray("categories")
-                val catList = mutableListOf<CategoryEntity>()
-                for (i in 0 until catArray.length()) {
-                    val c = catArray.getJSONObject(i)
-                    catList.add(CategoryEntity(name = c.getString("name"), type = TransactionType.valueOf(c.getString("type"))))
-                }
-                dao.insertCategories(catList)
-            }
-            if (root.has("subcategories") && wipeExisting) {
-                val subArray = root.getJSONArray("subcategories")
-                val subList = mutableListOf<SubcategoryEntity>()
-                for (i in 0 until subArray.length()) {
-                    val s = subArray.getJSONObject(i)
-                    subList.add(SubcategoryEntity(parentCategory = s.getString("parentCategory"), name = s.getString("name"), type = TransactionType.valueOf(s.getString("type"))))
-                }
-                dao.insertSubcategories(subList)
-            }
-            if (root.has("accounts") && wipeExisting) {
-                dao.clearAllAccounts()
-                val accArray = root.getJSONArray("accounts")
-                val accList = mutableListOf<AccountEntity>()
-                for (i in 0 until accArray.length()) {
-                    val a = accArray.getJSONObject(i)
-                    val accType = if (a.has("accountType")) a.getString("accountType") else a.optString("type", "Operating")
-                    val sortOrder = a.optInt("sortOrder", i)
-                    val minBal = a.optDouble("minBalance", 0.0)
-                    val isArchived = a.optBoolean("isArchived", false)
-                    accList.add(
-                        AccountEntity(
-                            accountName = a.getString("accountName"),
-                            startingBalance = a.getDouble("startingBalance"),
-                            accountType = accType,
-                            minBalance = minBal,
-                            isArchived = isArchived,
-                            sortOrder = sortOrder
-                        )
-                    )
-                }
-                dao.insertAccounts(accList)
-            }
-            if (root.has("fixedBills")) {
-                val billsArray = root.getJSONArray("fixedBills")
-                val billsList = mutableListOf<FixedBillEntity>()
-                for (i in 0 until billsArray.length()) {
-                    val b = billsArray.getJSONObject(i)
-                    billsList.add(
-                        FixedBillEntity(
-                            id = b.optLong("id", 0L),
-                            title = b.getString("title"),
-                            amount = b.getDouble("amount"),
-                            category = b.getString("category"),
-                            subcategory = b.optString("subcategory", "General"),
-                            accountName = b.getString("accountName"),
-                            toAccountName = if (b.optString("toAccountName").isBlank()) null else b.getString("toAccountName"),
-                            type = TransactionType.valueOf(b.getString("type")),
-                            isPaid = b.optBoolean("isPaid", false),
-                            dueDay = if (b.isNull("dueDay")) null else b.optInt("dueDay"),
-                            month = b.getInt("month"),
-                            year = b.getInt("year")
-                        )
-                    )
-                }
-                dao.insertFixedBills(billsList)
-            }
-            if (root.has("budgetPlans")) {
-                val plansArray = root.getJSONArray("budgetPlans")
-                val plansList = mutableListOf<BudgetPlanEntity>()
-                for (i in 0 until plansArray.length()) {
-                    val p = plansArray.getJSONObject(i)
-                    plansList.add(
-                        BudgetPlanEntity(
-                            id = p.optLong("id", 0L),
-                            category = p.getString("category"),
-                            plannedAmount = p.getDouble("plannedAmount"),
-                            type = TransactionType.valueOf(p.getString("type")),
-                            month = p.getInt("month"),
-                            year = p.getInt("year")
-                        )
-                    )
-                }
-                dao.insertBudgetPlans(plansList)
-            }
-            if (root.has("transactions")) {
-                val txArray = root.getJSONArray("transactions")
-                for (i in 0 until txArray.length()) {
-                    val obj = txArray.getJSONObject(i)
-                    val subTypeStr = obj.optString("transferSubtype", "NONE")
-                    val subType = try { TransferSubtype.valueOf(subTypeStr) } catch (_: Exception) { TransferSubtype.NONE }
-                    dao.insertTransaction(
-                        TransactionEntity(
-                            id = obj.optLong("id", 0L),
-                            title = obj.getString("title"),
-                            amount = obj.getDouble("amount"),
-                            category = obj.getString("category"),
-                            subcategory = obj.optString("subcategory", "General"),
-                            accountName = obj.getString("accountName"),
-                            toAccountName = if (obj.optString("toAccountName").isBlank()) null else obj.getString("toAccountName"),
-                            type = TransactionType.valueOf(obj.getString("type")),
-                            date = obj.getLong("date"),
-                            month = obj.getInt("month"),
-                            year = obj.getInt("year"),
-                            linkedFixedBillId = if (obj.isNull("linkedFixedBillId")) null else obj.optLong("linkedFixedBillId"),
-                            transferSubtype = subType
-                        )
-                    )
-                }
-            }
-
-            var updatedProfile = userProfile.value.copy(id = 1, isOnboardingCompleted = true)
-            if (root.has("userProfile")) {
-                val p = root.getJSONObject("userProfile")
-                val parsedProfileImg = if (p.isNull("profileImageUri")) null else p.optString("profileImageUri").takeIf { it.isNotBlank() }
-                val parsedCoverImg = if (p.isNull("coverImageUri")) null else p.optString("coverImageUri").takeIf { it.isNotBlank() }
-                val restoredDob = p.optString("dateOfBirth", updatedProfile.dateOfBirth)
-
-                if (restoredDob.isNotBlank()) {
-                    securityManager.setRecoveryDob(restoredDob)
-                }
-
-                updatedProfile = updatedProfile.copy(
-                    id = 1,
-                    displayName = p.optString("displayName", updatedProfile.displayName),
-                    email = p.optString("email", updatedProfile.email),
-                    dateOfBirth = restoredDob,
-                    baseMonthlyIncome = p.optDouble("baseMonthlyIncome", updatedProfile.baseMonthlyIncome),
-                    currencySymbol = p.optString("currencySymbol", updatedProfile.currencySymbol),
-                    profileImageUri = parsedProfileImg ?: updatedProfile.profileImageUri,
-                    coverImageUri = parsedCoverImg ?: updatedProfile.coverImageUri,
-                    fortressThreshold = p.optDouble("fortressThreshold", updatedProfile.fortressThreshold),
-                    isBiometricEnabled = p.optBoolean("isBiometricEnabled", updatedProfile.isBiometricEnabled),
-                    isScreenCaptureAllowed = p.optBoolean("isScreenCaptureAllowed", updatedProfile.isScreenCaptureAllowed),
-                    isAutoPayReminderEnabled = p.optBoolean("isAutoPayReminderEnabled", updatedProfile.isAutoPayReminderEnabled),
-                    isOverrunWarningEnabled = p.optBoolean("isOverrunWarningEnabled", updatedProfile.isOverrunWarningEnabled),
-                    reminderEnabled = p.optBoolean("reminderEnabled", updatedProfile.reminderEnabled),
-                    reminderHour = p.optInt("reminderHour", updatedProfile.reminderHour),
-                    reminderMinute = p.optInt("reminderMinute", updatedProfile.reminderMinute),
-                    vaultMode = p.optString("vaultMode", updatedProfile.vaultMode)
-                )
-            }
-            dao.saveUserProfile(updatedProfile)
-            isAppUnlocked.value = true
             true
         } catch (e: Exception) {
             false
