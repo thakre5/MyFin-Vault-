@@ -88,6 +88,10 @@ fun MonthlyScreen(
     var showFilterSheet by remember { mutableStateOf(false) }
     var showMonthPicker by remember { mutableStateOf(false) }
 
+    // Recurring Commitments Page Filter States
+    var hideSettledCommitments by remember { mutableStateOf(false) }
+    var selectedCommitmentFilter by remember { mutableStateOf<TransactionType?>(null) }
+
     // Transaction Details & Editing States
     var viewingTx by remember { mutableStateOf<TransactionEntity?>(null) }
     var editingTx by remember { mutableStateOf<TransactionEntity?>(null) }
@@ -224,19 +228,36 @@ fun MonthlyScreen(
                         }
                     }
 
-                    // Discreet Privacy Toggle
-                    IconButton(
-                        onClick = { isDiscreetMode = !isDiscreetMode },
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .size(38.dp)
+                    // Top Right Actions (Settled Toggle + Discreet Mode)
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = "Toggle Balance Privacy",
-                            tint = if (isDiscreetMode) AccentPurple else TextMuted,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        if (pagerState.currentPage == 2) {
+                            IconButton(
+                                onClick = { hideSettledCommitments = !hideSettledCommitments },
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (hideSettledCommitments) Icons.Default.CheckCircle else Icons.Default.CheckCircleOutline,
+                                    contentDescription = "Toggle Settled Visibility",
+                                    tint = if (hideSettledCommitments) AccentPurple else TextMuted,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { isDiscreetMode = !isDiscreetMode },
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = "Toggle Balance Privacy",
+                                tint = if (isDiscreetMode) AccentPurple else TextMuted,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
 
@@ -1373,63 +1394,137 @@ fun MonthlyScreen(
                         }
                     }
 
-                    // --- SUB-SCREEN 2: AUTOPAY COMMITMENTS ---
+                    // --- SUB-SCREEN 2: RECURRING COMMITMENTS ---
                     2 -> {
+                        val filteredBills = remember(uiState.fixedBills, hideSettledCommitments, selectedCommitmentFilter) {
+                            uiState.fixedBills.filter { bill ->
+                                val matchesHidden = !hideSettledCommitments || !bill.isPaid
+                                val matchesType = selectedCommitmentFilter == null || bill.type == selectedCommitmentFilter
+                                matchesHidden && matchesType
+                            }
+                        }
+
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 20.dp),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                         ) {
-                            item(key = "autopay_header") {
+                            item(key = "commitments_header") {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(text = "Fixed SIPs & Bills", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                                    TextButton(onClick = { showAddFixedBill = true }) {
-                                        Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(16.dp), tint = AccentPurple)
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(text = "Add AutoPay", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = AccentPurple)
+                                    Column {
+                                        Text(
+                                            text = "Recurring Commitments",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDark
+                                        )
+                                        Text(
+                                            text = "AutoPay, Standing Orders & Inflows",
+                                            fontSize = 11.sp,
+                                            color = TextMuted
+                                        )
+                                    }
+
+                                    TextButton(
+                                        onClick = { showAddFixedBill = true },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(15.dp), tint = AccentPurple)
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(text = "Add AutoPay", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = AccentPurple)
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Action-Based Segmented Filters
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(BorderLight.copy(alpha = 0.5f))
+                                        .padding(3.dp)
+                                ) {
+                                    listOf(
+                                        null to "All",
+                                        TransactionType.EXPENSE to "Bills",
+                                        TransactionType.INCOME to "Receivables",
+                                        TransactionType.ASSET to "SIPs",
+                                        TransactionType.TRANSFER to "Sweeps"
+                                    ).forEach { (type, label) ->
+                                        val isSelected = selectedCommitmentFilter == type
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .background(if (isSelected) CardWhite else Color.Transparent)
+                                                .clickable { selectedCommitmentFilter = type }
+                                                .padding(vertical = 7.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 11.sp,
+                                                color = if (isSelected) {
+                                                    when (type) {
+                                                        TransactionType.EXPENSE -> SoftRed
+                                                        TransactionType.INCOME -> SoftGreen
+                                                        TransactionType.ASSET -> SoftTeal
+                                                        TransactionType.TRANSFER -> AccentPurple
+                                                        else -> TextDark
+                                                    }
+                                                } else TextMuted
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
                             }
 
-                            if (uiState.fixedBills.isEmpty()) {
-                                item(key = "empty_autopay") {
+                            if (filteredBills.isEmpty()) {
+                                item(key = "empty_commitments") {
                                     Surface(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(16.dp),
                                         color = CardWhite
                                     ) {
                                         Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                                            Text(text = "No recurring AutoPay commitments for this month", fontSize = 12.sp, color = TextMuted)
+                                            Text(
+                                                text = if (hideSettledCommitments) "No pending commitments in this filter" else "No recurring commitments recorded",
+                                                fontSize = 12.sp,
+                                                color = TextMuted
+                                            )
                                         }
                                     }
                                 }
                             } else {
-                                items(uiState.fixedBills, key = { it.id }) { bill ->
+                                items(filteredBills, key = { it.id }) { bill ->
                                     Box(modifier = Modifier.padding(vertical = 4.dp)) {
                                         SwipeableFixedBillItem(
                                             bill = bill,
                                             currencySymbol = userProfile.currencySymbol,
-                                            onTap = {
-                                                if (!bill.isPaid) {
-                                                    settlingFixedBill = bill
+                                            onTap = { b ->
+                                                if (!b.isPaid) {
+                                                    settlingFixedBill = b
                                                 } else {
-                                                    billToRevert = bill
+                                                    billToRevert = b
                                                 }
                                             },
-                                            onEdit = {
-                                                if (bill.isPaid) {
+                                            onEdit = { b ->
+                                                if (b.isPaid) {
                                                     Toast.makeText(context, "Cannot edit settled commitment. Tap card to revert to Unpaid first.", Toast.LENGTH_LONG).show()
                                                 } else {
-                                                    editingFixedBill = bill
+                                                    editingFixedBill = b
                                                 }
                                             },
-                                            onDelete = { billToDelete = bill },
+                                            onDelete = { b -> billToDelete = b },
                                             onSettleBill = { b, customAmt, dateMillis ->
                                                 viewModel.toggleFixedBillPaid(b, customAmount = customAmt, customDateMillis = dateMillis)
                                             }
