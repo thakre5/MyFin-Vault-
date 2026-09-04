@@ -38,6 +38,7 @@ fun TransactionDetailBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val dateFormatter = remember { SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale.US) }
+    val monthNameFormatter = remember { SimpleDateFormat("MMMM yyyy", Locale.US) }
 
     val typeColor = when (transaction.type) {
         TransactionType.INCOME -> SoftGreen
@@ -58,6 +59,33 @@ fun TransactionDetailBottomSheet(
         TransactionType.INCOME -> "+"
         TransactionType.ASSET -> "•"
         TransactionType.TRANSFER -> "⇄"
+    }
+
+    // Relative Day Label (Today, Yesterday, or Past Ledger)
+    val relativeDateTag = remember(transaction.date) {
+        val txCal = Calendar.getInstance().apply { timeInMillis = transaction.date }
+        val nowCal = Calendar.getInstance()
+
+        val isToday = txCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
+                txCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR)
+
+        val isYesterday = txCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
+                txCal.get(Calendar.DAY_OF_YEAR) == (nowCal.get(Calendar.DAY_OF_YEAR) - 1)
+
+        when {
+            isToday -> "Today"
+            isYesterday -> "Yesterday"
+            else -> "Logged Past Date"
+        }
+    }
+
+    // Work / Corporate Reimbursement Pass-through Check
+    val isReimbursableWorkOutlay = remember(transaction) {
+        transaction.type == TransactionType.EXPENSE &&
+        (transaction.category.equals("Work & Professional", ignoreCase = true) ||
+         transaction.subcategory.contains("Work Travel", ignoreCase = true) ||
+         transaction.subcategory.contains("Courier", ignoreCase = true) ||
+         transaction.title.contains("Reimbursable", ignoreCase = true))
     }
 
     ModalBottomSheet(
@@ -119,18 +147,36 @@ fun TransactionDetailBottomSheet(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = typeColor.copy(alpha = 0.14f)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = typeLabel.uppercase(),
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Black,
-                            color = typeColor,
-                            letterSpacing = 0.6.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.5.dp)
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = typeColor.copy(alpha = 0.14f)
+                        ) {
+                            Text(
+                                text = typeLabel.uppercase(),
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = typeColor,
+                                letterSpacing = 0.6.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.5.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = AccentPurple.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = relativeDateTag.uppercase(),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AccentPurple,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -208,8 +254,17 @@ fun TransactionDetailBottomSheet(
 
                     DetailInfoRow(
                         icon = Icons.Default.Schedule,
-                        label = "Date & Time",
+                        label = "Recorded Date",
                         value = dateFormatter.format(Date(transaction.date))
+                    )
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+
+                    // Target Accounting Ledger Cycle
+                    val calTx = Calendar.getInstance().apply { timeInMillis = transaction.date }
+                    DetailInfoRow(
+                        icon = Icons.Default.CalendarMonth,
+                        label = "Accounting Cycle",
+                        value = monthNameFormatter.format(calTx.time)
                     )
                     HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
 
@@ -218,6 +273,15 @@ fun TransactionDetailBottomSheet(
                         label = "Commitment Link",
                         value = if (transaction.linkedFixedBillId != null) "Linked to Recurring AutoPay" else "Standalone Entry"
                     )
+
+                    if (isReimbursableWorkOutlay) {
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                        DetailInfoRow(
+                            icon = Icons.Default.WorkOutline,
+                            label = "Reimbursement Policy",
+                            value = "Excluded from personal lifestyle burn"
+                        )
+                    }
                 }
             }
 
