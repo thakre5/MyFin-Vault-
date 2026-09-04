@@ -45,10 +45,7 @@ import com.example.myfin.data.AccountEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.BudgetViewModel
-import com.example.myfin.ui.components.AppBottomDock
-import com.example.myfin.ui.components.DockFabAction
-import com.example.myfin.ui.components.NavigationTarget
-import com.example.myfin.ui.components.rememberAutoScrollVisibilityConnection
+import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
 import java.util.Calendar
 import java.util.Locale
@@ -1555,193 +1552,30 @@ fun VaultStrategyScreen(
             )
         }
 
-        // Transfer Bottom Sheet
+        // Standardized Transfer Bottom Sheet (With Past Date Support & Receipt)
         if (showTransferSheet) {
-            var fromAccount by remember { mutableStateOf(activeAccount?.accountName ?: accountNames.firstOrNull().orEmpty()) }
-            var toAccount by remember { mutableStateOf(accountNames.firstOrNull { it != fromAccount } ?: "") }
-            var amountText by remember { mutableStateOf(if (calculatedSweepSurplus > 0) String.format(Locale.US, "%.0f", calculatedSweepSurplus) else "") }
-            var selectedSubtype by remember { mutableStateOf(TransferSubtype.WEALTH_ALLOCATION) }
-            var noteText by remember { mutableStateOf("Strategic Vault Sweep") }
-            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-            ModalBottomSheet(
-                onDismissRequest = { showTransferSheet = false },
-                sheetState = sheetState,
-                containerColor = CardWhite,
-                shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
-                dragHandle = {
-                    Surface(modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp), shape = CircleShape, color = BorderLight) {}
-                }
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .imePadding()
-                        .padding(horizontal = 22.dp, vertical = 8.dp)
-                ) {
-                    Text("Strategic Vault Sweep & Transfer", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                    Text("Reallocate cashflow with zero-leakage classification", fontSize = 11.5.sp, color = TextMuted)
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text("Source Vault (From)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(accountNames, key = { it }) { acc ->
-                            val isSel = fromAccount == acc
-                            val accObj = displayAccounts.find { it.accountName == acc }
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { fromAccount = acc },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
-                                border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
-                            ) {
-                                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                                    Text(
-                                        text = acc,
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSel) AccentPurple else TextDark
-                                    )
-                                    if (accObj != null) {
-                                        Text(
-                                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", accObj.currentBalance)}",
-                                            fontSize = 9.5.sp,
-                                            color = TextMuted
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text("Destination Vault (To)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(accountNames, key = { it }) { acc ->
-                            val isSel = toAccount == acc
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { toAccount = acc },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
-                                border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
-                            ) {
-                                Text(
-                                    text = acc,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSel) AccentPurple else TextDark,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text("Transfer Classification Subtype", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf(
-                            TransferSubtype.BILL_FUNDING to "Bill Funding",
-                            TransferSubtype.WEALTH_ALLOCATION to "Fortress Sweep",
-                            TransferSubtype.REBALANCE to "Rebalance"
-                        ).forEach { (subtype, label) ->
-                            val isSel = selectedSubtype == subtype
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { selectedSubtype = subtype },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
-                                border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
-                            ) {
-                                Text(
-                                    text = label,
-                                    fontSize = 10.5.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSel) AccentPurple else TextDark,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(vertical = 7.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    OutlinedTextField(
-                        value = amountText,
-                        onValueChange = { input ->
-                            val filtered = input.filter { it.isDigit() || it == '.' }
-                            val parts = filtered.split('.')
-                            amountText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
-                        },
-                        label = { Text("Transfer Amount (${userProfile.currencySymbol})", fontSize = 12.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+            AccountTransferDialog(
+                accounts = accountNames,
+                currencySymbol = userProfile.currencySymbol,
+                onDismiss = { showTransferSheet = false },
+                onTransfer = { from, to, amount, note, subtype, date ->
+                    viewModel.executeInstantTransfer(
+                        fromAccount = from,
+                        toAccount = to,
+                        amount = amount,
+                        note = note,
+                        subtype = subtype,
+                        date = date
                     )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    OutlinedTextField(
-                        value = noteText,
-                        onValueChange = { noteText = it },
-                        label = { Text("Purpose Note", fontSize = 12.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                    showTransferSheet = false
+                    receiptPayload = SuccessReceiptPayload(
+                        subtitle = "Vault Sweep Completed",
+                        headline = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}",
+                        description = "$from ➔ $to (${subtype.name})",
+                        buttonText = "Done"
                     )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    Button(
-                        onClick = {
-                            val amt = amountText.toDoubleOrNull() ?: 0.0
-                            if (amt > 0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount != toAccount) {
-                                viewModel.executeInstantTransfer(
-                                    fromAccount = fromAccount,
-                                    toAccount = toAccount,
-                                    amount = amt,
-                                    note = noteText,
-                                    subtype = selectedSubtype
-                                )
-                                showTransferSheet = false
-                                receiptPayload = SuccessReceiptPayload(
-                                    subtitle = "Vault Sweep Completed",
-                                    headline = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amt)}",
-                                    description = "$fromAccount ➔ $toAccount (${selectedSubtype.name})",
-                                    buttonText = "Done"
-                                )
-                            } else {
-                                Toast.makeText(context, "Select distinct accounts and an amount > 0", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
-                    ) {
-                        Text("Confirm Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
                 }
-            }
+            )
         }
 
         // Add Account Bottom Sheet
