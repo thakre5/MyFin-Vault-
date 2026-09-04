@@ -31,6 +31,7 @@ import com.example.myfin.data.CategoryEntity
 import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.SubcategoryEntity
 import com.example.myfin.data.TransactionType
+import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -66,6 +67,17 @@ fun AddEditFixedBillDialog(
     var noteText by remember { mutableStateOf(initialBill?.title?.takeIf { it != initialBill.subcategory } ?: "") }
     var amountText by remember { mutableStateOf(initialBill?.amount?.let { if (it > 0) it.toString() else "" } ?: "") }
     var dueDayText by remember { mutableStateOf(initialBill?.dueDay?.toString() ?: "") }
+
+    // Transfer Subtype Selection (Aligned with Internal Vault Transfer dialog)
+    var selectedTransferSubtype by remember {
+        mutableStateOf(
+            when (initialBill?.subcategory) {
+                TransferSubtype.WEALTH_ALLOCATION.name, "Fortress Sweep" -> TransferSubtype.WEALTH_ALLOCATION
+                TransferSubtype.REBALANCE.name, "Rebalance" -> TransferSubtype.REBALANCE
+                else -> TransferSubtype.BILL_FUNDING
+            }
+        )
+    }
 
     // Payment Status & Backdate State
     var isPaidState by remember { mutableStateOf(initialBill?.isPaid ?: false) }
@@ -276,7 +288,7 @@ fun AddEditFixedBillDialog(
                 value = noteText,
                 onValueChange = { noteText = it },
                 label = { Text("Note / Description (Optional)", fontSize = 12.sp) },
-                placeholder = { Text("e.g., House rent, Insurance premium", fontSize = 12.sp) },
+                placeholder = { Text("e.g., Emergency Reserve, Rent", fontSize = 12.sp) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -288,75 +300,121 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Category Chips
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Category", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                TextButton(
-                    onClick = { showNewCategoryDialog = true },
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+            // Taxonomy Section: Transfer Classification Subtype OR Category/Subcategory Picker
+            if (selectedType == TransactionType.TRANSFER) {
+                Text(
+                    text = "Transfer Classification Subtype",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextMuted
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = AccentPurple)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text("New", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                    listOf(
+                        TransferSubtype.BILL_FUNDING to "Bill Funding",
+                        TransferSubtype.WEALTH_ALLOCATION to "Fortress Sweep",
+                        TransferSubtype.REBALANCE to "Rebalance"
+                    ).forEach { (subtype, label) ->
+                        val isSelected = selectedTransferSubtype == subtype
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { selectedTransferSubtype = subtype },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
+                            border = BorderStroke(
+                                0.8.dp,
+                                if (isSelected) AccentPurple else BorderLight
+                            )
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) AccentPurple else TextDark
+                                )
+                            }
+                        }
+                    }
                 }
-            }
-
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(filteredCategories) { cat ->
-                    val isSelected = selectedCategory == cat.name
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { selectedCategory = cat.name },
-                        label = { Text(cat.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Subcategory Chips
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Subcategory", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("(Acts as Title)", fontSize = 10.sp, color = TextMuted)
-                }
-                TextButton(
-                    onClick = { showNewSubcategoryDialog = true },
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+            } else {
+                // Standard Category Chips
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = AccentPurple)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text("New", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                    Text("Category", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    TextButton(
+                        onClick = { showNewCategoryDialog = true },
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = AccentPurple)
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("New", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                    }
                 }
-            }
 
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(availableSubcategories.ifEmpty { listOf("General") }) { sub ->
-                    val isSelected = selectedSubcategory == sub
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { selectedSubcategory = sub },
-                        label = { Text(sub, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(filteredCategories) { cat ->
+                        val isSelected = selectedCategory == cat.name
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedCategory = cat.name },
+                            label = { Text(cat.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = AccentPurpleLight,
+                                selectedLabelColor = AccentPurple
+                            )
                         )
-                    )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Standard Subcategory Chips
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Subcategory", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("(Acts as Title)", fontSize = 10.sp, color = TextMuted)
+                    }
+                    TextButton(
+                        onClick = { showNewSubcategoryDialog = true },
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = AccentPurple)
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("New", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                    }
+                }
+
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(availableSubcategories.ifEmpty { listOf("General") }) { sub ->
+                        val isSelected = selectedSubcategory == sub
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedSubcategory = sub },
+                            label = { Text(sub, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = AccentPurpleLight,
+                                selectedLabelColor = AccentPurple
+                            )
+                        )
+                    }
                 }
             }
 
@@ -364,7 +422,7 @@ fun AddEditFixedBillDialog(
 
             // Vault Selector Row
             Text(
-                text = if (selectedType == TransactionType.TRANSFER) "Source Vault" else "Deduction Vault",
+                text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Deduction Vault",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextDark
@@ -388,7 +446,7 @@ fun AddEditFixedBillDialog(
 
             if (selectedType == TransactionType.TRANSFER) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Destination Vault", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Text("Destination Vault (To)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                 Spacer(modifier = Modifier.height(4.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(accountList.filter { it != selectedAccount }) { acc ->
@@ -552,13 +610,20 @@ fun AddEditFixedBillDialog(
                             if (day in 1..31) day else null
                         }
 
-                        val finalTitle = if (noteText.isNotBlank()) noteText.trim() else selectedSubcategory.ifBlank { selectedCategory }
+                        val resolvedCategory = if (selectedType == TransactionType.TRANSFER) "Transfer" else selectedCategory
+                        val resolvedSubcategory = if (selectedType == TransactionType.TRANSFER) selectedTransferSubtype.name else selectedSubcategory
+
+                        val finalTitle = when {
+                            noteText.isNotBlank() -> noteText.trim()
+                            selectedType == TransactionType.TRANSFER -> "Vault Transfer ($selectedAccount ➔ $selectedToAccount)"
+                            else -> selectedSubcategory.ifBlank { selectedCategory }
+                        }
 
                         onSave(
                             finalTitle,
                             amt,
-                            selectedCategory,
-                            selectedSubcategory,
+                            resolvedCategory,
+                            resolvedSubcategory,
                             selectedAccount,
                             if (selectedType == TransactionType.TRANSFER) selectedToAccount else null,
                             selectedType,
