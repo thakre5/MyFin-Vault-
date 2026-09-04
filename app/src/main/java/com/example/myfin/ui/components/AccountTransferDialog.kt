@@ -49,11 +49,10 @@ fun AccountTransferDialog(
     var noteText by remember { mutableStateOf("") }
     var selectedSubtype by remember { mutableStateOf(TransferSubtype.WEALTH_ALLOCATION) }
 
-    // Date State (Defaults to current time)
+    // Date State & Dialog
     var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
 
-    // Date Comparison Flags
     val isToday = remember(selectedDateMillis) {
         val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
         val calNow = Calendar.getInstance()
@@ -223,19 +222,18 @@ fun AccountTransferDialog(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Transfer Date Selector (Today, Yesterday, Other Date)
+            // Transaction Date Selector
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text("Transfer Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Today Chip
                     FilterChip(
                         selected = isToday,
                         onClick = { selectedDateMillis = System.currentTimeMillis() },
@@ -247,7 +245,6 @@ fun AccountTransferDialog(
                         )
                     )
 
-                    // Yesterday Chip
                     FilterChip(
                         selected = isYesterday,
                         onClick = {
@@ -262,7 +259,6 @@ fun AccountTransferDialog(
                         )
                     )
 
-                    // Custom Date Button
                     Surface(
                         modifier = Modifier
                             .weight(1f)
@@ -317,7 +313,7 @@ fun AccountTransferDialog(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Purpose Note Input
+            // Note Input
             OutlinedTextField(
                 value = noteText,
                 onValueChange = { noteText = it },
@@ -368,7 +364,6 @@ fun AccountTransferDialog(
         }
     }
 
-    // Material 3 Date Picker Dialog
     if (showDatePickerDialog) {
         val datePickerState = rememberDatePickerState(
             initialSelectedDateMillis = selectedDateMillis
