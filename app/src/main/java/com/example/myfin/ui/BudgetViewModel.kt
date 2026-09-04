@@ -55,7 +55,6 @@ data class CommitmentsShortfallStatus(
 
 data class PaydayAllocationPlan(
     val salaryAmount: Double = 0.0,
-    val toCommitments: Double = 0.0,
     val toFortress: Double = 0.0,
     val remainingOperating: Double = 0.0,
     val pendingBillsCount: Int = 0
@@ -374,21 +373,29 @@ class BudgetViewModel(
             val totalVault = activeAccounts.sumOf { it.currentBalance }
             val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
 
-            // Commitments Vault Shortfall Engine
+            // Commitments Vault Shortfall Engine (Strictly Commitments Vault outlays: Expenses, Assets, Transfers)
             val commitmentsAccount = activeAccounts.find {
                 it.accountType.equals("Commitments", ignoreCase = true) ||
                 it.accountName.contains("COMMITMENT", ignoreCase = true) ||
                 it.accountName.contains("BILL", ignoreCase = true)
             } ?: activeAccounts.firstOrNull()
 
-            val unpaidFixedBills = fixedBills.filter { !it.isPaid && it.type == TransactionType.EXPENSE }
-            val unpaidBillsSum = unpaidFixedBills.sumOf { it.amount }
+            val commitmentsAccountNameTarget = commitmentsAccount?.accountName ?: "Commitments"
+
+            val commitmentsUnpaidBills = fixedBills.filter { bill ->
+                !bill.isPaid &&
+                bill.type != TransactionType.INCOME &&
+                (bill.accountName.equals(commitmentsAccountNameTarget, ignoreCase = true) ||
+                 bill.accountName.contains("Commitment", ignoreCase = true) ||
+                 bill.accountName.contains("Bill", ignoreCase = true))
+            }
+            val unpaidBillsSum = commitmentsUnpaidBills.sumOf { it.amount }
             val commitmentsBalance = commitmentsAccount?.currentBalance ?: 0.0
             val commitmentsFloor = commitmentsAccount?.minBalance ?: 0.0
             val projectedCommitmentsNet = commitmentsBalance - unpaidBillsSum - commitmentsFloor
 
             val isShortfall = is3VaultMode && (projectedCommitmentsNet < 0.0)
-            val earliestDueDay = unpaidFixedBills.mapNotNull { it.dueDay }.minOrNull()
+            val earliestDueDay = commitmentsUnpaidBills.mapNotNull { it.dueDay }.minOrNull()
 
             val shortfallStatus = CommitmentsShortfallStatus(
                 isShortfall = isShortfall,
@@ -400,24 +407,33 @@ class BudgetViewModel(
                 affectedAccountName = commitmentsAccount?.accountName ?: "Commitments"
             )
 
-            // Automated Payday Allocation Suggestion
+            // Automated Payday Fortress Surplus Allocation Engine (Triggers 25th onwards for Salary & Professional Inflow)
+            val todayCalCheck = Calendar.getInstance()
+            val isCurrentSystemMonth = (month == (todayCalCheck.get(Calendar.MONTH) + 1)) && (year == todayCalCheck.get(Calendar.YEAR))
+            val isAfter25th = todayCalCheck.get(Calendar.DAY_OF_MONTH) >= 25
+
             val salaryTx = regularTxs.find {
                 it.type == TransactionType.INCOME &&
-                (it.category.contains("Salary", ignoreCase = true) ||
-                 it.subcategory.contains("Salary", ignoreCase = true) ||
-                 it.title.contains("Salary", ignoreCase = true))
+                it.category.equals("Salary & Professional Inflow", ignoreCase = true)
             }
-            val paydaySuggestion = if (salaryTx != null && is3VaultMode) {
-                val neededForCommitments = (unpaidBillsSum + commitmentsFloor - commitmentsBalance).coerceAtLeast(0.0)
-                val neededForFortress = plannedAssets.coerceAtLeast(0.0)
-                val remainingForOperating = (salaryTx.amount - neededForCommitments - neededForFortress).coerceAtLeast(0.0)
-                PaydayAllocationPlan(
-                    salaryAmount = salaryTx.amount,
-                    toCommitments = neededForCommitments,
-                    toFortress = neededForFortress,
-                    remainingOperating = remainingForOperating,
-                    pendingBillsCount = unpaidFixedBills.size
-                )
+
+            val allUnpaidCommitments = fixedBills.filter { !it.isPaid && it.type != TransactionType.INCOME }
+            val totalUnpaidCommitmentsSum = allUnpaidCommitments.sumOf { it.amount }
+
+            val paydaySuggestion = if (salaryTx != null && is3VaultMode && isCurrentSystemMonth && isAfter25th) {
+                val neededForCommitments = (totalUnpaidCommitmentsSum + commitmentsFloor - commitmentsBalance).coerceAtLeast(0.0)
+                val avgMonthlySpend = max(actualExpenses, 25000.0)
+
+                val surplusForFortress = (salaryTx.amount - neededForCommitments - avgMonthlySpend).coerceAtLeast(0.0)
+
+                if (surplusForFortress > 0.0) {
+                    PaydayAllocationPlan(
+                        salaryAmount = salaryTx.amount,
+                        toFortress = surplusForFortress,
+                        remainingOperating = salaryTx.amount - surplusForFortress,
+                        pendingBillsCount = allUnpaidCommitments.size
+                    )
+                } else null
             } else null
 
             val filtered = transactions.filter { tx ->
@@ -1082,22 +1098,13 @@ class BudgetViewModel(
         )
     }
 
-    fun applyPaydayAllocation(plan: PaydayAllocationPlan, operatingAccount: String, commitmentsAccount: String, fortressAccount: String) {
-        if (plan.toCommitments > 0.0) {
-            executeInstantTransfer(
-                fromAccount = operatingAccount,
-                toAccount = commitmentsAccount,
-                amount = plan.toCommitments,
-                note = "Salary Staging ➔ Commitments (AutoPay & MAB)",
-                subtype = TransferSubtype.BILL_FUNDING
-            )
-        }
+    fun applyPaydayAllocation(plan: PaydayAllocationPlan, operatingAccount: String, fortressAccount: String) {
         if (plan.toFortress > 0.0) {
             executeInstantTransfer(
                 fromAccount = operatingAccount,
                 toAccount = fortressAccount,
                 amount = plan.toFortress,
-                note = "Salary Staging ➔ Fortress (Wealth SIP)",
+                note = "Payday Surplus ➔ Fortress Wealth Sweep",
                 subtype = TransferSubtype.WEALTH_ALLOCATION
             )
         }
