@@ -1,5 +1,6 @@
 package com.example.myfin.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,6 +30,8 @@ import com.example.myfin.data.SubcategoryEntity
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,6 +48,33 @@ fun AddTransactionBottomSheet(
     var selectedType by remember { mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE) }
     var title by remember { mutableStateOf(editingTransaction?.title.orEmpty()) }
     var amountText by remember { mutableStateOf(editingTransaction?.amount?.let { if (it > 0) it.toString() else "" }.orEmpty()) }
+
+    // Date State (Defaults to existing date if editing, otherwise current time)
+    var selectedDateMillis by remember { mutableStateOf(editingTransaction?.date ?: System.currentTimeMillis()) }
+    var showDatePickerDialog by remember { mutableStateOf(false) }
+
+    // Date Comparison Flags
+    val isToday = remember(selectedDateMillis) {
+        val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+        val calNow = Calendar.getInstance()
+        calSelected.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
+        calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
+    }
+
+    val isYesterday = remember(selectedDateMillis) {
+        val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+        val calYesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+        calSelected.get(Calendar.YEAR) == calYesterday.get(Calendar.YEAR) &&
+        calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
+    }
+
+    val formattedDateLabel = remember(selectedDateMillis, isToday, isYesterday) {
+        when {
+            isToday -> "Today"
+            isYesterday -> "Yesterday"
+            else -> SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date(selectedDateMillis))
+        }
+    }
 
     var selectedAccount by remember(accountList) {
         mutableStateOf(editingTransaction?.accountName ?: accountList.firstOrNull().orEmpty())
@@ -169,6 +200,7 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // Amount Input
             OutlinedTextField(
                 value = amountText,
                 onValueChange = { input ->
@@ -189,6 +221,7 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            // Title Input
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -203,6 +236,77 @@ fun AddTransactionBottomSheet(
                     unfocusedBorderColor = BorderLight
                 )
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Transaction Date Selector
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("Transaction Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Today Chip
+                    FilterChip(
+                        selected = isToday,
+                        onClick = { selectedDateMillis = System.currentTimeMillis() },
+                        label = { Text("Today", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentPurpleLight,
+                            selectedLabelColor = AccentPurple
+                        )
+                    )
+
+                    // Yesterday Chip
+                    FilterChip(
+                        selected = isYesterday,
+                        onClick = {
+                            val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                            selectedDateMillis = cal.timeInMillis
+                        },
+                        label = { Text("Yesterday", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentPurpleLight,
+                            selectedLabelColor = AccentPurple
+                        )
+                    )
+
+                    // Custom Date Button
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(34.dp)
+                            .clickable { showDatePickerDialog = true },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (!isToday && !isYesterday) AccentPurpleLight else CanvasLight,
+                        border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) AccentPurple else BorderLight)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = if (!isToday && !isYesterday) formattedDateLabel else "Other Date",
+                                fontSize = 11.5.sp,
+                                fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
+                                color = if (!isToday && !isYesterday) AccentPurple else TextDark
+                            )
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = "Pick Date",
+                                tint = if (!isToday && !isYesterday) AccentPurple else TextMuted,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+            }
 
             if (selectedType != TransactionType.TRANSFER) {
                 Spacer(modifier = Modifier.height(14.dp))
@@ -256,6 +360,7 @@ fun AddTransactionBottomSheet(
             }
 
             // Vault Account Chips
+            Spacer(modifier = Modifier.height(6.dp))
             Text("Vault Account", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
             Spacer(modifier = Modifier.height(6.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -287,7 +392,7 @@ fun AddTransactionBottomSheet(
                             selectedSubcategory.ifBlank { "General" },
                             selectedAccount.ifBlank { accountList.firstOrNull().orEmpty() },
                             selectedType,
-                            editingTransaction?.date ?: System.currentTimeMillis()
+                            selectedDateMillis
                         )
                         onDismiss()
                     }
@@ -305,6 +410,48 @@ fun AddTransactionBottomSheet(
                     fontSize = 14.sp
                 )
             }
+        }
+    }
+
+    // Material 3 Date Picker Dialog
+    if (showDatePickerDialog) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDateMillis
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { pickedUtc ->
+                            val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                timeInMillis = pickedUtc
+                            }
+                            val localCal = Calendar.getInstance().apply {
+                                set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                                set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                                set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                                set(Calendar.HOUR_OF_DAY, 12)
+                                set(Calendar.MINUTE, 0)
+                                set(Calendar.SECOND, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }
+                            selectedDateMillis = localCal.timeInMillis
+                        }
+                        showDatePickerDialog = false
+                    }
+                ) {
+                    Text("Select", fontWeight = FontWeight.Bold, color = AccentPurple)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) {
+                    Text("Cancel", color = TextDark)
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }
