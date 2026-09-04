@@ -10,7 +10,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -26,13 +28,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.theme.*
-import java.util.Locale
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,7 +45,8 @@ fun SwipeableFixedBillItem(
     currencySymbol: String,
     onTap: (FixedBillEntity) -> Unit,
     onEdit: (FixedBillEntity) -> Unit,
-    onDelete: (FixedBillEntity) -> Unit
+    onDelete: (FixedBillEntity) -> Unit,
+    onSettleBill: ((bill: FixedBillEntity, customAmount: Double, dateMillis: Long) -> Unit)? = null
 ) {
     val haptic = LocalHapticFeedback.current
 
@@ -49,8 +54,16 @@ fun SwipeableFixedBillItem(
     val currentOnEdit by rememberUpdatedState(onEdit)
     val currentOnDelete by rememberUpdatedState(onDelete)
     val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnSettle by rememberUpdatedState(onSettleBill)
 
+    var showSettleDialog by remember { mutableStateOf(false) }
     var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
+
+    // Dynamic Overdue Calculation
+    val currentDayOfMonth = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH) }
+    val isOverdue = remember(currentBill.isPaid, currentBill.dueDay, currentDayOfMonth) {
+        !currentBill.isPaid && currentBill.dueDay != null && currentDayOfMonth > currentBill.dueDay
+    }
 
     val dismissState = rememberSwipeToDismissBoxState(
         positionalThreshold = { totalDistance -> totalDistance * 0.35f },
@@ -174,8 +187,20 @@ fun SwipeableFixedBillItem(
                 .fillMaxWidth()
                 .shadow(1.dp, RoundedCornerShape(18.dp))
                 .clip(RoundedCornerShape(18.dp))
-                .border(0.8.dp, BorderLight.copy(alpha = 0.6f), RoundedCornerShape(18.dp))
-                .clickable { currentOnTap(currentBill) },
+                .border(
+                    BorderStroke(
+                        0.8.dp,
+                        if (isOverdue) SoftRed.copy(alpha = 0.4f) else BorderLight.copy(alpha = 0.6f)
+                    ),
+                    RoundedCornerShape(18.dp)
+                )
+                .clickable {
+                    if (!currentBill.isPaid && currentOnSettle != null) {
+                        showSettleDialog = true
+                    } else {
+                        currentOnTap(currentBill)
+                    }
+                },
             shape = RoundedCornerShape(18.dp),
             color = CardWhite
         ) {
@@ -191,13 +216,23 @@ fun SwipeableFixedBillItem(
                     modifier = Modifier.weight(1f)
                 ) {
                     IconButton(
-                        onClick = { currentOnTap(currentBill) },
+                        onClick = {
+                            if (!currentBill.isPaid && currentOnSettle != null) {
+                                showSettleDialog = true
+                            } else {
+                                currentOnTap(currentBill)
+                            }
+                        },
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = if (currentBill.isPaid) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                             contentDescription = if (currentBill.isPaid) "Settled" else "Pending",
-                            tint = if (currentBill.isPaid) SoftGreen else TextMuted
+                            tint = when {
+                                currentBill.isPaid -> SoftGreen
+                                isOverdue -> SoftRed
+                                else -> TextMuted
+                            }
                         )
                     }
 
@@ -221,14 +256,14 @@ fun SwipeableFixedBillItem(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = CanvasLight,
-                                    border = BorderStroke(0.6.dp, BorderLight)
+                                    color = if (isOverdue) SoftRed.copy(alpha = 0.12f) else CanvasLight,
+                                    border = BorderStroke(0.6.dp, if (isOverdue) SoftRed.copy(alpha = 0.4f) else BorderLight)
                                 ) {
                                     Text(
-                                        text = "Due Day ${currentBill.dueDay}",
+                                        text = if (isOverdue) "Due Day ${currentBill.dueDay} (Overdue)" else "Due Day ${currentBill.dueDay}",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = TextMuted,
+                                        color = if (isOverdue) SoftRed else TextMuted,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                     )
                                 }
@@ -261,12 +296,205 @@ fun SwipeableFixedBillItem(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (currentBill.isPaid) "Settled" else "Pending",
+                        text = when {
+                            currentBill.isPaid -> "Settled"
+                            isOverdue -> "Overdue"
+                            else -> "Pending"
+                        },
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.5.sp,
-                        color = if (currentBill.isPaid) SoftGreen else SoftAmber
+                        color = when {
+                            currentBill.isPaid -> SoftGreen
+                            isOverdue -> SoftRed
+                            else -> SoftAmber
+                        }
                     )
                 }
+            }
+        }
+    }
+
+    // Interactive Settle Dialog
+    if (showSettleDialog) {
+        var customAmountText by remember { mutableStateOf(currentBill.amount.toString()) }
+        var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+        var showCalendarPicker by remember { mutableStateOf(false) }
+
+        val isToday = remember(selectedDateMillis) {
+            val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+            val calNow = Calendar.getInstance()
+            calSelected.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
+            calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
+        }
+
+        val isYesterday = remember(selectedDateMillis) {
+            val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+            val calYesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+            calSelected.get(Calendar.YEAR) == calYesterday.get(Calendar.YEAR) &&
+            calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
+        }
+
+        val formattedDateLabel = remember(selectedDateMillis, isToday, isYesterday) {
+            when {
+                isToday -> "Today"
+                isYesterday -> "Yesterday"
+                else -> SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date(selectedDateMillis))
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showSettleDialog = false },
+            title = {
+                Text(
+                    text = "Settle ${currentBill.title}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = TextDark
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "From Vault: ${currentBill.accountName}",
+                        fontSize = 12.sp,
+                        color = TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = customAmountText,
+                        onValueChange = { input ->
+                            customAmountText = input.filter { it.isDigit() || it == '.' }
+                        },
+                        label = { Text("Amount Paid ($currencySymbol)", fontSize = 12.sp) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text("Payment Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = isToday,
+                            onClick = { selectedDateMillis = System.currentTimeMillis() },
+                            label = { Text("Today", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = AccentPurpleLight,
+                                selectedLabelColor = AccentPurple
+                            )
+                        )
+
+                        FilterChip(
+                            selected = isYesterday,
+                            onClick = {
+                                val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                                selectedDateMillis = cal.timeInMillis
+                            },
+                            label = { Text("Yesterday", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = AccentPurpleLight,
+                                selectedLabelColor = AccentPurple
+                            )
+                        )
+
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp)
+                                .clickable { showCalendarPicker = true },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (!isToday && !isYesterday) AccentPurpleLight else CanvasLight,
+                            border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) AccentPurple else BorderLight)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = if (!isToday && !isYesterday) formattedDateLabel else "Date",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (!isToday && !isYesterday) AccentPurple else TextDark
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = "Pick Date",
+                                    tint = if (!isToday && !isYesterday) AccentPurple else TextMuted,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val parsed = customAmountText.toDoubleOrNull() ?: currentBill.amount
+                        currentOnSettle?.invoke(currentBill, parsed, selectedDateMillis)
+                        showSettleDialog = false
+                    }
+                ) {
+                    Text("Confirm Paid", color = AccentPurple, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSettleDialog = false }) {
+                    Text("Cancel", color = TextMuted)
+                }
+            }
+        )
+
+        if (showCalendarPicker) {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = selectedDateMillis
+            )
+
+            DatePickerDialog(
+                onDismissRequest = { showCalendarPicker = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            datePickerState.selectedDateMillis?.let { pickedUtc ->
+                                val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                    timeInMillis = pickedUtc
+                                }
+                                val localCal = Calendar.getInstance().apply {
+                                    set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                                    set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                                    set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                                    set(Calendar.HOUR_OF_DAY, 12)
+                                    set(Calendar.MINUTE, 0)
+                                    set(Calendar.SECOND, 0)
+                                    set(Calendar.MILLISECOND, 0)
+                                }
+                                selectedDateMillis = localCal.timeInMillis
+                            }
+                            showCalendarPicker = false
+                        }
+                    ) {
+                        Text("Select", fontWeight = FontWeight.Bold, color = AccentPurple)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCalendarPicker = false }) {
+                        Text("Cancel", color = TextDark)
+                    }
+                }
+            ) {
+                DatePicker(state = datePickerState)
             }
         }
     }
