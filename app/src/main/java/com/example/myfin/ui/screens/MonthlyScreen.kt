@@ -112,10 +112,6 @@ fun MonthlyScreen(
         activeAccounts.firstOrNull { it.accountType.equals("Operating", ignoreCase = true) }?.accountName
             ?: activeAccounts.firstOrNull()?.accountName ?: "Primary Bank"
     }
-    val commitmentsAccountName = remember(activeAccounts) {
-        activeAccounts.firstOrNull { it.accountType.equals("Commitments", ignoreCase = true) }?.accountName
-            ?: activeAccounts.getOrNull(1)?.accountName ?: "Secondary Bank"
-    }
     val fortressAccountName = remember(activeAccounts) {
         activeAccounts.firstOrNull { it.accountType.equals("Fortress", ignoreCase = true) }?.accountName
             ?: activeAccounts.getOrNull(2)?.accountName ?: "Tertiary Bank"
@@ -426,7 +422,7 @@ fun MonthlyScreen(
                                             }
                                         }
 
-                                        // 3. Payday Waterfall Split Prompt
+                                        // 3. Fortress Surplus Waterfall Prompt
                                         if (showWaterfallPrompt && paydayPlan != null) {
                                             Surface(
                                                 modifier = Modifier
@@ -450,7 +446,7 @@ fun MonthlyScreen(
                                                         contentAlignment = Alignment.Center
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Default.AccountTree,
+                                                            imageVector = Icons.Default.Security,
                                                             contentDescription = null,
                                                             tint = SoftTeal,
                                                             modifier = Modifier.size(20.dp)
@@ -461,14 +457,14 @@ fun MonthlyScreen(
 
                                                     Column(modifier = Modifier.weight(1f)) {
                                                         Text(
-                                                            text = "Payday Inflow Detected",
+                                                            text = "Fortress Surplus Detected",
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 13.sp,
                                                             color = TextDark
                                                         )
                                                         Spacer(modifier = Modifier.height(2.dp))
                                                         Text(
-                                                            text = "Allocate ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toCommitments)} to Commitments & ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toFortress)} to Fortress SIP.",
+                                                            text = "Sweep ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toFortress)} excess cash into Fortress Vault.",
                                                             fontSize = 11.sp,
                                                             color = TextMuted,
                                                             lineHeight = 15.sp,
@@ -487,18 +483,17 @@ fun MonthlyScreen(
                                                                 viewModel.applyPaydayAllocation(
                                                                     plan = paydayPlan,
                                                                     operatingAccount = operatingAccountName,
-                                                                    commitmentsAccount = commitmentsAccountName,
                                                                     fortressAccount = fortressAccountName
                                                                 )
                                                                 dismissedWaterfallMonth = uiState.selectedMonth
-                                                                Toast.makeText(context, "Salary distributed across vaults!", Toast.LENGTH_SHORT).show()
+                                                                Toast.makeText(context, "Surplus swept to Fortress!", Toast.LENGTH_SHORT).show()
                                                             },
                                                             shape = RoundedCornerShape(8.dp),
                                                             colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
                                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                                             modifier = Modifier.height(32.dp)
                                                         ) {
-                                                            Text(text = "1-Tap Split", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                                            Text(text = "Sweep Now", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                                                         }
                                                         Spacer(modifier = Modifier.height(2.dp))
                                                         TextButton(
