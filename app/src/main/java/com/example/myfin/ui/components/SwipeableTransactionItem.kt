@@ -217,14 +217,33 @@ fun SwipeableTransactionItem(
                     Spacer(modifier = Modifier.width(11.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = currentTx.title,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            color = TextDark,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = currentTx.title,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = TextDark,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (currentTx.linkedFixedBillId != null) {
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = AccentPurpleLight,
+                                    border = BorderStroke(0.5.dp, AccentPurple.copy(alpha = 0.4f))
+                                ) {
+                                    Text(
+                                        text = "AutoPay",
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AccentPurple,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(2.dp))
 
@@ -267,7 +286,7 @@ fun SwipeableTransactionItem(
 
                 Spacer(modifier = Modifier.width(16.dp))
 
-                // Right Block: Amount & Timestamp
+                // Right Block: Amount & Smart Contextual Timestamp
                 Column(horizontalAlignment = Alignment.End) {
                     val amountPrefix = when (currentTx.type) {
                         TransactionType.EXPENSE -> "-"
@@ -292,16 +311,40 @@ fun SwipeableTransactionItem(
 
                     Spacer(modifier = Modifier.height(2.dp))
 
-                    val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.US) }
+                    val formattedDateTime = remember(currentTx.date) {
+                        formatContextualDateTime(currentTx.date)
+                    }
+
                     Text(
-                        text = timeFormatter.format(Date(currentTx.date)),
+                        text = formattedDateTime,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
-                        color = TextMuted.copy(alpha = 0.8f)
+                        color = TextMuted.copy(alpha = 0.85f)
                     )
                 }
             }
         }
+    }
+}
+
+private fun formatContextualDateTime(timestamp: Long): String {
+    val txCal = Calendar.getInstance().apply { timeInMillis = timestamp }
+    val nowCal = Calendar.getInstance()
+    val timeStr = SimpleDateFormat("hh:mm a", Locale.US).format(Date(timestamp))
+
+    val isSameDay = txCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
+            txCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR)
+
+    val isYesterday = txCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
+            txCal.get(Calendar.DAY_OF_YEAR) == (nowCal.get(Calendar.DAY_OF_YEAR) - 1)
+
+    val isSameYear = txCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR)
+
+    return when {
+        isSameDay -> timeStr
+        isYesterday -> "Yesterday, $timeStr"
+        isSameYear -> "${SimpleDateFormat("dd MMM", Locale.US).format(Date(timestamp))}, $timeStr"
+        else -> "${SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date(timestamp))}, $timeStr"
     }
 }
 
