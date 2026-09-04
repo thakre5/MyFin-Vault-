@@ -1,6 +1,7 @@
 package com.example.myfin.ui.components
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,6 +32,8 @@ import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.SubcategoryEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,7 +54,9 @@ fun AddEditFixedBillDialog(
         accountName: String,
         toAccountName: String?,
         type: TransactionType,
-        dueDay: Int?
+        dueDay: Int?,
+        isPaid: Boolean,
+        paidDateMillis: Long
     ) -> Unit
 ) {
     val context = LocalContext.current
@@ -60,6 +66,33 @@ fun AddEditFixedBillDialog(
     var noteText by remember { mutableStateOf(initialBill?.title?.takeIf { it != initialBill.subcategory } ?: "") }
     var amountText by remember { mutableStateOf(initialBill?.amount?.let { if (it > 0) it.toString() else "" } ?: "") }
     var dueDayText by remember { mutableStateOf(initialBill?.dueDay?.toString() ?: "") }
+
+    // Payment Status & Backdate State
+    var isPaidState by remember { mutableStateOf(initialBill?.isPaid ?: false) }
+    var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var showDatePickerDialog by remember { mutableStateOf(false) }
+
+    val isToday = remember(selectedDateMillis) {
+        val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+        val calNow = Calendar.getInstance()
+        calSelected.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
+        calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
+    }
+
+    val isYesterday = remember(selectedDateMillis) {
+        val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+        val calYesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+        calSelected.get(Calendar.YEAR) == calYesterday.get(Calendar.YEAR) &&
+        calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
+    }
+
+    val formattedDateLabel = remember(selectedDateMillis, isToday, isYesterday) {
+        when {
+            isToday -> "Today"
+            isYesterday -> "Yesterday"
+            else -> SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date(selectedDateMillis))
+        }
+    }
 
     val filteredCategories = remember(masterCategories, selectedType) {
         masterCategories.filter { it.type == selectedType }
@@ -374,6 +407,123 @@ fun AddEditFixedBillDialog(
                 }
             }
 
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // AutoPay Payment Status & Date Selector
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = CanvasLight,
+                border = BorderStroke(0.6.dp, BorderLight)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Mark as Paid for this cycle",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark
+                            )
+                            Text(
+                                text = if (isPaidState) "Will record a completed transaction" else "Will stay scheduled as pending",
+                                fontSize = 10.5.sp,
+                                color = TextMuted
+                            )
+                        }
+
+                        Switch(
+                            checked = isPaidState,
+                            onCheckedChange = { isPaidState = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = AccentPurple,
+                                uncheckedThumbColor = TextMuted,
+                                uncheckedTrackColor = BorderLight
+                            )
+                        )
+                    }
+
+                    if (isPaidState) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Text(
+                            text = "Payment Date",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextMuted
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            FilterChip(
+                                selected = isToday,
+                                onClick = { selectedDateMillis = System.currentTimeMillis() },
+                                label = { Text("Today", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = AccentPurpleLight,
+                                    selectedLabelColor = AccentPurple
+                                )
+                            )
+
+                            FilterChip(
+                                selected = isYesterday,
+                                onClick = {
+                                    val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                                    selectedDateMillis = cal.timeInMillis
+                                },
+                                label = { Text("Yesterday", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = AccentPurpleLight,
+                                    selectedLabelColor = AccentPurple
+                                )
+                            )
+
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(34.dp)
+                                    .clickable { showDatePickerDialog = true },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (!isToday && !isYesterday) AccentPurpleLight else CardWhite,
+                                border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) AccentPurple else BorderLight)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = if (!isToday && !isYesterday) formattedDateLabel else "Other Date",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (!isToday && !isYesterday) AccentPurple else TextDark
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.CalendarToday,
+                                        contentDescription = "Pick Date",
+                                        tint = if (!isToday && !isYesterday) AccentPurple else TextMuted,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(18.dp))
 
             // Bottom Actions
@@ -412,7 +562,9 @@ fun AddEditFixedBillDialog(
                             selectedAccount,
                             if (selectedType == TransactionType.TRANSFER) selectedToAccount else null,
                             selectedType,
-                            parsedDueDay
+                            parsedDueDay,
+                            isPaidState,
+                            selectedDateMillis
                         )
                         onDismiss()
                     },
@@ -431,6 +583,7 @@ fun AddEditFixedBillDialog(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
+        // New Category Dialog
         if (showNewCategoryDialog) {
             AlertDialog(
                 onDismissRequest = { showNewCategoryDialog = false },
@@ -464,6 +617,7 @@ fun AddEditFixedBillDialog(
             )
         }
 
+        // New Subcategory Dialog
         if (showNewSubcategoryDialog) {
             AlertDialog(
                 onDismissRequest = { showNewSubcategoryDialog = false },
@@ -495,6 +649,48 @@ fun AddEditFixedBillDialog(
                     }
                 }
             )
+        }
+
+        // Date Picker Dialog
+        if (showDatePickerDialog) {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = selectedDateMillis
+            )
+
+            DatePickerDialog(
+                onDismissRequest = { showDatePickerDialog = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            datePickerState.selectedDateMillis?.let { pickedUtc ->
+                                val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                    timeInMillis = pickedUtc
+                                }
+                                val localCal = Calendar.getInstance().apply {
+                                    set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                                    set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                                    set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                                    set(Calendar.HOUR_OF_DAY, 12)
+                                    set(Calendar.MINUTE, 0)
+                                    set(Calendar.SECOND, 0)
+                                    set(Calendar.MILLISECOND, 0)
+                                }
+                                selectedDateMillis = localCal.timeInMillis
+                            }
+                            showDatePickerDialog = false
+                        }
+                    ) {
+                        Text("Select", fontWeight = FontWeight.Bold, color = AccentPurple)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePickerDialog = false }) {
+                        Text("Cancel", color = TextDark)
+                    }
+                }
+            ) {
+                DatePicker(state = datePickerState)
+            }
         }
     }
 }
