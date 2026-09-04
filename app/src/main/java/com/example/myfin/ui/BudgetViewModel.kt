@@ -1065,7 +1065,8 @@ class BudgetViewModel(
         toAccount: String,
         amount: Double,
         note: String = "",
-        subtype: TransferSubtype = TransferSubtype.NONE
+        subtype: TransferSubtype = TransferSubtype.NONE,
+        date: Long = System.currentTimeMillis()
     ) {
         val resolvedNote = if (note.isBlank()) "Vault Transfer ($fromAccount ➔ $toAccount)" else note.trim()
         saveTransaction(
@@ -1076,6 +1077,7 @@ class BudgetViewModel(
             accountName = fromAccount,
             toAccountName = toAccount,
             type = TransactionType.TRANSFER,
+            date = date,
             transferSubtype = subtype
         )
     }
