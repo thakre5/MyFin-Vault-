@@ -306,11 +306,11 @@ fun UserGuideScreen(
                     )
                     GuideFeatureBullet(
                         title = "Commitments Shortfall Warnings",
-                        desc = "If pending AutoPay bills and fixed commitments exceed your Commitments account balance before their due dates, MyFin triggers an urgent shortfall warning banner with 1-tap transfer prompts."
+                        desc = "If unpaid global outlays (Expenses, Assets, and Transfers originating from the Commitments vault) exceed your Commitments account balance, MyFin triggers an urgent shortfall warning banner with 1-tap transfer prompts."
                     )
                     GuideFeatureBullet(
-                        title = "Payday Waterfall Allocation",
-                        desc = "When a salary inflow is logged, the 1-tap Payday Splitter automatically ring-fences funds into Commitments (covering pending bills + MAB) and sweeps surplus into Fortress SIPs."
+                        title = "Payday Fortress Surplus Engine",
+                        desc = "From the 25th of each month onwards, when an income transaction under 'Salary & Professional Inflow' is logged in 3-Vault mode, the app computes available excess cash after securing commitments and protecting average monthly spend buffers, surfacing a 1-tap 'Sweep Now' banner to route funds directly into the Fortress Vault."
                     )
                 }
 
@@ -381,7 +381,7 @@ fun UserGuideScreen(
                 ) {
                     GuideFeatureBullet(
                         title = "Monthly Dashboard",
-                        desc = "Real Liquid Safe-to-Spend hero display, cumulative spending Bézier sparkline curve, fixed bill checklist with one-tap payment marking, and category progress bars."
+                        desc = "Real Liquid Safe-to-Spend hero display, cumulative spending Bézier sparkline curve, fixed bill checklist with one-tap payment marking (supporting custom payment dates like Today/Yesterday/Calendar Picker), and category progress bars."
                     )
                     GuideFeatureBullet(
                         title = "Budget Planner",
@@ -397,7 +397,7 @@ fun UserGuideScreen(
                     )
                     GuideFeatureBullet(
                         title = "Vault Accounts Hub & Carousel",
-                        desc = "Swipeable 3D card carousel with card reordering, MAB badge editing, auto-sweep threshold calibration, and instant inter-vault transfers."
+                        desc = "Swipeable 3D card carousel with card reordering, MAB badge editing, auto-sweep threshold calibration, and instant inter-vault transfers with backdated date support."
                     )
                 }
 
