@@ -4,7 +4,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -25,6 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,7 +37,7 @@ import com.example.myfin.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SwipeableTransactionItem(
     transaction: TransactionEntity,
@@ -49,6 +52,17 @@ fun SwipeableTransactionItem(
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnEdit by rememberUpdatedState(onEdit)
     val currentOnDelete by rememberUpdatedState(onDelete)
+
+    // Extract local properties to avoid complex expression smart-cast issues
+    val txTitle = currentTx.title.trim()
+    val txSubcategory = currentTx.subcategory.trim()
+    val txCategory = currentTx.category.trim()
+    val txAccountName = currentTx.accountName.trim()
+    val txToAccountName = currentTx.toAccountName?.trim()
+    val txType = currentTx.type
+    val txAmount = currentTx.amount
+    val txDate = currentTx.date
+    val txLinkedFixedBillId = currentTx.linkedFixedBillId
 
     var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
 
@@ -169,6 +183,42 @@ fun SwipeableTransactionItem(
             }
         }
     ) {
+        // Row 1 Title: Format as Subcategory (Title) if title is distinct, otherwise Subcategory
+        val displayTitle = remember(txTitle, txSubcategory) {
+            val isRedundant = txTitle.isBlank() ||
+                txTitle.equals(txSubcategory, ignoreCase = true) ||
+                txTitle.startsWith("Vault Transfer", ignoreCase = true) ||
+                (txSubcategory.isNotBlank() && txSubcategory.contains(txTitle, ignoreCase = true) && txSubcategory.length - txTitle.length <= 4) ||
+                (txTitle.isNotBlank() && txTitle.contains(txSubcategory, ignoreCase = true) && txTitle.length - txSubcategory.length <= 4)
+
+            if (!isRedundant && txSubcategory.isNotBlank()) {
+                "$txSubcategory ($txTitle)"
+            } else {
+                txSubcategory.ifBlank { txTitle.ifBlank { "Transaction" } }
+            }
+        }
+
+        // Row 2 Bank Route Text
+        val bankRouteText = remember(txAccountName, txToAccountName, txType) {
+            if (txType == TransactionType.TRANSFER && !txToAccountName.isNullOrBlank()) {
+                "${txAccountName.uppercase()} ➔ ${txToAccountName.uppercase()}"
+            } else {
+                txAccountName.uppercase()
+            }
+        }
+
+        val categoryIcon = getCategoryIcon(txCategory, txType)
+        val iconTint = when (txType) {
+            TransactionType.INCOME -> SoftGreen
+            TransactionType.EXPENSE -> SoftRed
+            TransactionType.ASSET -> SoftTeal
+            TransactionType.TRANSFER -> AccentPurple
+        }
+
+        val formattedDateTime = remember(txDate) {
+            formatContextualDateTime(txDate)
+        }
+
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -182,120 +232,137 @@ fun SwipeableTransactionItem(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Block: Icon + Category Info
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
+                // Left Icon Box
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(iconTint.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    val categoryIcon = getCategoryIcon(currentTx.category, currentTx.type)
-                    val iconTint = when (currentTx.type) {
-                        TransactionType.INCOME -> SoftGreen
-                        TransactionType.EXPENSE -> SoftRed
-                        TransactionType.ASSET -> SoftTeal
-                        TransactionType.TRANSFER -> AccentPurple
-                    }
+                    Icon(
+                        imageVector = categoryIcon,
+                        contentDescription = txCategory,
+                        tint = iconTint,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
 
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(iconTint.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
+                Spacer(modifier = Modifier.width(11.dp))
+
+                // Center Column: Row 1 Subcategory (Title) + Row 2 (50% Category | 50% Bank)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.5.dp)
+                ) {
+                    // Row 1: Subcategory (Title) with continuous Marquee
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(
-                            imageVector = categoryIcon,
-                            contentDescription = currentTx.category,
-                            tint = iconTint,
-                            modifier = Modifier.size(19.dp)
+                        Text(
+                            text = displayTitle,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = TextDark,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .basicMarquee(
+                                    iterations = Int.MAX_VALUE,
+                                    delayMillis = 1200,
+                                    initialDelayMillis = 1200,
+                                    velocity = 30.dp
+                                )
                         )
-                    }
 
-                    Spacer(modifier = Modifier.width(11.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = currentTx.title,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp,
-                                color = TextDark,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            if (currentTx.linkedFixedBillId != null) {
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = AccentPurpleLight,
-                                    border = BorderStroke(0.5.dp, AccentPurple.copy(alpha = 0.4f))
-                                ) {
-                                    Text(
-                                        text = "AutoPay",
-                                        fontSize = 8.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = AccentPurple,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(2.dp))
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = "${currentTx.category} • ${currentTx.subcategory}",
-                                fontSize = 11.sp,
-                                color = TextMuted,
-                                fontWeight = FontWeight.Normal,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-
+                        if (txLinkedFixedBillId != null) {
+                            Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = CanvasLight,
-                                border = BorderStroke(0.6.dp, BorderLight)
+                                color = AccentPurpleLight,
+                                border = BorderStroke(0.5.dp, AccentPurple.copy(alpha = 0.4f))
                             ) {
                                 Text(
-                                    text = if (currentTx.type == TransactionType.TRANSFER && currentTx.toAccountName != null) {
-                                        "${currentTx.accountName} ➔ ${currentTx.toAccountName}"
-                                    } else {
-                                        currentTx.accountName
-                                    },
-                                    fontSize = 9.sp,
+                                    text = "AutoPay",
+                                    fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (currentTx.type == TransactionType.TRANSFER) AccentPurple else TextDark.copy(alpha = 0.75f),
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    color = AccentPurple,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
                         }
                     }
+
+                    // Row 2: 50% Category & 50% Bank with continuous Marquee
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // 50% Category
+                        Text(
+                            text = txCategory,
+                            fontSize = 11.sp,
+                            color = TextMuted,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .weight(1f)
+                                .basicMarquee(
+                                    iterations = Int.MAX_VALUE,
+                                    delayMillis = 1800,
+                                    initialDelayMillis = 1800,
+                                    velocity = 25.dp
+                                )
+                        )
+
+                        // 50% Bank Vault Route
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = CanvasLight,
+                            border = BorderStroke(0.6.dp, BorderLight),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = bankRouteText,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (txType == TransactionType.TRANSFER) AccentPurple else TextDark.copy(alpha = 0.75f),
+                                maxLines = 1,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    .basicMarquee(
+                                        iterations = Int.MAX_VALUE,
+                                        delayMillis = 1800,
+                                        initialDelayMillis = 1800,
+                                        velocity = 25.dp
+                                    )
+                            )
+                        }
+                    }
                 }
 
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(14.dp))
 
-                // Right Block: Amount & Smart Contextual Timestamp
-                Column(horizontalAlignment = Alignment.End) {
-                    val amountPrefix = when (currentTx.type) {
+                // Right Block: Amount & Smart Contextual Timestamp Vertically Centered
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    val amountPrefix = when (txType) {
                         TransactionType.EXPENSE -> "-"
                         TransactionType.INCOME -> "+"
                         TransactionType.ASSET -> "•"
                         TransactionType.TRANSFER -> "⇄"
                     }
 
-                    val amountColor = when (currentTx.type) {
+                    val amountColor = when (txType) {
                         TransactionType.INCOME -> SoftGreen
                         TransactionType.EXPENSE -> TextDark
                         TransactionType.ASSET -> SoftTeal
@@ -303,17 +370,13 @@ fun SwipeableTransactionItem(
                     }
 
                     Text(
-                        text = "$amountPrefix$currencySymbol${String.format(Locale.US, "%,.2f", currentTx.amount)}",
+                        text = "$amountPrefix$currencySymbol${String.format(Locale.US, "%,.2f", txAmount)}",
                         fontWeight = FontWeight.Black,
                         fontSize = 14.5.sp,
                         color = amountColor
                     )
 
                     Spacer(modifier = Modifier.height(2.dp))
-
-                    val formattedDateTime = remember(currentTx.date) {
-                        formatContextualDateTime(currentTx.date)
-                    }
 
                     Text(
                         text = formattedDateTime,
