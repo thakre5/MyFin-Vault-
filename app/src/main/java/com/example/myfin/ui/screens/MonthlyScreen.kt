@@ -44,6 +44,7 @@ import androidx.compose.ui.zIndex
 import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
+import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
@@ -1946,7 +1947,26 @@ fun MonthlyScreen(
                 masterSubcategories = uiState.masterSubcategories,
                 onDismiss = { showAddSheet = false },
                 onSave = { id, title, amount, category, subcat, acc, type, date ->
-                    viewModel.saveTransaction(id, title, amount, category, subcat, acc, type, date)
+                    val resolvedSubtype = if (type == TransactionType.TRANSFER) {
+                        try {
+                            TransferSubtype.valueOf(subcat)
+                        } catch (_: Exception) {
+                            TransferSubtype.NONE
+                        }
+                    } else TransferSubtype.NONE
+
+                    viewModel.saveTransaction(
+                        id = id,
+                        title = title,
+                        amount = amount,
+                        category = category,
+                        subcategory = subcat,
+                        accountName = acc,
+                        type = type,
+                        date = date,
+                        toAccountName = if (type == TransactionType.TRANSFER) editingTx?.toAccountName else null,
+                        transferSubtype = resolvedSubtype
+                    )
                     val cal = Calendar.getInstance().apply { timeInMillis = date }
                     val txMonth = cal.get(Calendar.MONTH) + 1
                     val txYear = cal.get(Calendar.YEAR)
