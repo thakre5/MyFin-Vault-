@@ -1172,24 +1172,53 @@ class BudgetViewModel(
         account: String = "Primary Bank",
         toAccount: String? = null,
         type: TransactionType = TransactionType.EXPENSE,
-        dueDay: Int? = null
+        dueDay: Int? = null,
+        isPaid: Boolean = false,
+        paidDateMillis: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            dao.insertFixedBill(
-                FixedBillEntity(
-                    title = title.trim(),
-                    amount = amount,
-                    category = category,
-                    subcategory = subcategory,
-                    accountName = account,
-                    toAccountName = toAccount,
-                    type = type,
-                    isPaid = false,
-                    dueDay = dueDay,
-                    month = currentMonth.value,
-                    year = currentYear.value
-                )
+            val bill = FixedBillEntity(
+                title = title.trim(),
+                amount = amount,
+                category = category,
+                subcategory = subcategory,
+                accountName = account,
+                toAccountName = toAccount,
+                type = type,
+                isPaid = isPaid,
+                dueDay = dueDay,
+                month = currentMonth.value,
+                year = currentYear.value
             )
+            dao.insertFixedBill(bill)
+
+            if (isPaid) {
+                val calTx = Calendar.getInstance().apply { timeInMillis = paidDateMillis }
+                val txMonth = calTx.get(Calendar.MONTH) + 1
+                val txYear = calTx.get(Calendar.YEAR)
+
+                val subtype = if (type == TransactionType.TRANSFER) TransferSubtype.BILL_FUNDING else TransferSubtype.NONE
+
+                val insertedBill = dao.getFixedBillsForMonthDirect(currentMonth.value, currentYear.value)
+                    .lastOrNull { it.title == bill.title && it.amount == bill.amount && it.category == bill.category }
+
+                dao.insertTransaction(
+                    TransactionEntity(
+                        title = bill.title,
+                        amount = amount,
+                        category = category,
+                        subcategory = subcategory.ifBlank { bill.title },
+                        accountName = account,
+                        toAccountName = toAccount,
+                        type = type,
+                        date = paidDateMillis,
+                        month = txMonth,
+                        year = txYear,
+                        linkedFixedBillId = insertedBill?.id,
+                        transferSubtype = subtype
+                    )
+                )
+            }
         }
     }
 
