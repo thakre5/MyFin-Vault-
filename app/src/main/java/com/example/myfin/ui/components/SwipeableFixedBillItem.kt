@@ -4,7 +4,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,10 +16,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,7 +30,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.FixedBillEntity
@@ -39,7 +38,7 @@ import com.example.myfin.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SwipeableFixedBillItem(
     bill: FixedBillEntity,
@@ -209,11 +208,17 @@ fun SwipeableFixedBillItem(
             TransactionType.TRANSFER -> "SWEEP"
         }
 
-        // Row 1 Title Formatting: Subcategory (Title) if title is given, else Subcategory
+        // Row 1 Title: Format as Subcategory (Title) only when title is distinct from subcategory
         val displayPrimaryTitle = remember(billTitle, billSubcategory) {
             val cleanTitle = billTitle.trim()
             val cleanSubcat = billSubcategory.trim()
-            if (cleanTitle.isNotBlank() && !cleanTitle.equals(cleanSubcat, ignoreCase = true) && !cleanTitle.startsWith("Vault Transfer", ignoreCase = true)) {
+            val isRedundant = cleanTitle.isBlank() ||
+                cleanTitle.equals(cleanSubcat, ignoreCase = true) ||
+                cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
+                (cleanSubcat.isNotBlank() && cleanSubcat.contains(cleanTitle, ignoreCase = true) && cleanSubcat.length - cleanTitle.length <= 4) ||
+                (cleanTitle.isNotBlank() && cleanTitle.contains(cleanSubcat, ignoreCase = true) && cleanTitle.length - cleanSubcat.length <= 4)
+
+            if (!isRedundant && cleanSubcat.isNotBlank()) {
                 "$cleanSubcat ($cleanTitle)"
             } else {
                 cleanSubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
@@ -258,7 +263,7 @@ fun SwipeableFixedBillItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Checkmark Box (Clean Layout without padded 48dp constraints)
+                // Left Status Checkmark Box
                 Box(
                     modifier = Modifier
                         .size(28.dp)
@@ -292,25 +297,31 @@ fun SwipeableFixedBillItem(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Center Column: Strict 3-Row Structure
+                // Center Column: 3 Structured Rows with Marquee Scrolling
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(3.5.dp)
                 ) {
-                    // Row 1: Subcategory (Custom Title)
+                    // Row 1: Subcategory (Custom Title) - Auto-scrolls horizontally if long
                     Text(
                         text = displayPrimaryTitle,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.5.sp,
                         color = if (billIsPaid) TextDark.copy(alpha = 0.65f) else TextDark,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        modifier = Modifier.basicMarquee(
+                            iterations = Int.MAX_VALUE,
+                            delayMillis = 1200,
+                            initialDelayMillis = 1200,
+                            velocity = 30.dp
+                        )
                     )
 
-                    // Row 2: [TYPE TAG]  Category
+                    // Row 2: [TYPE TAG]  Category - Auto-scrolls horizontally if long
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Surface(
                             shape = RoundedCornerShape(4.dp),
@@ -331,14 +342,20 @@ fun SwipeableFixedBillItem(
                             fontSize = 11.sp,
                             color = TextMuted,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            modifier = Modifier.basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                delayMillis = 1800,
+                                initialDelayMillis = 1800,
+                                velocity = 25.dp
+                            )
                         )
                     }
 
                     // Row 3: Vault Route • Date Indicator
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = routeText,
@@ -346,8 +363,14 @@ fun SwipeableFixedBillItem(
                             fontWeight = FontWeight.SemiBold,
                             color = TextMuted,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .basicMarquee(
+                                    iterations = Int.MAX_VALUE,
+                                    delayMillis = 1800,
+                                    initialDelayMillis = 1800,
+                                    velocity = 25.dp
+                                )
                         )
 
                         if (billDueDay != null || billIsPaid) {
