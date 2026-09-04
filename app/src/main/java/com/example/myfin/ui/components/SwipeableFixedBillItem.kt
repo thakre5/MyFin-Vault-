@@ -59,10 +59,11 @@ fun SwipeableFixedBillItem(
     var showSettleDialog by remember { mutableStateOf(false) }
     var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
 
-    // Dynamic Overdue Calculation
+    // Dynamic Overdue Calculation (Local val resolves smart cast error)
     val currentDayOfMonth = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH) }
     val isOverdue = remember(currentBill.isPaid, currentBill.dueDay, currentDayOfMonth) {
-        !currentBill.isPaid && currentBill.dueDay != null && currentDayOfMonth > currentBill.dueDay
+        val due = currentBill.dueDay
+        !currentBill.isPaid && due != null && currentDayOfMonth > due
     }
 
     val dismissState = rememberSwipeToDismissBoxState(
@@ -252,7 +253,8 @@ fun SwipeableFixedBillItem(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false)
                             )
-                            if (currentBill.dueDay != null) {
+                            val billDueDay = currentBill.dueDay
+                            if (billDueDay != null) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
@@ -260,7 +262,7 @@ fun SwipeableFixedBillItem(
                                     border = BorderStroke(0.6.dp, if (isOverdue) SoftRed.copy(alpha = 0.4f) else BorderLight)
                                 ) {
                                     Text(
-                                        text = if (isOverdue) "Due Day ${currentBill.dueDay} (Overdue)" else "Due Day ${currentBill.dueDay}",
+                                        text = if (isOverdue) "Due Day $billDueDay (Overdue)" else "Due Day $billDueDay",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = if (isOverdue) SoftRed else TextMuted,
