@@ -189,6 +189,9 @@ interface BudgetDao {
     @Query("SELECT * FROM fixed_bills WHERE id = :id LIMIT 1")
     suspend fun getFixedBillById(id: Long): FixedBillEntity?
 
+    @Query("SELECT * FROM fixed_bills WHERE month = :month AND year = :year AND type = :type AND category = :category AND subcategory = :subcategory LIMIT 1")
+    suspend fun getFixedBillByKeys(month: Int, year: Int, type: TransactionType, category: String, subcategory: String): FixedBillEntity?
+
     @Query("SELECT COUNT(*) FROM fixed_bills WHERE month = :month AND year = :year")
     suspend fun getFixedBillCount(month: Int, year: Int): Int
 
@@ -248,6 +251,9 @@ interface BudgetDao {
 
     @Query("SELECT * FROM transactions ORDER BY date DESC, id DESC")
     suspend fun getAllTransactions(): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE id = :id LIMIT 1")
+    suspend fun getTransactionById(id: Long): TransactionEntity?
 
     @Query("SELECT * FROM transactions WHERE linkedFixedBillId = :billId LIMIT 1")
     suspend fun getTransactionByLinkedBill(billId: Long): TransactionEntity?
