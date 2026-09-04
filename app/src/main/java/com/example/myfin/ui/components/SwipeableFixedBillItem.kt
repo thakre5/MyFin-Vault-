@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -59,7 +60,7 @@ fun SwipeableFixedBillItem(
     var showSettleDialog by remember { mutableStateOf(false) }
     var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
 
-    // Dynamic Overdue Calculation (Local val resolves smart cast error)
+    // Dynamic Overdue Calculation
     val currentDayOfMonth = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH) }
     val isOverdue = remember(currentBill.isPaid, currentBill.dueDay, currentDayOfMonth) {
         val due = currentBill.dueDay
@@ -183,10 +184,45 @@ fun SwipeableFixedBillItem(
             }
         }
     ) {
+        // Styling Type Tags & Subcategory-Title Formats
+        val typeTagColor = when (currentBill.type) {
+            TransactionType.EXPENSE -> SoftRed
+            TransactionType.INCOME -> SoftGreen
+            TransactionType.ASSET -> SoftTeal
+            TransactionType.TRANSFER -> AccentPurple
+        }
+
+        val typeTagText = when (currentBill.type) {
+            TransactionType.EXPENSE -> "DUE"
+            TransactionType.INCOME -> "RECEIVABLE"
+            TransactionType.ASSET -> "SIP"
+            TransactionType.TRANSFER -> "SWEEP"
+        }
+
+        // Row 1 Title Formatting: Subcategory (Title) if title is given, else Subcategory
+        val displayPrimaryTitle = remember(currentBill.title, currentBill.subcategory) {
+            val cleanTitle = currentBill.title.trim()
+            val cleanSubcat = currentBill.subcategory.trim()
+            if (cleanTitle.isNotBlank() && !cleanTitle.equals(cleanSubcat, ignoreCase = true) && !cleanTitle.startsWith("Vault Transfer", ignoreCase = true)) {
+                "$cleanSubcat ($cleanTitle)"
+            } else {
+                cleanSubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
+            }
+        }
+
+        // Row 3 Route Text
+        val routeText = remember(currentBill.accountName, currentBill.toAccountName, currentBill.type) {
+            if (currentBill.type == TransactionType.TRANSFER && !currentBill.toAccountName.isNullOrBlank()) {
+                "${currentBill.accountName.uppercase()} ➔ ${currentBill.toAccountName.uppercase()}"
+            } else {
+                currentBill.accountName.uppercase()
+            }
+        }
+
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(1.dp, RoundedCornerShape(18.dp))
+                .shadow(if (currentBill.isPaid) 0.5.dp else 1.5.dp, RoundedCornerShape(18.dp))
                 .clip(RoundedCornerShape(18.dp))
                 .border(
                     BorderStroke(
@@ -203,113 +239,169 @@ fun SwipeableFixedBillItem(
                     }
                 },
             shape = RoundedCornerShape(18.dp),
-            color = CardWhite
+            color = if (currentBill.isPaid) CardWhite.copy(alpha = 0.88f) else CardWhite
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    IconButton(
-                        onClick = {
+                // Left Status Circle / Action Button
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(if (currentBill.isPaid) SoftTeal else CanvasLight)
+                        .clickable {
                             if (!currentBill.isPaid && currentOnSettle != null) {
                                 showSettleDialog = true
                             } else {
                                 currentOnTap(currentBill)
                             }
                         },
-                        modifier = Modifier.size(36.dp)
-                    ) {
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (currentBill.isPaid) {
                         Icon(
-                            imageVector = if (currentBill.isPaid) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                            contentDescription = if (currentBill.isPaid) "Settled" else "Pending",
-                            tint = when {
-                                currentBill.isPaid -> SoftGreen
-                                isOverdue -> SoftRed
-                                else -> TextMuted
-                            }
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Settled",
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
                         )
+                    } else {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.Transparent,
+                            border = BorderStroke(1.5.dp, BorderLight.copy(alpha = 0.85f)),
+                            modifier = Modifier.size(24.dp)
+                        ) {}
                     }
+                }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(13.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
+                // Center Column: 3 Structured Rows
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.5.dp)
+                ) {
+                    // Row 1: Subcategory (Custom Title)
+                    Text(
+                        text = displayPrimaryTitle,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = if (currentBill.isPaid) TextDark.copy(alpha = 0.65f) else TextDark,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    // Row 2: [TYPE TAG] Category
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = typeTagColor.copy(alpha = 0.12f)
                         ) {
                             Text(
-                                text = currentBill.title,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = TextDark,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
+                                text = typeTagText,
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = typeTagColor,
+                                letterSpacing = 0.5.sp,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
-                            val billDueDay = currentBill.dueDay
-                            if (billDueDay != null) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = if (isOverdue) SoftRed.copy(alpha = 0.12f) else CanvasLight,
-                                    border = BorderStroke(0.6.dp, if (isOverdue) SoftRed.copy(alpha = 0.4f) else BorderLight)
-                                ) {
-                                    Text(
-                                        text = if (isOverdue) "Due Day $billDueDay (Overdue)" else "Due Day $billDueDay",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (isOverdue) SoftRed else TextMuted,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
                         }
-                        Spacer(modifier = Modifier.height(2.dp))
+
                         Text(
-                            text = "${currentBill.category} • ${currentBill.accountName}${if (currentBill.toAccountName != null) " ➔ " + currentBill.toAccountName else ""}",
+                            text = currentBill.category,
                             fontSize = 11.sp,
                             color = TextMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+
+                    // Row 3: Vault Route • Date Indicator
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text(
+                            text = routeText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+
+                        val billDueDay = currentBill.dueDay
+                        if (billDueDay != null || currentBill.isPaid) {
+                            Text(
+                                text = "•",
+                                fontSize = 10.sp,
+                                color = TextMuted.copy(alpha = 0.6f)
+                            )
+
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = when {
+                                    currentBill.isPaid -> CanvasLight
+                                    isOverdue -> SoftRed.copy(alpha = 0.10f)
+                                    else -> CanvasLight
+                                },
+                                border = BorderStroke(
+                                    0.6.dp,
+                                    when {
+                                        currentBill.isPaid -> BorderLight.copy(alpha = 0.6f)
+                                        isOverdue -> SoftRed.copy(alpha = 0.4f)
+                                        else -> BorderLight
+                                    }
+                                )
+                            ) {
+                                Text(
+                                    text = when {
+                                        currentBill.isPaid -> "Settled"
+                                        isOverdue -> "Overdue (Due $billDueDay)"
+                                        else -> "Due $billDueDay"
+                                    },
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = when {
+                                        currentBill.isPaid -> TextMuted
+                                        isOverdue -> SoftRed
+                                        else -> TextDark
+                                    },
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
-                Column(horizontalAlignment = Alignment.End) {
+                // Right Column: Amount & Status Vertically Centered
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Text(
                         text = "$currencySymbol${String.format(Locale.US, "%,.0f", currentBill.amount)}",
                         fontWeight = FontWeight.Black,
                         fontSize = 15.sp,
-                        color = when (currentBill.type) {
-                            TransactionType.INCOME -> SoftGreen
-                            TransactionType.EXPENSE -> SoftRed
-                            TransactionType.ASSET -> SoftTeal
-                            TransactionType.TRANSFER -> AccentPurple
-                        }
+                        color = if (currentBill.isPaid) TextDark.copy(alpha = 0.5f) else typeTagColor
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = when {
-                            currentBill.isPaid -> "Settled"
-                            isOverdue -> "Overdue"
-                            else -> "Pending"
-                        },
-                        fontWeight = FontWeight.Bold,
+                        text = if (currentBill.isPaid) "Settled" else "Pending",
                         fontSize = 10.5.sp,
-                        color = when {
-                            currentBill.isPaid -> SoftGreen
-                            isOverdue -> SoftRed
-                            else -> SoftAmber
-                        }
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (currentBill.isPaid) SoftTeal else SoftAmber
                     )
                 }
             }
