@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
+import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AccountTransferDialog
 import com.example.myfin.ui.components.AppBottomDock
@@ -42,6 +43,7 @@ import com.example.myfin.ui.components.NavigationTarget
 import com.example.myfin.ui.components.rememberAutoScrollVisibilityConnection
 import com.example.myfin.ui.theme.*
 import java.util.Locale
+import kotlin.math.abs
 
 data class SimplePendingEditConfirmation(
     val originalAccount: AccountBalanceResult,
@@ -357,13 +359,15 @@ fun SimpleAccountsScreen(
                     }
                 } else {
                     items(displayAccounts, key = { it.accountName }) { account ->
+                        val isMabBreached = account.minBalance > 0.0 && account.currentBalance < account.minBalance
+
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .shadow(2.dp, RoundedCornerShape(16.dp)),
                             shape = RoundedCornerShape(16.dp),
                             color = CardWhite,
-                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                            border = BorderStroke(0.8.dp, if (isMabBreached) SoftRed.copy(alpha = 0.5f) else BorderLight.copy(alpha = 0.8f))
                         ) {
                             Row(
                                 modifier = Modifier
@@ -421,8 +425,8 @@ fun SimpleAccountsScreen(
                                                 Text(
                                                     text = "MAB: ${userProfile.currencySymbol}${account.minBalance.toInt()}",
                                                     fontSize = 9.5.sp,
-                                                    color = if (account.isMabBreached) SoftRed else AccentPurple,
-                                                    fontWeight = if (account.isMabBreached) FontWeight.Bold else FontWeight.Medium
+                                                    color = if (isMabBreached) SoftRed else AccentPurple,
+                                                    fontWeight = if (isMabBreached) FontWeight.Bold else FontWeight.Medium
                                                 )
                                             }
                                         }
@@ -724,8 +728,8 @@ fun SimpleAccountsScreen(
         pendingEditConfirmation?.let { conf ->
             val isNameChanged = !conf.originalAccount.accountName.equals(conf.updatedName, ignoreCase = true)
             val isTypeChanged = !conf.originalAccount.accountType.equals(conf.updatedType, ignoreCase = true)
-            val isBalChanged = conf.targetBalance != conf.originalAccount.currentBalance
-            val isMabChanged = conf.minBalance != conf.originalAccount.minBalance
+            val isBalChanged = abs(conf.targetBalance - conf.originalAccount.currentBalance) >= 0.01
+            val isMabChanged = abs(conf.minBalance - conf.originalAccount.minBalance) >= 0.01
             val isArchiveChanged = conf.isArchived != conf.originalAccount.isArchived
 
             AlertDialog(
@@ -836,6 +840,7 @@ fun SimpleAccountsScreen(
                         subtype = subtype,
                         date = date
                     )
+                    showTransferSheet = false
                     Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amt)} to $to", Toast.LENGTH_SHORT).show()
                 }
             )
