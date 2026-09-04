@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,7 +38,7 @@ fun AccountTransferDialog(
     accounts: List<String>,
     currencySymbol: String = "₹",
     onDismiss: () -> Unit,
-    onTransfer: (from: String, to: String, amount: Double, note: String, subtype: TransferSubtype) -> Unit
+    onTransfer: (from: String, to: String, amount: Double, note: String, subtype: TransferSubtype, date: Long) -> Unit
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -45,6 +48,33 @@ fun AccountTransferDialog(
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
     var selectedSubtype by remember { mutableStateOf(TransferSubtype.WEALTH_ALLOCATION) }
+
+    // Date State (Defaults to current time)
+    var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var showDatePickerDialog by remember { mutableStateOf(false) }
+
+    // Date Comparison Flags
+    val isToday = remember(selectedDateMillis) {
+        val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+        val calNow = Calendar.getInstance()
+        calSelected.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
+        calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
+    }
+
+    val isYesterday = remember(selectedDateMillis) {
+        val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+        val calYesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+        calSelected.get(Calendar.YEAR) == calYesterday.get(Calendar.YEAR) &&
+        calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
+    }
+
+    val formattedDateLabel = remember(selectedDateMillis, isToday, isYesterday) {
+        when {
+            isToday -> "Today"
+            isYesterday -> "Yesterday"
+            else -> SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date(selectedDateMillis))
+        }
+    }
 
     val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
     val isTransferValid = parsedAmount > 0.0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount != toAccount
@@ -195,6 +225,78 @@ fun AccountTransferDialog(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // Transfer Date Selector (Today, Yesterday, Other Date)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("Transfer Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Today Chip
+                    FilterChip(
+                        selected = isToday,
+                        onClick = { selectedDateMillis = System.currentTimeMillis() },
+                        label = { Text("Today", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentPurpleLight,
+                            selectedLabelColor = AccentPurple
+                        )
+                    )
+
+                    // Yesterday Chip
+                    FilterChip(
+                        selected = isYesterday,
+                        onClick = {
+                            val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                            selectedDateMillis = cal.timeInMillis
+                        },
+                        label = { Text("Yesterday", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentPurpleLight,
+                            selectedLabelColor = AccentPurple
+                        )
+                    )
+
+                    // Custom Date Button
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(34.dp)
+                            .clickable { showDatePickerDialog = true },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (!isToday && !isYesterday) AccentPurpleLight else CanvasLight,
+                        border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) AccentPurple else BorderLight)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = if (!isToday && !isYesterday) formattedDateLabel else "Other Date",
+                                fontSize = 11.5.sp,
+                                fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
+                                color = if (!isToday && !isYesterday) AccentPurple else TextDark
+                            )
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = "Pick Date",
+                                tint = if (!isToday && !isYesterday) AccentPurple else TextMuted,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Amount Input
             OutlinedTextField(
                 value = amountText,
                 onValueChange = { input ->
@@ -215,6 +317,7 @@ fun AccountTransferDialog(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            // Purpose Note Input
             OutlinedTextField(
                 value = noteText,
                 onValueChange = { noteText = it },
@@ -247,7 +350,7 @@ fun AccountTransferDialog(
                 Button(
                     onClick = {
                         if (isTransferValid) {
-                            onTransfer(fromAccount, toAccount, parsedAmount, noteText.trim(), selectedSubtype)
+                            onTransfer(fromAccount, toAccount, parsedAmount, noteText.trim(), selectedSubtype, selectedDateMillis)
                             onDismiss()
                         } else {
                             Toast.makeText(context, "Select distinct vaults and enter an amount > 0", Toast.LENGTH_SHORT).show()
@@ -262,6 +365,48 @@ fun AccountTransferDialog(
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
+        }
+    }
+
+    // Material 3 Date Picker Dialog
+    if (showDatePickerDialog) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDateMillis
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { pickedUtc ->
+                            val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                timeInMillis = pickedUtc
+                            }
+                            val localCal = Calendar.getInstance().apply {
+                                set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                                set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                                set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                                set(Calendar.HOUR_OF_DAY, 12)
+                                set(Calendar.MINUTE, 0)
+                                set(Calendar.SECOND, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }
+                            selectedDateMillis = localCal.timeInMillis
+                        }
+                        showDatePickerDialog = false
+                    }
+                ) {
+                    Text("Select", fontWeight = FontWeight.Bold, color = AccentPurple)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) {
+                    Text("Cancel", color = TextDark)
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }
