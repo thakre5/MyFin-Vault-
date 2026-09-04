@@ -1952,11 +1952,17 @@ fun MonthlyScreen(
                 onDismiss = { showAddSheet = false },
                 onSave = { id, title, amount, category, subcat, acc, type, date ->
                     viewModel.saveTransaction(id, title, amount, category, subcat, acc, type, date)
+                    val cal = Calendar.getInstance().apply { timeInMillis = date }
+                    val txMonth = cal.get(Calendar.MONTH) + 1
+                    val txYear = cal.get(Calendar.YEAR)
+                    if (txMonth != uiState.selectedMonth || txYear != uiState.selectedYear) {
+                        Toast.makeText(context, "Logged to ${MONTH_NAMES[txMonth - 1]} $txYear ledger", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
         }
 
-        // Add AutoPay Dialog
+        // Add AutoPay Dialog (With Immediate Settlement Support)
         if (showAddFixedBill) {
             AddEditFixedBillDialog(
                 currencySymbol = userProfile.currencySymbol,
@@ -1967,7 +1973,15 @@ fun MonthlyScreen(
                 onAddNewSubcategory = { parent, name, type -> viewModel.addSubcategory(parent, name, type) },
                 onDismiss = { showAddFixedBill = false },
                 onSave = { title, amt, cat, subcat, acc, toAcc, type, dueDay, isPaid, paidDate ->
-                    viewModel.addFixedBill(title, amt, cat, subcat, acc, toAcc, type, dueDay)
+                    viewModel.addFixedBill(title, amt, cat, subcat, acc, toAcc, type, dueDay, isPaid, paidDate)
+                    if (isPaid) {
+                        val cal = Calendar.getInstance().apply { timeInMillis = paidDate }
+                        val txMonth = cal.get(Calendar.MONTH) + 1
+                        val txYear = cal.get(Calendar.YEAR)
+                        if (txMonth != uiState.selectedMonth || txYear != uiState.selectedYear) {
+                            Toast.makeText(context, "Settled in ${MONTH_NAMES[txMonth - 1]} $txYear ledger", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             )
         }
