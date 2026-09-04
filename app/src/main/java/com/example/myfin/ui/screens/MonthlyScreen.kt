@@ -35,6 +35,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -45,8 +47,11 @@ import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.abs
 
 private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -238,7 +243,6 @@ fun MonthlyScreen(
                     }
                 }
 
-                // Smooth Dissolve Shelf Below Top Header
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1158,6 +1162,41 @@ fun MonthlyScreen(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
+                                // Active Date Range Filter Banner
+                                if (filterCriteria.startDate != null && filterCriteria.endDate != null) {
+                                    val sdf = remember { SimpleDateFormat("dd MMM", Locale.US) }
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = AccentPurple.copy(alpha = 0.12f),
+                                        border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.35f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.DateRange, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(14.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "Date Filter: ${sdf.format(Date(filterCriteria.startDate!!))} – ${sdf.format(Date(filterCriteria.endDate!!))}",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AccentPurple
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = { viewModel.updateFilter(filterCriteria.type, filterCriteria.account, null, null) },
+                                                modifier = Modifier.size(20.dp)
+                                            ) {
+                                                Icon(Icons.Default.Close, contentDescription = "Clear Date Filter", tint = AccentPurple, modifier = Modifier.size(13.dp))
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+
                                 // Transaction Type Filter Chips
                                 Row(
                                     modifier = Modifier
@@ -1394,7 +1433,10 @@ fun MonthlyScreen(
                                                     editingFixedBill = bill
                                                 }
                                             },
-                                            onDelete = { billToDelete = bill }
+                                            onDelete = { billToDelete = bill },
+                                            onSettleBill = { b, customAmt, dateMillis ->
+                                                viewModel.toggleFixedBillPaid(b, customAmount = customAmt, customDateMillis = dateMillis)
+                                            }
                                         )
                                     }
                                 }
@@ -1551,12 +1593,36 @@ fun MonthlyScreen(
             )
         }
 
-        // Settle Fixed Bill Dialog
+        // Settle Fixed Bill Dialog with Historical Date Logging
         settlingFixedBill?.let { bill ->
             val formattedDefaultAmount = remember(bill.amount) {
                 if (bill.amount % 1.0 == 0.0) bill.amount.toLong().toString() else bill.amount.toString()
             }
             var finalAmountText by remember { mutableStateOf(formattedDefaultAmount) }
+            var selectedSettleDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+            var showSettleDatePicker by remember { mutableStateOf(false) }
+
+            val isToday = remember(selectedSettleDateMillis) {
+                val calSelected = Calendar.getInstance().apply { timeInMillis = selectedSettleDateMillis }
+                val calNow = Calendar.getInstance()
+                calSelected.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
+                calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
+            }
+
+            val isYesterday = remember(selectedSettleDateMillis) {
+                val calSelected = Calendar.getInstance().apply { timeInMillis = selectedSettleDateMillis }
+                val calYesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                calSelected.get(Calendar.YEAR) == calYesterday.get(Calendar.YEAR) &&
+                calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
+            }
+
+            val formattedDateLabel = remember(selectedSettleDateMillis, isToday, isYesterday) {
+                when {
+                    isToday -> "Today"
+                    isYesterday -> "Yesterday"
+                    else -> SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date(selectedSettleDateMillis))
+                }
+            }
 
             val fundingAccount = remember(bill.accountName, activeAccounts) {
                 activeAccounts.find { it.accountName.equals(bill.accountName, ignoreCase = true) }
@@ -1643,6 +1709,72 @@ fun MonthlyScreen(
                             shape = RoundedCornerShape(12.dp)
                         )
 
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Settlement Date Selector
+                        Text("Payment Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            FilterChip(
+                                selected = isToday,
+                                onClick = { selectedSettleDateMillis = System.currentTimeMillis() },
+                                label = { Text("Today", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = AccentPurpleLight,
+                                    selectedLabelColor = AccentPurple
+                                )
+                            )
+
+                            FilterChip(
+                                selected = isYesterday,
+                                onClick = {
+                                    val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                                    selectedSettleDateMillis = cal.timeInMillis
+                                },
+                                label = { Text("Yesterday", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = AccentPurpleLight,
+                                    selectedLabelColor = AccentPurple
+                                )
+                            )
+
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(32.dp)
+                                    .clickable { showSettleDatePicker = true },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (!isToday && !isYesterday) AccentPurpleLight else CanvasLight,
+                                border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) AccentPurple else BorderLight)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = if (!isToday && !isYesterday) formattedDateLabel else "Date",
+                                        fontSize = 11.sp,
+                                        fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (!isToday && !isYesterday) AccentPurple else TextDark
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.CalendarToday,
+                                        contentDescription = "Pick Date",
+                                        tint = if (!isToday && !isYesterday) AccentPurple else TextMuted,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(20.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -1653,7 +1785,7 @@ fun MonthlyScreen(
                             Button(
                                 onClick = {
                                     if (amt > 0.0) {
-                                        viewModel.toggleFixedBillPaid(bill, customAmount = amt)
+                                        viewModel.toggleFixedBillPaid(bill, customAmount = amt, customDateMillis = selectedSettleDateMillis)
                                         settlingFixedBill = null
                                     } else {
                                         Toast.makeText(context, "Please enter an amount > 0", Toast.LENGTH_SHORT).show()
@@ -1675,21 +1807,63 @@ fun MonthlyScreen(
                     }
                 }
             }
+
+            if (showSettleDatePicker) {
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = selectedSettleDateMillis
+                )
+
+                DatePickerDialog(
+                    onDismissRequest = { showSettleDatePicker = false },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                datePickerState.selectedDateMillis?.let { pickedUtc ->
+                                    val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                        timeInMillis = pickedUtc
+                                    }
+                                    val localCal = Calendar.getInstance().apply {
+                                        set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                                        set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                                        set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                                        set(Calendar.HOUR_OF_DAY, 12)
+                                        set(Calendar.MINUTE, 0)
+                                        set(Calendar.SECOND, 0)
+                                        set(Calendar.MILLISECOND, 0)
+                                    }
+                                    selectedSettleDateMillis = localCal.timeInMillis
+                                }
+                                showSettleDatePicker = false
+                            }
+                        ) {
+                            Text("Select", fontWeight = FontWeight.Bold, color = AccentPurple)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showSettleDatePicker = false }) {
+                            Text("Cancel", color = TextDark)
+                        }
+                    }
+                ) {
+                    DatePicker(state = datePickerState)
+                }
+            }
         }
 
-        // Standardized Transfer Bottom Sheet
+        // Standardized Transfer Bottom Sheet (With Past Date Support)
         if (showTransferSheet) {
             AccountTransferDialog(
                 accounts = accountsList,
                 currencySymbol = userProfile.currencySymbol,
                 onDismiss = { showTransferSheet = false },
-                onTransfer = { from, to, amount, note, subtype ->
+                onTransfer = { from, to, amount, note, subtype, date ->
                     viewModel.executeInstantTransfer(
                         fromAccount = from,
                         toAccount = to,
                         amount = amount,
                         note = note,
-                        subtype = subtype
+                        subtype = subtype,
+                        date = date
                     )
                     Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
                 }
@@ -1750,7 +1924,7 @@ fun MonthlyScreen(
             }
         }
 
-        // Filter Bottom Sheet
+        // Filter Bottom Sheet (With Date Presets & Custom Calendar Range)
         if (showFilterSheet) {
             FilterBottomSheet(
                 currentFilter = filterCriteria,
@@ -1767,7 +1941,7 @@ fun MonthlyScreen(
             )
         }
 
-        // Add / Edit Transaction Sheet
+        // Add / Edit Transaction Sheet (With Today, Yesterday & Calendar Picker)
         if (showAddSheet) {
             AddTransactionBottomSheet(
                 editingTransaction = editingTx,
@@ -1792,7 +1966,7 @@ fun MonthlyScreen(
                 onAddNewCategory = { name, type -> viewModel.addCategory(name, type) },
                 onAddNewSubcategory = { parent, name, type -> viewModel.addSubcategory(parent, name, type) },
                 onDismiss = { showAddFixedBill = false },
-                onSave = { title, amt, cat, subcat, acc, toAcc, type, dueDay ->
+                onSave = { title, amt, cat, subcat, acc, toAcc, type, dueDay, isPaid, paidDate ->
                     viewModel.addFixedBill(title, amt, cat, subcat, acc, toAcc, type, dueDay)
                 }
             )
@@ -1809,8 +1983,11 @@ fun MonthlyScreen(
                 onAddNewCategory = { name, type -> viewModel.addCategory(name, type) },
                 onAddNewSubcategory = { parent, name, type -> viewModel.addSubcategory(parent, name, type) },
                 onDismiss = { editingFixedBill = null },
-                onSave = { title, amt, cat, subcat, acc, toAcc, type, dueDay ->
+                onSave = { title, amt, cat, subcat, acc, toAcc, type, dueDay, isPaid, paidDate ->
                     viewModel.updateFixedBill(bill.id, title, amt, cat, subcat, acc, toAcc, type, dueDay)
+                    if (isPaid != bill.isPaid) {
+                        viewModel.toggleFixedBillPaid(bill.copy(amount = amt), amt, paidDate)
+                    }
                 }
             )
         }
