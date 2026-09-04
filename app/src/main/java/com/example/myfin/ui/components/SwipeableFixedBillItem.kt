@@ -208,10 +208,20 @@ fun SwipeableFixedBillItem(
             TransactionType.TRANSFER -> "SWEEP"
         }
 
-        // Row 1 Title: Format as Subcategory (Title) only when title is distinct from subcategory
-        val displayPrimaryTitle = remember(billTitle, billSubcategory) {
+        // Map enum string to friendly name
+        val friendlySubcategory = remember(billSubcategory) {
+            when (billSubcategory.trim()) {
+                "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                "BILL_FUNDING" -> "Bill Funding"
+                "REBALANCE" -> "Rebalance"
+                else -> billSubcategory.trim()
+            }
+        }
+
+        // Row 1 Title Formatting
+        val displayPrimaryTitle = remember(billTitle, friendlySubcategory) {
             val cleanTitle = billTitle.trim()
-            val cleanSubcat = billSubcategory.trim()
+            val cleanSubcat = friendlySubcategory.trim()
             val isRedundant = cleanTitle.isBlank() ||
                 cleanTitle.equals(cleanSubcat, ignoreCase = true) ||
                 cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
@@ -263,12 +273,12 @@ fun SwipeableFixedBillItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Status Checkmark Box
+                // Left Status Checkmark Box - Uses SoftGreen to match the UI
                 Box(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(if (billIsPaid) SoftTeal else CanvasLight)
+                        .background(if (billIsPaid) SoftGreen else CanvasLight)
                         .clickable {
                             if (!billIsPaid && currentOnSettle != null) {
                                 showSettleDialog = true
@@ -302,7 +312,7 @@ fun SwipeableFixedBillItem(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(3.5.dp)
                 ) {
-                    // Row 1: Subcategory (Custom Title) - Auto-scrolls horizontally if long
+                    // Row 1: Subcategory (Custom Title)
                     Text(
                         text = displayPrimaryTitle,
                         fontWeight = FontWeight.Bold,
@@ -317,7 +327,7 @@ fun SwipeableFixedBillItem(
                         )
                     )
 
-                    // Row 2: [TYPE TAG]  Category - Auto-scrolls horizontally if long
+                    // Row 2: [TYPE TAG]  Category
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -383,14 +393,14 @@ fun SwipeableFixedBillItem(
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = when {
-                                    billIsPaid -> CanvasLight
+                                    billIsPaid -> SoftGreen.copy(alpha = 0.10f)
                                     isOverdue -> SoftRed.copy(alpha = 0.10f)
                                     else -> CanvasLight
                                 },
                                 border = BorderStroke(
                                     0.6.dp,
                                     when {
-                                        billIsPaid -> BorderLight.copy(alpha = 0.6f)
+                                        billIsPaid -> SoftGreen.copy(alpha = 0.35f)
                                         isOverdue -> SoftRed.copy(alpha = 0.4f)
                                         else -> BorderLight
                                     }
@@ -405,7 +415,7 @@ fun SwipeableFixedBillItem(
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = when {
-                                        billIsPaid -> TextMuted
+                                        billIsPaid -> SoftGreen
                                         isOverdue -> SoftRed
                                         else -> TextDark
                                     },
@@ -434,7 +444,7 @@ fun SwipeableFixedBillItem(
                         text = if (billIsPaid) "Settled" else "Pending",
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (billIsPaid) SoftTeal else SoftAmber
+                        color = if (billIsPaid) SoftGreen else SoftAmber
                     )
                 }
             }
