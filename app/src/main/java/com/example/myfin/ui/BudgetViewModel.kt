@@ -1050,6 +1050,30 @@ class BudgetViewModel(
             val txMonth = calTx.get(Calendar.MONTH) + 1
             val txYear = calTx.get(Calendar.YEAR)
 
+            var resolvedLinkedBillId: Long? = null
+
+            // Auto-reconcile matching unpaid fixed bills by Category & Subcategory across ANY funding account
+            if (id == 0L && type != TransactionType.INCOME) {
+                val unpaidBills = dao.getFixedBillsForMonthDirect(txMonth, txYear).filter { !it.isPaid }
+
+                val matchingBill = unpaidBills.firstOrNull { bill ->
+                    bill.type == type &&
+                    bill.category.equals(category, ignoreCase = true) &&
+                    bill.subcategory.equals(subcategory, ignoreCase = true)
+                }
+
+                if (matchingBill != null) {
+                    resolvedLinkedBillId = matchingBill.id
+                    // Settle the bill and update its amount to reflect actual payment
+                    dao.updateFixedBill(
+                        matchingBill.copy(
+                            isPaid = true,
+                            amount = amount
+                        )
+                    )
+                }
+            }
+
             val entity = TransactionEntity(
                 id = id,
                 title = resolvedTitle,
@@ -1062,6 +1086,7 @@ class BudgetViewModel(
                 date = date,
                 month = txMonth,
                 year = txYear,
+                linkedFixedBillId = resolvedLinkedBillId,
                 transferSubtype = transferSubtype
             )
             if (id == 0L) dao.insertTransaction(entity) else dao.updateTransaction(entity)
