@@ -49,11 +49,10 @@ fun AddTransactionBottomSheet(
     var title by remember { mutableStateOf(editingTransaction?.title.orEmpty()) }
     var amountText by remember { mutableStateOf(editingTransaction?.amount?.let { if (it > 0) it.toString() else "" }.orEmpty()) }
 
-    // Date State (Defaults to existing date if editing, otherwise current time)
+    // Date State & Dialog
     var selectedDateMillis by remember { mutableStateOf(editingTransaction?.date ?: System.currentTimeMillis()) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
 
-    // Date Comparison Flags
     val isToday = remember(selectedDateMillis) {
         val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
         val calNow = Calendar.getInstance()
@@ -249,7 +248,6 @@ fun AddTransactionBottomSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Today Chip
                     FilterChip(
                         selected = isToday,
                         onClick = { selectedDateMillis = System.currentTimeMillis() },
@@ -261,7 +259,6 @@ fun AddTransactionBottomSheet(
                         )
                     )
 
-                    // Yesterday Chip
                     FilterChip(
                         selected = isYesterday,
                         onClick = {
@@ -276,7 +273,6 @@ fun AddTransactionBottomSheet(
                         )
                     )
 
-                    // Custom Date Button
                     Surface(
                         modifier = Modifier
                             .weight(1f)
@@ -413,7 +409,6 @@ fun AddTransactionBottomSheet(
         }
     }
 
-    // Material 3 Date Picker Dialog
     if (showDatePickerDialog) {
         val datePickerState = rememberDatePickerState(
             initialSelectedDateMillis = selectedDateMillis
