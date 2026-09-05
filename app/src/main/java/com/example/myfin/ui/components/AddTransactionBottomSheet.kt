@@ -47,7 +47,24 @@ fun AddTransactionBottomSheet(
 ) {
     val isEditing = editingTransaction != null
     var selectedType by remember { mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE) }
-    var title by remember { mutableStateOf(editingTransaction?.title.orEmpty()) }
+
+    // Strip duplicated subcategory names or system transfer titles when pre-populating edit dialog
+    var title by remember {
+        mutableStateOf(
+            editingTransaction?.let { tx ->
+                val cleanTitle = tx.title.trim()
+                val cleanSubcat = tx.subcategory.trim()
+                when {
+                    cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
+                    cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
+                        cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
+                    }
+                    else -> cleanTitle
+                }
+            }.orEmpty()
+        )
+    }
+
     var amountText by remember { mutableStateOf(editingTransaction?.amount?.let { if (it > 0) it.toString() else "" }.orEmpty()) }
 
     // Transfer Subtype State
@@ -231,11 +248,11 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Title Input
+            // Title / Note Input
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text(if (selectedType == TransactionType.TRANSFER) "Transfer Note (Optional)" else "Title / Merchant (Optional)") },
+                label = { Text(if (selectedType == TransactionType.TRANSFER) "Transfer Note (Optional)" else "Note / Merchant (Optional)") },
                 placeholder = {
                     Text(
                         if (selectedType == TransactionType.TRANSFER) "e.g., Emergency Reserve"
@@ -393,9 +410,13 @@ fun AddTransactionBottomSheet(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Subcategory Chips
+                // Subcategory Chips (Primary Entity)
                 if (availableSubcategories.isNotEmpty()) {
-                    Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("(Primary Identification)", fontSize = 9.5.sp, color = TextMuted.copy(alpha = 0.7f))
+                    }
                     Spacer(modifier = Modifier.height(6.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(availableSubcategories) { sub ->
@@ -470,8 +491,17 @@ fun AddTransactionBottomSheet(
                     if (isInputValid) {
                         val resolvedCategory = if (selectedType == TransactionType.TRANSFER) "Transfer" else selectedCategory.ifBlank { "General" }
                         val resolvedSubcategory = if (selectedType == TransactionType.TRANSFER) selectedTransferSubtype.name else selectedSubcategory.ifBlank { "General" }
+
+                        val cleanNote = title.trim()
                         val resolvedTitle = when {
-                            title.isNotBlank() -> title.trim()
+                            cleanNote.isNotBlank() && !cleanNote.equals(resolvedSubcategory, ignoreCase = true) -> {
+                                if (cleanNote.startsWith(resolvedSubcategory, ignoreCase = true)) {
+                                    val stripped = cleanNote.removePrefix(resolvedSubcategory).trim(' ', '-', ':', '(', ')')
+                                    if (stripped.isNotBlank()) stripped else resolvedSubcategory
+                                } else {
+                                    cleanNote
+                                }
+                            }
                             selectedType == TransactionType.TRANSFER -> "Vault Transfer ($selectedAccount ➔ $selectedToAccount)"
                             else -> resolvedSubcategory
                         }
