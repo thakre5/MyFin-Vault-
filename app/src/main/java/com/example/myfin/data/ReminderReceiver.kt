@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import java.util.Locale
 
 class ReminderReceiver : BroadcastReceiver() {
 
@@ -66,20 +67,32 @@ class ReminderReceiver : BroadcastReceiver() {
 
                 val currency = profile.currencySymbol
 
+                val notificationTitle = when {
+                    dueToday.isNotEmpty() -> "⚠️ AutoPay Due Today"
+                    dueWithin48h.isNotEmpty() -> "Upcoming AutoPay Alert"
+                    else -> "MyFin Daily Check-in"
+                }
+
                 val contentText = when {
                     dueToday.isNotEmpty() -> {
-                        val names = dueToday.joinToString(", ") { "${it.title} ($currency${it.amount.toInt()})" }
-                        "⚠️ AutoPay due today: $names. Verify Commitments vault balance."
+                        val names = dueToday.joinToString(", ") { bill ->
+                            val formattedAmt = String.format(Locale.US, "%,.0f", bill.amount)
+                            "${formatBillDisplayName(bill)} ($currency$formattedAmt)"
+                        }
+                        "AutoPay due today: $names. Verify deduction vault balance to avoid bounce."
                     }
                     dueWithin48h.isNotEmpty() -> {
-                        val names = dueWithin48h.joinToString(", ") { "${it.title} (Day ${it.dueDay})" }
-                        "Upcoming AutoPay bills in 48h: $names. Ensure funds are staged."
+                        val names = dueWithin48h.joinToString(", ") { bill ->
+                            val formattedAmt = String.format(Locale.US, "%,.0f", bill.amount)
+                            "${formatBillDisplayName(bill)} ($currency$formattedAmt, Due ${bill.dueDay}th)"
+                        }
+                        "Upcoming AutoPay in 48h: $names. Ensure funding vault is staged."
                     }
                     fixedBills.isNotEmpty() -> {
-                        "You have ${fixedBills.size} pending fixed bills this month. Log daily spends to maintain your safe-to-spend buffer."
+                        "You have ${fixedBills.size} pending fixed commitments this month. Log daily spends to maintain your safe-to-spend buffer."
                     }
                     else -> {
-                        "Keep your vault accurate! Tap to log today's transactions and maintain zero leakage."
+                        "Keep your vaults accurate! Tap to log today's transactions and maintain zero leakage."
                     }
                 }
 
@@ -95,7 +108,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
                 val builder = NotificationCompat.Builder(context, ReminderScheduler.CHANNEL_ID_REMINDERS)
                     .setSmallIcon(android.R.drawable.ic_dialog_info)
-                    .setContentTitle("MyFin Daily Check-in")
+                    .setContentTitle(notificationTitle)
                     .setContentText(contentText)
                     .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
                     .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -115,6 +128,32 @@ class ReminderReceiver : BroadcastReceiver() {
             } finally {
                 pendingResult.finish()
             }
+        }
+    }
+
+    private fun formatBillDisplayName(bill: FixedBillEntity): String {
+        val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
+            when (bill.subcategory.trim()) {
+                "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                "BILL_FUNDING" -> "Bill Funding"
+                "REBALANCE" -> "Vault Rebalance"
+                else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
+            }
+        } else {
+            bill.subcategory.trim()
+        }
+
+        val cleanTitle = bill.title.trim()
+        return when {
+            cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
+                friendlySubcat.ifBlank { cleanTitle.ifBlank { "AutoPay Commitment" } }
+            }
+            cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
+                val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
+                if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
+            }
+            friendlySubcat.isBlank() -> cleanTitle
+            else -> "$friendlySubcat ($cleanTitle)"
         }
     }
 }
