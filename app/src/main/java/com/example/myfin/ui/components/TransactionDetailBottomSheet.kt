@@ -61,6 +61,51 @@ fun TransactionDetailBottomSheet(
         TransactionType.TRANSFER -> "⇄"
     }
 
+    // Map transfer enums to user-friendly titles
+    val friendlySubcategory = remember(transaction.subcategory, transaction.type) {
+        if (transaction.type == TransactionType.TRANSFER) {
+            when (transaction.subcategory.trim()) {
+                "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                "BILL_FUNDING" -> "Bill Funding"
+                "REBALANCE" -> "Vault Rebalance"
+                else -> transaction.subcategory.trim().ifBlank { "Vault Sweep" }
+            }
+        } else {
+            transaction.subcategory.trim()
+        }
+    }
+
+    // Standardized Primary Identification: Subcategory is primary; title only modifies if distinct
+    val displayHeroTitle = remember(transaction.title, friendlySubcategory) {
+        val cleanTitle = transaction.title.trim()
+        val cleanSubcat = friendlySubcategory.trim()
+        when {
+            cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
+                cleanSubcat.ifBlank { cleanTitle.ifBlank { "Transaction" } }
+            }
+            cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
+                val unique = cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
+                if (unique.isNotBlank()) "$cleanSubcat ($unique)" else cleanSubcat
+            }
+            cleanSubcat.isBlank() -> cleanTitle
+            else -> "$cleanSubcat ($cleanTitle)"
+        }
+    }
+
+    // Distinct custom note verification
+    val distinctCustomNote = remember(transaction.title, friendlySubcategory) {
+        val cleanTitle = transaction.title.trim()
+        val cleanSubcat = friendlySubcategory.trim()
+        when {
+            cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> null
+            cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
+                val unique = cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
+                unique.ifBlank { null }
+            }
+            else -> cleanTitle
+        }
+    }
+
     // Relative Day Label (Today, Yesterday, or Past Ledger)
     val relativeDateTag = remember(transaction.date) {
         val txCal = Calendar.getInstance().apply { timeInMillis = transaction.date }
@@ -191,9 +236,10 @@ fun TransactionDetailBottomSheet(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
+                    // Primary Identification Headline
                     Text(
-                        text = transaction.title,
-                        fontSize = 15.sp,
+                        text = displayHeroTitle,
+                        fontSize = 15.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextDark,
                         textAlign = TextAlign.Center
@@ -221,8 +267,19 @@ fun TransactionDetailBottomSheet(
                     DetailInfoRow(
                         icon = Icons.Default.SubdirectoryArrowRight,
                         label = "Subcategory",
-                        value = transaction.subcategory
+                        value = friendlySubcategory
                     )
+
+                    // Show dedicated Custom Note row if entered
+                    if (distinctCustomNote != null) {
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                        DetailInfoRow(
+                            icon = Icons.Default.EditNote,
+                            label = "Custom Note / Title",
+                            value = distinctCustomNote
+                        )
+                    }
+
                     HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
 
                     DetailInfoRow(
