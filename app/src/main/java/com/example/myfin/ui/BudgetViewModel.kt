@@ -331,18 +331,13 @@ class BudgetViewModel(
                 else -> 0.0
             }
 
-            // Safe-to-Spend Engine: Guard against double-deduction for expenses matching bill taxonomy
+            // Safe-to-Spend Engine: Unlinked expenses are directly counted without excluding whole subcategories
             val commitments = fixedExpenseTotal + max(plannedAssets, actualAssets)
-
-            val unpaidBillTaxonomy = fixedBills.filter { !it.isPaid && it.type == TransactionType.EXPENSE }
-                .map { "${it.category.lowercase()}_${it.subcategory.lowercase()}" }
-                .toSet()
 
             val personalDiscretionaryExpenses = regularTxs.filter { tx ->
                 tx.type == TransactionType.EXPENSE &&
                 tx.linkedFixedBillId == null &&
-                !isWorkExpense(tx) &&
-                !unpaidBillTaxonomy.contains("${tx.category.lowercase()}_${tx.subcategory.lowercase()}")
+                !isWorkExpense(tx)
             }.sumOf { it.amount }
 
             val rawTheoreticalSafeToSpend = baseIncome - commitments - personalDiscretionaryExpenses
@@ -1052,7 +1047,17 @@ class BudgetViewModel(
         transferSubtype: TransferSubtype = TransferSubtype.NONE
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val resolvedTitle = if (title.isBlank()) subcategory else title.trim()
+            val cleanTitle = title.trim()
+            val cleanSubcat = subcategory.trim()
+            val resolvedTitle = when {
+                cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) -> cleanSubcat
+                cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
+                    val stripped = cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
+                    if (stripped.isNotBlank()) stripped else cleanSubcat
+                }
+                else -> cleanTitle
+            }
+
             val calTx = Calendar.getInstance().apply { timeInMillis = date }
             val txMonth = calTx.get(Calendar.MONTH) + 1
             val txYear = calTx.get(Calendar.YEAR)
@@ -1132,6 +1137,7 @@ class BudgetViewModel(
                     if (linkedBill != null) {
                         dao.updateFixedBill(
                             linkedBill.copy(
+                                title = resolvedTitle,
                                 amount = amount,
                                 category = category,
                                 subcategory = subcategory
@@ -1332,12 +1338,23 @@ class BudgetViewModel(
         paidDateMillis: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch(Dispatchers.IO) {
+            val cleanTitle = title.trim()
+            val cleanSubcat = subcategory.trim()
+            val finalTitle = when {
+                cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) -> cleanSubcat
+                cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
+                    val unique = cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
+                    if (unique.isNotBlank()) unique else cleanSubcat
+                }
+                else -> cleanTitle
+            }
+
             val calTx = Calendar.getInstance().apply { timeInMillis = paidDateMillis }
             val targetMonth = if (isPaid) calTx.get(Calendar.MONTH) + 1 else currentMonth.value
             val targetYear = if (isPaid) calTx.get(Calendar.YEAR) else currentYear.value
 
             val bill = FixedBillEntity(
-                title = title.trim(),
+                title = finalTitle,
                 amount = amount,
                 category = category,
                 subcategory = subcategory,
@@ -1400,18 +1417,44 @@ class BudgetViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val existing = dao.getFixedBillById(id)
             if (existing != null) {
-                dao.updateFixedBill(
-                    existing.copy(
-                        title = title.trim(),
-                        amount = amount,
-                        category = category,
-                        subcategory = subcategory,
-                        accountName = account,
-                        toAccountName = toAccount,
-                        type = type,
-                        dueDay = dueDay
-                    )
+                val cleanTitle = title.trim()
+                val cleanSubcat = subcategory.trim()
+                val finalTitle = when {
+                    cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) -> cleanSubcat
+                    cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
+                        val unique = cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
+                        if (unique.isNotBlank()) unique else cleanSubcat
+                    }
+                    else -> cleanTitle
+                }
+
+                val updatedBill = existing.copy(
+                    title = finalTitle,
+                    amount = amount,
+                    category = category,
+                    subcategory = subcategory,
+                    accountName = account,
+                    toAccountName = toAccount,
+                    type = type,
+                    dueDay = dueDay
                 )
+                dao.updateFixedBill(updatedBill)
+
+                // Synchronize linked transaction if one exists
+                val linkedTx = dao.getTransactionByLinkedBill(id)
+                if (linkedTx != null) {
+                    dao.updateTransaction(
+                        linkedTx.copy(
+                            title = finalTitle.ifBlank { subcategory },
+                            amount = amount,
+                            category = category,
+                            subcategory = subcategory,
+                            accountName = account,
+                            toAccountName = toAccount,
+                            type = type
+                        )
+                    )
+                }
             }
         }
     }
@@ -1430,10 +1473,16 @@ class BudgetViewModel(
                     val targetMonthBills = dao.getFixedBillsForMonthDirect(txMonth, txYear)
                     val existingInTarget = targetMonthBills.firstOrNull { it.id == bill.id }
                         ?: targetMonthBills.firstOrNull { candidate ->
+                            val bTitle = bill.title.trim()
+                            val cTitle = candidate.title.trim()
+                            val isTitleMatch = bTitle.equals(cTitle, ignoreCase = true) ||
+                                ((bTitle.isBlank() || bTitle.equals(bill.subcategory, ignoreCase = true)) &&
+                                 (cTitle.isBlank() || cTitle.equals(candidate.subcategory, ignoreCase = true)))
+
                             candidate.type == bill.type &&
                             candidate.category.equals(bill.category, ignoreCase = true) &&
                             candidate.subcategory.equals(bill.subcategory, ignoreCase = true) &&
-                            candidate.title.trim().equals(bill.title.trim(), ignoreCase = true) &&
+                            isTitleMatch &&
                             candidate.accountName.equals(bill.accountName, ignoreCase = true)
                         }
 
