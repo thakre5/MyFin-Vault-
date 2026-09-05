@@ -64,11 +64,28 @@ fun AddEditFixedBillDialog(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var selectedType by remember { mutableStateOf(initialBill?.type ?: TransactionType.EXPENSE) }
-    var noteText by remember { mutableStateOf(initialBill?.title?.takeIf { it != initialBill.subcategory } ?: "") }
+
+    // Clean note extraction: strips repeated subcategory prefix and auto-generated transfer notes
+    var noteText by remember {
+        mutableStateOf(
+            initialBill?.let { bill ->
+                val cleanTitle = bill.title.trim()
+                val cleanSubcat = bill.subcategory.trim()
+                when {
+                    cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
+                    cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
+                        cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
+                    }
+                    else -> cleanTitle
+                }
+            } ?: ""
+        )
+    }
+
     var amountText by remember { mutableStateOf(initialBill?.amount?.let { if (it > 0) it.toString() else "" } ?: "") }
     var dueDayText by remember { mutableStateOf(initialBill?.dueDay?.toString() ?: "") }
 
-    // Transfer Subtype Selection (Aligned with Internal Vault Transfer dialog)
+    // Transfer Subtype Selection
     var selectedTransferSubtype by remember {
         mutableStateOf(
             when (initialBill?.subcategory) {
@@ -117,7 +134,7 @@ fun AddEditFixedBillDialog(
     }
 
     LaunchedEffect(selectedType) {
-        if (filteredCategories.none { it.name == selectedCategory }) {
+        if (filteredCategories.isNotEmpty() && filteredCategories.none { it.name == selectedCategory }) {
             selectedCategory = filteredCategories.firstOrNull()?.name ?: "General"
         }
     }
@@ -133,7 +150,7 @@ fun AddEditFixedBillDialog(
     }
 
     LaunchedEffect(availableSubcategories) {
-        if (selectedSubcategory !in availableSubcategories) {
+        if (availableSubcategories.isNotEmpty() && selectedSubcategory !in availableSubcategories) {
             selectedSubcategory = availableSubcategories.firstOrNull() ?: "General"
         }
     }
@@ -283,12 +300,12 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Optional Note / Description
+            // Optional Note / Title
             OutlinedTextField(
                 value = noteText,
                 onValueChange = { noteText = it },
-                label = { Text("Note / Description (Optional)", fontSize = 12.sp) },
-                placeholder = { Text("e.g., Emergency Reserve, Rent", fontSize = 12.sp) },
+                label = { Text("Note / Title (Optional)", fontSize = 12.sp) },
+                placeholder = { Text("e.g. Paji, Phone, Emergency Reserve", fontSize = 12.sp) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -300,7 +317,7 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Taxonomy Section: Transfer Classification Subtype OR Category/Subcategory Picker
+            // Taxonomy Section
             if (selectedType == TransactionType.TRANSFER) {
                 Text(
                     text = "Transfer Classification Subtype",
@@ -345,7 +362,7 @@ fun AddEditFixedBillDialog(
                     }
                 }
             } else {
-                // Standard Category Chips
+                // Category Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -380,7 +397,7 @@ fun AddEditFixedBillDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Standard Subcategory Chips
+                // Subcategory Row (Primary Entity)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -389,7 +406,7 @@ fun AddEditFixedBillDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Subcategory", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("(Acts as Title)", fontSize = 10.sp, color = TextMuted)
+                        Text("(Primary Identification)", fontSize = 10.sp, color = TextMuted)
                     }
                     TextButton(
                         onClick = { showNewSubcategoryDialog = true },
@@ -420,7 +437,7 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Vault Selector Row
+            // Vault Selector
             Text(
                 text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Deduction Vault",
                 fontSize = 12.sp,
@@ -467,7 +484,7 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // AutoPay Payment Status & Date Selector
+            // AutoPay Payment Status
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -613,10 +630,18 @@ fun AddEditFixedBillDialog(
                         val resolvedCategory = if (selectedType == TransactionType.TRANSFER) "Transfer" else selectedCategory
                         val resolvedSubcategory = if (selectedType == TransactionType.TRANSFER) selectedTransferSubtype.name else selectedSubcategory
 
+                        val cleanNote = noteText.trim()
                         val finalTitle = when {
-                            noteText.isNotBlank() -> noteText.trim()
+                            cleanNote.isNotBlank() && !cleanNote.equals(resolvedSubcategory, ignoreCase = true) -> {
+                                if (cleanNote.startsWith(resolvedSubcategory, ignoreCase = true)) {
+                                    val stripped = cleanNote.removePrefix(resolvedSubcategory).trim(' ', '-', ':', '(', ')')
+                                    if (stripped.isNotBlank()) stripped else resolvedSubcategory
+                                } else {
+                                    cleanNote
+                                }
+                            }
                             selectedType == TransactionType.TRANSFER -> "Vault Transfer ($selectedAccount ➔ $selectedToAccount)"
-                            else -> selectedSubcategory.ifBlank { selectedCategory }
+                            else -> resolvedSubcategory.ifBlank { resolvedCategory }
                         }
 
                         onSave(
