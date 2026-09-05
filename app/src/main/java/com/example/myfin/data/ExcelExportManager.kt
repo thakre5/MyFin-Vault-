@@ -24,39 +24,111 @@ object ExcelExportManager {
             val outputStream = context.contentResolver.openOutputStream(uri) ?: return@withContext false
 
             OutputStreamWriter(outputStream, Charsets.UTF_8).use { writer ->
-                // Write UTF-8 Byte Order Mark (BOM) so Microsoft Excel renders UTF-8 currency symbols properly
+                // UTF-8 Byte Order Mark (BOM) so Excel renders currency symbols correctly
                 writer.write("\uFEFF")
 
+                // ============================================================
                 // SECTION 1: VAULT ACCOUNTS OVERVIEW
+                // ============================================================
                 writer.write("=== VAULT ACCOUNTS & BALANCES ===\n")
                 writer.write("Account Name,Type,Starting Balance ($currencySymbol),Current Balance ($currencySymbol),Minimum Balance (MAB),Status\n")
                 allAccounts.forEach { acc ->
                     val status = if (acc.isArchived) "Archived" else "Active"
-                    writer.write("\"${sanitizeCsv(acc.accountName)}\",\"${sanitizeCsv(acc.accountType)}\",${acc.startingBalance},${acc.currentBalance},${acc.minBalance},\"$status\"\n")
+                    val startBal = String.format(Locale.US, "%.2f", acc.startingBalance)
+                    val curBal = String.format(Locale.US, "%.2f", acc.currentBalance)
+                    val minBal = String.format(Locale.US, "%.2f", acc.minBalance)
+                    writer.write("\"${sanitizeCsv(acc.accountName)}\",\"${sanitizeCsv(acc.accountType)}\",$startBal,$curBal,$minBal,\"$status\"\n")
                 }
                 writer.write("\n\n")
 
+                // ============================================================
                 // SECTION 2: AUTOPAY & FIXED COMMITMENTS
+                // ============================================================
                 writer.write("=== RECURRING AUTOPAY COMMITMENTS ===\n")
-                writer.write("Title,Flow Type,Category,Subcategory,Planned Amount ($currencySymbol),Deduction Vault,Due Day,Status,Month,Year\n")
+                writer.write("Primary Commitment,Category,Subcategory,Custom Note / Title,Flow Type,Planned Amount ($currencySymbol),Source Vault,Destination Vault,Due Day,Status,Month,Year\n")
                 allFixedBills.forEach { bill ->
+                    val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
+                        when (bill.subcategory.trim()) {
+                            "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                            "BILL_FUNDING" -> "Bill Funding"
+                            "REBALANCE" -> "Vault Rebalance"
+                            else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
+                        }
+                    } else bill.subcategory.trim()
+
+                    val cleanTitle = bill.title.trim()
+                    val displayPrimary = when {
+                        cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> friendlySubcat
+                        cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
+                            val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
+                            if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
+                        }
+                        friendlySubcat.isBlank() -> cleanTitle
+                        else -> "$friendlySubcat ($cleanTitle)"
+                    }
+
+                    val distinctNote = when {
+                        cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
+                        cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
+                        else -> cleanTitle
+                    }
+
                     val status = if (bill.isPaid) "Settled" else "Pending"
                     val dueDayStr = bill.dueDay?.let { "Day $it" } ?: "Not Set"
+                    val destVault = bill.toAccountName ?: ""
+                    val formattedAmt = String.format(Locale.US, "%.2f", bill.amount)
+
                     writer.write(
-                        "\"${sanitizeCsv(bill.title)}\",\"${bill.type.name}\",\"${sanitizeCsv(bill.category)}\",\"${sanitizeCsv(bill.subcategory)}\",${bill.amount},\"${sanitizeCsv(bill.accountName)}\",\"$dueDayStr\",\"$status\",${bill.month},${bill.year}\n"
+                        "\"${sanitizeCsv(displayPrimary)}\",\"${sanitizeCsv(bill.category)}\",\"${sanitizeCsv(friendlySubcat)}\",\"${sanitizeCsv(distinctNote)}\",\"${bill.type.name}\",$formattedAmt,\"${sanitizeCsv(bill.accountName)}\",\"${sanitizeCsv(destVault)}\",\"$dueDayStr\",\"$status\",${bill.month},${bill.year}\n"
                     )
                 }
                 writer.write("\n\n")
 
+                // ============================================================
                 // SECTION 3: TRANSACTION LEDGER
+                // ============================================================
                 writer.write("=== COMPLETE TRANSACTION LEDGER ===\n")
-                writer.write("Timestamp,Title,Flow Type,Category,Subcategory,Amount ($currencySymbol),Source Vault,Destination Vault,Transfer Subtype,Month,Year\n")
+                writer.write("Timestamp,Primary Entry,Category,Subcategory,Note / Merchant,Flow Type,Amount ($currencySymbol),Source Vault,Destination Vault,Transfer Classification,Month,Year\n")
                 allTransactions.forEach { tx ->
+                    val friendlySubcat = if (tx.type == TransactionType.TRANSFER) {
+                        when (tx.subcategory.trim()) {
+                            "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                            "BILL_FUNDING" -> "Bill Funding"
+                            "REBALANCE" -> "Vault Rebalance"
+                            else -> tx.subcategory.trim().ifBlank { "Vault Sweep" }
+                        }
+                    } else tx.subcategory.trim()
+
+                    val cleanTitle = tx.title.trim()
+                    val displayPrimary = when {
+                        cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> friendlySubcat
+                        cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
+                            val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
+                            if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
+                        }
+                        friendlySubcat.isBlank() -> cleanTitle
+                        else -> "$friendlySubcat ($cleanTitle)"
+                    }
+
+                    val distinctNote = when {
+                        cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
+                        cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
+                        else -> cleanTitle
+                    }
+
                     val dateStr = dateFormat.format(Date(tx.date))
-                    val dest = tx.toAccountName ?: ""
-                    val subtype = if (tx.transferSubtype != TransferSubtype.NONE) tx.transferSubtype.name else ""
+                    val destVault = tx.toAccountName ?: ""
+                    val subtypeLabel = when (tx.transferSubtype) {
+                        TransferSubtype.BILL_FUNDING -> "Bill Funding"
+                        TransferSubtype.WEALTH_ALLOCATION -> "Fortress Sweep"
+                        TransferSubtype.REBALANCE -> "Vault Rebalance"
+                        TransferSubtype.CASH_WITHDRAWAL -> "Cash ATM Withdrawal"
+                        TransferSubtype.NONE -> ""
+                    }
+                    val formattedAmt = String.format(Locale.US, "%.2f", tx.amount)
+
                     writer.write(
-                        "\"$dateStr\",\"${sanitizeCsv(tx.title)}\",\"${tx.type.name}\",\"${sanitizeCsv(tx.category)}\",\"${sanitizeCsv(tx.subcategory)}\",${tx.amount},\"${sanitizeCsv(tx.accountName)}\",\"${sanitizeCsv(dest)}\",\"$subtype\",${tx.month},${tx.year}\n"
+                        "\"$dateStr\",\"${sanitizeCsv(displayPrimary)}\",\"${sanitizeCsv(tx.category)}\",\"${sanitizeCsv(friendlySubcat)}\",\"${sanitizeCsv(distinctNote)}\",\"${tx.type.name}\",$formattedAmt,\"${sanitizeCsv(tx.accountName)}\",\"${sanitizeCsv(destVault)}\",\"$subtypeLabel\",${tx.month},${tx.year}\n"
                     )
                 }
             }
@@ -70,7 +142,7 @@ object ExcelExportManager {
 
     private fun sanitizeCsv(value: String): String {
         var clean = value.replace("\"", "\"\"")
-        // Neutralize CSV formula execution in spreadsheet software
+        // Neutralize formula injection in Excel and Google Sheets
         if (clean.startsWith("=") || clean.startsWith("+") || clean.startsWith("-") || clean.startsWith("@")) {
             clean = "\t$clean"
         }
