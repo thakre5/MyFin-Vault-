@@ -1364,7 +1364,7 @@ fun MonthlyScreen(
                                     uiState.groupedTransactions.forEach { (dateHeader, txList) ->
                                         val dailyExpenseTotal = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
                                         val dailyIncomeTotal = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-                                        val sortedTxList = remember(txList) { txList.sortedByDescending { it.date } }
+                                        val sortedTxList = txList.sortedByDescending { it.date }
 
                                         // Sticky date header with crisp bottom edge divider
                                         stickyHeader(key = "header_$dateHeader") {
@@ -1730,18 +1730,16 @@ fun MonthlyScreen(
 
         // Delete Transaction Alert
         transactionToDelete?.let { tx ->
-            val displayTxName = remember(tx.title, tx.subcategory) {
-                val cleanTitle = tx.title.trim()
-                val cleanSubcat = tx.subcategory.trim()
-                when {
-                    cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) -> cleanSubcat.ifBlank { "Transaction" }
-                    cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
-                        val unique = cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
-                        if (unique.isNotBlank()) "$cleanSubcat ($unique)" else cleanSubcat
-                    }
-                    cleanSubcat.isBlank() -> cleanTitle
-                    else -> "$cleanSubcat ($cleanTitle)"
+            val cleanTitle = tx.title.trim()
+            val cleanSubcat = tx.subcategory.trim()
+            val displayTxName = when {
+                cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) -> cleanSubcat.ifBlank { "Transaction" }
+                cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
+                    val unique = cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
+                    if (unique.isNotBlank()) "$cleanSubcat ($unique)" else cleanSubcat
                 }
+                cleanSubcat.isBlank() -> cleanTitle
+                else -> "$cleanSubcat ($cleanTitle)"
             }
 
             AlertDialog(
@@ -1772,28 +1770,26 @@ fun MonthlyScreen(
 
         // Delete Fixed Bill Alert
         billToDelete?.let { bill ->
-            val displayBillName = remember(bill.title, bill.subcategory, bill.type) {
-                val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
-                    when (bill.subcategory.trim()) {
-                        "WEALTH_ALLOCATION" -> "Fortress Sweep"
-                        "BILL_FUNDING" -> "Bill Funding"
-                        "REBALANCE" -> "Rebalance"
-                        else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
-                    }
-                } else bill.subcategory.trim()
-
-                val cleanTitle = bill.title.trim()
-                when {
-                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
-                        friendlySubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
-                    }
-                    cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
-                        val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
-                        if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
-                    }
-                    friendlySubcat.isBlank() -> cleanTitle
-                    else -> "$friendlySubcat ($cleanTitle)"
+            val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
+                when (bill.subcategory.trim()) {
+                    "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                    "BILL_FUNDING" -> "Bill Funding"
+                    "REBALANCE" -> "Rebalance"
+                    else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
                 }
+            } else bill.subcategory.trim()
+
+            val cleanTitle = bill.title.trim()
+            val displayBillName = when {
+                cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
+                    friendlySubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
+                }
+                cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
+                    val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
+                    if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
+                }
+                friendlySubcat.isBlank() -> cleanTitle
+                else -> "$friendlySubcat ($cleanTitle)"
             }
 
             AlertDialog(
@@ -1820,28 +1816,26 @@ fun MonthlyScreen(
 
         // Revert Fixed Bill Status Alert
         billToRevert?.let { bill ->
-            val displayBillName = remember(bill.title, bill.subcategory, bill.type) {
-                val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
-                    when (bill.subcategory.trim()) {
-                        "WEALTH_ALLOCATION" -> "Fortress Sweep"
-                        "BILL_FUNDING" -> "Bill Funding"
-                        "REBALANCE" -> "Rebalance"
-                        else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
-                    }
-                } else bill.subcategory.trim()
-
-                val cleanTitle = bill.title.trim()
-                when {
-                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
-                        friendlySubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
-                    }
-                    cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
-                        val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
-                        if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
-                    }
-                    friendlySubcat.isBlank() -> cleanTitle
-                    else -> "$friendlySubcat ($cleanTitle)"
+            val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
+                when (bill.subcategory.trim()) {
+                    "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                    "BILL_FUNDING" -> "Bill Funding"
+                    "REBALANCE" -> "Rebalance"
+                    else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
                 }
+            } else bill.subcategory.trim()
+
+            val cleanTitle = bill.title.trim()
+            val displayBillName = when {
+                cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
+                    friendlySubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
+                }
+                cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
+                    val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
+                    if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
+                }
+                friendlySubcat.isBlank() -> cleanTitle
+                else -> "$friendlySubcat ($cleanTitle)"
             }
 
             AlertDialog(
@@ -1868,33 +1862,29 @@ fun MonthlyScreen(
 
         // Settle Fixed Bill Dialog with Historical Date Logging
         settlingFixedBill?.let { bill ->
-            val displayBillName = remember(bill.title, bill.subcategory, bill.type) {
-                val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
-                    when (bill.subcategory.trim()) {
-                        "WEALTH_ALLOCATION" -> "Fortress Sweep"
-                        "BILL_FUNDING" -> "Bill Funding"
-                        "REBALANCE" -> "Rebalance"
-                        else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
-                    }
-                } else bill.subcategory.trim()
-
-                val cleanTitle = bill.title.trim()
-                when {
-                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
-                        friendlySubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
-                    }
-                    cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
-                        val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
-                        if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
-                    }
-                    friendlySubcat.isBlank() -> cleanTitle
-                    else -> "$friendlySubcat ($cleanTitle)"
+            val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
+                when (bill.subcategory.trim()) {
+                    "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                    "BILL_FUNDING" -> "Bill Funding"
+                    "REBALANCE" -> "Rebalance"
+                    else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
                 }
+            } else bill.subcategory.trim()
+
+            val cleanTitle = bill.title.trim()
+            val displayBillName = when {
+                cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
+                    friendlySubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
+                }
+                cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
+                    val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
+                    if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
+                }
+                friendlySubcat.isBlank() -> cleanTitle
+                else -> "$friendlySubcat ($cleanTitle)"
             }
 
-            val formattedDefaultAmount = remember(bill.amount) {
-                if (bill.amount % 1.0 == 0.0) bill.amount.toLong().toString() else bill.amount.toString()
-            }
+            val formattedDefaultAmount = if (bill.amount % 1.0 == 0.0) bill.amount.toLong().toString() else bill.amount.toString()
             var finalAmountText by remember { mutableStateOf(formattedDefaultAmount) }
             var selectedSettleDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
             var showSettleDatePicker by remember { mutableStateOf(false) }
@@ -2013,7 +2003,7 @@ fun MonthlyScreen(
                             FilterChip(
                                 selected = isToday,
                                 onClick = { selectedSettleDateMillis = System.currentTimeMillis() },
-                                label = { Text("Today", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                label = { Text("Today", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = AccentPurpleLight,
@@ -2027,7 +2017,7 @@ fun MonthlyScreen(
                                     val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
                                     selectedSettleDateMillis = cal.timeInMillis
                                 },
-                                label = { Text("Yesterday", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                label = { Text("Yesterday", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = AccentPurpleLight,
