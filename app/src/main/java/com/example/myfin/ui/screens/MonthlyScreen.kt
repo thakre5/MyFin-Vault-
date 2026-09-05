@@ -1730,14 +1730,28 @@ fun MonthlyScreen(
 
         // Delete Transaction Alert
         transactionToDelete?.let { tx ->
+            val displayTxName = remember(tx.title, tx.subcategory) {
+                val cleanTitle = tx.title.trim()
+                val cleanSubcat = tx.subcategory.trim()
+                when {
+                    cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) -> cleanSubcat.ifBlank { "Transaction" }
+                    cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
+                        val unique = cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
+                        if (unique.isNotBlank()) "$cleanSubcat ($unique)" else cleanSubcat
+                    }
+                    cleanSubcat.isBlank() -> cleanTitle
+                    else -> "$cleanSubcat ($cleanTitle)"
+                }
+            }
+
             AlertDialog(
                 onDismissRequest = { transactionToDelete = null },
-                title = { Text(text = "Delete Transaction?", fontWeight = FontWeight.Bold) },
+                title = { Text(text = "Delete Entry?", fontWeight = FontWeight.Bold) },
                 text = {
                     Text(
                         text = if (tx.linkedFixedBillId != null)
                             "This entry is linked to an AutoPay bill. Deleting it will restore your vault balance and revert the parent commitment back to Unpaid."
-                        else "Are you sure you want to delete '${tx.title}' (${userProfile.currencySymbol}${tx.amount})? This will permanently remove it from your vault ledger."
+                        else "Are you sure you want to delete '$displayTxName' (${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", tx.amount)})? This will permanently remove it from your vault ledger."
                     )
                 },
                 confirmButton = {
@@ -1758,11 +1772,35 @@ fun MonthlyScreen(
 
         // Delete Fixed Bill Alert
         billToDelete?.let { bill ->
+            val displayBillName = remember(bill.title, bill.subcategory, bill.type) {
+                val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
+                    when (bill.subcategory.trim()) {
+                        "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                        "BILL_FUNDING" -> "Bill Funding"
+                        "REBALANCE" -> "Rebalance"
+                        else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
+                    }
+                } else bill.subcategory.trim()
+
+                val cleanTitle = bill.title.trim()
+                when {
+                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
+                        friendlySubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
+                    }
+                    cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
+                        val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
+                        if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
+                    }
+                    friendlySubcat.isBlank() -> cleanTitle
+                    else -> "$friendlySubcat ($cleanTitle)"
+                }
+            }
+
             AlertDialog(
                 onDismissRequest = { billToDelete = null },
                 title = { Text(text = "Delete AutoPay Commitment?", fontWeight = FontWeight.Bold) },
                 text = {
-                    Text(text = "Deleting '${bill.title}' will remove this recurring template. Any linked payment already recorded in your ledger for this month will also be deleted and restored to your vault.")
+                    Text(text = "Deleting '$displayBillName' will remove this recurring template. Any linked payment already recorded in your ledger for this month will also be deleted and restored to your vault.")
                 },
                 confirmButton = {
                     TextButton(onClick = {
@@ -1782,11 +1820,35 @@ fun MonthlyScreen(
 
         // Revert Fixed Bill Status Alert
         billToRevert?.let { bill ->
+            val displayBillName = remember(bill.title, bill.subcategory, bill.type) {
+                val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
+                    when (bill.subcategory.trim()) {
+                        "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                        "BILL_FUNDING" -> "Bill Funding"
+                        "REBALANCE" -> "Rebalance"
+                        else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
+                    }
+                } else bill.subcategory.trim()
+
+                val cleanTitle = bill.title.trim()
+                when {
+                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
+                        friendlySubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
+                    }
+                    cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
+                        val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
+                        if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
+                    }
+                    friendlySubcat.isBlank() -> cleanTitle
+                    else -> "$friendlySubcat ($cleanTitle)"
+                }
+            }
+
             AlertDialog(
                 onDismissRequest = { billToRevert = null },
                 title = { Text(text = "Revert to Unsettled?", fontWeight = FontWeight.Bold) },
                 text = {
-                    Text(text = "Reverting '${bill.title}' will delete the logged payment from your transaction ledger and restore the balance to ${bill.accountName}.")
+                    Text(text = "Reverting '$displayBillName' will delete the logged payment from your transaction ledger and restore the balance to ${bill.accountName}.")
                 },
                 confirmButton = {
                     TextButton(onClick = {
@@ -1806,6 +1868,30 @@ fun MonthlyScreen(
 
         // Settle Fixed Bill Dialog with Historical Date Logging
         settlingFixedBill?.let { bill ->
+            val displayBillName = remember(bill.title, bill.subcategory, bill.type) {
+                val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
+                    when (bill.subcategory.trim()) {
+                        "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                        "BILL_FUNDING" -> "Bill Funding"
+                        "REBALANCE" -> "Rebalance"
+                        else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
+                    }
+                } else bill.subcategory.trim()
+
+                val cleanTitle = bill.title.trim()
+                when {
+                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
+                        friendlySubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
+                    }
+                    cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
+                        val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
+                        if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
+                    }
+                    friendlySubcat.isBlank() -> cleanTitle
+                    else -> "$friendlySubcat ($cleanTitle)"
+                }
+            }
+
             val formattedDefaultAmount = remember(bill.amount) {
                 if (bill.amount % 1.0 == 0.0) bill.amount.toLong().toString() else bill.amount.toString()
             }
@@ -1842,13 +1928,6 @@ fun MonthlyScreen(
             val willBreachMab = fundingAccount != null && fundingAccount.minBalance > 0.0 &&
                     (fundingAccount.currentBalance - amt) < fundingAccount.minBalance
 
-            val actionPrompt = when (bill.type) {
-                TransactionType.INCOME -> "Confirm Inflow Received?"
-                TransactionType.ASSET -> "Confirm SIP Investment?"
-                TransactionType.TRANSFER -> "Confirm Vault Sweep?"
-                TransactionType.EXPENSE -> "Mark as Paid & Deduct?"
-            }
-
             val descPrompt = when (bill.type) {
                 TransactionType.INCOME -> "Credits ${bill.accountName} vault and logs inflow entry."
                 TransactionType.ASSET -> "Deducts from ${bill.accountName} and records under Asset Wealth."
@@ -1859,8 +1938,8 @@ fun MonthlyScreen(
             Dialog(onDismissRequest = { settlingFixedBill = null }) {
                 Surface(shape = RoundedCornerShape(20.dp), color = CardWhite, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(20.dp)) {
-                        Text(text = actionPrompt, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(text = "Settle $displayBillName", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(text = descPrompt, fontSize = 12.sp, color = TextMuted)
 
                         if (fundingAccount != null) {
