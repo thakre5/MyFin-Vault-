@@ -1304,7 +1304,7 @@ fun MonthlyScreen(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Scrollable Ledger List
+                            // Scrollable Ledger List with Sticky Headers
                             LazyColumn(
                                 modifier = Modifier
                                     .weight(1f)
@@ -1326,58 +1326,64 @@ fun MonthlyScreen(
                                         val dailyExpenseTotal = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
                                         val dailyIncomeTotal = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
 
-                                        item(key = "header_$dateHeader") {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(top = 14.dp, bottom = 6.dp, start = 4.dp, end = 4.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
+                                        // Sticky date header with solid Canvas background
+                                        stickyHeader(key = "header_$dateHeader") {
+                                            Surface(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                color = CanvasLight
                                             ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(8.dp),
-                                                        color = TextDark
-                                                    ) {
-                                                        Text(
-                                                            text = dateHeader.uppercase(),
-                                                            fontWeight = FontWeight.Black,
-                                                            fontSize = 9.5.sp,
-                                                            color = Color.White,
-                                                            letterSpacing = 0.6.sp,
-                                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                                        )
-                                                    }
-
-                                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                                    Text(
-                                                        text = "${txList.size} ${if (txList.size == 1) "entry" else "entries"}",
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = TextMuted
-                                                    )
-                                                }
-
                                                 Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(top = 10.dp, bottom = 6.dp, start = 4.dp, end = 4.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    if (dailyIncomeTotal > 0.0) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            color = TextDark
+                                                        ) {
+                                                            Text(
+                                                                text = dateHeader.uppercase(),
+                                                                fontWeight = FontWeight.Black,
+                                                                fontSize = 9.5.sp,
+                                                                color = Color.White,
+                                                                letterSpacing = 0.6.sp,
+                                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                                            )
+                                                        }
+
+                                                        Spacer(modifier = Modifier.width(8.dp))
+
                                                         Text(
-                                                            text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 11.5.sp,
-                                                            color = SoftGreen
+                                                            text = "${txList.size} ${if (txList.size == 1) "entry" else "entries"}",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Medium,
+                                                            color = TextMuted
                                                         )
                                                     }
-                                                    if (dailyExpenseTotal > 0.0) {
-                                                        Text(
-                                                            text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 11.5.sp,
-                                                            color = TextDark
-                                                        )
+
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        if (dailyIncomeTotal > 0.0) {
+                                                            Text(
+                                                                text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 11.5.sp,
+                                                                color = SoftGreen
+                                                            )
+                                                        }
+                                                        if (dailyExpenseTotal > 0.0) {
+                                                            Text(
+                                                                text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 11.5.sp,
+                                                                color = TextDark
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
