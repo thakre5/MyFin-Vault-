@@ -192,6 +192,26 @@ interface BudgetDao {
     @Query("SELECT * FROM fixed_bills WHERE month = :month AND year = :year AND type = :type AND category = :category AND subcategory = :subcategory LIMIT 1")
     suspend fun getFixedBillByKeys(month: Int, year: Int, type: TransactionType, category: String, subcategory: String): FixedBillEntity?
 
+    @Query("""
+        SELECT * FROM fixed_bills 
+        WHERE month = :month AND year = :year 
+          AND type = :type 
+          AND category = :category 
+          AND subcategory = :subcategory 
+          AND (title = :title OR (:title = '' AND (title = subcategory OR title = '')))
+          AND accountName = :accountName 
+        LIMIT 1
+    """)
+    suspend fun getFixedBillByTemplateKeys(
+        month: Int,
+        year: Int,
+        type: TransactionType,
+        category: String,
+        subcategory: String,
+        title: String,
+        accountName: String
+    ): FixedBillEntity?
+
     @Query("SELECT COUNT(*) FROM fixed_bills WHERE month = :month AND year = :year")
     suspend fun getFixedBillCount(month: Int, year: Int): Int
 
@@ -337,7 +357,6 @@ interface BudgetDao {
             sortOrder = sortOrder
         )
 
-        // Strict comparison to ensure case-only renames (e.g., "hdfc" -> "HDFC") delete the old casing
         if (cleanOldName == cleanNewName) {
             insertAccount(updatedAccount)
         } else {
