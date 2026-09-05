@@ -48,6 +48,7 @@ import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -68,6 +69,7 @@ fun MonthlyScreen(
     onNavigateToAnalytics: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val filterCriteria by viewModel.filterCriteria.collectAsState()
@@ -640,19 +642,38 @@ fun MonthlyScreen(
                                                 title = "Inflow",
                                                 amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedIncome)}",
                                                 tintColor = SoftGreen,
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier.weight(1f),
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        selectedTxFilterType = TransactionType.INCOME
+                                                        viewModel.updateFilter(TransactionType.INCOME, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
+                                                        pagerState.animateScrollToPage(1)
+                                                    }
+                                                }
                                             )
                                             PillarMetricCard(
                                                 title = "Fixed Bills",
                                                 amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
                                                 tintColor = SoftRed,
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier.weight(1f),
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        pagerState.animateScrollToPage(2)
+                                                    }
+                                                }
                                             )
                                             PillarMetricCard(
                                                 title = "SIP Assets",
                                                 amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualAssets)}",
                                                 tintColor = SoftTeal,
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier.weight(1f),
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        selectedTxFilterType = TransactionType.ASSET
+                                                        viewModel.updateFilter(TransactionType.ASSET, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
+                                                        pagerState.animateScrollToPage(1)
+                                                    }
+                                                }
                                             )
                                         }
                                     }
@@ -1304,7 +1325,7 @@ fun MonthlyScreen(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Scrollable Ledger List with Sticky Headers
+                            // Scrollable Ledger List with Sticky Headers & Crisp Edge Definition
                             LazyColumn(
                                 modifier = Modifier
                                     .weight(1f)
@@ -1313,11 +1334,29 @@ fun MonthlyScreen(
                             ) {
                                 if (uiState.groupedTransactions.isEmpty()) {
                                     item(key = "empty_ledger") {
-                                        Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 40.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
                                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                 Text(text = "No transactions recorded", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
                                                 Spacer(modifier = Modifier.height(4.dp))
                                                 Text(text = "Try clearing filters or log a new entry", fontSize = 12.sp, color = TextMuted)
+                                                if (filterCriteria.query.isNotBlank() || filterCriteria.type != null || filterCriteria.account != "ALL" || filterCriteria.startDate != null) {
+                                                    Spacer(modifier = Modifier.height(10.dp))
+                                                    TextButton(
+                                                        onClick = {
+                                                            selectedTxFilterType = null
+                                                            viewModel.resetFilters()
+                                                        }
+                                                    ) {
+                                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp), tint = AccentPurple)
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text("Reset Filters", color = AccentPurple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -1325,71 +1364,78 @@ fun MonthlyScreen(
                                     uiState.groupedTransactions.forEach { (dateHeader, txList) ->
                                         val dailyExpenseTotal = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
                                         val dailyIncomeTotal = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+                                        val sortedTxList = remember(txList) { txList.sortedByDescending { it.date } }
 
-                                        // Sticky date header with solid Canvas background
+                                        // Sticky date header with crisp bottom edge divider
                                         stickyHeader(key = "header_$dateHeader") {
                                             Surface(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 color = CanvasLight
                                             ) {
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(top = 10.dp, bottom = 6.dp, start = 4.dp, end = 4.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Surface(
-                                                            shape = RoundedCornerShape(8.dp),
-                                                            color = TextDark
-                                                        ) {
-                                                            Text(
-                                                                text = dateHeader.uppercase(),
-                                                                fontWeight = FontWeight.Black,
-                                                                fontSize = 9.5.sp,
-                                                                color = Color.White,
-                                                                letterSpacing = 0.6.sp,
-                                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                                            )
-                                                        }
-
-                                                        Spacer(modifier = Modifier.width(8.dp))
-
-                                                        Text(
-                                                            text = "${txList.size} ${if (txList.size == 1) "entry" else "entries"}",
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.Medium,
-                                                            color = TextMuted
-                                                        )
-                                                    }
-
+                                                Column(modifier = Modifier.fillMaxWidth()) {
                                                     Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(top = 10.dp, bottom = 8.dp, start = 4.dp, end = 4.dp),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
                                                     ) {
-                                                        if (dailyIncomeTotal > 0.0) {
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Surface(
+                                                                shape = RoundedCornerShape(8.dp),
+                                                                color = TextDark
+                                                            ) {
+                                                                Text(
+                                                                    text = dateHeader.uppercase(),
+                                                                    fontWeight = FontWeight.Black,
+                                                                    fontSize = 9.5.sp,
+                                                                    color = Color.White,
+                                                                    letterSpacing = 0.6.sp,
+                                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                                                )
+                                                            }
+
+                                                            Spacer(modifier = Modifier.width(8.dp))
+
                                                             Text(
-                                                                text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
-                                                                fontWeight = FontWeight.Bold,
-                                                                fontSize = 11.5.sp,
-                                                                color = SoftGreen
+                                                                text = "${txList.size} ${if (txList.size == 1) "entry" else "entries"}",
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Medium,
+                                                                color = TextMuted
                                                             )
                                                         }
-                                                        if (dailyExpenseTotal > 0.0) {
-                                                            Text(
-                                                                text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
-                                                                fontWeight = FontWeight.Bold,
-                                                                fontSize = 11.5.sp,
-                                                                color = TextDark
-                                                            )
+
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                        ) {
+                                                            if (dailyIncomeTotal > 0.0) {
+                                                                Text(
+                                                                    text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    fontSize = 11.5.sp,
+                                                                    color = SoftGreen
+                                                                )
+                                                            }
+                                                            if (dailyExpenseTotal > 0.0) {
+                                                                Text(
+                                                                    text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    fontSize = 11.5.sp,
+                                                                    color = TextDark
+                                                                )
+                                                            }
                                                         }
                                                     }
+                                                    HorizontalDivider(
+                                                        color = BorderLight.copy(alpha = 0.5f),
+                                                        thickness = 0.6.dp
+                                                    )
                                                 }
                                             }
                                         }
 
-                                        items(txList, key = { it.id }) { tx ->
+                                        items(sortedTxList, key = { it.id }) { tx ->
                                             Box(modifier = Modifier.padding(vertical = 3.5.dp)) {
                                                 SwipeableTransactionItem(
                                                     transaction = tx,
@@ -1408,6 +1454,7 @@ fun MonthlyScreen(
 
                     // --- SUB-SCREEN 2: RECURRING COMMITMENTS ---
                     2 -> {
+                        val currentDayOfMonth = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH) }
                         val filteredBills = remember(uiState.fixedBills, hideSettledCommitments, selectedCommitmentFilter) {
                             uiState.fixedBills.filter { bill ->
                                 val matchesHidden = !hideSettledCommitments || !bill.isPaid
@@ -1419,6 +1466,11 @@ fun MonthlyScreen(
                         val pendingCommitmentsTotal = remember(filteredBills) {
                             filteredBills.filter { !it.isPaid }.sumOf { it.amount }
                         }
+
+                        val overdueCount = remember(filteredBills, currentDayOfMonth) {
+                            filteredBills.count { !it.isPaid && it.dueDay != null && it.dueDay!! < currentDayOfMonth }
+                        }
+                        val hasOverdue = overdueCount > 0
 
                         Column(
                             modifier = Modifier
@@ -1459,16 +1511,24 @@ fun MonthlyScreen(
 
                                     Spacer(modifier = Modifier.height(3.dp))
 
+                                    val badgeColor = if (hasOverdue) SoftRed else SoftAmber
+                                    val badgeText = if (isDiscreetMode) {
+                                        "•••• Pending"
+                                    } else {
+                                        val amtStr = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingCommitmentsTotal)}"
+                                        if (hasOverdue) "$amtStr Pending ($overdueCount Overdue)" else "$amtStr Pending"
+                                    }
+
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
-                                        color = SoftAmber.copy(alpha = 0.12f),
-                                        border = BorderStroke(0.6.dp, SoftAmber.copy(alpha = 0.35f))
+                                        color = badgeColor.copy(alpha = 0.12f),
+                                        border = BorderStroke(0.6.dp, badgeColor.copy(alpha = 0.35f))
                                     ) {
                                         Text(
-                                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingCommitmentsTotal)} Pending",
+                                            text = badgeText,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = SoftAmber,
+                                            color = badgeColor,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
@@ -1536,12 +1596,30 @@ fun MonthlyScreen(
                                             shape = RoundedCornerShape(16.dp),
                                             color = CardWhite
                                         ) {
-                                            Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .padding(24.dp)
+                                                    .fillMaxWidth(),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
                                                 Text(
                                                     text = if (hideSettledCommitments) "No pending commitments in this filter" else "No recurring commitments recorded",
                                                     fontSize = 12.sp,
                                                     color = TextMuted
                                                 )
+                                                if (hideSettledCommitments || selectedCommitmentFilter != null) {
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    TextButton(
+                                                        onClick = {
+                                                            hideSettledCommitments = false
+                                                            selectedCommitmentFilter = null
+                                                        }
+                                                    ) {
+                                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp), tint = AccentPurple)
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text("Reset Filters", color = AccentPurple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -2165,10 +2243,12 @@ private fun PillarMetricCard(
     title: String,
     amount: String,
     tintColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(13.dp),
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
