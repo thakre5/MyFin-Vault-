@@ -379,7 +379,7 @@ class BudgetViewModel(
             val totalVault = activeAccounts.sumOf { it.currentBalance }
             val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
 
-            // Commitments Vault Shortfall Engine (Strictly Commitments Vault outlays: Expenses, Assets, Transfers)
+            // Commitments Vault Shortfall Engine
             val commitmentsAccount = activeAccounts.find {
                 it.accountType.equals("Commitments", ignoreCase = true) ||
                 it.accountName.contains("COMMITMENT", ignoreCase = true) ||
@@ -413,7 +413,7 @@ class BudgetViewModel(
                 affectedAccountName = commitmentsAccount?.accountName ?: "Commitments"
             )
 
-            // Automated Payday Fortress Surplus Allocation Engine (Triggers 25th onwards for Salary & Professional Inflow)
+            // Automated Payday Fortress Surplus Allocation Engine
             val todayCalCheck = Calendar.getInstance()
             val isCurrentSystemMonth = (month == (todayCalCheck.get(Calendar.MONTH) + 1)) && (year == todayCalCheck.get(Calendar.YEAR))
             val isAfter25th = todayCalCheck.get(Calendar.DAY_OF_MONTH) >= 25
@@ -1038,7 +1038,7 @@ class BudgetViewModel(
         }
     }
 
-    // GAP 1 SOLVED: Handles auto-reconciliation on insert (id == 0L) AND synchronizes edits (id != 0L)
+    // Scored Auto-Reconciliation supporting multiple commitments under same subcategory
     fun saveTransaction(
         id: Long = 0,
         title: String,
@@ -1060,31 +1060,57 @@ class BudgetViewModel(
             var resolvedLinkedBillId: Long? = null
 
             if (id == 0L) {
-                // New transaction: find matching unpaid bill by Taxonomy
                 if (type != TransactionType.INCOME) {
                     val unpaidBills = dao.getFixedBillsForMonthDirect(txMonth, txYear).filter { !it.isPaid }
 
-                    val matchingBill = unpaidBills.firstOrNull { bill ->
-                        if (bill.type != type) return@firstOrNull false
+                    val candidates = unpaidBills.filter { bill ->
+                        if (bill.type != type) return@filter false
 
                         if (type == TransactionType.TRANSFER) {
-                            // Match transfer classification subtype (e.g. WEALTH_ALLOCATION)
                             val matchesSubtype = bill.subcategory.equals(subcategory, ignoreCase = true)
-
-                            // Match destination vault
                             val matchesDestination = !toAccountName.isNullOrBlank() &&
                                     !bill.toAccountName.isNullOrBlank() &&
                                     bill.toAccountName.equals(toAccountName, ignoreCase = true)
-
-                            val matchesTitle = resolvedTitle.contains(bill.title, ignoreCase = true) ||
+                            val matchesTitle = bill.title.isNotBlank() && (
+                                    resolvedTitle.contains(bill.title, ignoreCase = true) ||
                                     bill.title.contains(resolvedTitle, ignoreCase = true)
-
+                            )
                             matchesSubtype && (matchesDestination || matchesTitle)
                         } else {
-                            // Strict category & subcategory matching for Expenses and Assets
                             bill.category.equals(category, ignoreCase = true) &&
                             bill.subcategory.equals(subcategory, ignoreCase = true)
                         }
+                    }
+
+                    val matchingBill = candidates.maxByOrNull { bill ->
+                        var score = 0
+                        val billTitleClean = bill.title.trim()
+                        val hasDistinctBillTitle = billTitleClean.isNotBlank() && !billTitleClean.equals(bill.subcategory, ignoreCase = true)
+                        val hasDistinctTxTitle = resolvedTitle.isNotBlank() && !resolvedTitle.equals(subcategory, ignoreCase = true)
+
+                        if (hasDistinctBillTitle && hasDistinctTxTitle) {
+                            if (resolvedTitle.equals(billTitleClean, ignoreCase = true)) {
+                                score += 100
+                            } else if (resolvedTitle.contains(billTitleClean, ignoreCase = true) || billTitleClean.contains(resolvedTitle, ignoreCase = true)) {
+                                score += 50
+                            }
+                        }
+
+                        if (bill.accountName.equals(accountName, ignoreCase = true)) {
+                            score += 20
+                        }
+                        if (type == TransactionType.TRANSFER && !toAccountName.isNullOrBlank() && toAccountName.equals(bill.toAccountName, ignoreCase = true)) {
+                            score += 20
+                        }
+
+                        val diff = abs(bill.amount - amount)
+                        if (diff < 0.01) {
+                            score += 30
+                        } else if (diff <= bill.amount * 0.1) {
+                            score += 10
+                        }
+
+                        score
                     }
 
                     if (matchingBill != null) {
@@ -1098,7 +1124,6 @@ class BudgetViewModel(
                     }
                 }
             } else {
-                // Editing existing transaction: keep linked bill in lockstep
                 val existingTx = dao.getTransactionById(id)
                 resolvedLinkedBillId = existingTx?.linkedFixedBillId
 
@@ -1114,25 +1139,57 @@ class BudgetViewModel(
                         )
                     }
                 } else if (type != TransactionType.INCOME) {
-                    // Try to auto-link if category or transfer subtype was edited to match an unpaid bill
                     val unpaidBills = dao.getFixedBillsForMonthDirect(txMonth, txYear).filter { !it.isPaid }
-                    val matchingBill = unpaidBills.firstOrNull { bill ->
-                        if (bill.type != type) return@firstOrNull false
+                    val candidates = unpaidBills.filter { bill ->
+                        if (bill.type != type) return@filter false
 
                         if (type == TransactionType.TRANSFER) {
                             val matchesSubtype = bill.subcategory.equals(subcategory, ignoreCase = true)
                             val matchesDestination = !toAccountName.isNullOrBlank() &&
                                     !bill.toAccountName.isNullOrBlank() &&
                                     bill.toAccountName.equals(toAccountName, ignoreCase = true)
-                            val matchesTitle = resolvedTitle.contains(bill.title, ignoreCase = true) ||
+                            val matchesTitle = bill.title.isNotBlank() && (
+                                    resolvedTitle.contains(bill.title, ignoreCase = true) ||
                                     bill.title.contains(resolvedTitle, ignoreCase = true)
-
+                            )
                             matchesSubtype && (matchesDestination || matchesTitle)
                         } else {
                             bill.category.equals(category, ignoreCase = true) &&
                             bill.subcategory.equals(subcategory, ignoreCase = true)
                         }
                     }
+
+                    val matchingBill = candidates.maxByOrNull { bill ->
+                        var score = 0
+                        val billTitleClean = bill.title.trim()
+                        val hasDistinctBillTitle = billTitleClean.isNotBlank() && !billTitleClean.equals(bill.subcategory, ignoreCase = true)
+                        val hasDistinctTxTitle = resolvedTitle.isNotBlank() && !resolvedTitle.equals(subcategory, ignoreCase = true)
+
+                        if (hasDistinctBillTitle && hasDistinctTxTitle) {
+                            if (resolvedTitle.equals(billTitleClean, ignoreCase = true)) {
+                                score += 100
+                            } else if (resolvedTitle.contains(billTitleClean, ignoreCase = true) || billTitleClean.contains(resolvedTitle, ignoreCase = true)) {
+                                score += 50
+                            }
+                        }
+
+                        if (bill.accountName.equals(accountName, ignoreCase = true)) {
+                            score += 20
+                        }
+                        if (type == TransactionType.TRANSFER && !toAccountName.isNullOrBlank() && toAccountName.equals(bill.toAccountName, ignoreCase = true)) {
+                            score += 20
+                        }
+
+                        val diff = abs(bill.amount - amount)
+                        if (diff < 0.01) {
+                            score += 30
+                        } else if (diff <= bill.amount * 0.1) {
+                            score += 10
+                        }
+
+                        score
+                    }
+
                     if (matchingBill != null) {
                         resolvedLinkedBillId = matchingBill.id
                         dao.updateFixedBill(matchingBill.copy(isPaid = true, amount = amount))
@@ -1305,7 +1362,7 @@ class BudgetViewModel(
 
                 dao.insertTransaction(
                     TransactionEntity(
-                        title = bill.title,
+                        title = bill.title.ifBlank { subcategory },
                         amount = amount,
                         category = category,
                         subcategory = subcategory.ifBlank { bill.title },
@@ -1359,7 +1416,7 @@ class BudgetViewModel(
         }
     }
 
-    // GAP 4 SOLVED: Synchronizes bill month/year with cross-cycle custom settlement dates & preserves exact transfer subtype
+    // Precise template matching across cycles for single or multiple sibling bills
     fun toggleFixedBillPaid(bill: FixedBillEntity, customAmount: Double = bill.amount, customDateMillis: Long = System.currentTimeMillis()) {
         viewModelScope.launch(Dispatchers.IO) {
             val updatedStatus = !bill.isPaid
@@ -1369,9 +1426,17 @@ class BudgetViewModel(
                 val txMonth = calTx.get(Calendar.MONTH) + 1
                 val txYear = calTx.get(Calendar.YEAR)
 
-                // If backdated or post-dated across month boundaries, align the bill's cycle
                 val alignedBill = if (bill.month != txMonth || bill.year != txYear) {
-                    val existingInTarget = dao.getFixedBillByKeys(txMonth, txYear, bill.type, bill.category, bill.subcategory)
+                    val targetMonthBills = dao.getFixedBillsForMonthDirect(txMonth, txYear)
+                    val existingInTarget = targetMonthBills.firstOrNull { it.id == bill.id }
+                        ?: targetMonthBills.firstOrNull { candidate ->
+                            candidate.type == bill.type &&
+                            candidate.category.equals(bill.category, ignoreCase = true) &&
+                            candidate.subcategory.equals(bill.subcategory, ignoreCase = true) &&
+                            candidate.title.trim().equals(bill.title.trim(), ignoreCase = true) &&
+                            candidate.accountName.equals(bill.accountName, ignoreCase = true)
+                        }
+
                     if (existingInTarget != null) {
                         existingInTarget.copy(isPaid = true, amount = customAmount)
                     } else {
@@ -1393,7 +1458,7 @@ class BudgetViewModel(
 
                 dao.insertTransaction(
                     TransactionEntity(
-                        title = alignedBill.title,
+                        title = alignedBill.title.ifBlank { alignedBill.subcategory },
                         amount = customAmount,
                         category = alignedBill.category,
                         subcategory = alignedBill.subcategory.ifBlank { alignedBill.title },
@@ -1927,7 +1992,24 @@ class BudgetViewModel(
         }
     }
 
-    // GAP 3 SOLVED: Non-destructive partial rollover inserts missing templates instead of aborting
+    // Unique multi-criteria template signature preserving sibling bills during rollover
+    private fun getBillSignature(b: FixedBillEntity): String {
+        val cleanCat = b.category.trim().lowercase()
+        val cleanSubcat = b.subcategory.trim().lowercase()
+        val cleanTitle = b.title.trim().lowercase()
+        val cleanAcc = b.accountName.trim().lowercase()
+        val cleanToAcc = b.toAccountName?.trim()?.lowercase() ?: ""
+        val cleanType = b.type.name
+
+        return if (cleanTitle.isNotBlank() && cleanTitle != cleanSubcat) {
+            "${cleanCat}_${cleanSubcat}_${cleanTitle}_${cleanAcc}_${cleanToAcc}_${cleanType}"
+        } else {
+            val due = b.dueDay ?: -1
+            val amt = String.format(Locale.US, "%.2f", b.amount)
+            "${cleanCat}_${cleanSubcat}_${due}_${amt}_${cleanAcc}_${cleanToAcc}_${cleanType}"
+        }
+    }
+
     private suspend fun checkAndRolloverRecurringBills(targetMonth: Int, targetYear: Int) = withContext(Dispatchers.IO) {
         val historicalBills = dao.getLatestHistoricalFixedBills(targetMonth, targetYear)
         if (historicalBills.isEmpty()) return@withContext
@@ -1952,16 +2034,12 @@ class BudgetViewModel(
             val sourceBills = dao.getFixedBillsForMonthDirect(prevMonth, prevYear).ifEmpty { latestKnownBills }
             val existingInIter = dao.getFixedBillsForMonthDirect(currentIterMonth, currentIterYear)
 
-            val existingSignatures = existingInIter.map {
-                "${it.category.trim().lowercase()}_${it.subcategory.trim().lowercase()}_${it.type.name}"
-            }.toSet()
+            val existingSignatures = existingInIter.map { getBillSignature(it) }.toSet()
 
             val missingToClone = sourceBills.filter { source ->
-                val sig = "${source.category.trim().lowercase()}_${source.subcategory.trim().lowercase()}_${source.type.name}"
+                val sig = getBillSignature(source)
                 !existingSignatures.contains(sig)
-            }.distinctBy {
-                "${it.category.trim().lowercase()}_${it.subcategory.trim().lowercase()}_${it.type.name}"
-            }.map {
+            }.distinctBy { getBillSignature(it) }.map {
                 FixedBillEntity(
                     title = it.title,
                     amount = it.amount,
