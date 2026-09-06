@@ -1558,28 +1558,44 @@ fun VaultStrategyScreen(
             )
         }
 
-        // Standardized Transfer Bottom Sheet (With Past Date Support & Receipt)
+        // Standardized Transfer Bottom Sheet (With Recurring Sweep Toggle Support)
         if (showTransferSheet) {
             AccountTransferDialog(
                 accounts = accountNames,
                 currencySymbol = userProfile.currencySymbol,
                 onDismiss = { showTransferSheet = false },
-                onTransfer = { from, to, amount, note, subtype, date ->
-                    viewModel.executeInstantTransfer(
-                        fromAccount = from,
-                        toAccount = to,
-                        amount = amount,
-                        note = note,
-                        subtype = subtype,
-                        date = date
-                    )
+                onTransfer = { from, to, amount, note, subtype, date, isRecurring, dueDay ->
+                    if (isRecurring) {
+                        viewModel.addFixedBill(
+                            title = note.ifBlank { "Vault Transfer ($from ➔ $to)" },
+                            amount = amount,
+                            category = "Transfer",
+                            subcategory = subtype.name,
+                            account = from,
+                            toAccount = to,
+                            type = TransactionType.TRANSFER,
+                            dueDay = dueDay,
+                            isPaid = true,
+                            paidDateMillis = date
+                        )
+                        Toast.makeText(context, "Saved as recurring sweep & transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        viewModel.executeInstantTransfer(
+                            fromAccount = from,
+                            toAccount = to,
+                            amount = amount,
+                            note = note,
+                            subtype = subtype,
+                            date = date
+                        )
+                        receiptPayload = SuccessReceiptPayload(
+                            subtitle = "Vault Sweep Completed",
+                            headline = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}",
+                            description = "$from ➔ $to (${subtype.name})",
+                            buttonText = "Done"
+                        )
+                    }
                     showTransferSheet = false
-                    receiptPayload = SuccessReceiptPayload(
-                        subtitle = "Vault Sweep Completed",
-                        headline = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}",
-                        description = "$from ➔ $to (${subtype.name})",
-                        buttonText = "Done"
-                    )
                 }
             )
         }
