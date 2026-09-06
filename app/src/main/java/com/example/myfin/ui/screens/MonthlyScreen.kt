@@ -45,13 +45,10 @@ import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.data.TransferSubtype
-import com.example.myfin.data.UserProfile
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.CategoryPerformance
-import com.example.myfin.ui.MonthlyUiState
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -80,7 +77,6 @@ fun MonthlyScreen(
     val showRollover by viewModel.showRolloverPrompt.collectAsState()
 
     val pagerState = rememberPagerState(pageCount = { 3 })
-    val cardPagerState = rememberPagerState(pageCount = { 2 })
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
     val pageTitles = remember { listOf("Summary", "Ledger", "AutoPay") }
 
@@ -545,24 +541,150 @@ fun MonthlyScreen(
                                 }
                             }
 
-                            // Full-Width Horizontal Pager for Hero Card & 3-Pillar Card via Composable Helper
+                            // Hero Card: Real Liquid Safe-to-Spend Guardrail & Live Sparkline
                             item {
-                                HeroCardPagerSection(
-                                    cardPagerState = cardPagerState,
-                                    uiState = uiState,
-                                    userProfile = userProfile,
-                                    isDiscreetMode = isDiscreetMode,
-                                    dailySpendAllowance = dailySpendAllowance,
-                                    daysRemaining = daysRemaining,
-                                    isPastMonth = isPastMonth,
-                                    isCurrentMonth = isCurrentMonth,
-                                    coroutineScope = coroutineScope,
-                                    viewModel = viewModel,
-                                    pagerState = pagerState
-                                )
-                            }
+                                val isHealthy = uiState.metrics.safeToSpend > 0
+                                val statusColor = if (isHealthy) SoftGreen else SoftRed
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .shadow(6.dp, RoundedCornerShape(26.dp)),
+                                    shape = RoundedCornerShape(26.dp),
+                                    color = CardWhite,
+                                    border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    colors = listOf(
+                                                        Color(0xFFFFFFFF),
+                                                        Color(0xFFFCFAFF),
+                                                        AccentPurple.copy(alpha = 0.05f)
+                                                    )
+                                                )
+                                            )
+                                            .padding(22.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(8.dp)
+                                                        .clip(CircleShape)
+                                                        .background(statusColor)
+                                                )
+                                                Spacer(modifier = Modifier.width(7.dp))
+                                                Text(
+                                                    text = "LIQUID SAFE TO SPEND",
+                                                    color = TextMuted,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    letterSpacing = 0.8.sp
+                                                )
+                                            }
+
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = if (isHealthy) AccentPurple.copy(alpha = 0.1f) else statusColor.copy(alpha = 0.12f),
+                                                border = BorderStroke(0.6.dp, if (isHealthy) AccentPurple.copy(alpha = 0.25f) else statusColor.copy(alpha = 0.3f))
+                                            ) {
+                                                Text(
+                                                    text = "${uiState.metrics.safeToSpendPercentage}% Capacity",
+                                                    color = if (isHealthy) AccentPurple else statusColor,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        Text(
+                                            text = if (isDiscreetMode) "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
+                                            fontSize = 34.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = if (isHealthy) TextDark else SoftRed,
+                                            letterSpacing = (-0.6).sp
+                                        )
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        Text(
+                                            text = when {
+                                                isPastMonth -> "Month closed: final remaining balance"
+                                                isCurrentMonth && isHealthy -> if (isDiscreetMode) "Daily allowance protected" else "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
+                                                isCurrentMonth -> "Overrun warning: spending exceeds liquid operating buffer"
+                                                else -> "Projected safe allowance across $daysRemaining days"
+                                            },
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (isHealthy) TextMuted else SoftRed
+                                        )
+
+                                        Spacer(modifier = Modifier.height(12.dp))
+
+                                        SpendingSparkline(
+                                            points = uiState.metrics.dailyExpensePoints,
+                                            lineColor = if (isHealthy) AccentPurple else SoftRed,
+                                            gradientStartColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.32f),
+                                            gradientEndColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.0f)
+                                        )
+
+                                        Spacer(modifier = Modifier.height(14.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            PillarMetricCard(
+                                                title = "Inflow",
+                                                amount = if (isDiscreetMode) "â€¢â€¢â€¢â€¢" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedIncome)}",
+                                                tintColor = SoftGreen,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        selectedTxFilterType = TransactionType.INCOME
+                                                        viewModel.updateFilter(TransactionType.INCOME, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
+                                                        pagerState.animateScrollToPage(1)
+                                                    }
+                                                }
+                                            )
+                                            PillarMetricCard(
+                                                title = "Fixed Bills",
+                                                amount = if (isDiscreetMode) "â€¢â€¢â€¢â€¢" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
+                                                tintColor = SoftRed,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        pagerState.animateScrollToPage(2)
+                                                    }
+                                                }
+                                            )
+                                            PillarMetricCard(
+                                                title = "SIP Assets",
+                                                amount = if (isDiscreetMode) "â€¢â€¢â€¢â€¢" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualAssets)}",
+                                                tintColor = SoftTeal,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        selectedTxFilterType = TransactionType.ASSET
+                                                        viewModel.updateFilter(TransactionType.ASSET, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
+                                                        pagerState.animateScrollToPage(1)
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
 
                             // Balance Flow & Net Savings Delta Card
                             item {
@@ -594,7 +716,7 @@ fun MonthlyScreen(
                                             Text(text = "START BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(
-                                                text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBalance)}",
+                                                text = if (isDiscreetMode) "â€¢â€¢â€¢â€¢" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBalance)}",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 15.sp,
                                                 color = TextDark
@@ -617,7 +739,7 @@ fun MonthlyScreen(
                                             Text(text = "END BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(
-                                                text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentEndBalance)}",
+                                                text = if (isDiscreetMode) "â€¢â€¢â€¢â€¢" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentEndBalance)}",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 15.sp,
                                                 color = if (currentEndBalance >= 0) TextDark else SoftRed
@@ -641,7 +763,7 @@ fun MonthlyScreen(
                                             Text(text = "NET SAVINGS", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(
-                                                text = if (isDiscreetMode) "••••" else "${if (netSavings >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", netSavings)}",
+                                                text = if (isDiscreetMode) "â€¢â€¢â€¢â€¢" else "${if (netSavings >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", netSavings)}",
                                                 fontWeight = FontWeight.Black,
                                                 fontSize = 15.sp,
                                                 color = if (netSavings >= 0) SoftTeal else SoftRed
@@ -656,6 +778,99 @@ fun MonthlyScreen(
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
+                            }
+
+                            // 3-Pillar Target & Cashflow Execution
+                            item {
+                                val plannedExpenses = uiState.metrics.plannedExpenses
+                                val actualExpenses = uiState.metrics.actualExpenses
+                                val expDiff = actualExpenses - plannedExpenses
+                                val expFraction = if (plannedExpenses > 0) (actualExpenses / plannedExpenses).toFloat().coerceIn(0f, 1f) else 1f
+
+                                val plannedIncome = uiState.metrics.plannedIncome
+                                val actualIncome = uiState.metrics.actualIncome
+                                val incDiff = actualIncome - plannedIncome
+                                val incFraction = if (plannedIncome > 0) (actualIncome / plannedIncome).toFloat().coerceIn(0f, 1f) else 1f
+
+                                val plannedAssets = uiState.metrics.plannedAssets
+                                val actualAssets = uiState.metrics.actualAssets
+                                val astDiff = actualAssets - plannedAssets
+                                val astFraction = if (plannedAssets > 0) (actualAssets / plannedAssets).toFloat().coerceIn(0f, 1f) else 1f
+
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .shadow(3.dp, RoundedCornerShape(22.dp)),
+                                    shape = RoundedCornerShape(22.dp),
+                                    color = CardWhite,
+                                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(18.dp),
+                                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                                    ) {
+                                        Text(
+                                            text = "3-PILLAR TARGET & CASHFLOW EXECUTION",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = TextMuted,
+                                            letterSpacing = 0.6.sp
+                                        )
+
+                                        PillarDualBarRow(
+                                            title = "Expenses",
+                                            planned = plannedExpenses,
+                                            actual = actualExpenses,
+                                            currencySymbol = userProfile.currencySymbol,
+                                            progressFraction = expFraction,
+                                            barColor = SoftRed,
+                                            isDiscreet = isDiscreetMode,
+                                            varianceText = if (plannedExpenses > 0) {
+                                                if (isDiscreetMode) "Tracked"
+                                                else if (expDiff > 0) "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expDiff)} Over"
+                                                else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(expDiff))} Left"
+                                            } else "No Cap",
+                                            isAlert = expDiff > 0 && plannedExpenses > 0
+                                        )
+
+                                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
+
+                                        PillarDualBarRow(
+                                            title = "Income",
+                                            planned = plannedIncome,
+                                            actual = actualIncome,
+                                            currencySymbol = userProfile.currencySymbol,
+                                            progressFraction = incFraction,
+                                            barColor = SoftGreen,
+                                            isDiscreet = isDiscreetMode,
+                                            varianceText = if (plannedIncome > 0) {
+                                                if (incDiff >= 0) "Target Met"
+                                                else if (isDiscreetMode) "Short"
+                                                else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(incDiff))} Short"
+                                            } else "Recorded Inflow",
+                                            isAlert = false
+                                        )
+
+                                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
+
+                                        PillarDualBarRow(
+                                            title = "Assets / SIP",
+                                            planned = plannedAssets,
+                                            actual = actualAssets,
+                                            currencySymbol = userProfile.currencySymbol,
+                                            progressFraction = astFraction,
+                                            barColor = SoftTeal,
+                                            isDiscreet = isDiscreetMode,
+                                            varianceText = if (plannedAssets > 0) {
+                                                if (astDiff >= 0) "Target Met"
+                                                else if (isDiscreetMode) "Short"
+                                                else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(astDiff))} Short"
+                                            } else "Recorded Wealth",
+                                            isAlert = false
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(20.dp))
                             }
 
                             // Category Matrix Section Header & Segment Switcher
@@ -818,7 +1033,7 @@ fun MonthlyScreen(
                                             Icon(Icons.Default.DateRange, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(14.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = "Date Filter: ${sdf.format(Date(filterCriteria.startDate!!))} – ${sdf.format(Date(filterCriteria.endDate!!))}",
+                                                text = "Date Filter: ${sdf.format(Date(filterCriteria.startDate!!))} â€“ ${sdf.format(Date(filterCriteria.endDate!!))}",
                                                 fontSize = 11.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = AccentPurple
@@ -1012,7 +1227,7 @@ fun MonthlyScreen(
                                                         ) {
                                                             if (dailyIncomeTotal > 0.0) {
                                                                 Text(
-                                                                    text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
+                                                                    text = if (isDiscreetMode) "â€¢â€¢â€¢â€¢" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
                                                                     fontWeight = FontWeight.Bold,
                                                                     fontSize = 11.5.sp,
                                                                     color = SoftGreen
@@ -1020,7 +1235,7 @@ fun MonthlyScreen(
                                                             }
                                                             if (dailyExpenseTotal > 0.0) {
                                                                 Text(
-                                                                    text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
+                                                                    text = if (isDiscreetMode) "â€¢â€¢â€¢â€¢" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
                                                                     fontWeight = FontWeight.Bold,
                                                                     fontSize = 11.5.sp,
                                                                     color = TextDark
@@ -1114,7 +1329,7 @@ fun MonthlyScreen(
 
                                     val badgeColor = if (hasOverdue) SoftRed else SoftAmber
                                     val badgeText = if (isDiscreetMode) {
-                                        "•••• Pending"
+                                        "â€¢â€¢â€¢â€¢ Pending"
                                     } else {
                                         val amtStr = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingCommitmentsTotal)}"
                                         if (hasOverdue) "$amtStr Pending ($overdueCount Overdue)" else "$amtStr Pending"
@@ -1271,7 +1486,7 @@ fun MonthlyScreen(
                 .zIndex(3.5f)
         )
 
-        // 5. FLOATING BOTTOM NAVIGATION DOCK WITH FAB
+        // 5. FLOATING BOTTOM NAVIGATION DOCK WITH FAB (includes integrated animated gradient scrim)
         AppBottomDock(
             currentSelection = NavigationTarget.MONTHLY_VIEW,
             onSelectTarget = { target ->
@@ -1504,7 +1719,7 @@ fun MonthlyScreen(
             val descPrompt = when (bill.type) {
                 TransactionType.INCOME -> "Credits ${bill.accountName} vault and logs inflow entry."
                 TransactionType.ASSET -> "Deducts from ${bill.accountName} and records under Asset Wealth."
-                TransactionType.TRANSFER -> "Sweeps funds from ${bill.accountName} ➔ ${bill.toAccountName ?: "Destination"}."
+                TransactionType.TRANSFER -> "Sweeps funds from ${bill.accountName} âž” ${bill.toAccountName ?: "Destination"}."
                 TransactionType.EXPENSE -> "Deducts from ${bill.accountName} and records expense entry."
             }
 
@@ -1548,7 +1763,7 @@ fun MonthlyScreen(
                                 border = BorderStroke(0.6.dp, SoftRed.copy(alpha = 0.35f))
                             ) {
                                 Text(
-                                    text = "⚠️ MAB Risk: Settling this bill will reduce balance below ${userProfile.currencySymbol}${fundingAccount?.minBalance?.toInt()} minimum balance threshold.",
+                                    text = "âš ï¸ MAB Risk: Settling this bill will reduce balance below ${userProfile.currencySymbol}${fundingAccount?.minBalance?.toInt()} minimum balance threshold.",
                                     fontSize = 10.5.sp,
                                     color = SoftRed,
                                     fontWeight = FontWeight.SemiBold,
@@ -1722,7 +1937,7 @@ fun MonthlyScreen(
                 onTransfer = { from, to, amount, note, subtype, date, isRecurring, dueDay ->
                     if (isRecurring) {
                         viewModel.addFixedBill(
-                            title = note.ifBlank { "Vault Transfer ($from ➔ $to)" },
+                            title = note.ifBlank { "Vault Transfer ($from âž” $to)" },
                             amount = amount,
                             category = "Transfer",
                             subcategory = subtype.name,
@@ -1920,5 +2135,350 @@ fun MonthlyScreen(
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun CategoryMatrixRow(
+    cat: CategoryPerformance,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    currencySymbol: String,
+    isDiscreetMode: Boolean
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = tween(200),
+        label = "arrowRotation"
+    )
+
+    val progressFraction = if (cat.plannedAmount > 0) {
+        (cat.actualAmount / cat.plannedAmount).toFloat().coerceIn(0f, 1f)
+    } else 1f
+
+    val utilizationPercentage = if (cat.plannedAmount > 0) {
+        ((cat.actualAmount / cat.plannedAmount) * 100).toInt()
+    } else 100
+
+    val progressColor = when {
+        cat.isOverBudget -> SoftRed
+        cat.type == TransactionType.INCOME -> SoftGreen
+        cat.type == TransactionType.ASSET -> SoftTeal
+        utilizationPercentage >= 85 -> SoftAmber
+        else -> AccentPurple
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onToggleExpand)
+            .padding(vertical = 8.dp, horizontal = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: Icon + Title & Directly Bound Subtitle Stack
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(progressColor.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = cat.category.take(1).uppercase(),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp,
+                        color = progressColor
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = cat.category,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = TextDark,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+
+                        if (cat.isOverBudget) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = SoftRed.copy(alpha = 0.12f),
+                                border = BorderStroke(0.5.dp, SoftRed.copy(alpha = 0.35f)),
+                                modifier = Modifier.wrapContentWidth()
+                            ) {
+                                Text(
+                                    text = "Over",
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SoftRed,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    val statusText = if (cat.plannedAmount > 0) {
+                        val remaining = cat.plannedAmount - cat.actualAmount
+                        if (isDiscreetMode) "Target configured"
+                        else if (remaining >= 0) {
+                            "$currencySymbol${String.format(Locale.US, "%,.0f", remaining)} left of $currencySymbol${String.format(Locale.US, "%,.0f", cat.plannedAmount)}"
+                        } else {
+                            "Exceeded by $currencySymbol${String.format(Locale.US, "%,.0f", abs(remaining))}"
+                        }
+                    } else {
+                        "No target limit configured"
+                    }
+
+                    Text(
+                        text = statusText,
+                        fontSize = 11.sp,
+                        fontWeight = if (cat.isOverBudget) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (cat.isOverBudget) SoftRed else TextMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Right: Amount, Percentage & Dropdown Arrow
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = if (isDiscreetMode) "â€¢â€¢â€¢â€¢" else "$currencySymbol${String.format(Locale.US, "%,.0f", cat.actualAmount)}",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp,
+                        color = if (cat.isOverBudget) SoftRed else TextDark
+                    )
+                    if (cat.plannedAmount > 0) {
+                        Text(
+                            text = "$utilizationPercentage%",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = progressColor
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Icon(
+                    imageVector = Icons.Default.ExpandMore,
+                    contentDescription = "Expand",
+                    tint = TextMuted,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .rotate(rotation)
+                )
+            }
+        }
+
+        // 3.5dp Progress Bar Directly Anchored Below the Header Row
+        if (cat.plannedAmount > 0) {
+            Spacer(modifier = Modifier.height(7.dp))
+            LinearProgressIndicator(
+                progress = { progressFraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.5.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = progressColor,
+                trackColor = BorderLight.copy(alpha = 0.5f)
+            )
+        }
+
+        // Expandable Subcategory Contributions
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CanvasLight)
+                    .padding(10.dp)
+            ) {
+                if (cat.activeSubcategories.isEmpty()) {
+                    Text(text = "No logged transactions in subcategories", fontSize = 11.sp, color = TextMuted)
+                } else {
+                    Text(
+                        text = "SUBCATEGORY CONTRIBUTIONS",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextMuted,
+                        letterSpacing = 0.5.sp,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+
+                    cat.activeSubcategories.forEach { sub ->
+                        val subPercentage = if (cat.actualAmount > 0) {
+                            ((sub.amount / cat.actualAmount) * 100).toInt()
+                        } else 0
+
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(5.dp)
+                                            .clip(CircleShape)
+                                            .background(progressColor)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(text = sub.name, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = TextDark)
+                                }
+
+                                Text(
+                                    text = if (isDiscreetMode) "â€¢â€¢â€¢â€¢ ($subPercentage%)" else "$currencySymbol${String.format(Locale.US, "%,.2f", sub.amount)} ($subPercentage%)",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.5.dp))
+                            LinearProgressIndicator(
+                                progress = { (subPercentage / 100f).coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(3.dp)
+                                    .clip(RoundedCornerShape(1.5.dp)),
+                                color = progressColor.copy(alpha = 0.65f),
+                                trackColor = BorderLight.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PillarMetricCard(
+    title: String,
+    amount: String,
+    tintColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    Surface(
+        modifier = modifier
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        shape = RoundedCornerShape(13.dp),
+        color = CardWhite,
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .clip(CircleShape)
+                        .background(tintColor)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = title, fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = amount,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = tintColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun PillarDualBarRow(
+    title: String,
+    planned: Double,
+    actual: Double,
+    currencySymbol: String,
+    progressFraction: Float,
+    barColor: Color,
+    isDiscreet: Boolean,
+    varianceText: String,
+    isAlert: Boolean
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (isAlert) SoftRed.copy(alpha = 0.12f) else CanvasLight
+                ) {
+                    Text(
+                        text = varianceText,
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isAlert) SoftRed else TextMuted,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (isDiscreet) "Plan: â€¢â€¢â€¢â€¢" else "Plan: $currencySymbol${String.format(Locale.US, "%,.0f", planned)}",
+                    fontSize = 11.sp,
+                    color = TextMuted
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isDiscreet) "Act: â€¢â€¢â€¢â€¢" else "Act: $currencySymbol${String.format(Locale.US, "%,.0f", actual)}",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 13.sp,
+                    color = if (isAlert) SoftRed else barColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        LinearProgressIndicator(
+            progress = { progressFraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = if (isAlert) SoftRed else barColor,
+            trackColor = barColor.copy(alpha = 0.15f)
+        )
     }
 }
