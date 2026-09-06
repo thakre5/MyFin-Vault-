@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -38,7 +39,16 @@ fun AccountTransferDialog(
     accounts: List<String>,
     currencySymbol: String = "₹",
     onDismiss: () -> Unit,
-    onTransfer: (from: String, to: String, amount: Double, note: String, subtype: TransferSubtype, date: Long) -> Unit
+    onTransfer: (
+        from: String,
+        to: String,
+        amount: Double,
+        note: String,
+        subtype: TransferSubtype,
+        date: Long,
+        isRecurring: Boolean,
+        dueDay: Int?
+    ) -> Unit
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -48,6 +58,10 @@ fun AccountTransferDialog(
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
     var selectedSubtype by remember { mutableStateOf(TransferSubtype.WEALTH_ALLOCATION) }
+
+    // Recurring Monthly Sweep Toggle States
+    var isRecurringSweep by remember { mutableStateOf(false) }
+    var dueDayText by remember { mutableStateOf("") }
 
     // Date State & Dialog
     var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -236,7 +250,12 @@ fun AccountTransferDialog(
                 ) {
                     FilterChip(
                         selected = isToday,
-                        onClick = { selectedDateMillis = System.currentTimeMillis() },
+                        onClick = {
+                            selectedDateMillis = System.currentTimeMillis()
+                            if (isRecurringSweep && dueDayText.isBlank()) {
+                                dueDayText = Calendar.getInstance().get(Calendar.DAY_OF_MONTH).toString()
+                            }
+                        },
                         label = { Text("Today", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
@@ -250,6 +269,9 @@ fun AccountTransferDialog(
                         onClick = {
                             val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
                             selectedDateMillis = cal.timeInMillis
+                            if (isRecurringSweep && dueDayText.isBlank()) {
+                                dueDayText = cal.get(Calendar.DAY_OF_MONTH).toString()
+                            }
                         },
                         label = { Text("Yesterday", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
                         shape = RoundedCornerShape(8.dp),
@@ -328,6 +350,86 @@ fun AccountTransferDialog(
                 )
             )
 
+            // REPEAT AS MONTHLY SWEEP TOGGLE
+            Spacer(modifier = Modifier.height(14.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = CanvasLight,
+                border = BorderStroke(0.6.dp, BorderLight)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Set as Recurring Monthly Sweep",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark
+                            )
+                            Text(
+                                text = "Saves this route ($fromAccount ➔ $toAccount) as an AutoPay commitment",
+                                fontSize = 10.5.sp,
+                                color = TextMuted
+                            )
+                        }
+                        Switch(
+                            checked = isRecurringSweep,
+                            onCheckedChange = { checked ->
+                                isRecurringSweep = checked
+                                if (checked && dueDayText.isBlank()) {
+                                    val cal = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+                                    dueDayText = cal.get(Calendar.DAY_OF_MONTH).toString()
+                                }
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = AccentPurple,
+                                uncheckedThumbColor = TextMuted,
+                                uncheckedTrackColor = BorderLight
+                            )
+                        )
+                    }
+
+                    if (isRecurringSweep) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Monthly Sweep Day (1-31):",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = TextDark
+                            )
+                            OutlinedTextField(
+                                value = dueDayText,
+                                onValueChange = { input ->
+                                    if (input.length <= 2) {
+                                        dueDayText = input.filter { it.isDigit() }
+                                    }
+                                },
+                                placeholder = { Text("Day", fontSize = 11.sp) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.width(75.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AccentPurple,
+                                    unfocusedBorderColor = BorderLight
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(18.dp))
 
             Row(
@@ -346,7 +448,21 @@ fun AccountTransferDialog(
                 Button(
                     onClick = {
                         if (isTransferValid) {
-                            onTransfer(fromAccount, toAccount, parsedAmount, noteText.trim(), selectedSubtype, selectedDateMillis)
+                            val parsedDueDay = if (isRecurringSweep) {
+                                dueDayText.toIntOrNull()?.let { if (it in 1..31) it else null }
+                                    ?: Calendar.getInstance().apply { timeInMillis = selectedDateMillis }.get(Calendar.DAY_OF_MONTH)
+                            } else null
+
+                            onTransfer(
+                                fromAccount,
+                                toAccount,
+                                parsedAmount,
+                                noteText.trim(),
+                                selectedSubtype,
+                                selectedDateMillis,
+                                isRecurringSweep,
+                                parsedDueDay
+                            )
                             onDismiss()
                         } else {
                             Toast.makeText(context, "Select distinct vaults and enter an amount > 0", Toast.LENGTH_SHORT).show()
@@ -357,7 +473,11 @@ fun AccountTransferDialog(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
-                    Text("Execute Transfer", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                    Text(
+                        text = if (isRecurringSweep) "Transfer & Save AutoPay" else "Execute Transfer",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -388,6 +508,9 @@ fun AccountTransferDialog(
                                 set(Calendar.MILLISECOND, 0)
                             }
                             selectedDateMillis = localCal.timeInMillis
+                            if (isRecurringSweep && dueDayText.isBlank()) {
+                                dueDayText = localCal.get(Calendar.DAY_OF_MONTH).toString()
+                            }
                         }
                         showDatePickerDialog = false
                     }
