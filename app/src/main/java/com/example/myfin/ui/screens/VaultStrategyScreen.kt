@@ -5,11 +5,13 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -349,9 +351,14 @@ fun VaultStrategyScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 125.dp)
             ) {
-                // Top Strategy Carousel: Vault Asset Allocation & Fortress Vault Split (Side by Side)
+                // Top Strategy Carousel: Vault Asset Allocation & Fortress Vault Split (Side by Side with Snapping)
                 item(key = "top_strategy_carousel") {
+                    val strategyCarouselState = rememberLazyListState()
+                    val strategySnapBehavior = rememberSnapFlingBehavior(lazyListState = strategyCarouselState)
+
                     LazyRow(
+                        state = strategyCarouselState,
+                        flingBehavior = strategySnapBehavior,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(start = 4.dp, end = 4.dp),
                         modifier = Modifier.fillMaxWidth()
