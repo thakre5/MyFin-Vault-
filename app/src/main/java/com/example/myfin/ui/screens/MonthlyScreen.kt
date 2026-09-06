@@ -542,7 +542,7 @@ fun MonthlyScreen(
                                 }
                             }
 
-                            // Full-Width Horizontal Pager for Hero Card & 3-Pillar Card (Eliminates Side Lines & Matches Heights)
+                            // Full-Width Horizontal Pager for Hero Card & 3-Pillar Card (Inline implementation to avoid type ambiguity)
                             item {
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     HorizontalPager(
@@ -553,7 +553,6 @@ fun MonthlyScreen(
                                     ) { page ->
                                         when (page) {
                                             0 -> {
-                                                // Hero Card: Real Liquid Safe-to-Spend Guardrail & Live Sparkline (Compacted Height)
                                                 val isHealthy = uiState.metrics.safeToSpend > 0
                                                 val statusColor = if (isHealthy) SoftGreen else SoftRed
 
@@ -702,7 +701,6 @@ fun MonthlyScreen(
                                                 }
                                             }
                                             1 -> {
-                                                // 3-Pillar Target & Cashflow Execution Card
                                                 val plannedExpenses = uiState.metrics.plannedExpenses
                                                 val actualExpenses = uiState.metrics.actualExpenses
                                                 val expDiff = actualExpenses - plannedExpenses
@@ -1524,7 +1522,7 @@ fun MonthlyScreen(
                 .zIndex(3.5f)
         )
 
-        // 5. FLOATING BOTTOM NAVIGATION DOCK WITH FAB (includes integrated animated gradient scrim)
+        // 5. FLOATING BOTTOM NAVIGATION DOCK WITH FAB
         AppBottomDock(
             currentSelection = NavigationTarget.MONTHLY_VIEW,
             onSelectTarget = { target ->
