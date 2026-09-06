@@ -282,6 +282,7 @@ class BudgetViewModel(
             val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
             val actualAssets = regularTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
 
+            // 1. REIMBURSEMENT OFFSET ENGINE
             val isWorkExpense = { tx: TransactionEntity ->
                 tx.type == TransactionType.EXPENSE &&
                 (tx.category.equals("Work & Professional", ignoreCase = true) ||
@@ -355,6 +356,7 @@ class BudgetViewModel(
                 else -> 0.0
             }
 
+            // Safe-to-Spend Engine: Unlinked expenses are directly counted without excluding whole subcategories
             val commitments = fixedExpenseTotal + max(plannedAssets, actualAssets)
 
             val personalDiscretionaryExpenses = regularTxs.filter { tx ->
@@ -397,6 +399,7 @@ class BudgetViewModel(
             val totalVault = allAccounts.sumOf { it.currentBalance }
             val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
 
+            // Commitments Vault Shortfall Engine
             val commitmentsAccount = sortedActiveAccounts.find {
                 it.accountType.equals("Commitments", ignoreCase = true) ||
                 it.accountName.contains("COMMITMENT", ignoreCase = true) ||
@@ -430,6 +433,7 @@ class BudgetViewModel(
                 affectedAccountName = commitmentsAccount?.accountName ?: "Commitments"
             )
 
+            // Automated Payday Fortress Surplus Allocation Engine
             val todayCalCheck = Calendar.getInstance()
             val isCurrentSystemMonth = (month == (todayCalCheck.get(Calendar.MONTH) + 1)) && (year == todayCalCheck.get(Calendar.YEAR))
             val isAfter25th = todayCalCheck.get(Calendar.DAY_OF_MONTH) >= 25
@@ -597,6 +601,7 @@ class BudgetViewModel(
                 val totalAssets = rollups.sumOf { it.totalAsset }
                 val netSurplus = totalIncome - totalExpense - totalAssets
 
+                // Multi-Year Assets Progression
                 val assetTxs = allTransactions.filter { it.type == TransactionType.ASSET }
                 val yearsGrouped = assetTxs.groupBy { tx ->
                     txCal.timeInMillis = tx.date
@@ -615,6 +620,7 @@ class BudgetViewModel(
                     MultiYearAssetMetric(year = y, totalAssets = amt, growthPercent = growth)
                 }
 
+                // Asset Wealth & NPA Provisioning Engine
                 val totalInvestments = assetTxs.filter {
                     it.category.equals("Investments & Wealth", ignoreCase = true)
                 }.sumOf { it.amount }
@@ -649,6 +655,7 @@ class BudgetViewModel(
                     realizableNetWorth = realizableNetWorth
                 )
 
+                // Annual Reimbursement Status
                 val annualWorkExpenses = allYearTransactions.filter(isWorkExpense).sumOf { it.amount }
                 val annualReimbursements = allYearTransactions.filter(isCorporateReimbursement).sumOf { it.amount }
                 val annualPendingReimbursement = (annualWorkExpenses - annualReimbursements).coerceAtLeast(0.0)
