@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -199,7 +200,29 @@ fun AppBottomDock(
             }
         }
 
-        // 3. Main Bottom Dock Row
+        // 3. Synchronized Bottom Gradient Scrim (Hides & Shows with Dock)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(115.dp)
+                .align(Alignment.BottomCenter)
+                .graphicsLayer {
+                    alpha = animAlpha
+                    translationY = animTranslationY
+                }
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            CanvasLight.copy(alpha = 0.85f),
+                            CanvasLight
+                        )
+                    )
+                )
+                .zIndex(1.5f)
+        )
+
+        // 4. Main Bottom Dock Row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
