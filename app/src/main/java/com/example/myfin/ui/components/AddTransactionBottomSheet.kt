@@ -43,12 +43,23 @@ fun AddTransactionBottomSheet(
     masterCategories: List<CategoryEntity>,
     masterSubcategories: List<SubcategoryEntity>,
     onDismiss: () -> Unit,
-    onSave: (id: Long, title: String, amount: Double, category: String, subcategory: String, account: String, type: TransactionType, date: Long) -> Unit
+    onSave: (
+        id: Long,
+        title: String,
+        amount: Double,
+        category: String,
+        subcategory: String,
+        account: String,
+        toAccount: String?,
+        type: TransactionType,
+        date: Long,
+        isRecurring: Boolean,
+        dueDay: Int?
+    ) -> Unit
 ) {
     val isEditing = editingTransaction != null
     var selectedType by remember { mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE) }
 
-    // Strip duplicated subcategory names or system transfer titles when pre-populating edit dialog
     var title by remember {
         mutableStateOf(
             editingTransaction?.let { tx ->
@@ -66,6 +77,10 @@ fun AddTransactionBottomSheet(
     }
 
     var amountText by remember { mutableStateOf(editingTransaction?.amount?.let { if (it > 0) it.toString() else "" }.orEmpty()) }
+
+    // Recurring Commitment Toggle States (Available when creating new entries)
+    var isRecurringCommitment by remember { mutableStateOf(false) }
+    var dueDayText by remember { mutableStateOf("") }
 
     // Transfer Subtype State
     var selectedTransferSubtype by remember {
@@ -283,7 +298,12 @@ fun AddTransactionBottomSheet(
                 ) {
                     FilterChip(
                         selected = isToday,
-                        onClick = { selectedDateMillis = System.currentTimeMillis() },
+                        onClick = {
+                            selectedDateMillis = System.currentTimeMillis()
+                            if (isRecurringCommitment && dueDayText.isBlank()) {
+                                dueDayText = Calendar.getInstance().get(Calendar.DAY_OF_MONTH).toString()
+                            }
+                        },
                         label = { Text("Today", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
@@ -297,6 +317,9 @@ fun AddTransactionBottomSheet(
                         onClick = {
                             val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
                             selectedDateMillis = cal.timeInMillis
+                            if (isRecurringCommitment && dueDayText.isBlank()) {
+                                dueDayText = cal.get(Calendar.DAY_OF_MONTH).toString()
+                            }
                         },
                         label = { Text("Yesterday", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
                         shape = RoundedCornerShape(8.dp),
@@ -385,7 +408,6 @@ fun AddTransactionBottomSheet(
             } else {
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Category Chips
                 Text("Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -410,7 +432,6 @@ fun AddTransactionBottomSheet(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Subcategory Chips (Primary Entity)
                 if (availableSubcategories.isNotEmpty()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
@@ -484,7 +505,89 @@ fun AddTransactionBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
+            // REPEAT AS MONTHLY COMMITMENT TOGGLE
+            if (!isEditing) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = CanvasLight,
+                    border = BorderStroke(0.6.dp, BorderLight)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (selectedType == TransactionType.TRANSFER) "Set as Recurring Monthly Sweep" else "Repeat as Monthly AutoPay",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                                Text(
+                                    text = "Creates recurring commitment and settles this month",
+                                    fontSize = 10.5.sp,
+                                    color = TextMuted
+                                )
+                            }
+                            Switch(
+                                checked = isRecurringCommitment,
+                                onCheckedChange = { checked ->
+                                    isRecurringCommitment = checked
+                                    if (checked && dueDayText.isBlank()) {
+                                        val cal = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+                                        dueDayText = cal.get(Calendar.DAY_OF_MONTH).toString()
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = AccentPurple,
+                                    uncheckedThumbColor = TextMuted,
+                                    uncheckedTrackColor = BorderLight
+                                )
+                            )
+                        }
+
+                        if (isRecurringCommitment) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Monthly Due Day (1-31):",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextDark
+                                )
+                                OutlinedTextField(
+                                    value = dueDayText,
+                                    onValueChange = { input ->
+                                        if (input.length <= 2) {
+                                            dueDayText = input.filter { it.isDigit() }
+                                        }
+                                    },
+                                    placeholder = { Text("Day", fontSize = 11.sp) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.width(75.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = AccentPurple,
+                                        unfocusedBorderColor = BorderLight
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
 
             Button(
                 onClick = {
@@ -506,6 +609,11 @@ fun AddTransactionBottomSheet(
                             else -> resolvedSubcategory
                         }
 
+                        val parsedDueDay = if (isRecurringCommitment) {
+                            dueDayText.toIntOrNull()?.let { if (it in 1..31) it else null }
+                                ?: Calendar.getInstance().apply { timeInMillis = selectedDateMillis }.get(Calendar.DAY_OF_MONTH)
+                        } else null
+
                         onSave(
                             editingTransaction?.id ?: 0L,
                             resolvedTitle,
@@ -513,8 +621,11 @@ fun AddTransactionBottomSheet(
                             resolvedCategory,
                             resolvedSubcategory,
                             selectedAccount.ifBlank { accountList.firstOrNull().orEmpty() },
+                            if (selectedType == TransactionType.TRANSFER) selectedToAccount else null,
                             selectedType,
-                            selectedDateMillis
+                            selectedDateMillis,
+                            isRecurringCommitment,
+                            parsedDueDay
                         )
                         onDismiss()
                     }
@@ -527,7 +638,7 @@ fun AddTransactionBottomSheet(
                 colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
             ) {
                 Text(
-                    text = if (isEditing) "Update Entry" else "Save Entry",
+                    text = if (isEditing) "Update Entry" else if (isRecurringCommitment) "Save & Create AutoPay" else "Save Entry",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
@@ -559,6 +670,9 @@ fun AddTransactionBottomSheet(
                                 set(Calendar.MILLISECOND, 0)
                             }
                             selectedDateMillis = localCal.timeInMillis
+                            if (isRecurringCommitment && dueDayText.isBlank()) {
+                                dueDayText = localCal.get(Calendar.DAY_OF_MONTH).toString()
+                            }
                         }
                         showDatePickerDialog = false
                     }
