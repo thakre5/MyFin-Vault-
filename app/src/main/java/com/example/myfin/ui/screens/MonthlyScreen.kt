@@ -2568,3 +2568,4 @@ private fun PillarMetricCard(
         }
     }
 }
+}
