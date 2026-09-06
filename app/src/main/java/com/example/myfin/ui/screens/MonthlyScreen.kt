@@ -881,9 +881,9 @@ fun MonthlyScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .clip(RoundedCornerShape(14.dp))
                                         .background(BorderLight.copy(alpha = 0.5f))
-                                        .padding(3.dp)
+                                        .padding(4.dp)
                                 ) {
                                     listOf(
                                         Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
@@ -894,10 +894,10 @@ fun MonthlyScreen(
                                         Box(
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .clip(RoundedCornerShape(9.dp))
+                                                .clip(RoundedCornerShape(10.dp))
                                                 .background(if (isSelected) CardWhite else Color.Transparent)
                                                 .clickable { selectedMatrixType = type }
-                                                .padding(vertical = 7.dp),
+                                                .padding(vertical = 8.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
@@ -1946,22 +1946,38 @@ fun MonthlyScreen(
             }
         }
 
-        // Standardized Transfer Bottom Sheet (With Past Date Support)
+        // Standardized Transfer Bottom Sheet (With Recurring Sweep Toggle Support)
         if (showTransferSheet) {
             AccountTransferDialog(
                 accounts = accountsList,
                 currencySymbol = userProfile.currencySymbol,
                 onDismiss = { showTransferSheet = false },
-                onTransfer = { from, to, amount, note, subtype, date ->
-                    viewModel.executeInstantTransfer(
-                        fromAccount = from,
-                        toAccount = to,
-                        amount = amount,
-                        note = note,
-                        subtype = subtype,
-                        date = date
-                    )
-                    Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
+                onTransfer = { from, to, amount, note, subtype, date, isRecurring, dueDay ->
+                    if (isRecurring) {
+                        viewModel.addFixedBill(
+                            title = note.ifBlank { "Vault Transfer ($from ➔ $to)" },
+                            amount = amount,
+                            category = "Transfer",
+                            subcategory = subtype.name,
+                            account = from,
+                            toAccount = to,
+                            type = TransactionType.TRANSFER,
+                            dueDay = dueDay,
+                            isPaid = true,
+                            paidDateMillis = date
+                        )
+                        Toast.makeText(context, "Saved as recurring sweep & transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        viewModel.executeInstantTransfer(
+                            fromAccount = from,
+                            toAccount = to,
+                            amount = amount,
+                            note = note,
+                            subtype = subtype,
+                            date = date
+                        )
+                        Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
         }
@@ -2037,7 +2053,7 @@ fun MonthlyScreen(
             )
         }
 
-        // Add / Edit Transaction Sheet (With Today, Yesterday & Calendar Picker)
+        // Add / Edit Transaction Sheet (With Recurring AutoPay Toggle Support)
         if (showAddSheet) {
             AddTransactionBottomSheet(
                 editingTransaction = editingTx,
@@ -2046,7 +2062,7 @@ fun MonthlyScreen(
                 masterCategories = uiState.masterCategories,
                 masterSubcategories = uiState.masterSubcategories,
                 onDismiss = { showAddSheet = false },
-                onSave = { id, title, amount, category, subcat, acc, type, date ->
+                onSave = { id, title, amount, category, subcat, acc, toAcc, type, date, isRecurring, dueDay ->
                     val resolvedSubtype = if (type == TransactionType.TRANSFER) {
                         try {
                             TransferSubtype.valueOf(subcat)
@@ -2055,18 +2071,35 @@ fun MonthlyScreen(
                         }
                     } else TransferSubtype.NONE
 
-                    viewModel.saveTransaction(
-                        id = id,
-                        title = title,
-                        amount = amount,
-                        category = category,
-                        subcategory = subcat,
-                        accountName = acc,
-                        type = type,
-                        date = date,
-                        toAccountName = if (type == TransactionType.TRANSFER) editingTx?.toAccountName else null,
-                        transferSubtype = resolvedSubtype
-                    )
+                    if (isRecurring && id == 0L) {
+                        viewModel.addFixedBill(
+                            title = title,
+                            amount = amount,
+                            category = category,
+                            subcategory = subcat,
+                            account = acc,
+                            toAccount = toAcc,
+                            type = type,
+                            dueDay = dueDay,
+                            isPaid = true,
+                            paidDateMillis = date
+                        )
+                        Toast.makeText(context, "Saved as recurring AutoPay commitment & settled", Toast.LENGTH_SHORT).show()
+                    } else {
+                        viewModel.saveTransaction(
+                            id = id,
+                            title = title,
+                            amount = amount,
+                            category = category,
+                            subcategory = subcat,
+                            accountName = acc,
+                            type = type,
+                            date = date,
+                            toAccountName = if (type == TransactionType.TRANSFER) toAcc ?: editingTx?.toAccountName else null,
+                            transferSubtype = resolvedSubtype
+                        )
+                    }
+
                     val cal = Calendar.getInstance().apply { timeInMillis = date }
                     val txMonth = cal.get(Calendar.MONTH) + 1
                     val txYear = cal.get(Calendar.YEAR)
@@ -2188,14 +2221,35 @@ private fun CategoryMatrixRow(
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Column(modifier = Modifier.weight(1f, fill = false)) {
-                    Text(
-                        text = cat.category,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        color = TextDark,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = cat.category,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = TextDark,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        if (cat.isOverBudget) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = SoftRed.copy(alpha = 0.12f),
+                                border = BorderStroke(0.5.dp, SoftRed.copy(alpha = 0.35f))
+                            ) {
+                                Text(
+                                    text = "Over",
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SoftRed,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(2.dp))
 
