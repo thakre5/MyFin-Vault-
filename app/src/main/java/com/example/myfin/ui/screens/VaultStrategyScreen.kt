@@ -970,25 +970,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Bottom Gradient Scrim
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(115.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            CanvasLight.copy(alpha = 0.85f),
-                            CanvasLight
-                        )
-                    )
-                )
-                .zIndex(2.5f)
-        )
-
-        // Floating Bottom Navigation Dock
+        // Floating Bottom Navigation Dock (includes integrated animated gradient scrim)
         AppBottomDock(
             currentSelection = NavigationTarget.VAULT_ACCOUNTS,
             onSelectTarget = { target ->
@@ -1558,7 +1540,7 @@ fun VaultStrategyScreen(
             )
         }
 
-        // Standardized Transfer Bottom Sheet (With Recurring Sweep Toggle Support)
+        // Standardized Transfer Bottom Sheet (With Past Date Support & Receipt)
         if (showTransferSheet) {
             AccountTransferDialog(
                 accounts = accountNames,
