@@ -2231,14 +2231,16 @@ private fun CategoryMatrixRow(
                             fontSize = 13.5.sp,
                             color = TextDark,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
 
                         if (cat.isOverBudget) {
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = SoftRed.copy(alpha = 0.12f),
-                                border = BorderStroke(0.5.dp, SoftRed.copy(alpha = 0.35f))
+                                border = BorderStroke(0.5.dp, SoftRed.copy(alpha = 0.35f)),
+                                modifier = Modifier.wrapContentWidth()
                             ) {
                                 Text(
                                     text = "Over",
