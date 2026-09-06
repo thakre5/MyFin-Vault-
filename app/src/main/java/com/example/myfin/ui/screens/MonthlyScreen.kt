@@ -49,7 +49,6 @@ import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.CategoryPerformance
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -553,23 +552,246 @@ fun MonthlyScreen(
                                         pageSpacing = 0.dp
                                     ) { page ->
                                         when (page) {
-                                            0 -> SafeToSpendHeroCard(
-                                                uiState = uiState,
-                                                userProfile = userProfile,
-                                                isDiscreetMode = isDiscreetMode,
-                                                dailySpendAllowance = dailySpendAllowance,
-                                                daysRemaining = daysRemaining,
-                                                isPastMonth = isPastMonth,
-                                                isCurrentMonth = isCurrentMonth,
-                                                coroutineScope = coroutineScope,
-                                                viewModel = viewModel,
-                                                pagerState = pagerState
-                                            )
-                                            1 -> ThreePillarTargetCard(
-                                                uiState = uiState,
-                                                userProfile = userProfile,
-                                                isDiscreetMode = isDiscreetMode
-                                            )
+                                            0 -> {
+                                                // Hero Card: Real Liquid Safe-to-Spend Guardrail & Live Sparkline (Compacted Height)
+                                                val isHealthy = uiState.metrics.safeToSpend > 0
+                                                val statusColor = if (isHealthy) SoftGreen else SoftRed
+
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .shadow(6.dp, RoundedCornerShape(26.dp)),
+                                                    shape = RoundedCornerShape(26.dp),
+                                                    color = CardWhite,
+                                                    border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .background(
+                                                                Brush.verticalGradient(
+                                                                    colors = listOf(
+                                                                        Color(0xFFFFFFFF),
+                                                                        Color(0xFFFCFAFF),
+                                                                        AccentPurple.copy(alpha = 0.05f)
+                                                                    )
+                                                                )
+                                                            )
+                                                            .padding(horizontal = 18.dp, vertical = 14.dp)
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(7.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(statusColor)
+                                                                )
+                                                                Spacer(modifier = Modifier.width(6.dp))
+                                                                Text(
+                                                                    text = "LIQUID SAFE TO SPEND",
+                                                                    color = TextMuted,
+                                                                    fontSize = 10.5.sp,
+                                                                    fontWeight = FontWeight.Black,
+                                                                    letterSpacing = 0.7.sp
+                                                                )
+                                                            }
+
+                                                            Surface(
+                                                                shape = RoundedCornerShape(8.dp),
+                                                                color = if (isHealthy) AccentPurple.copy(alpha = 0.1f) else statusColor.copy(alpha = 0.12f),
+                                                                border = BorderStroke(0.6.dp, if (isHealthy) AccentPurple.copy(alpha = 0.25f) else statusColor.copy(alpha = 0.3f))
+                                                            ) {
+                                                                Text(
+                                                                    text = "${uiState.metrics.safeToSpendPercentage}% Capacity",
+                                                                    color = if (isHealthy) AccentPurple else statusColor,
+                                                                    fontSize = 10.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                                                )
+                                                            }
+                                                        }
+
+                                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                                        Text(
+                                                            text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
+                                                            fontSize = 28.sp,
+                                                            fontWeight = FontWeight.Black,
+                                                            color = if (isHealthy) TextDark else SoftRed,
+                                                            letterSpacing = (-0.5).sp
+                                                        )
+
+                                                        Spacer(modifier = Modifier.height(2.dp))
+
+                                                        Text(
+                                                            text = when {
+                                                                isPastMonth -> "Month closed: final remaining balance"
+                                                                isCurrentMonth && isHealthy -> if (isDiscreetMode) "Daily allowance protected" else "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
+                                                                isCurrentMonth -> "Overrun warning: spending exceeds liquid operating buffer"
+                                                                else -> "Projected safe allowance across $daysRemaining days"
+                                                            },
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Medium,
+                                                            color = if (isHealthy) TextMuted else SoftRed,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+
+                                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                                        Box(modifier = Modifier.height(44.dp).fillMaxWidth()) {
+                                                            SpendingSparkline(
+                                                                points = uiState.metrics.dailyExpensePoints,
+                                                                lineColor = if (isHealthy) AccentPurple else SoftRed,
+                                                                gradientStartColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.28f),
+                                                                gradientEndColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.0f)
+                                                            )
+                                                        }
+
+                                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                        ) {
+                                                            PillarMetricCard(
+                                                                title = "Inflow",
+                                                                amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedIncome)}",
+                                                                tintColor = SoftGreen,
+                                                                modifier = Modifier.weight(1f),
+                                                                onClick = {
+                                                                    coroutineScope.launch {
+                                                                        selectedTxFilterType = TransactionType.INCOME
+                                                                        viewModel.updateFilter(TransactionType.INCOME, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
+                                                                        pagerState.animateScrollToPage(1)
+                                                                    }
+                                                                }
+                                                            )
+                                                            PillarMetricCard(
+                                                                title = "Fixed Bills",
+                                                                amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
+                                                                tintColor = SoftRed,
+                                                                modifier = Modifier.weight(1f),
+                                                                onClick = {
+                                                                    coroutineScope.launch {
+                                                                        selectedTxFilterType = TransactionType.EXPENSE
+                                                                        viewModel.updateFilter(TransactionType.EXPENSE, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
+                                                                        pagerState.animateScrollToPage(2)
+                                                                    }
+                                                                }
+                                                            )
+                                                            PillarMetricCard(
+                                                                title = "SIP Assets",
+                                                                amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualAssets)}",
+                                                                tintColor = SoftTeal,
+                                                                modifier = Modifier.weight(1f),
+                                                                onClick = {
+                                                                    coroutineScope.launch {
+                                                                        selectedTxFilterType = TransactionType.ASSET
+                                                                        viewModel.updateFilter(TransactionType.ASSET, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
+                                                                        pagerState.animateScrollToPage(1)
+                                                                    }
+                                                                }
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            1 -> {
+                                                // 3-Pillar Target & Cashflow Execution Card
+                                                val plannedExpenses = uiState.metrics.plannedExpenses
+                                                val actualExpenses = uiState.metrics.actualExpenses
+                                                val expDiff = actualExpenses - plannedExpenses
+                                                val expFraction = if (plannedExpenses > 0) (actualExpenses / plannedExpenses).toFloat().coerceIn(0f, 1f) else 1f
+
+                                                val plannedIncome = uiState.metrics.plannedIncome
+                                                val actualIncome = uiState.metrics.actualIncome
+                                                val incDiff = actualIncome - plannedIncome
+                                                val incFraction = if (plannedIncome > 0) (actualIncome / plannedIncome).toFloat().coerceIn(0f, 1f) else 1f
+
+                                                val plannedAssets = uiState.metrics.plannedAssets
+                                                val actualAssets = uiState.metrics.actualAssets
+                                                val astDiff = actualAssets - plannedAssets
+                                                val astFraction = if (plannedAssets > 0) (actualAssets / plannedAssets).toFloat().coerceIn(0f, 1f) else 1f
+
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .shadow(3.dp, RoundedCornerShape(22.dp)),
+                                                    shape = RoundedCornerShape(22.dp),
+                                                    color = CardWhite,
+                                                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.padding(18.dp),
+                                                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "3-PILLAR TARGET & CASHFLOW",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Black,
+                                                            color = TextMuted,
+                                                            letterSpacing = 0.6.sp
+                                                        )
+
+                                                        PillarDualBarRow(
+                                                            title = "Expenses",
+                                                            planned = plannedExpenses,
+                                                            actual = actualExpenses,
+                                                            currencySymbol = userProfile.currencySymbol,
+                                                            progressFraction = expFraction,
+                                                            barColor = SoftRed,
+                                                            isDiscreet = isDiscreetMode,
+                                                            varianceText = if (plannedExpenses > 0) {
+                                                                if (isDiscreetMode) "Tracked"
+                                                                else if (expDiff > 0) "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expDiff)} Over"
+                                                                else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(expDiff))} Left"
+                                                            } else "No Cap",
+                                                            isAlert = expDiff > 0 && plannedExpenses > 0
+                                                        )
+
+                                                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
+
+                                                        PillarDualBarRow(
+                                                            title = "Income",
+                                                            planned = plannedIncome,
+                                                            actual = actualIncome,
+                                                            currencySymbol = userProfile.currencySymbol,
+                                                            progressFraction = incFraction,
+                                                            barColor = SoftGreen,
+                                                            isDiscreet = isDiscreetMode,
+                                                            varianceText = if (plannedIncome > 0) {
+                                                                if (incDiff >= 0) "Target Met"
+                                                                else if (isDiscreetMode) "Short"
+                                                                else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(incDiff))} Short"
+                                                            } else "Recorded Inflow",
+                                                            isAlert = false
+                                                        )
+
+                                                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
+
+                                                        PillarDualBarRow(
+                                                            title = "Assets / SIP",
+                                                            planned = plannedAssets,
+                                                            actual = actualAssets,
+                                                            currencySymbol = userProfile.currencySymbol,
+                                                            progressFraction = astFraction,
+                                                            barColor = SoftTeal,
+                                                            isDiscreet = isDiscreetMode,
+                                                            varianceText = if (plannedAssets > 0) {
+                                                                if (astDiff >= 0) "Target Met"
+                                                                else if (isDiscreetMode) "Short"
+                                                                else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(astDiff))} Short"
+                                                            } else "Recorded Wealth",
+                                                            isAlert = false
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
 
@@ -1949,260 +2171,6 @@ fun MonthlyScreen(
                         viewModel.toggleFixedBillPaid(bill.copy(amount = amt), amt, paidDate)
                     }
                 }
-            )
-        }
-    }
-}
-
-@Composable
-private fun SafeToSpendHeroCard(
-    uiState: MonthlyUiState,
-    userProfile: UserProfile,
-    isDiscreetMode: Boolean,
-    dailySpendAllowance: Double,
-    daysRemaining: Int,
-    isPastMonth: Boolean,
-    isCurrentMonth: Boolean,
-    coroutineScope: CoroutineScope,
-    viewModel: BudgetViewModel,
-    pagerState: androidx.compose.foundation.pager.PagerState
-) {
-    val isHealthy = uiState.metrics.safeToSpend > 0
-    val statusColor = if (isHealthy) SoftGreen else SoftRed
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(6.dp, RoundedCornerShape(26.dp)),
-        shape = RoundedCornerShape(26.dp),
-        color = CardWhite,
-        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
-    ) {
-        Column(
-            modifier = Modifier
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFFFFFFFF),
-                            Color(0xFFFCFAFF),
-                            AccentPurple.copy(alpha = 0.05f)
-                        )
-                    )
-                )
-                .padding(horizontal = 18.dp, vertical = 14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(statusColor)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "LIQUID SAFE TO SPEND",
-                        color = TextMuted,
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 0.7.sp
-                    )
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isHealthy) AccentPurple.copy(alpha = 0.1f) else statusColor.copy(alpha = 0.12f),
-                    border = BorderStroke(0.6.dp, if (isHealthy) AccentPurple.copy(alpha = 0.25f) else statusColor.copy(alpha = 0.3f))
-                ) {
-                    Text(
-                        text = "${uiState.metrics.safeToSpendPercentage}% Capacity",
-                        color = if (isHealthy) AccentPurple else statusColor,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Black,
-                color = if (isHealthy) TextDark else SoftRed,
-                letterSpacing = (-0.5).sp
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Text(
-                text = when {
-                    isPastMonth -> "Month closed: final remaining balance"
-                    isCurrentMonth && isHealthy -> if (isDiscreetMode) "Daily allowance protected" else "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
-                    isCurrentMonth -> "Overrun warning: spending exceeds liquid operating buffer"
-                    else -> "Projected safe allowance across $daysRemaining days"
-                },
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (isHealthy) TextMuted else SoftRed,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Box(modifier = Modifier.height(44.dp).fillMaxWidth()) {
-                SpendingSparkline(
-                    points = uiState.metrics.dailyExpensePoints,
-                    lineColor = if (isHealthy) AccentPurple else SoftRed,
-                    gradientStartColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.28f),
-                    gradientEndColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.0f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                PillarMetricCard(
-                    title = "Inflow",
-                    amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedIncome)}",
-                    tintColor = SoftGreen,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        coroutineScope.launch {
-                            viewModel.updateFilter(TransactionType.INCOME, "ALL", null, null)
-                            pagerState.animateScrollToPage(1)
-                        }
-                    }
-                )
-                PillarMetricCard(
-                    title = "Fixed Bills",
-                    amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
-                    tintColor = SoftRed,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        coroutineScope.launch {
-                            viewModel.updateFilter(TransactionType.EXPENSE, "ALL", null, null)
-                            pagerState.animateScrollToPage(2)
-                        }
-                    }
-                )
-                PillarMetricCard(
-                    title = "SIP Assets",
-                    amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualAssets)}",
-                    tintColor = SoftTeal,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        coroutineScope.launch {
-                            viewModel.updateFilter(TransactionType.ASSET, "ALL", null, null)
-                            pagerState.animateScrollToPage(1)
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ThreePillarTargetCard(
-    uiState: MonthlyUiState,
-    userProfile: UserProfile,
-    isDiscreetMode: Boolean
-) {
-    val plannedExpenses = uiState.metrics.plannedExpenses
-    val actualExpenses = uiState.metrics.actualExpenses
-    val expDiff = actualExpenses - plannedExpenses
-    val expFraction = if (plannedExpenses > 0) (actualExpenses / plannedExpenses).toFloat().coerceIn(0f, 1f) else 1f
-
-    val plannedIncome = uiState.metrics.plannedIncome
-    val actualIncome = uiState.metrics.actualIncome
-    val incDiff = actualIncome - plannedIncome
-    val incFraction = if (plannedIncome > 0) (actualIncome / plannedIncome).toFloat().coerceIn(0f, 1f) else 1f
-
-    val plannedAssets = uiState.metrics.plannedAssets
-    val actualAssets = uiState.metrics.actualAssets
-    val astDiff = actualAssets - plannedAssets
-    val astFraction = if (plannedAssets > 0) (actualAssets / plannedAssets).toFloat().coerceIn(0f, 1f) else 1f
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(3.dp, RoundedCornerShape(22.dp)),
-        shape = RoundedCornerShape(22.dp),
-        color = CardWhite,
-        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Text(
-                text = "3-PILLAR TARGET & CASHFLOW",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Black,
-                color = TextMuted,
-                letterSpacing = 0.6.sp
-            )
-
-            PillarDualBarRow(
-                title = "Expenses",
-                planned = plannedExpenses,
-                actual = actualExpenses,
-                currencySymbol = userProfile.currencySymbol,
-                progressFraction = expFraction,
-                barColor = SoftRed,
-                isDiscreet = isDiscreetMode,
-                varianceText = if (plannedExpenses > 0) {
-                    if (isDiscreetMode) "Tracked"
-                    else if (expDiff > 0) "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expDiff)} Over"
-                    else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(expDiff))} Left"
-                } else "No Cap",
-                isAlert = expDiff > 0 && plannedExpenses > 0
-            )
-
-            HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
-
-            PillarDualBarRow(
-                title = "Income",
-                planned = plannedIncome,
-                actual = actualIncome,
-                currencySymbol = userProfile.currencySymbol,
-                progressFraction = incFraction,
-                barColor = SoftGreen,
-                isDiscreet = isDiscreetMode,
-                varianceText = if (plannedIncome > 0) {
-                    if (incDiff >= 0) "Target Met"
-                    else if (isDiscreetMode) "Short"
-                    else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(incDiff))} Short"
-                } else "Recorded Inflow",
-                isAlert = false
-            )
-
-            HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
-
-            PillarDualBarRow(
-                title = "Assets / SIP",
-                planned = plannedAssets,
-                actual = actualAssets,
-                currencySymbol = userProfile.currencySymbol,
-                progressFraction = astFraction,
-                barColor = SoftTeal,
-                isDiscreet = isDiscreetMode,
-                varianceText = if (plannedAssets > 0) {
-                    if (astDiff >= 0) "Target Met"
-                    else if (isDiscreetMode) "Short"
-                    else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(astDiff))} Short"
-                } else "Recorded Wealth",
-                isAlert = false
             )
         }
     }
