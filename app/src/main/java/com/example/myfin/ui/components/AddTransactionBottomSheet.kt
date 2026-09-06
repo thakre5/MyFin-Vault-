@@ -78,11 +78,9 @@ fun AddTransactionBottomSheet(
 
     var amountText by remember { mutableStateOf(editingTransaction?.amount?.let { if (it > 0) it.toString() else "" }.orEmpty()) }
 
-    // Recurring Commitment Toggle States (Available when creating new entries)
     var isRecurringCommitment by remember { mutableStateOf(false) }
     var dueDayText by remember { mutableStateOf("") }
 
-    // Transfer Subtype State
     var selectedTransferSubtype by remember {
         mutableStateOf(
             when (editingTransaction?.subcategory) {
@@ -93,14 +91,12 @@ fun AddTransactionBottomSheet(
         )
     }
 
-    // Destination Vault for Transfers
     var selectedToAccount by remember(accountList) {
         mutableStateOf(
             editingTransaction?.toAccountName ?: accountList.getOrNull(1) ?: accountList.firstOrNull().orEmpty()
         )
     }
 
-    // Date State & Dialog
     var selectedDateMillis by remember { mutableStateOf(editingTransaction?.date ?: System.currentTimeMillis()) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
 
@@ -191,7 +187,6 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Transaction Type Selector
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -242,7 +237,6 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Amount Input
             OutlinedTextField(
                 value = amountText,
                 onValueChange = { input ->
@@ -263,7 +257,6 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Title / Note Input
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -286,7 +279,6 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Transaction Date Selector
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text("Transaction Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                 Spacer(modifier = Modifier.height(6.dp))
@@ -360,7 +352,6 @@ fun AddTransactionBottomSheet(
                 }
             }
 
-            // Transfer Subtype Selector OR Standard Category/Subcategory Chips
             if (selectedType == TransactionType.TRANSFER) {
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
@@ -408,7 +399,7 @@ fun AddTransactionBottomSheet(
             } else {
                 Spacer(modifier = Modifier.height(14.dp))
 
-                Text("Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                Text("Category (Most Used First)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(availableCategories.ifEmpty { listOf("General") }) { cat ->
@@ -434,7 +425,7 @@ fun AddTransactionBottomSheet(
 
                 if (availableSubcategories.isNotEmpty()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                        Text("Subcategory (Most Used First)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("(Primary Identification)", fontSize = 9.5.sp, color = TextMuted.copy(alpha = 0.7f))
                     }
@@ -458,10 +449,9 @@ fun AddTransactionBottomSheet(
                 }
             }
 
-            // Source Vault Account Chips
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Vault Account",
+                text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Vault Account (Most Used First)",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextMuted
@@ -483,7 +473,6 @@ fun AddTransactionBottomSheet(
                 }
             }
 
-            // Destination Vault Account Chips for Transfer
             if (selectedType == TransactionType.TRANSFER) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Destination Vault (To)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
@@ -505,7 +494,6 @@ fun AddTransactionBottomSheet(
                 }
             }
 
-            // REPEAT AS MONTHLY COMMITMENT TOGGLE
             if (!isEditing) {
                 Spacer(modifier = Modifier.height(14.dp))
                 Surface(
