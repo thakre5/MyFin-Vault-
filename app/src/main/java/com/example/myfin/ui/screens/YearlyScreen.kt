@@ -784,20 +784,6 @@ fun YearlyScreen(
             }
         }
 
-        // Bottom Dissolve Gradient
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(115.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, CanvasLight.copy(alpha = 0.85f), CanvasLight)
-                    )
-                )
-                .zIndex(2.5f)
-        )
-
         // Floating Pager Indicator
         FloatingPagerIndicator(
             pagerState = pagerState,
@@ -810,7 +796,7 @@ fun YearlyScreen(
                 .zIndex(3.5f)
         )
 
-        // Bottom Navigation Dock
+        // Bottom Navigation Dock (includes integrated animated gradient scrim)
         AppBottomDock(
             currentSelection = NavigationTarget.YEARLY_VIEW,
             onSelectTarget = { target ->
