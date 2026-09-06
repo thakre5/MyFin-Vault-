@@ -179,7 +179,7 @@ fun MonthlyScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. PINNED TOP BAR (WITH DOWNWARD DISSOLVE SHELF)
+            // 1. PINNED TOP BAR
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -233,7 +233,7 @@ fun MonthlyScreen(
                         }
                     }
 
-                    // Top Right Actions (Settled Toggle + Discreet Mode)
+                    // Top Right Actions
                     Row(
                         modifier = Modifier.align(Alignment.CenterEnd),
                         verticalAlignment = Alignment.CenterVertically
@@ -546,12 +546,12 @@ fun MonthlyScreen(
                                     }
                                 }
 
-                                // 3. HORIZONTAL CAROUSEL (Edge-to-Edge full width per card, Compact 248dp Height)
+                                // 3. HORIZONTAL CAROUSEL (Full Width per card, Matched 296dp Height)
                                 item {
                                     LazyRow(
                                         state = carouselState,
                                         flingBehavior = snapBehavior,
-                                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
                                         contentPadding = PaddingValues(0.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
@@ -563,9 +563,9 @@ fun MonthlyScreen(
                                             Surface(
                                                 modifier = Modifier
                                                     .fillParentMaxWidth()
-                                                    .height(248.dp)
-                                                    .shadow(4.dp, RoundedCornerShape(22.dp)),
-                                                shape = RoundedCornerShape(22.dp),
+                                                    .height(296.dp)
+                                                    .shadow(4.dp, RoundedCornerShape(24.dp)),
+                                                shape = RoundedCornerShape(24.dp),
                                                 color = CardWhite,
                                                 border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
                                             ) {
@@ -581,7 +581,7 @@ fun MonthlyScreen(
                                                                 )
                                                             )
                                                         )
-                                                        .padding(horizontal = 18.dp, vertical = 14.dp),
+                                                        .padding(18.dp),
                                                     verticalArrangement = Arrangement.SpaceBetween
                                                 ) {
                                                     Column {
@@ -626,7 +626,7 @@ fun MonthlyScreen(
 
                                                         Text(
                                                             text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
-                                                            fontSize = 27.sp,
+                                                            fontSize = 28.sp,
                                                             fontWeight = FontWeight.Black,
                                                             color = if (isHealthy) TextDark else SoftRed,
                                                             letterSpacing = (-0.5).sp
@@ -648,7 +648,7 @@ fun MonthlyScreen(
                                                             overflow = TextOverflow.Ellipsis
                                                         )
 
-                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Spacer(modifier = Modifier.height(10.dp))
 
                                                         SpendingSparkline(
                                                             points = uiState.metrics.dailyExpensePoints,
@@ -724,24 +724,24 @@ fun MonthlyScreen(
                                             Surface(
                                                 modifier = Modifier
                                                     .fillParentMaxWidth()
-                                                    .height(248.dp)
-                                                    .shadow(3.dp, RoundedCornerShape(22.dp)),
-                                                shape = RoundedCornerShape(22.dp),
+                                                    .height(296.dp)
+                                                    .shadow(4.dp, RoundedCornerShape(24.dp)),
+                                                shape = RoundedCornerShape(24.dp),
                                                 color = CardWhite,
                                                 border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
                                             ) {
                                                 Column(
                                                     modifier = Modifier
                                                         .fillMaxSize()
-                                                        .padding(horizontal = 18.dp, vertical = 14.dp),
+                                                        .padding(18.dp),
                                                     verticalArrangement = Arrangement.SpaceBetween
                                                 ) {
                                                     Text(
                                                         text = "3-PILLAR TARGET EXECUTION",
-                                                        fontSize = 10.5.sp,
+                                                        fontSize = 11.sp,
                                                         fontWeight = FontWeight.Black,
                                                         color = TextMuted,
-                                                        letterSpacing = 0.7.sp
+                                                        letterSpacing = 0.8.sp
                                                     )
 
                                                     PillarDualBarRow(
@@ -760,7 +760,7 @@ fun MonthlyScreen(
                                                         isAlert = expDiff > 0 && plannedExpenses > 0
                                                     )
 
-                                                    HorizontalDivider(color = BorderLight.copy(alpha = 0.4f), thickness = 0.6.dp)
+                                                    HorizontalDivider(color = BorderLight.copy(alpha = 0.45f), thickness = 0.6.dp)
 
                                                     PillarDualBarRow(
                                                         title = "Income",
@@ -778,7 +778,7 @@ fun MonthlyScreen(
                                                         isAlert = false
                                                     )
 
-                                                    HorizontalDivider(color = BorderLight.copy(alpha = 0.4f), thickness = 0.6.dp)
+                                                    HorizontalDivider(color = BorderLight.copy(alpha = 0.45f), thickness = 0.6.dp)
 
                                                     PillarDualBarRow(
                                                         title = "Assets / SIP",
@@ -799,7 +799,7 @@ fun MonthlyScreen(
                                             }
                                         }
                                     }
-                                    Spacer(modifier = Modifier.height(14.dp))
+                                    Spacer(modifier = Modifier.height(16.dp))
                                 }
 
                                 // Balance Flow & Net Savings Delta Card
@@ -2390,7 +2390,7 @@ private fun PillarMetricCard(
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
     ) {
-        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
