@@ -65,7 +65,6 @@ fun AddEditFixedBillDialog(
 
     var selectedType by remember { mutableStateOf(initialBill?.type ?: TransactionType.EXPENSE) }
 
-    // Clean note extraction: strips repeated subcategory prefix and auto-generated transfer notes
     var noteText by remember {
         mutableStateOf(
             initialBill?.let { bill ->
@@ -85,7 +84,6 @@ fun AddEditFixedBillDialog(
     var amountText by remember { mutableStateOf(initialBill?.amount?.let { if (it > 0) it.toString() else "" } ?: "") }
     var dueDayText by remember { mutableStateOf(initialBill?.dueDay?.toString() ?: "") }
 
-    // Transfer Subtype Selection
     var selectedTransferSubtype by remember {
         mutableStateOf(
             when (initialBill?.subcategory) {
@@ -96,7 +94,6 @@ fun AddEditFixedBillDialog(
         )
     }
 
-    // Payment Status & Backdate State
     var isPaidState by remember { mutableStateOf(initialBill?.isPaid ?: false) }
     var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
@@ -191,7 +188,6 @@ fun AddEditFixedBillDialog(
                 .padding(horizontal = 20.dp, vertical = 6.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Header Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -216,7 +212,6 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Segmented Type Selector
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -259,7 +254,6 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Amount & Due Day
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -300,7 +294,6 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Optional Note / Title
             OutlinedTextField(
                 value = noteText,
                 onValueChange = { noteText = it },
@@ -317,7 +310,6 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Taxonomy Section
             if (selectedType == TransactionType.TRANSFER) {
                 Text(
                     text = "Transfer Classification Subtype",
@@ -362,13 +354,12 @@ fun AddEditFixedBillDialog(
                     }
                 }
             } else {
-                // Category Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Category", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Text("Category (Most Used First)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                     TextButton(
                         onClick = { showNewCategoryDialog = true },
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
@@ -397,14 +388,13 @@ fun AddEditFixedBillDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Subcategory Row (Primary Entity)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Subcategory", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Text("Subcategory (Most Used First)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("(Primary Identification)", fontSize = 10.sp, color = TextMuted)
                     }
@@ -437,9 +427,8 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Vault Selector
             Text(
-                text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Deduction Vault",
+                text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Deduction Vault (Most Used First)",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextDark
@@ -484,7 +473,6 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // AutoPay Payment Status
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -601,7 +589,6 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Bottom Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -673,7 +660,6 @@ fun AddEditFixedBillDialog(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // New Category Dialog
         if (showNewCategoryDialog) {
             AlertDialog(
                 onDismissRequest = { showNewCategoryDialog = false },
@@ -707,7 +693,6 @@ fun AddEditFixedBillDialog(
             )
         }
 
-        // New Subcategory Dialog
         if (showNewSubcategoryDialog) {
             AlertDialog(
                 onDismissRequest = { showNewSubcategoryDialog = false },
@@ -741,7 +726,6 @@ fun AddEditFixedBillDialog(
             )
         }
 
-        // Date Picker Dialog
         if (showDatePickerDialog) {
             val datePickerState = rememberDatePickerState(
                 initialSelectedDateMillis = selectedDateMillis
