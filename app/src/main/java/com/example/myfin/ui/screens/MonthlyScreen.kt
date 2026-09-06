@@ -541,7 +541,7 @@ fun MonthlyScreen(
                                 }
                             }
 
-                            // HORIZONTAL SCROLLABLE SUMMARY CARDS CAROUSEL (Safe to Spend, Balance Flow, & 3-Pillar Target)
+                            // HORIZONTAL SCROLLABLE CAROUSEL: Safe to Spend & 3-Pillar Target Cards (Matched Heights)
                             item {
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -556,6 +556,7 @@ fun MonthlyScreen(
                                         Surface(
                                             modifier = Modifier
                                                 .width(345.dp)
+                                                .height(395.dp)
                                                 .shadow(6.dp, RoundedCornerShape(26.dp)),
                                             shape = RoundedCornerShape(26.dp),
                                             color = CardWhite,
@@ -563,6 +564,7 @@ fun MonthlyScreen(
                                         ) {
                                             Column(
                                                 modifier = Modifier
+                                                    .fillMaxHeight()
                                                     .background(
                                                         Brush.verticalGradient(
                                                             colors = listOf(
@@ -572,80 +574,81 @@ fun MonthlyScreen(
                                                             )
                                                         )
                                                     )
-                                                    .padding(22.dp)
+                                                    .padding(22.dp),
+                                                verticalArrangement = Arrangement.SpaceBetween
                                             ) {
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(8.dp)
-                                                                .clip(CircleShape)
-                                                                .background(statusColor)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(7.dp))
-                                                        Text(
-                                                            text = "LIQUID SAFE TO SPEND",
-                                                            color = TextMuted,
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.Black,
-                                                            letterSpacing = 0.8.sp
-                                                        )
-                                                    }
-
-                                                    Surface(
-                                                        shape = RoundedCornerShape(10.dp),
-                                                        color = if (isHealthy) AccentPurple.copy(alpha = 0.1f) else statusColor.copy(alpha = 0.12f),
-                                                        border = BorderStroke(0.6.dp, if (isHealthy) AccentPurple.copy(alpha = 0.25f) else statusColor.copy(alpha = 0.3f))
+                                                Column {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
                                                     ) {
-                                                        Text(
-                                                            text = "${uiState.metrics.safeToSpendPercentage}% Capacity",
-                                                            color = if (isHealthy) AccentPurple else statusColor,
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                                        )
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(8.dp)
+                                                                    .clip(CircleShape)
+                                                                    .background(statusColor)
+                                                            )
+                                                            Spacer(modifier = Modifier.width(7.dp))
+                                                            Text(
+                                                                text = "LIQUID SAFE TO SPEND",
+                                                                color = TextMuted,
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Black,
+                                                                letterSpacing = 0.8.sp
+                                                            )
+                                                        }
+
+                                                        Surface(
+                                                            shape = RoundedCornerShape(10.dp),
+                                                            color = if (isHealthy) AccentPurple.copy(alpha = 0.1f) else statusColor.copy(alpha = 0.12f),
+                                                            border = BorderStroke(0.6.dp, if (isHealthy) AccentPurple.copy(alpha = 0.25f) else statusColor.copy(alpha = 0.3f))
+                                                        ) {
+                                                            Text(
+                                                                text = "${uiState.metrics.safeToSpendPercentage}% Capacity",
+                                                                color = if (isHealthy) AccentPurple else statusColor,
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                            )
+                                                        }
                                                     }
+
+                                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                                    Text(
+                                                        text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
+                                                        fontSize = 32.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        color = if (isHealthy) TextDark else SoftRed,
+                                                        letterSpacing = (-0.6).sp
+                                                    )
+
+                                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                                    Text(
+                                                        text = when {
+                                                            isPastMonth -> "Month closed: final remaining balance"
+                                                            isCurrentMonth && isHealthy -> if (isDiscreetMode) "Daily allowance protected" else "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
+                                                            isCurrentMonth -> "Overrun warning: spending exceeds liquid operating buffer"
+                                                            else -> "Projected safe allowance across $daysRemaining days"
+                                                        },
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = if (isHealthy) TextMuted else SoftRed,
+                                                        maxLines = 2
+                                                    )
+
+                                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                                    SpendingSparkline(
+                                                        points = uiState.metrics.dailyExpensePoints,
+                                                        lineColor = if (isHealthy) AccentPurple else SoftRed,
+                                                        gradientStartColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.32f),
+                                                        gradientEndColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.0f)
+                                                    )
                                                 }
-
-                                                Spacer(modifier = Modifier.height(10.dp))
-
-                                                Text(
-                                                    text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
-                                                    fontSize = 32.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    color = if (isHealthy) TextDark else SoftRed,
-                                                    letterSpacing = (-0.6).sp
-                                                )
-
-                                                Spacer(modifier = Modifier.height(4.dp))
-
-                                                Text(
-                                                    text = when {
-                                                        isPastMonth -> "Month closed: final remaining balance"
-                                                        isCurrentMonth && isHealthy -> if (isDiscreetMode) "Daily allowance protected" else "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
-                                                        isCurrentMonth -> "Overrun warning: spending exceeds liquid operating buffer"
-                                                        else -> "Projected safe allowance across $daysRemaining days"
-                                                    },
-                                                    fontSize = 11.5.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = if (isHealthy) TextMuted else SoftRed,
-                                                    maxLines = 2
-                                                )
-
-                                                Spacer(modifier = Modifier.height(12.dp))
-
-                                                SpendingSparkline(
-                                                    points = uiState.metrics.dailyExpensePoints,
-                                                    lineColor = if (isHealthy) AccentPurple else SoftRed,
-                                                    gradientStartColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.32f),
-                                                    gradientEndColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.0f)
-                                                )
-
-                                                Spacer(modifier = Modifier.height(14.dp))
 
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
@@ -693,115 +696,7 @@ fun MonthlyScreen(
                                         }
                                     }
 
-                                    // 2. Balance Flow & Net Savings Delta Card
-                                    item {
-                                        val actualIncome = uiState.metrics.actualIncome
-                                        val actualExpenses = uiState.metrics.actualExpenses
-                                        val actualAssets = uiState.metrics.actualAssets
-                                        val netSavings = uiState.metrics.netSavedAfterInvest
-                                        val currentEndBalance = uiState.metrics.totalVaultBalance
-                                        val monthMovement = actualIncome - actualExpenses - actualAssets
-                                        val startBalance = currentEndBalance - monthMovement
-                                        val savingsRatePct = if (actualIncome > 0) ((netSavings / actualIncome) * 100).toInt() else 0
-
-                                        Surface(
-                                            modifier = Modifier
-                                                .width(345.dp)
-                                                .shadow(3.dp, RoundedCornerShape(26.dp)),
-                                            shape = RoundedCornerShape(26.dp),
-                                            color = CardWhite,
-                                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
-                                        ) {
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(22.dp),
-                                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                                            ) {
-                                                Text(
-                                                    text = "BALANCE FLOW & SAVINGS",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    color = TextMuted,
-                                                    letterSpacing = 0.8.sp
-                                                )
-
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Column(modifier = Modifier.weight(1f)) {
-                                                        Text(text = "START BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
-                                                        Spacer(modifier = Modifier.height(3.dp))
-                                                        Text(
-                                                            text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBalance)}",
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 14.sp,
-                                                            color = TextDark
-                                                        )
-                                                        Text(text = "Opening Vault", fontSize = 10.sp, color = TextMuted)
-                                                    }
-
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .height(34.dp)
-                                                            .width(1.dp)
-                                                            .background(BorderLight.copy(alpha = 0.6f))
-                                                    )
-
-                                                    Column(
-                                                        modifier = Modifier
-                                                            .weight(1f)
-                                                            .padding(start = 12.dp)
-                                                    ) {
-                                                        Text(text = "END BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
-                                                        Spacer(modifier = Modifier.height(3.dp))
-                                                        Text(
-                                                            text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentEndBalance)}",
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 14.sp,
-                                                            color = if (currentEndBalance >= 0) TextDark else SoftRed
-                                                        )
-                                                        Text(text = "Active Liquid", fontSize = 10.sp, color = TextMuted)
-                                                    }
-                                                }
-
-                                                HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
-
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Column {
-                                                        Text(text = "NET SAVINGS DELTA", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
-                                                        Spacer(modifier = Modifier.height(3.dp))
-                                                        Text(
-                                                            text = if (isDiscreetMode) "••••" else "${if (netSavings >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", netSavings)}",
-                                                            fontWeight = FontWeight.Black,
-                                                            fontSize = 16.sp,
-                                                            color = if (netSavings >= 0) SoftTeal else SoftRed
-                                                        )
-                                                    }
-                                                    Surface(
-                                                        shape = RoundedCornerShape(10.dp),
-                                                        color = (if (netSavings >= 0) SoftTeal else SoftRed).copy(alpha = 0.12f)
-                                                    ) {
-                                                        Text(
-                                                            text = "${if (netSavings >= 0) "+" else ""}$savingsRatePct% Rate",
-                                                            fontSize = 12.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = if (netSavings >= 0) SoftTeal else SoftRed,
-                                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // 3. 3-Pillar Target & Cashflow Execution Card
+                                    // 2. 3-Pillar Target & Cashflow Execution Card (Matched Height)
                                     item {
                                         val plannedExpenses = uiState.metrics.plannedExpenses
                                         val actualExpenses = uiState.metrics.actualExpenses
@@ -821,14 +716,17 @@ fun MonthlyScreen(
                                         Surface(
                                             modifier = Modifier
                                                 .width(345.dp)
+                                                .height(395.dp)
                                                 .shadow(3.dp, RoundedCornerShape(26.dp)),
                                             shape = RoundedCornerShape(26.dp),
                                             color = CardWhite,
                                             border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
                                         ) {
                                             Column(
-                                                modifier = Modifier.padding(22.dp),
-                                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                                                modifier = Modifier
+                                                    .fillMaxHeight()
+                                                    .padding(22.dp),
+                                                verticalArrangement = Arrangement.SpaceBetween
                                             ) {
                                                 Text(
                                                     text = "3-PILLAR TARGET EXECUTION",
@@ -890,6 +788,100 @@ fun MonthlyScreen(
                                                     isAlert = false
                                                 )
                                             }
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
+
+                            // Balance Flow & Net Savings Delta Card (Remains static in place below the carousel)
+                            item {
+                                val actualIncome = uiState.metrics.actualIncome
+                                val actualExpenses = uiState.metrics.actualExpenses
+                                val actualAssets = uiState.metrics.actualAssets
+                                val netSavings = uiState.metrics.netSavedAfterInvest
+                                val currentEndBalance = uiState.metrics.totalVaultBalance
+                                val monthMovement = actualIncome - actualExpenses - actualAssets
+                                val startBalance = currentEndBalance - monthMovement
+                                val savingsRatePct = if (actualIncome > 0) ((netSavings / actualIncome) * 100).toInt() else 0
+
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .shadow(3.dp, RoundedCornerShape(20.dp)),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = CardWhite,
+                                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(text = "START BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Text(
+                                                text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBalance)}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = TextDark
+                                            )
+                                            Text(text = "Opening Vault", fontSize = 10.sp, color = TextMuted)
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .height(34.dp)
+                                                .width(1.dp)
+                                                .background(BorderLight.copy(alpha = 0.6f))
+                                        )
+
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(start = 12.dp)
+                                        ) {
+                                            Text(text = "END BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Text(
+                                                text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentEndBalance)}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = if (currentEndBalance >= 0) TextDark else SoftRed
+                                            )
+                                            Text(text = "Active Liquid", fontSize = 10.sp, color = TextMuted)
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .height(34.dp)
+                                                .width(1.dp)
+                                                .background(BorderLight.copy(alpha = 0.6f))
+                                        )
+
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1.1f)
+                                                .padding(start = 12.dp),
+                                            horizontalAlignment = Alignment.End
+                                        ) {
+                                            Text(text = "NET SAVINGS", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Text(
+                                                text = if (isDiscreetMode) "••••" else "${if (netSavings >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", netSavings)}",
+                                                fontWeight = FontWeight.Black,
+                                                fontSize = 15.sp,
+                                                color = if (netSavings >= 0) SoftTeal else SoftRed
+                                            )
+                                            Text(
+                                                text = "${if (netSavings >= 0) "+" else ""}$savingsRatePct% Net Rate",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (netSavings >= 0) SoftTeal else SoftRed
+                                            )
                                         }
                                     }
                                 }
