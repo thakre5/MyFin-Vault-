@@ -496,7 +496,7 @@ fun MonthlyScreen(
                                                             text = "Sweep ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toFortress)} excess cash into Fortress Vault.",
                                                             fontSize = 11.sp,
                                                             color = TextMuted,
-                               4                             lineHeight = 15.sp,
+                                                            lineHeight = 15.sp,
                                                             maxLines = 2
                                                         )
                                                     }
@@ -2496,7 +2496,7 @@ private fun PillarDualBarRow(
                     fontSize = 11.sp,
                     color = TextMuted
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = if (isDiscreet) "Act: ••••" else "Act: $currencySymbol${String.format(Locale.US, "%,.0f", actual)}",
                     fontWeight = FontWeight.Black,
