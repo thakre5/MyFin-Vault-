@@ -46,6 +46,7 @@ import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.BudgetViewModel
+import com.example.myfin.ui.CategoryPerformance
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.launch
@@ -288,7 +289,6 @@ fun MonthlyScreen(
                 when (page) {
                     // --- SUB-SCREEN 0: SUMMARY DASHBOARD ---
                     0 -> {
-                        // Safe Composable context before entering LazyListScope
                         val activeMatrix = remember(uiState.categories, selectedMatrixType) {
                             uiState.categories.filter { it.type == selectedMatrixType && it.category.isNotBlank() }
                         }
@@ -881,9 +881,9 @@ fun MonthlyScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(14.dp))
+                                        .clip(RoundedCornerShape(12.dp))
                                         .background(BorderLight.copy(alpha = 0.5f))
-                                        .padding(4.dp)
+                                        .padding(3.dp)
                                 ) {
                                     listOf(
                                         Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
@@ -894,16 +894,16 @@ fun MonthlyScreen(
                                         Box(
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .clip(RoundedCornerShape(10.dp))
+                                                .clip(RoundedCornerShape(9.dp))
                                                 .background(if (isSelected) CardWhite else Color.Transparent)
                                                 .clickable { selectedMatrixType = type }
-                                                .padding(vertical = 8.dp),
+                                                .padding(vertical = 7.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
                                                 text = label,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                fontSize = 12.sp,
+                                                fontSize = 11.5.sp,
                                                 color = if (isSelected) color else TextMuted
                                             )
                                         }
@@ -934,241 +934,17 @@ fun MonthlyScreen(
                                         color = CardWhite,
                                         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
                                     ) {
-                                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
                                             activeMatrix.forEachIndexed { index, cat ->
-                                                val isExpanded = expandedCategories[cat.category] ?: false
-                                                val rotation by animateFloatAsState(
-                                                    targetValue = if (isExpanded) 180f else 0f,
-                                                    animationSpec = tween(200),
-                                                    label = "arrowRotation"
+                                                CategoryMatrixRow(
+                                                    cat = cat,
+                                                    isExpanded = expandedCategories[cat.category] ?: false,
+                                                    onToggleExpand = {
+                                                        expandedCategories[cat.category] = !(expandedCategories[cat.category] ?: false)
+                                                    },
+                                                    currencySymbol = userProfile.currencySymbol,
+                                                    isDiscreetMode = isDiscreetMode
                                                 )
-
-                                                val progressFraction = if (cat.plannedAmount > 0) {
-                                                    (cat.actualAmount / cat.plannedAmount).toFloat().coerceIn(0f, 1f)
-                                                } else 1f
-
-                                                val utilizationPercentage = if (cat.plannedAmount > 0) {
-                                                    ((cat.actualAmount / cat.plannedAmount) * 100).toInt()
-                                                } else 100
-
-                                                val progressColor = when {
-                                                    cat.isOverBudget -> SoftRed
-                                                    cat.type == TransactionType.INCOME -> SoftGreen
-                                                    cat.type == TransactionType.ASSET -> SoftTeal
-                                                    utilizationPercentage >= 85 -> SoftAmber
-                                                    else -> AccentPurple
-                                                }
-
-                                                Column(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .clickable { expandedCategories[cat.category] = !isExpanded }
-                                                        .padding(vertical = 9.dp, horizontal = 4.dp)
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        // Left Side: Category Icon + Title & Directly Bound Subtitle
-                                                        Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            modifier = Modifier.weight(1f)
-                                                        ) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .size(38.dp)
-                                                                    .clip(RoundedCornerShape(10.dp))
-                                                                    .background(progressColor.copy(alpha = 0.12f)),
-                                                                contentAlignment = Alignment.Center
-                                                            ) {
-                                                                Text(
-                                                                    text = cat.category.take(1).uppercase(),
-                                                                    fontWeight = FontWeight.Black,
-                                                                    fontSize = 14.5.sp,
-                                                                    color = progressColor
-                                                                )
-                                                            }
-
-                                                            Spacer(modifier = Modifier.width(12.dp))
-
-                                                            Column(modifier = Modifier.weight(1f, fill = false)) {
-                                                                Row(
-                                                                    verticalAlignment = Alignment.CenterVertically,
-                                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                                ) {
-                                                                    Text(
-                                                                        text = cat.category,
-                                                                        fontWeight = FontWeight.Bold,
-                                                                        fontSize = 13.5.sp,
-                                                                        color = TextDark,
-                                                                        maxLines = 1,
-                                                                        overflow = TextOverflow.Ellipsis
-                                                                    )
-
-                                                                    if (cat.isOverBudget) {
-                                                                        Surface(
-                                                                            shape = RoundedCornerShape(4.dp),
-                                                                            color = SoftRed.copy(alpha = 0.12f),
-                                                                            border = BorderStroke(0.5.dp, SoftRed.copy(alpha = 0.35f))
-                                                                        ) {
-                                                                            Text(
-                                                                                text = "Over",
-                                                                                fontSize = 8.5.sp,
-                                                                                fontWeight = FontWeight.Bold,
-                                                                                color = SoftRed,
-                                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                                            )
-                                                                        }
-                                                                    }
-                                                                }
-
-                                                                Spacer(modifier = Modifier.height(2.dp))
-
-                                                                val statusText = if (cat.plannedAmount > 0) {
-                                                                    val remaining = cat.plannedAmount - cat.actualAmount
-                                                                    if (isDiscreetMode) "Target configured"
-                                                                    else if (remaining >= 0) {
-                                                                        "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", remaining)} left of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.plannedAmount)}"
-                                                                    } else {
-                                                                        "Exceeded by ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(remaining))}"
-                                                                    }
-                                                                } else {
-                                                                    "No target limit configured"
-                                                                }
-
-                                                                Text(
-                                                                    text = statusText,
-                                                                    fontSize = 11.sp,
-                                                                    fontWeight = if (cat.isOverBudget) FontWeight.SemiBold else FontWeight.Normal,
-                                                                    color = if (cat.isOverBudget) SoftRed else TextMuted,
-                                                                    maxLines = 1,
-                                                                    overflow = TextOverflow.Ellipsis
-                                                                )
-                                                            }
-                                                        }
-
-                                                        Spacer(modifier = Modifier.width(10.dp))
-
-                                                        // Right Side: Amount, Percentage & Dropdown Icon
-                                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                                            Column(horizontalAlignment = Alignment.End) {
-                                                                Text(
-                                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.actualAmount)}",
-                                                                    fontWeight = FontWeight.Black,
-                                                                    fontSize = 14.5.sp,
-                                                                    color = if (cat.isOverBudget) SoftRed else TextDark
-                                                                )
-                                                                if (cat.plannedAmount > 0) {
-                                                                    Text(
-                                                                        text = "$utilizationPercentage%",
-                                                                        fontSize = 10.sp,
-                                                                        fontWeight = FontWeight.SemiBold,
-                                                                        color = progressColor
-                                                                    )
-                                                                }
-                                                            }
-
-                                                            Spacer(modifier = Modifier.width(6.dp))
-
-                                                            Icon(
-                                                                Icons.Default.ExpandMore,
-                                                                contentDescription = "Expand",
-                                                                tint = TextMuted,
-                                                                modifier = Modifier
-                                                                    .size(16.dp)
-                                                                    .rotate(rotation)
-                                                            )
-                                                        }
-                                                    }
-
-                                                    // Refined 3.5dp Progress Bar Directly Anchored Below the Header Row
-                                                    if (cat.plannedAmount > 0) {
-                                                        Spacer(modifier = Modifier.height(8.dp))
-                                                        LinearProgressIndicator(
-                                                            progress = { progressFraction },
-                                                            modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .height(3.5.dp)
-                                                                .clip(RoundedCornerShape(2.dp)),
-                                                            color = progressColor,
-                                                            trackColor = BorderLight.copy(alpha = 0.5f)
-                                                        )
-                                                    }
-
-                                                    // Expandable Subcategory Contributions
-                                                    AnimatedVisibility(
-                                                        visible = isExpanded,
-                                                        enter = expandVertically() + fadeIn(),
-                                                        exit = shrinkVertically() + fadeOut()
-                                                    ) {
-                                                        Column(
-                                                            modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .padding(top = 10.dp)
-                                                                .clip(RoundedCornerShape(12.dp))
-                                                                .background(CanvasLight)
-                                                                .padding(10.dp)
-                                                        ) {
-                                                            if (cat.activeSubcategories.isEmpty()) {
-                                                                Text(text = "No logged transactions in subcategories", fontSize = 11.sp, color = TextMuted)
-                                                            } else {
-                                                                Text(
-                                                                    text = "SUBCATEGORY CONTRIBUTIONS",
-                                                                    fontSize = 9.5.sp,
-                                                                    fontWeight = FontWeight.Black,
-                                                                    color = TextMuted,
-                                                                    letterSpacing = 0.5.sp,
-                                                                    modifier = Modifier.padding(bottom = 4.dp)
-                                                                )
-
-                                                                cat.activeSubcategories.forEach { sub ->
-                                                                    val subPercentage = if (cat.actualAmount > 0) {
-                                                                        ((sub.amount / cat.actualAmount) * 100).toInt()
-                                                                    } else 0
-
-                                                                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                                                                        Row(
-                                                                            modifier = Modifier.fillMaxWidth(),
-                                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                                            verticalAlignment = Alignment.CenterVertically
-                                                                        ) {
-                                                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                                Box(
-                                                                                    modifier = Modifier
-                                                                                        .size(5.dp)
-                                                                                        .clip(CircleShape)
-                                                                                        .background(progressColor)
-                                                                                )
-                                                                                Spacer(modifier = Modifier.width(6.dp))
-                                                                                Text(text = sub.name, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = TextDark)
-                                                                            }
-
-                                                                            Text(
-                                                                                text = if (isDiscreetMode) "•••• ($subPercentage%)" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", sub.amount)} ($subPercentage%)",
-                                                                                fontSize = 11.5.sp,
-                                                                                fontWeight = FontWeight.Bold,
-                                                                                color = TextDark
-                                                                            )
-                                                                        }
-                                                                        Spacer(modifier = Modifier.height(2.5.dp))
-                                                                        LinearProgressIndicator(
-                                                                            progress = { (subPercentage / 100f).coerceIn(0f, 1f) },
-                                                                            modifier = Modifier
-                                                                                .fillMaxWidth()
-                                                                                .height(3.dp)
-                                                                                .clip(RoundedCornerShape(1.5.dp)),
-                                                                            color = progressColor.copy(alpha = 0.65f),
-                                                                            trackColor = BorderLight.copy(alpha = 0.5f)
-                                                                        )
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-
                                                 if (index < activeMatrix.lastIndex) {
                                                     HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
                                                 }
@@ -2343,6 +2119,226 @@ fun MonthlyScreen(
                     }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun CategoryMatrixRow(
+    cat: CategoryPerformance,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    currencySymbol: String,
+    isDiscreetMode: Boolean
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = tween(200),
+        label = "arrowRotation"
+    )
+
+    val progressFraction = if (cat.plannedAmount > 0) {
+        (cat.actualAmount / cat.plannedAmount).toFloat().coerceIn(0f, 1f)
+    } else 1f
+
+    val utilizationPercentage = if (cat.plannedAmount > 0) {
+        ((cat.actualAmount / cat.plannedAmount) * 100).toInt()
+    } else 100
+
+    val progressColor = when {
+        cat.isOverBudget -> SoftRed
+        cat.type == TransactionType.INCOME -> SoftGreen
+        cat.type == TransactionType.ASSET -> SoftTeal
+        utilizationPercentage >= 85 -> SoftAmber
+        else -> AccentPurple
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onToggleExpand)
+            .padding(vertical = 8.dp, horizontal = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: Icon + Title & Directly Bound Subtitle Stack
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(progressColor.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = cat.category.take(1).uppercase(),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp,
+                        color = progressColor
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    Text(
+                        text = cat.category,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = TextDark,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    val statusText = if (cat.plannedAmount > 0) {
+                        val remaining = cat.plannedAmount - cat.actualAmount
+                        if (isDiscreetMode) "Target configured"
+                        else if (remaining >= 0) {
+                            "$currencySymbol${String.format(Locale.US, "%,.0f", remaining)} left of $currencySymbol${String.format(Locale.US, "%,.0f", cat.plannedAmount)}"
+                        } else {
+                            "Exceeded by $currencySymbol${String.format(Locale.US, "%,.0f", abs(remaining))}"
+                        }
+                    } else {
+                        "No target limit configured"
+                    }
+
+                    Text(
+                        text = statusText,
+                        fontSize = 11.sp,
+                        fontWeight = if (cat.isOverBudget) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (cat.isOverBudget) SoftRed else TextMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Right: Amount, Percentage & Dropdown Arrow
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", cat.actualAmount)}",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp,
+                        color = if (cat.isOverBudget) SoftRed else TextDark
+                    )
+                    if (cat.plannedAmount > 0) {
+                        Text(
+                            text = "$utilizationPercentage%",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = progressColor
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Icon(
+                    imageVector = Icons.Default.ExpandMore,
+                    contentDescription = "Expand",
+                    tint = TextMuted,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .rotate(rotation)
+                )
+            }
+        }
+
+        // 3.5dp Progress Bar Directly Anchored Below the Header Row
+        if (cat.plannedAmount > 0) {
+            Spacer(modifier = Modifier.height(7.dp))
+            LinearProgressIndicator(
+                progress = { progressFraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.5.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = progressColor,
+                trackColor = BorderLight.copy(alpha = 0.5f)
+            )
+        }
+
+        // Expandable Subcategory Contributions
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CanvasLight)
+                    .padding(10.dp)
+            ) {
+                if (cat.activeSubcategories.isEmpty()) {
+                    Text(text = "No logged transactions in subcategories", fontSize = 11.sp, color = TextMuted)
+                } else {
+                    Text(
+                        text = "SUBCATEGORY CONTRIBUTIONS",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextMuted,
+                        letterSpacing = 0.5.sp,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+
+                    cat.activeSubcategories.forEach { sub ->
+                        val subPercentage = if (cat.actualAmount > 0) {
+                            ((sub.amount / cat.actualAmount) * 100).toInt()
+                        } else 0
+
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(5.dp)
+                                            .clip(CircleShape)
+                                            .background(progressColor)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(text = sub.name, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = TextDark)
+                                }
+
+                                Text(
+                                    text = if (isDiscreetMode) "•••• ($subPercentage%)" else "$currencySymbol${String.format(Locale.US, "%,.2f", sub.amount)} ($subPercentage%)",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.5.dp))
+                            LinearProgressIndicator(
+                                progress = { (subPercentage / 100f).coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(3.dp)
+                                    .clip(RoundedCornerShape(1.5.dp)),
+                                color = progressColor.copy(alpha = 0.65f),
+                                trackColor = BorderLight.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
