@@ -8,10 +8,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -286,7 +288,6 @@ fun MonthlyScreen(
                     .weight(1f)
                     .fillMaxWidth()
             ) { page ->
-                // Uniform page wrapper with horizontal padding to prevent side clipping/lines across all pages
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -299,6 +300,9 @@ fun MonthlyScreen(
                                 uiState.categories.filter { it.type == selectedMatrixType && it.category.isNotBlank() }
                             }
 
+                            val carouselState = rememberLazyListState()
+                            val snapBehavior = rememberSnapFlingBehavior(lazyListState = carouselState)
+
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
@@ -310,7 +314,6 @@ fun MonthlyScreen(
                                             modifier = Modifier.fillMaxWidth(),
                                             verticalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
-                                            // 1. Commitments Shortfall Warning Banner
                                             if (uiState.commitmentsShortfall.isShortfall) {
                                                 val shortfall = uiState.commitmentsShortfall
                                                 Surface(
@@ -377,7 +380,6 @@ fun MonthlyScreen(
                                                 }
                                             }
 
-                                            // 2. Clone / Rollover Banner
                                             if (showRollover) {
                                                 Surface(
                                                     modifier = Modifier
@@ -455,7 +457,6 @@ fun MonthlyScreen(
                                                 }
                                             }
 
-                                            // 3. Fortress Surplus Waterfall Prompt
                                             if (showWaterfallPrompt && paydayPlan != null) {
                                                 Surface(
                                                     modifier = Modifier
@@ -545,30 +546,32 @@ fun MonthlyScreen(
                                     }
                                 }
 
-                                // HORIZONTAL SCROLLABLE CAROUSEL: Safe to Spend & 3-Pillar Target Cards (Matched Heights)
+                                // 3. HORIZONTAL CAROUSEL (Edge-to-Edge full width per card, Compact 248dp Height)
                                 item {
                                     LazyRow(
+                                        state = carouselState,
+                                        flingBehavior = snapBehavior,
                                         horizontalArrangement = Arrangement.spacedBy(14.dp),
-                                        contentPadding = PaddingValues(horizontal = 0.dp),
+                                        contentPadding = PaddingValues(0.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        // 1. Hero Card: Real Liquid Safe-to-Spend Guardrail & Live Sparkline
+                                        // Card 1: Safe to Spend Card
                                         item {
                                             val isHealthy = uiState.metrics.safeToSpend > 0
                                             val statusColor = if (isHealthy) SoftGreen else SoftRed
 
                                             Surface(
                                                 modifier = Modifier
-                                                    .width(345.dp)
-                                                    .height(395.dp)
-                                                    .shadow(6.dp, RoundedCornerShape(26.dp)),
-                                                shape = RoundedCornerShape(26.dp),
+                                                    .fillParentMaxWidth()
+                                                    .height(248.dp)
+                                                    .shadow(4.dp, RoundedCornerShape(22.dp)),
+                                                shape = RoundedCornerShape(22.dp),
                                                 color = CardWhite,
                                                 border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
                                             ) {
                                                 Column(
                                                     modifier = Modifier
-                                                        .fillMaxHeight()
+                                                        .fillMaxSize()
                                                         .background(
                                                             Brush.verticalGradient(
                                                                 colors = listOf(
@@ -578,7 +581,7 @@ fun MonthlyScreen(
                                                                 )
                                                             )
                                                         )
-                                                        .padding(22.dp),
+                                                        .padding(horizontal = 18.dp, vertical = 14.dp),
                                                     verticalArrangement = Arrangement.SpaceBetween
                                                 ) {
                                                     Column {
@@ -590,61 +593,62 @@ fun MonthlyScreen(
                                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                                 Box(
                                                                     modifier = Modifier
-                                                                        .size(8.dp)
+                                                                        .size(7.dp)
                                                                         .clip(CircleShape)
                                                                         .background(statusColor)
                                                                 )
-                                                                Spacer(modifier = Modifier.width(7.dp))
+                                                                Spacer(modifier = Modifier.width(6.dp))
                                                                 Text(
                                                                     text = "LIQUID SAFE TO SPEND",
                                                                     color = TextMuted,
-                                                                    fontSize = 11.sp,
+                                                                    fontSize = 10.5.sp,
                                                                     fontWeight = FontWeight.Black,
-                                                                    letterSpacing = 0.8.sp
+                                                                    letterSpacing = 0.7.sp
                                                                 )
                                                             }
 
                                                             Surface(
-                                                                shape = RoundedCornerShape(10.dp),
+                                                                shape = RoundedCornerShape(8.dp),
                                                                 color = if (isHealthy) AccentPurple.copy(alpha = 0.1f) else statusColor.copy(alpha = 0.12f),
                                                                 border = BorderStroke(0.6.dp, if (isHealthy) AccentPurple.copy(alpha = 0.25f) else statusColor.copy(alpha = 0.3f))
                                                             ) {
                                                                 Text(
                                                                     text = "${uiState.metrics.safeToSpendPercentage}% Capacity",
                                                                     color = if (isHealthy) AccentPurple else statusColor,
-                                                                    fontSize = 11.sp,
+                                                                    fontSize = 10.5.sp,
                                                                     fontWeight = FontWeight.Bold,
-                                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                                                 )
                                                             }
                                                         }
 
-                                                        Spacer(modifier = Modifier.height(10.dp))
+                                                        Spacer(modifier = Modifier.height(6.dp))
 
                                                         Text(
                                                             text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
-                                                            fontSize = 32.sp,
+                                                            fontSize = 27.sp,
                                                             fontWeight = FontWeight.Black,
                                                             color = if (isHealthy) TextDark else SoftRed,
-                                                            letterSpacing = (-0.6).sp
+                                                            letterSpacing = (-0.5).sp
                                                         )
 
-                                                        Spacer(modifier = Modifier.height(4.dp))
+                                                        Spacer(modifier = Modifier.height(2.dp))
 
                                                         Text(
                                                             text = when {
                                                                 isPastMonth -> "Month closed: final remaining balance"
                                                                 isCurrentMonth && isHealthy -> if (isDiscreetMode) "Daily allowance protected" else "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
-                                                                isCurrentMonth -> "Overrun warning: spending exceeds liquid operating buffer"
+                                                                isCurrentMonth -> "Overrun warning: spending exceeds liquid buffer"
                                                                 else -> "Projected safe allowance across $daysRemaining days"
                                                             },
-                                                            fontSize = 11.5.sp,
+                                                            fontSize = 11.sp,
                                                             fontWeight = FontWeight.Medium,
                                                             color = if (isHealthy) TextMuted else SoftRed,
-                                                            maxLines = 2
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
                                                         )
 
-                                                        Spacer(modifier = Modifier.height(12.dp))
+                                                        Spacer(modifier = Modifier.height(8.dp))
 
                                                         SpendingSparkline(
                                                             points = uiState.metrics.dailyExpensePoints,
@@ -700,7 +704,7 @@ fun MonthlyScreen(
                                             }
                                         }
 
-                                        // 2. 3-Pillar Target & Cashflow Execution Card (Matched Height)
+                                        // Card 2: 3-Pillar Target Execution Card (Matched Height & Full Width)
                                         item {
                                             val plannedExpenses = uiState.metrics.plannedExpenses
                                             val actualExpenses = uiState.metrics.actualExpenses
@@ -719,25 +723,25 @@ fun MonthlyScreen(
 
                                             Surface(
                                                 modifier = Modifier
-                                                    .width(345.dp)
-                                                    .height(395.dp)
-                                                    .shadow(3.dp, RoundedCornerShape(26.dp)),
-                                                shape = RoundedCornerShape(26.dp),
+                                                    .fillParentMaxWidth()
+                                                    .height(248.dp)
+                                                    .shadow(3.dp, RoundedCornerShape(22.dp)),
+                                                shape = RoundedCornerShape(22.dp),
                                                 color = CardWhite,
                                                 border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
                                             ) {
                                                 Column(
                                                     modifier = Modifier
-                                                        .fillMaxHeight()
-                                                        .padding(22.dp),
+                                                        .fillMaxSize()
+                                                        .padding(horizontal = 18.dp, vertical = 14.dp),
                                                     verticalArrangement = Arrangement.SpaceBetween
                                                 ) {
                                                     Text(
                                                         text = "3-PILLAR TARGET EXECUTION",
-                                                        fontSize = 11.sp,
+                                                        fontSize = 10.5.sp,
                                                         fontWeight = FontWeight.Black,
                                                         color = TextMuted,
-                                                        letterSpacing = 0.8.sp
+                                                        letterSpacing = 0.7.sp
                                                     )
 
                                                     PillarDualBarRow(
@@ -756,7 +760,7 @@ fun MonthlyScreen(
                                                         isAlert = expDiff > 0 && plannedExpenses > 0
                                                     )
 
-                                                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
+                                                    HorizontalDivider(color = BorderLight.copy(alpha = 0.4f), thickness = 0.6.dp)
 
                                                     PillarDualBarRow(
                                                         title = "Income",
@@ -774,7 +778,7 @@ fun MonthlyScreen(
                                                         isAlert = false
                                                     )
 
-                                                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.8.dp)
+                                                    HorizontalDivider(color = BorderLight.copy(alpha = 0.4f), thickness = 0.6.dp)
 
                                                     PillarDualBarRow(
                                                         title = "Assets / SIP",
@@ -795,10 +799,10 @@ fun MonthlyScreen(
                                             }
                                         }
                                     }
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(14.dp))
                                 }
 
-                                // Balance Flow & Net Savings Delta Card (Remains static in place below the carousel)
+                                // Balance Flow & Net Savings Delta Card
                                 item {
                                     val actualIncome = uiState.metrics.actualIncome
                                     val actualExpenses = uiState.metrics.actualExpenses
@@ -889,7 +893,7 @@ fun MonthlyScreen(
                                             }
                                         }
                                     }
-                                    Spacer(modifier = Modifier.height(20.dp))
+                                    Spacer(modifier = Modifier.height(18.dp))
                                 }
 
                                 // Category Matrix Section Header & Segment Switcher
@@ -980,7 +984,6 @@ fun MonthlyScreen(
                             Column(
                                 modifier = Modifier.fillMaxSize()
                             ) {
-                                // Pinned Search & Action Bar
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1032,7 +1035,6 @@ fun MonthlyScreen(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Active Date Range Filter Banner (If Active)
                                 if (filterCriteria.startDate != null && filterCriteria.endDate != null) {
                                     val sdf = remember { SimpleDateFormat("dd MMM", Locale.US) }
                                     Surface(
@@ -1067,7 +1069,6 @@ fun MonthlyScreen(
                                     Spacer(modifier = Modifier.height(8.dp))
                                 }
 
-                                // Pinned Transaction Type Filter Chips
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1115,7 +1116,6 @@ fun MonthlyScreen(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Pinned Vault Selector Chips
                                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     item {
                                         FilterChip(
@@ -1158,7 +1158,6 @@ fun MonthlyScreen(
 
                                 Spacer(modifier = Modifier.height(12.dp))
 
-                                // Scrollable Ledger List with Sticky Headers & Crisp Edge Definition
                                 LazyColumn(
                                     modifier = Modifier
                                         .weight(1f)
@@ -1199,7 +1198,6 @@ fun MonthlyScreen(
                                             val dailyIncomeTotal = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
                                             val sortedTxList = txList.sortedByDescending { it.date }
 
-                                            // Sticky date header with crisp bottom edge divider
                                             stickyHeader(key = "header_$dateHeader") {
                                                 Surface(
                                                     modifier = Modifier.fillMaxWidth(),
@@ -1308,7 +1306,6 @@ fun MonthlyScreen(
                             Column(
                                 modifier = Modifier.fillMaxSize()
                             ) {
-                                // Pinned Header Section with Stacked Title & Pending Total Pill
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1368,7 +1365,6 @@ fun MonthlyScreen(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Pinned Action-Based Segmented Filters
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1413,7 +1409,6 @@ fun MonthlyScreen(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Scrollable Commitments List
                                 LazyColumn(
                                     modifier = Modifier
                                         .weight(1f)
@@ -1502,7 +1497,7 @@ fun MonthlyScreen(
                 .zIndex(3.5f)
         )
 
-        // 5. FLOATING BOTTOM NAVIGATION DOCK WITH FAB (includes integrated animated gradient scrim)
+        // 5. FLOATING BOTTOM NAVIGATION DOCK WITH FAB
         AppBottomDock(
             currentSelection = NavigationTarget.MONTHLY_VIEW,
             onSelectTarget = { target ->
@@ -1523,8 +1518,6 @@ fun MonthlyScreen(
         )
 
         // 6. MODALS, BOTTOM SHEETS & CONFIRMATION DIALOGS
-
-        // Transaction Detail Bottom Sheet
         viewingTx?.let { tx ->
             TransactionDetailBottomSheet(
                 transaction = tx,
@@ -1542,7 +1535,6 @@ fun MonthlyScreen(
             )
         }
 
-        // Delete Transaction Alert
         transactionToDelete?.let { tx ->
             val cleanTitle = tx.title.trim()
             val cleanSubcat = tx.subcategory.trim()
@@ -1582,7 +1574,6 @@ fun MonthlyScreen(
             )
         }
 
-        // Delete Fixed Bill Alert
         billToDelete?.let { bill ->
             val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
                 when (bill.subcategory.trim()) {
@@ -1628,7 +1619,6 @@ fun MonthlyScreen(
             )
         }
 
-        // Revert Fixed Bill Status Alert
         billToRevert?.let { bill ->
             val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
                 when (bill.subcategory.trim()) {
@@ -1674,7 +1664,6 @@ fun MonthlyScreen(
             )
         }
 
-        // Settle Fixed Bill Dialog with Historical Date Logging
         settlingFixedBill?.let { bill ->
             val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
                 when (bill.subcategory.trim()) {
@@ -1805,7 +1794,6 @@ fun MonthlyScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Settlement Date Selector
                         Text("Payment Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                         Spacer(modifier = Modifier.height(6.dp))
 
@@ -1944,7 +1932,6 @@ fun MonthlyScreen(
             }
         }
 
-        // Standardized Transfer Bottom Sheet (With Recurring Sweep Toggle Support)
         if (showTransferSheet) {
             AccountTransferDialog(
                 accounts = accountsList,
@@ -1980,7 +1967,6 @@ fun MonthlyScreen(
             )
         }
 
-        // Month / Year Picker Dialog
         if (showMonthPicker) {
             Dialog(onDismissRequest = { showMonthPicker = false }) {
                 Surface(shape = RoundedCornerShape(20.dp), color = CardWhite, modifier = Modifier.fillMaxWidth()) {
@@ -2034,7 +2020,6 @@ fun MonthlyScreen(
             }
         }
 
-        // Filter Bottom Sheet (With Date Presets & Custom Calendar Range)
         if (showFilterSheet) {
             FilterBottomSheet(
                 currentFilter = filterCriteria,
@@ -2051,7 +2036,6 @@ fun MonthlyScreen(
             )
         }
 
-        // Add / Edit Transaction Sheet (With Recurring AutoPay Toggle Support)
         if (showAddSheet) {
             AddTransactionBottomSheet(
                 editingTransaction = editingTx,
@@ -2108,7 +2092,6 @@ fun MonthlyScreen(
             )
         }
 
-        // Add AutoPay Dialog (With Immediate Settlement Support)
         if (showAddFixedBill) {
             AddEditFixedBillDialog(
                 currencySymbol = userProfile.currencySymbol,
@@ -2132,7 +2115,6 @@ fun MonthlyScreen(
             )
         }
 
-        // Edit AutoPay Dialog
         editingFixedBill?.let { bill ->
             AddEditFixedBillDialog(
                 initialBill = bill,
@@ -2196,7 +2178,6 @@ private fun CategoryMatrixRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: Icon + Title & Directly Bound Subtitle Stack
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
@@ -2278,7 +2259,6 @@ private fun CategoryMatrixRow(
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            // Right: Amount, Percentage & Dropdown Arrow
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
@@ -2310,7 +2290,6 @@ private fun CategoryMatrixRow(
             }
         }
 
-        // 3.5dp Progress Bar Directly Anchored Below the Header Row
         if (cat.plannedAmount > 0) {
             Spacer(modifier = Modifier.height(7.dp))
             LinearProgressIndicator(
@@ -2324,7 +2303,6 @@ private fun CategoryMatrixRow(
             )
         }
 
-        // Expandable Subcategory Contributions
         AnimatedVisibility(
             visible = isExpanded,
             enter = expandVertically() + fadeIn(),
@@ -2408,11 +2386,11 @@ private fun PillarMetricCard(
     Surface(
         modifier = modifier
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(13.dp),
+        shape = RoundedCornerShape(11.dp),
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
@@ -2421,12 +2399,12 @@ private fun PillarMetricCard(
                         .background(tintColor)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(text = title, fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                Text(text = title, fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
             }
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = amount,
-                fontSize = 13.sp,
+                fontSize = 12.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = tintColor
             )
@@ -2453,18 +2431,18 @@ private fun PillarDualBarRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = TextDark)
+                Spacer(modifier = Modifier.width(6.dp))
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
+                    shape = RoundedCornerShape(5.dp),
                     color = if (isAlert) SoftRed.copy(alpha = 0.12f) else CanvasLight
                 ) {
                     Text(
                         text = varianceText,
-                        fontSize = 9.5.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isAlert) SoftRed else TextMuted,
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
                     )
                 }
             }
@@ -2472,27 +2450,27 @@ private fun PillarDualBarRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (isDiscreet) "Plan: ••••" else "Plan: $currencySymbol${String.format(Locale.US, "%,.0f", planned)}",
-                    fontSize = 11.sp,
+                    fontSize = 10.5.sp,
                     color = TextMuted
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = if (isDiscreet) "Act: ••••" else "Act: $currencySymbol${String.format(Locale.US, "%,.0f", actual)}",
                     fontWeight = FontWeight.Black,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     color = if (isAlert) SoftRed else barColor
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         LinearProgressIndicator(
             progress = { progressFraction },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp)),
+                .height(5.dp)
+                .clip(RoundedCornerShape(2.5.dp)),
             color = if (isAlert) SoftRed else barColor,
             trackColor = barColor.copy(alpha = 0.15f)
         )
