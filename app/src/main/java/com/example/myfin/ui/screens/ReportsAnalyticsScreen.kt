@@ -494,25 +494,7 @@ fun ReportsAnalyticsScreen(
             }
         }
 
-        // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(115.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            CanvasLight.copy(alpha = 0.85f),
-                            CanvasLight
-                        )
-                    )
-                )
-                .zIndex(2.5f)
-        )
-
-        // 4. FLOATING PAGER INDICATOR PILL (ANCHORED LEFT ABOVE DOCK)
+        // 3. FLOATING PAGER INDICATOR PILL (ANCHORED LEFT ABOVE DOCK)
         FloatingPagerIndicator(
             pagerState = pagerState,
             pageTitles = pageTitles,
@@ -524,7 +506,7 @@ fun ReportsAnalyticsScreen(
                 .zIndex(3.5f)
         )
 
-        // 5. STANDARDIZED FLOATING BOTTOM NAVIGATION DOCK WITH FAB
+        // 4. STANDARDIZED FLOATING BOTTOM NAVIGATION DOCK WITH FAB (includes integrated animated gradient scrim)
         AppBottomDock(
             currentSelection = NavigationTarget.REPORTS_ANALYTICS,
             onSelectTarget = { target ->
@@ -844,7 +826,7 @@ private fun SummaryAnalyticsTabContent(
                             title = "Capital Retention",
                             subtitle = "Net Saved vs Inflow Rate",
                             formula = "Retention_% = ((I_actual - E_actual - A_actual) / I_actual) * 100",
-                            breakdown = "Current realized Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome)} | Net Retained: $userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} (${String.format(Locale.US, "%.1f", retentionRate)}%).",
+                            breakdown = "Current realized Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome)} | Net Retained: $userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} (${String.format(Locale.US, "%,.1f", retentionRate)}%).",
                             advice = "Higher retention builds your emergency buffer and compounds investment capacity faster."
                         )
                     )
