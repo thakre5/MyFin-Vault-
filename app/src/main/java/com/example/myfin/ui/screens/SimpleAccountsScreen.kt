@@ -525,25 +525,7 @@ fun SimpleAccountsScreen(
             }
         }
 
-        // Bottom Gradient Scrim
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(115.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            CanvasLight.copy(alpha = 0.85f),
-                            CanvasLight
-                        )
-                    )
-                )
-                .zIndex(2.5f)
-        )
-
-        // Floating Bottom Navigation Dock with FAB
+        // Floating Bottom Navigation Dock with FAB (includes integrated animated gradient scrim)
         AppBottomDock(
             currentSelection = NavigationTarget.VAULT_ACCOUNTS,
             onSelectTarget = { target ->
