@@ -110,7 +110,6 @@ fun MonthlyScreen(
 
     val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
 
-    // Synchronize active accounts and isolate archived accounts
     val activeAccounts = remember(uiState.activeAccounts, uiState.accounts) {
         uiState.activeAccounts.ifEmpty { uiState.accounts.filter { !it.isArchived } }
     }
@@ -127,7 +126,6 @@ fun MonthlyScreen(
             ?: activeAccounts.getOrNull(2)?.accountName ?: "Tertiary Bank"
     }
 
-    // Relative Timeframe & Daily Burn Allowance Calculation
     val daysInMonth = remember(uiState.selectedMonth, uiState.selectedYear) {
         Calendar.getInstance().apply {
             set(uiState.selectedYear, uiState.selectedMonth - 1, 1)
@@ -148,7 +146,6 @@ fun MonthlyScreen(
         (uiState.metrics.safeToSpend / daysRemaining).coerceAtLeast(0.0)
     } else 0.0
 
-    // Payday Waterfall Split Detection
     val paydayPlan = uiState.paydaySuggestion
     val showWaterfallPrompt = remember(paydayPlan, uiState.selectedMonth, dismissedWaterfallMonth) {
         paydayPlan != null && dismissedWaterfallMonth != uiState.selectedMonth
@@ -207,7 +204,6 @@ fun MonthlyScreen(
                         )
                     }
 
-                    // Centered Month Selector
                     Surface(
                         modifier = Modifier
                             .align(Alignment.Center)
@@ -233,7 +229,6 @@ fun MonthlyScreen(
                         }
                     }
 
-                    // Top Right Actions
                     Row(
                         modifier = Modifier.align(Alignment.CenterEnd),
                         verticalAlignment = Alignment.CenterVertically
@@ -294,7 +289,6 @@ fun MonthlyScreen(
                         .padding(horizontal = 20.dp)
                 ) {
                     when (page) {
-                        // --- SUB-SCREEN 0: SUMMARY DASHBOARD ---
                         0 -> {
                             val activeMatrix = remember(uiState.categories, selectedMatrixType) {
                                 uiState.categories.filter { it.type == selectedMatrixType && it.category.isNotBlank() }
@@ -304,7 +298,6 @@ fun MonthlyScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                             ) {
-                                // Notification Slot
                                 if (showRollover || showWaterfallPrompt || uiState.commitmentsShortfall.isShortfall) {
                                     item {
                                         Column(
@@ -543,7 +536,7 @@ fun MonthlyScreen(
                                     }
                                 }
 
-                                // 3. HORIZONTAL PAGER: SAFE TO SPEND & 3-PILLAR TARGET CARDS (Edge-to-Edge with Below Card)
+                                // 3. HORIZONTAL PAGER: SAFE TO SPEND & 3-PILLAR TARGET CARDS
                                 item {
                                     Column(modifier = Modifier.fillMaxWidth()) {
                                         HorizontalPager(
@@ -554,7 +547,6 @@ fun MonthlyScreen(
                                             pageSpacing = 16.dp
                                         ) { cardPage ->
                                             if (cardPage == 0) {
-                                                // Page 0: Liquid Safe to Spend Hero Card
                                                 val isHealthy = uiState.metrics.safeToSpend > 0
                                                 val statusColor = if (isHealthy) SoftGreen else SoftRed
 
@@ -701,7 +693,6 @@ fun MonthlyScreen(
                                                     }
                                                 }
                                             } else {
-                                                // Page 1: 3-Pillar Target Execution Card (Attractive Shelves UI)
                                                 val plannedExpenses = uiState.metrics.plannedExpenses
                                                 val actualExpenses = uiState.metrics.actualExpenses
                                                 val expDiff = actualExpenses - plannedExpenses
@@ -741,7 +732,6 @@ fun MonthlyScreen(
                                                             .padding(horizontal = 16.dp, vertical = 14.dp),
                                                         verticalArrangement = Arrangement.SpaceBetween
                                                     ) {
-                                                        // Top Header Row
                                                         Row(
                                                             modifier = Modifier.fillMaxWidth(),
                                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -779,7 +769,6 @@ fun MonthlyScreen(
                                                             }
                                                         }
 
-                                                        // Expenses Shelf
                                                         PillarExecutionShelf(
                                                             title = "Expenses",
                                                             icon = Icons.Default.TrendingDown,
@@ -797,7 +786,6 @@ fun MonthlyScreen(
                                                             isDiscreet = isDiscreetMode
                                                         )
 
-                                                        // Income Shelf
                                                         PillarExecutionShelf(
                                                             title = "Income",
                                                             icon = Icons.Default.TrendingUp,
@@ -815,7 +803,6 @@ fun MonthlyScreen(
                                                             isDiscreet = isDiscreetMode
                                                         )
 
-                                                        // Assets / SIP Shelf
                                                         PillarExecutionShelf(
                                                             title = "Assets / SIP",
                                                             icon = Icons.Default.Savings,
@@ -837,7 +824,6 @@ fun MonthlyScreen(
                                             }
                                         }
 
-                                        // Subtle Carousel Pagination Indicator Dots
                                         Spacer(modifier = Modifier.height(7.dp))
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
@@ -977,561 +963,562 @@ fun MonthlyScreen(
                                                     .weight(1f)
                                                     .clip(RoundedCornerShape(10.dp))
                                                     .background(if (isSelected) CardWhite else Color.Transparent)
-                                                .clickable { selectedMatrixType = type }
-                                                .padding(vertical = 8.dp),
+                                                    .clickable { selectedMatrixType = type }
+                                                    .padding(vertical = 8.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                    fontSize = 11.5.sp,
+                                                    color = if (isSelected) color else TextMuted
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
+
+                                if (activeMatrix.isEmpty()) {
+                                    item {
+                                        Surface(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(18.dp),
+                                            color = CardWhite
+                                        ) {
+                                            Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+                                                Text(text = "No active entries in this segment", fontSize = 12.sp, color = TextMuted)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    item {
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .shadow(3.dp, RoundedCornerShape(22.dp)),
+                                            shape = RoundedCornerShape(22.dp),
+                                            color = CardWhite,
+                                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+                                        ) {
+                                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                                                activeMatrix.forEachIndexed { index, cat ->
+                                                    CategoryMatrixRow(
+                                                        cat = cat,
+                                                        isExpanded = expandedCategories[cat.category] ?: false,
+                                                        onToggleExpand = {
+                                                            expandedCategories[cat.category] = !(expandedCategories[cat.category] ?: false)
+                                                        },
+                                                        currencySymbol = userProfile.currencySymbol,
+                                                        isDiscreetMode = isDiscreetMode
+                                                    )
+                                                    if (index < activeMatrix.lastIndex) {
+                                                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // --- SUB-SCREEN 1: TRANSACTIONS LEDGER ---
+                        1 -> {
+                            Column(
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(46.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = CardWhite,
+                                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Search, contentDescription = "Search", tint = TextMuted, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            if (filterCriteria.query.isEmpty()) {
+                                                Text(text = "Search ledger...", color = TextMuted, fontSize = 13.sp, maxLines = 1)
+                                            }
+                                            BasicTextField(
+                                                value = filterCriteria.query,
+                                                onValueChange = { viewModel.updateSearchQuery(it) },
+                                                singleLine = true,
+                                                textStyle = TextStyle(fontSize = 13.sp, color = TextDark, fontWeight = FontWeight.Medium),
+                                                cursorBrush = SolidColor(AccentPurple),
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+
+                                        if (filterCriteria.query.isNotBlank()) {
+                                            IconButton(onClick = { viewModel.updateSearchQuery("") }, modifier = Modifier.size(24.dp)) {
+                                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextMuted, modifier = Modifier.size(16.dp))
+                                            }
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                        }
+
+                                        IconButton(onClick = { showFilterSheet = true }, modifier = Modifier.size(28.dp)) {
+                                            Icon(
+                                                Icons.Default.Tune,
+                                                contentDescription = "Filter",
+                                                tint = if (filterCriteria.type != null || filterCriteria.account != "ALL" || filterCriteria.startDate != null) AccentPurple else TextMuted,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                if (filterCriteria.startDate != null && filterCriteria.endDate != null) {
+                                    val sdf = remember { SimpleDateFormat("dd MMM", Locale.US) }
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = AccentPurple.copy(alpha = 0.12f),
+                                        border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.35f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.DateRange, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(14.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "Date Filter: ${sdf.format(Date(filterCriteria.startDate!!))} – ${sdf.format(Date(filterCriteria.endDate!!))}",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AccentPurple
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = { viewModel.updateFilter(filterCriteria.type, filterCriteria.account, null, null) },
+                                                modifier = Modifier.size(20.dp)
+                                            ) {
+                                                Icon(Icons.Default.Close, contentDescription = "Clear Date Filter", tint = AccentPurple, modifier = Modifier.size(13.dp))
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(BorderLight.copy(alpha = 0.5f))
+                                        .padding(3.dp)
+                                ) {
+                                    listOf(
+                                        null to "All",
+                                        TransactionType.EXPENSE to "Expenses",
+                                        TransactionType.INCOME to "Income",
+                                        TransactionType.ASSET to "Assets",
+                                        TransactionType.TRANSFER to "Transfers"
+                                    ).forEach { (type, label) ->
+                                        val isSelected = selectedTxFilterType == type
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .background(if (isSelected) CardWhite else Color.Transparent)
+                                                .clickable {
+                                                    selectedTxFilterType = type
+                                                    viewModel.updateFilter(type, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
+                                                }
+                                                .padding(vertical = 7.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
                                                 text = label,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                fontSize = 11.5.sp,
-                                                color = if (isSelected) color else TextMuted
+                                                fontSize = 11.sp,
+                                                color = if (isSelected) {
+                                                    when (type) {
+                                                        TransactionType.EXPENSE -> SoftRed
+                                                        TransactionType.INCOME -> SoftGreen
+                                                        TransactionType.ASSET -> SoftTeal
+                                                        TransactionType.TRANSFER -> AccentPurple
+                                                        else -> TextDark
+                                                    }
+                                                } else TextMuted
                                             )
                                         }
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(12.dp))
-                            }
 
-                            if (activeMatrix.isEmpty()) {
-                                item {
-                                    Surface(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(18.dp),
-                                        color = CardWhite
-                                    ) {
-                                        Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                                            Text(text = "No active entries in this segment", fontSize = 12.sp, color = TextMuted)
-                                        }
-                                    }
-                                }
-                            } else {
-                                item {
-                                    Surface(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .shadow(3.dp, RoundedCornerShape(22.dp)),
-                                        shape = RoundedCornerShape(22.dp),
-                                        color = CardWhite,
-                                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
-                                    ) {
-                                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                                            activeMatrix.forEachIndexed { index, cat ->
-                                                CategoryMatrixRow(
-                                                    cat = cat,
-                                                    isExpanded = expandedCategories[cat.category] ?: false,
-                                                    onToggleExpand = {
-                                                        expandedCategories[cat.category] = !(expandedCategories[cat.category] ?: false)
-                                                    },
-                                                    currencySymbol = userProfile.currencySymbol,
-                                                    isDiscreetMode = isDiscreetMode
-                                                )
-                                                if (index < activeMatrix.lastIndex) {
-                                                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                                Spacer(modifier = Modifier.height(10.dp))
 
-                    // --- SUB-SCREEN 1: TRANSACTIONS LEDGER ---
-                    1 -> {
-                        Column(
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(46.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                color = CardWhite,
-                                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.Search, contentDescription = "Search", tint = TextMuted, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        if (filterCriteria.query.isEmpty()) {
-                                            Text(text = "Search ledger...", color = TextMuted, fontSize = 13.sp, maxLines = 1)
-                                        }
-                                        BasicTextField(
-                                            value = filterCriteria.query,
-                                            onValueChange = { viewModel.updateSearchQuery(it) },
-                                            singleLine = true,
-                                            textStyle = TextStyle(fontSize = 13.sp, color = TextDark, fontWeight = FontWeight.Medium),
-                                            cursorBrush = SolidColor(AccentPurple),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
-
-                                    if (filterCriteria.query.isNotBlank()) {
-                                        IconButton(onClick = { viewModel.updateSearchQuery("") }, modifier = Modifier.size(24.dp)) {
-                                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextMuted, modifier = Modifier.size(16.dp))
-                                        }
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                    }
-
-                                    IconButton(onClick = { showFilterSheet = true }, modifier = Modifier.size(28.dp)) {
-                                        Icon(
-                                            Icons.Default.Tune,
-                                            contentDescription = "Filter",
-                                            tint = if (filterCriteria.type != null || filterCriteria.account != "ALL" || filterCriteria.startDate != null) AccentPurple else TextMuted,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            if (filterCriteria.startDate != null && filterCriteria.endDate != null) {
-                                val sdf = remember { SimpleDateFormat("dd MMM", Locale.US) }
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = AccentPurple.copy(alpha = 0.12f),
-                                    border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.35f)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.DateRange, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(14.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = "Date Filter: ${sdf.format(Date(filterCriteria.startDate!!))} – ${sdf.format(Date(filterCriteria.endDate!!))}",
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = AccentPurple
-                                            )
-                                        }
-                                        IconButton(
-                                            onClick = { viewModel.updateFilter(filterCriteria.type, filterCriteria.account, null, null) },
-                                            modifier = Modifier.size(20.dp)
-                                        ) {
-                                            Icon(Icons.Default.Close, contentDescription = "Clear Date Filter", tint = AccentPurple, modifier = Modifier.size(13.dp))
-                                        }
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(BorderLight.copy(alpha = 0.5f))
-                                    .padding(3.dp)
-                            ) {
-                                listOf(
-                                    null to "All",
-                                    TransactionType.EXPENSE to "Expenses",
-                                    TransactionType.INCOME to "Income",
-                                    TransactionType.ASSET to "Assets",
-                                    TransactionType.TRANSFER to "Transfers"
-                                ).forEach { (type, label) ->
-                                    val isSelected = selectedTxFilterType == type
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(9.dp))
-                                            .background(if (isSelected) CardWhite else Color.Transparent)
-                                            .clickable {
-                                                selectedTxFilterType = type
-                                                viewModel.updateFilter(type, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
-                                            }
-                                            .padding(vertical = 7.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            fontSize = 11.sp,
-                                            color = if (isSelected) {
-                                                when (type) {
-                                                    TransactionType.EXPENSE -> SoftRed
-                                                    TransactionType.INCOME -> SoftGreen
-                                                    TransactionType.ASSET -> SoftTeal
-                                                    TransactionType.TRANSFER -> AccentPurple
-                                                    else -> TextDark
-                                                }
-                                            } else TextMuted
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                item {
-                                    FilterChip(
-                                        selected = filterCriteria.account == "ALL",
-                                        onClick = { viewModel.updateFilter(filterCriteria.type, "ALL", filterCriteria.startDate, filterCriteria.endDate) },
-                                        label = { Text(text = "All Vaults", fontSize = 11.sp) },
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = AccentPurple.copy(alpha = 0.12f),
-                                            selectedLabelColor = AccentPurple
-                                        ),
-                                        border = FilterChipDefaults.filterChipBorder(
-                                            enabled = true,
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    item {
+                                        FilterChip(
                                             selected = filterCriteria.account == "ALL",
-                                            selectedBorderColor = AccentPurple.copy(alpha = 0.4f),
-                                            borderColor = BorderLight
+                                            onClick = { viewModel.updateFilter(filterCriteria.type, "ALL", filterCriteria.startDate, filterCriteria.endDate) },
+                                            label = { Text(text = "All Vaults", fontSize = 11.sp) },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = AccentPurple.copy(alpha = 0.12f),
+                                                selectedLabelColor = AccentPurple
+                                            ),
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                enabled = true,
+                                                selected = filterCriteria.account == "ALL",
+                                                selectedBorderColor = AccentPurple.copy(alpha = 0.4f),
+                                                borderColor = BorderLight
+                                            )
                                         )
-                                    )
-                                }
-                                items(accountsList) { acc ->
-                                    val isSelected = filterCriteria.account == acc
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = { viewModel.updateFilter(filterCriteria.type, acc, filterCriteria.startDate, filterCriteria.endDate) },
-                                        label = { Text(text = acc, fontSize = 11.sp) },
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = AccentPurple.copy(alpha = 0.12f),
-                                            selectedLabelColor = AccentPurple
-                                        ),
-                                        border = FilterChipDefaults.filterChipBorder(
-                                            enabled = true,
+                                    }
+                                    items(accountsList) { acc ->
+                                        val isSelected = filterCriteria.account == acc
+                                        FilterChip(
                                             selected = isSelected,
-                                            selectedBorderColor = AccentPurple.copy(alpha = 0.4f),
-                                            borderColor = BorderLight
+                                            onClick = { viewModel.updateFilter(filterCriteria.type, acc, filterCriteria.startDate, filterCriteria.endDate) },
+                                            label = { Text(text = acc, fontSize = 11.sp) },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = AccentPurple.copy(alpha = 0.12f),
+                                                selectedLabelColor = AccentPurple
+                                            ),
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                enabled = true,
+                                                selected = isSelected,
+                                                selectedBorderColor = AccentPurple.copy(alpha = 0.4f),
+                                                borderColor = BorderLight
+                                            )
                                         )
-                                    )
+                                    }
                                 }
-                            }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
 
-                            LazyColumn(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth(),
-                                contentPadding = PaddingValues(top = 2.dp, bottom = 140.dp)
-                            ) {
-                                if (uiState.groupedTransactions.isEmpty()) {
-                                    item(key = "empty_ledger") {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(top = 40.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Text(text = "No transactions recorded", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(text = "Try clearing filters or log a new entry", fontSize = 12.sp, color = TextMuted)
-                                                if (filterCriteria.query.isNotBlank() || filterCriteria.type != null || filterCriteria.account != "ALL" || filterCriteria.startDate != null) {
-                                                    Spacer(modifier = Modifier.height(10.dp))
-                                                    TextButton(
-                                                        onClick = {
-                                                            selectedTxFilterType = null
-                                                            viewModel.resetFilters()
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    contentPadding = PaddingValues(top = 2.dp, bottom = 140.dp)
+                                ) {
+                                    if (uiState.groupedTransactions.isEmpty()) {
+                                        item(key = "empty_ledger") {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 40.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text(text = "No transactions recorded", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(text = "Try clearing filters or log a new entry", fontSize = 12.sp, color = TextMuted)
+                                                    if (filterCriteria.query.isNotBlank() || filterCriteria.type != null || filterCriteria.account != "ALL" || filterCriteria.startDate != null) {
+                                                        Spacer(modifier = Modifier.height(10.dp))
+                                                        TextButton(
+                                                            onClick = {
+                                                                selectedTxFilterType = null
+                                                                viewModel.resetFilters()
+                                                            }
+                                                        ) {
+                                                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp), tint = AccentPurple)
+                                                            Spacer(modifier = Modifier.width(4.dp))
+                                                            Text("Reset Filters", color = AccentPurple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                                         }
-                                                    ) {
-                                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp), tint = AccentPurple)
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("Reset Filters", color = AccentPurple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                                     }
                                                 }
                                             }
                                         }
-                                    }
-                                } else {
-                                    uiState.groupedTransactions.forEach { (dateHeader, txList) ->
-                                        val dailyExpenseTotal = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-                                        val dailyIncomeTotal = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-                                        val sortedTxList = txList.sortedByDescending { it.date }
+                                    } else {
+                                        uiState.groupedTransactions.forEach { (dateHeader, txList) ->
+                                            val dailyExpenseTotal = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+                                            val dailyIncomeTotal = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+                                            val sortedTxList = txList.sortedByDescending { it.date }
 
-                                        stickyHeader(key = "header_$dateHeader") {
-                                            Surface(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                color = CanvasLight
-                                            ) {
-                                                Column(modifier = Modifier.fillMaxWidth()) {
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .padding(top = 10.dp, bottom = 8.dp, start = 4.dp, end = 4.dp),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                                            Surface(
-                                                                shape = RoundedCornerShape(8.dp),
-                                                                color = TextDark
-                                                            ) {
-                                                                Text(
-                                                                    text = dateHeader.uppercase(),
-                                                                    fontWeight = FontWeight.Black,
-                                                                    fontSize = 9.5.sp,
-                                                                    color = Color.White,
-                                                                    letterSpacing = 0.6.sp,
-                                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                                                )
-                                                            }
-
-                                                            Spacer(modifier = Modifier.width(8.dp))
-
-                                                            Text(
-                                                                text = "${txList.size} ${if (txList.size == 1) "entry" else "entries"}",
-                                                                fontSize = 11.sp,
-                                                                fontWeight = FontWeight.Medium,
-                                                                color = TextMuted
-                                                            )
-                                                        }
-
+                                            stickyHeader(key = "header_$dateHeader") {
+                                                Surface(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    color = CanvasLight
+                                                ) {
+                                                    Column(modifier = Modifier.fillMaxWidth()) {
                                                         Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(top = 10.dp, bottom = 8.dp, start = 4.dp, end = 4.dp),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
                                                         ) {
-                                                            if (dailyIncomeTotal > 0.0) {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Surface(
+                                                                    shape = RoundedCornerShape(8.dp),
+                                                                    color = TextDark
+                                                                ) {
+                                                                    Text(
+                                                                        text = dateHeader.uppercase(),
+                                                                        fontWeight = FontWeight.Black,
+                                                                        fontSize = 9.5.sp,
+                                                                        color = Color.White,
+                                                                        letterSpacing = 0.6.sp,
+                                                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                                                    )
+                                                                }
+
+                                                                Spacer(modifier = Modifier.width(8.dp))
+
                                                                 Text(
-                                                                    text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    fontSize = 11.5.sp,
-                                                                    color = SoftGreen
+                                                                    text = "${txList.size} ${if (txList.size == 1) "entry" else "entries"}",
+                                                                    fontSize = 11.sp,
+                                                                    fontWeight = FontWeight.Medium,
+                                                                    color = TextMuted
                                                                 )
                                                             }
-                                                            if (dailyExpenseTotal > 0.0) {
-                                                                Text(
-                                                                    text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    fontSize = 11.5.sp,
-                                                                    color = TextDark
-                                                                )
+
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                            ) {
+                                                                if (dailyIncomeTotal > 0.0) {
+                                                                    Text(
+                                                                        text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
+                                                                        fontWeight = FontWeight.Bold,
+                                                                        fontSize = 11.5.sp,
+                                                                        color = SoftGreen
+                                                                    )
+                                                                }
+                                                                if (dailyExpenseTotal > 0.0) {
+                                                                    Text(
+                                                                        text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
+                                                                        fontWeight = FontWeight.Bold,
+                                                                        fontSize = 11.5.sp,
+                                                                        color = TextDark
+                                                                    )
+                                                                }
                                                             }
                                                         }
+                                                        HorizontalDivider(
+                                                            color = BorderLight.copy(alpha = 0.5f),
+                                                            thickness = 0.6.dp
+                                                        )
                                                     }
-                                                    HorizontalDivider(
-                                                        color = BorderLight.copy(alpha = 0.5f),
-                                                        thickness = 0.6.dp
+                                                }
+                                            }
+
+                                            items(sortedTxList, key = { it.id }) { tx ->
+                                                Box(modifier = Modifier.padding(vertical = 3.5.dp)) {
+                                                    SwipeableTransactionItem(
+                                                        transaction = tx,
+                                                        currencySymbol = userProfile.currencySymbol,
+                                                        onTap = { viewingTx = it },
+                                                        onEdit = { editingTx = it; showAddSheet = true },
+                                                        onDelete = { transactionToDelete = it }
                                                     )
                                                 }
                                             }
                                         }
-
-                                        items(sortedTxList, key = { it.id }) { tx ->
-                                            Box(modifier = Modifier.padding(vertical = 3.5.dp)) {
-                                                SwipeableTransactionItem(
-                                                    transaction = tx,
-                                                    currencySymbol = userProfile.currencySymbol,
-                                                    onTap = { viewingTx = it },
-                                                    onEdit = { editingTx = it; showAddSheet = true },
-                                                    onDelete = { transactionToDelete = it }
-                                                )
-                                            }
-                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    // --- SUB-SCREEN 2: RECURRING COMMITMENTS ---
-                    2 -> {
-                        val currentDayOfMonth = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH) }
-                        val filteredBills = remember(uiState.fixedBills, hideSettledCommitments, selectedCommitmentFilter) {
-                            uiState.fixedBills.filter { bill ->
-                                val matchesHidden = !hideSettledCommitments || !bill.isPaid
-                                val matchesType = selectedCommitmentFilter == null || bill.type == selectedCommitmentFilter
-                                matchesHidden && matchesType
+                        // --- SUB-SCREEN 2: RECURRING COMMITMENTS ---
+                        2 -> {
+                            val currentDayOfMonth = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH) }
+                            val filteredBills = remember(uiState.fixedBills, hideSettledCommitments, selectedCommitmentFilter) {
+                                uiState.fixedBills.filter { bill ->
+                                    val matchesHidden = !hideSettledCommitments || !bill.isPaid
+                                    val matchesType = selectedCommitmentFilter == null || bill.type == selectedCommitmentFilter
+                                    matchesHidden && matchesType
+                                }
                             }
-                        }
 
-                        val pendingCommitmentsTotal = remember(filteredBills) {
-                            filteredBills.filter { !it.isPaid }.sumOf { it.amount }
-                        }
+                            val pendingCommitmentsTotal = remember(filteredBills) {
+                                filteredBills.filter { !it.isPaid }.sumOf { it.amount }
+                            }
 
-                        val overdueCount = remember(filteredBills, currentDayOfMonth) {
-                            filteredBills.count { !it.isPaid && it.dueDay != null && it.dueDay!! < currentDayOfMonth }
-                        }
-                        val hasOverdue = overdueCount > 0
+                            val overdueCount = remember(filteredBills, currentDayOfMonth) {
+                                filteredBills.count { !it.isPaid && it.dueDay != null && it.dueDay!! < currentDayOfMonth }
+                            }
+                            val hasOverdue = overdueCount > 0
 
-                        Column(
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(
+                                modifier = Modifier.fillMaxSize()
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Recurring Commitments",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextDark
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "AutoPay, Standing Orders & Inflows",
-                                        fontSize = 11.sp,
-                                        color = TextMuted
-                                    )
-                                }
-
-                                Column(horizontalAlignment = Alignment.End) {
-                                    TextButton(
-                                        onClick = { showAddFixedBill = true },
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(28.dp)
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(15.dp), tint = AccentPurple)
-                                        Spacer(modifier = Modifier.width(3.dp))
-                                        Text(text = "Add AutoPay", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = AccentPurple)
-                                    }
-
-                                    Spacer(modifier = Modifier.height(3.dp))
-
-                                    val badgeColor = if (hasOverdue) SoftRed else SoftAmber
-                                    val badgeText = if (isDiscreetMode) {
-                                        "•••• Pending"
-                                    } else {
-                                        val amtStr = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingCommitmentsTotal)}"
-                                        if (hasOverdue) "$amtStr Pending ($overdueCount Overdue)" else "$amtStr Pending"
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = badgeColor.copy(alpha = 0.12f),
-                                        border = BorderStroke(0.6.dp, badgeColor.copy(alpha = 0.35f))
-                                    ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = badgeText,
-                                            fontSize = 10.sp,
+                                            text = "Recurring Commitments",
+                                            fontSize = 16.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = badgeColor,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            color = TextDark
                                         )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(BorderLight.copy(alpha = 0.5f))
-                                    .padding(3.dp)
-                            ) {
-                                listOf(
-                                    null to "All",
-                                    TransactionType.EXPENSE to "Bills",
-                                    TransactionType.INCOME to "Receivables",
-                                    TransactionType.ASSET to "SIPs",
-                                    TransactionType.TRANSFER to "Sweeps"
-                                ).forEach { (type, label) ->
-                                    val isSelected = selectedCommitmentFilter == type
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(9.dp))
-                                            .background(if (isSelected) CardWhite else Color.Transparent)
-                                            .clickable { selectedCommitmentFilter = type }
-                                            .padding(vertical = 7.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
+                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = label,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            text = "AutoPay, Standing Orders & Inflows",
                                             fontSize = 11.sp,
-                                            color = if (isSelected) {
-                                                when (type) {
-                                                    TransactionType.EXPENSE -> SoftRed
-                                                    TransactionType.INCOME -> SoftGreen
-                                                    TransactionType.ASSET -> SoftTeal
-                                                    TransactionType.TRANSFER -> AccentPurple
-                                                    else -> TextDark
-                                                }
-                                            } else TextMuted
+                                            color = TextMuted
                                         )
                                     }
-                                }
-                            }
 
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            LazyColumn(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth(),
-                                contentPadding = PaddingValues(top = 2.dp, bottom = 140.dp)
-                            ) {
-                                if (filteredBills.isEmpty()) {
-                                    item(key = "empty_commitments") {
-                                        Surface(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(16.dp),
-                                            color = CardWhite
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        TextButton(
+                                            onClick = { showAddFixedBill = true },
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                            modifier = Modifier.height(28.dp)
                                         ) {
-                                            Column(
-                                                modifier = Modifier
-                                                    .padding(24.dp)
-                                                    .fillMaxWidth(),
-                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(15.dp), tint = AccentPurple)
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(text = "Add AutoPay", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = AccentPurple)
+                                        }
+
+                                        Spacer(modifier = Modifier.height(3.dp))
+
+                                        val badgeColor = if (hasOverdue) SoftRed else SoftAmber
+                                        val badgeText = if (isDiscreetMode) {
+                                            "•••• Pending"
+                                        } else {
+                                            val amtStr = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingCommitmentsTotal)}"
+                                            if (hasOverdue) "$amtStr Pending ($overdueCount Overdue)" else "$amtStr Pending"
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = badgeColor.copy(alpha = 0.12f),
+                                            border = BorderStroke(0.6.dp, badgeColor.copy(alpha = 0.35f))
+                                        ) {
+                                            Text(
+                                                text = badgeText,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = badgeColor,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(BorderLight.copy(alpha = 0.5f))
+                                        .padding(3.dp)
+                                ) {
+                                    listOf(
+                                        null to "All",
+                                        TransactionType.EXPENSE to "Bills",
+                                        TransactionType.INCOME to "Receivables",
+                                        TransactionType.ASSET to "SIPs",
+                                        TransactionType.TRANSFER to "Sweeps"
+                                    ).forEach { (type, label) ->
+                                        val isSelected = selectedCommitmentFilter == type
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .background(if (isSelected) CardWhite else Color.Transparent)
+                                                .clickable { selectedCommitmentFilter = type }
+                                                .padding(vertical = 7.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 11.sp,
+                                                color = if (isSelected) {
+                                                    when (type) {
+                                                        TransactionType.EXPENSE -> SoftRed
+                                                        TransactionType.INCOME -> SoftGreen
+                                                        TransactionType.ASSET -> SoftTeal
+                                                        TransactionType.TRANSFER -> AccentPurple
+                                                        else -> TextDark
+                                                    }
+                                                } else TextMuted
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    contentPadding = PaddingValues(top = 2.dp, bottom = 140.dp)
+                                ) {
+                                    if (filteredBills.isEmpty()) {
+                                        item(key = "empty_commitments") {
+                                            Surface(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(16.dp),
+                                                color = CardWhite
                                             ) {
-                                                Text(
-                                                    text = if (hideSettledCommitments) "No pending commitments in this filter" else "No recurring commitments recorded",
-                                                    fontSize = 12.sp,
-                                                    color = TextMuted
-                                                )
-                                                if (hideSettledCommitments || selectedCommitmentFilter != null) {
-                                                    Spacer(modifier = Modifier.height(8.dp))
-                                                    TextButton(
-                                                        onClick = {
-                                                            hideSettledCommitments = false
-                                                            selectedCommitmentFilter = null
+                                                Column(
+                                                    modifier = Modifier
+                                                        .padding(24.dp)
+                                                        .fillMaxWidth(),
+                                                    horizontalAlignment = Alignment.CenterHorizontally
+                                                ) {
+                                                    Text(
+                                                        text = if (hideSettledCommitments) "No pending commitments in this filter" else "No recurring commitments recorded",
+                                                        fontSize = 12.sp,
+                                                        color = TextMuted
+                                                    )
+                                                    if (hideSettledCommitments || selectedCommitmentFilter != null) {
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        TextButton(
+                                                            onClick = {
+                                                                hideSettledCommitments = false
+                                                                selectedCommitmentFilter = null
+                                                            }
+                                                        ) {
+                                                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp), tint = AccentPurple)
+                                                            Spacer(modifier = Modifier.width(4.dp))
+                                                            Text("Reset Filters", color = AccentPurple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                                         }
-                                                    ) {
-                                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp), tint = AccentPurple)
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("Reset Filters", color = AccentPurple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                                     }
                                                 }
                                             }
                                         }
-                                    }
-                                } else {
-                                    items(filteredBills, key = { it.id }) { bill ->
-                                        Box(modifier = Modifier.padding(vertical = 4.dp)) {
-                                            SwipeableFixedBillItem(
-                                                bill = bill,
-                                                currencySymbol = userProfile.currencySymbol,
-                                                onTap = { b ->
-                                                    if (!b.isPaid) {
-                                                        settlingFixedBill = b
-                                                    } else {
-                                                        billToRevert = b
+                                    } else {
+                                        items(filteredBills, key = { it.id }) { bill ->
+                                            Box(modifier = Modifier.padding(vertical = 4.dp)) {
+                                                SwipeableFixedBillItem(
+                                                    bill = bill,
+                                                    currencySymbol = userProfile.currencySymbol,
+                                                    onTap = { b ->
+                                                        if (!b.isPaid) {
+                                                            settlingFixedBill = b
+                                                        } else {
+                                                            billToRevert = b
+                                                        }
+                                                    },
+                                                    onEdit = { b ->
+                                                        if (b.isPaid) {
+                                                            Toast.makeText(context, "Cannot edit settled commitment. Tap card to revert to Unpaid first.", Toast.LENGTH_LONG).show()
+                                                        } else {
+                                                            editingFixedBill = b
+                                                        }
+                                                    },
+                                                    onDelete = { b -> billToDelete = b },
+                                                    onSettleBill = { b, customAmt, dateMillis ->
+                                                        viewModel.toggleFixedBillPaid(b, customAmount = customAmt, customDateMillis = dateMillis)
                                                     }
-                                                },
-                                                onEdit = { b ->
-                                                    if (b.isPaid) {
-                                                        Toast.makeText(context, "Cannot edit settled commitment. Tap card to revert to Unpaid first.", Toast.LENGTH_LONG).show()
-                                                    } else {
-                                                        editingFixedBill = b
-                                                    }
-                                                },
-                                                onDelete = { b -> billToDelete = b },
-                                                onSettleBill = { b, customAmt, dateMillis ->
-                                                    viewModel.toggleFixedBillPaid(b, customAmount = customAmt, customDateMillis = dateMillis)
-                                                }
-                                            )
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -2568,4 +2555,68 @@ private fun PillarMetricCard(
         }
     }
 }
+
+@Composable
+private fun PillarDualBarRow(
+    title: String,
+    planned: Double,
+    actual: Double,
+    currencySymbol: String,
+    progressFraction: Float,
+    barColor: Color,
+    isDiscreet: Boolean,
+    varianceText: String,
+    isAlert: Boolean
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = TextDark)
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(5.dp),
+                    color = if (isAlert) SoftRed.copy(alpha = 0.12f) else CanvasLight
+                ) {
+                    Text(
+                        text = varianceText,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isAlert) SoftRed else TextMuted,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (isDiscreet) "Plan: ••••" else "Plan: $currencySymbol${String.format(Locale.US, "%,.0f", planned)}",
+                    fontSize = 10.5.sp,
+                    color = TextMuted
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (isDiscreet) "Act: ••••" else "Act: $currencySymbol${String.format(Locale.US, "%,.0f", actual)}",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 12.sp,
+                    color = if (isAlert) SoftRed else barColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        LinearProgressIndicator(
+            progress = { progressFraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(5.dp)
+                .clip(RoundedCornerShape(2.5.dp)),
+            color = if (isAlert) SoftRed else barColor,
+            trackColor = barColor.copy(alpha = 0.15f)
+        )
+    }
 }
