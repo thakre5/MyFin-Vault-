@@ -288,6 +288,11 @@ fun MonthlyScreen(
                 when (page) {
                     // --- SUB-SCREEN 0: SUMMARY DASHBOARD ---
                     0 -> {
+                        // Safe Composable context before entering LazyListScope
+                        val activeMatrix = remember(uiState.categories, selectedMatrixType) {
+                            uiState.categories.filter { it.type == selectedMatrixType && it.category.isNotBlank() }
+                        }
+
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -905,11 +910,6 @@ fun MonthlyScreen(
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(12.dp))
-                            }
-
-                            // Cleaned & safety filtered to avoid ghost empty rows
-                            val activeMatrix = remember(uiState.categories, selectedMatrixType) {
-                                uiState.categories.filter { it.type == selectedMatrixType && it.category.isNotBlank() }
                             }
 
                             if (activeMatrix.isEmpty()) {
