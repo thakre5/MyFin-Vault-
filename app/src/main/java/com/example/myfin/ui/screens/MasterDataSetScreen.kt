@@ -440,25 +440,7 @@ fun MasterDataSetScreen(
             }
         }
 
-        // 3. BOTTOM GRADIENT SCRIM (DISSOLVES CONTENT BEFORE DOCK)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(115.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            CanvasLight.copy(alpha = 0.85f),
-                            CanvasLight
-                        )
-                    )
-                )
-                .zIndex(2.5f)
-        )
-
-        // 4. STANDARDIZED FLOATING BOTTOM DOCK WITH FAB
+        // 3. STANDARDIZED FLOATING BOTTOM DOCK WITH FAB (includes integrated animated gradient scrim)
         AppBottomDock(
             currentSelection = NavigationTarget.DATA_SET,
             onSelectTarget = { target ->
