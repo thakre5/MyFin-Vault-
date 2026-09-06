@@ -217,7 +217,6 @@ fun VaultStrategyScreen(
         if (dailyBurnRate > 0 && bal > 0) (bal / dailyBurnRate).toInt() else 90
     }
 
-    // Includes ALL unfulfilled commitments originating from this account (Expenses, Transfers, Asset SIPs)
     val pendingBillsForAccount = remember(uiState.fixedBills, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         uiState.fixedBills.filter {
@@ -350,305 +349,324 @@ fun VaultStrategyScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 125.dp)
             ) {
-                // Vault Asset Allocation Card
-                item(key = "allocation_card") {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .shadow(3.dp, RoundedCornerShape(22.dp)),
-                        shape = RoundedCornerShape(22.dp),
-                        color = CardWhite,
-                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
+                // Top Strategy Carousel: Vault Asset Allocation & Fortress Vault Split (Side by Side)
+                item(key = "top_strategy_carousel") {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(start = 4.dp, end = 4.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(
-                                            Color(0xFFFFFFFF),
-                                            Color(0xFFFCFAFF),
-                                            AccentPurple.copy(alpha = 0.04f)
-                                        )
-                                    )
-                                )
-                                .padding(18.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "Vault Asset Allocation",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.5.sp,
-                                        color = TextDark
-                                    )
-                                    Text(
-                                        text = "Liquidity distribution across accounts",
-                                        fontSize = 11.sp,
-                                        color = TextMuted
-                                    )
-                                }
+                        // Card 1: Vault Asset Allocation
+                        item {
+                            val opFraction = if (totalLiquidBalance > 0) (opTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
+                            val comFraction = if (totalLiquidBalance > 0) (comTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
+                            val fortFraction = if (totalLiquidBalance > 0) (fortTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
+                            val cashFraction = if (totalLiquidBalance > 0) (cashTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
 
-                                IconButton(
-                                    onClick = { showHelpDialog = true },
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(AccentPurple.copy(alpha = 0.10f))
-                                ) {
-                                    Icon(
-                                        Icons.Default.HelpOutline,
-                                        contentDescription = "Help Guide",
-                                        tint = AccentPurple,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val opFraction = if (totalLiquidBalance > 0) (opTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
-                                val comFraction = if (totalLiquidBalance > 0) (comTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
-                                val fortFraction = if (totalLiquidBalance > 0) (fortTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
-                                val cashFraction = if (totalLiquidBalance > 0) (cashTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
-
-                                Box(
-                                    modifier = Modifier.size(110.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    FourWayDonutAllocationChart(
-                                        opFraction = opFraction,
-                                        comFraction = comFraction,
-                                        fortFraction = fortFraction,
-                                        cashFraction = cashFraction,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Liquid", fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
-                                        Text(
-                                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalLiquidBalance)}",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = TextDark
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(16.dp))
-
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    AllocationStatPill(
-                                        title = "Operating",
-                                        percentage = if (totalLiquidBalance > 0) ((opTotal / totalLiquidBalance) * 100).toInt() else 0,
-                                        color = Color(0xFFE57A28),
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", opTotal)}"
-                                    )
-                                    AllocationStatPill(
-                                        title = "Commitments",
-                                        percentage = if (totalLiquidBalance > 0) ((comTotal / totalLiquidBalance) * 100).toInt() else 0,
-                                        color = AccentPurple,
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", comTotal)}"
-                                    )
-                                    AllocationStatPill(
-                                        title = "Fortress",
-                                        percentage = if (totalLiquidBalance > 0) ((fortTotal / totalLiquidBalance) * 100).toInt() else 0,
-                                        color = SoftTeal,
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortTotal)}"
-                                    )
-                                    AllocationStatPill(
-                                        title = "Cash",
-                                        percentage = if (totalLiquidBalance > 0) ((cashTotal / totalLiquidBalance) * 100).toInt() else 0,
-                                        color = SoftGreen,
-                                        amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cashTotal)}"
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                }
-
-                // Dedicated Fortress Emergency FD & Savings Split Card
-                item(key = "fortress_split_card") {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .shadow(3.dp, RoundedCornerShape(20.dp)),
-                        shape = RoundedCornerShape(20.dp),
-                        color = CardWhite,
-                        border = BorderStroke(1.dp, SoftTeal.copy(alpha = 0.25f))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(
-                                            Color(0xFFFFFFFF),
-                                            SoftTeal.copy(alpha = 0.04f)
-                                        )
-                                    )
-                                )
-                                .padding(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(34.dp)
-                                            .clip(CircleShape)
-                                            .background(SoftTeal.copy(alpha = 0.14f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Security,
-                                            contentDescription = null,
-                                            tint = SoftTeal,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text(
-                                            text = "Fortress Vault Split",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp,
-                                            color = TextDark
-                                        )
-                                        Text(
-                                            text = "Liquid Cushion vs. Emergency FD",
-                                            fontSize = 10.5.sp,
-                                            color = TextMuted
-                                        )
-                                    }
-                                }
-
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = if (fortressFd > 0) SoftTeal.copy(alpha = 0.12f) else SoftAmber.copy(alpha = 0.12f)
-                                ) {
-                                    Text(
-                                        text = if (fortressFd > 0) "FD Active" else "Filling Cushion",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (fortressFd > 0) SoftTeal else SoftAmber,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            Row(
+                            Surface(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(7.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(CanvasLight)
+                                    .width(320.dp)
+                                    .height(222.dp)
+                                    .shadow(3.dp, RoundedCornerShape(22.dp)),
+                                shape = RoundedCornerShape(22.dp),
+                                color = CardWhite,
+                                border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.20f))
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(fortressSavingsFraction.coerceAtLeast(0.02f))
-                                        .fillMaxHeight()
-                                        .background(SoftTeal)
-                                )
-                                if (fortressFd > 0) {
-                                    val fdFraction = (fortressFd / fortTotal.coerceAtLeast(1.0)).toFloat().coerceIn(0.05f, 0.95f)
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(fdFraction)
-                                            .fillMaxHeight()
-                                            .background(Color(0xFF0D9488))
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftTeal))
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Text("Liquid Cushion", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
-                                    }
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressSavings)}",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextDark
-                                    )
-                                    Text(
-                                        text = "Cap: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressCap)}",
-                                        fontSize = 9.5.sp,
-                                        color = TextMuted
-                                    )
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .height(32.dp)
-                                        .width(1.dp)
-                                        .background(BorderLight.copy(alpha = 0.7f))
-                                )
-
                                 Column(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .padding(start = 12.dp)
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(
+                                                    Color(0xFFFFFFFF),
+                                                    Color(0xFFFCFAFF),
+                                                    AccentPurple.copy(alpha = 0.04f)
+                                                )
+                                            )
+                                        )
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF0D9488)))
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Text("Emergency FD", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = "Vault Asset Allocation",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.5.sp,
+                                                color = TextDark
+                                            )
+                                            Text(
+                                                text = "Liquidity distribution across accounts",
+                                                fontSize = 10.5.sp,
+                                                color = TextMuted
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = { showHelpDialog = true },
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(CircleShape)
+                                                .background(AccentPurple.copy(alpha = 0.10f))
+                                        ) {
+                                            Icon(
+                                                Icons.Default.HelpOutline,
+                                                contentDescription = "Help Guide",
+                                                tint = AccentPurple,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
                                     }
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressFd)}",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (fortressFd > 0) Color(0xFF0D9488) else TextMuted
-                                    )
-                                    Text(
-                                        text = if (fortressFd > 0) "Auto-sweep excess" else "No excess swept",
-                                        fontSize = 9.5.sp,
-                                        color = TextMuted
-                                    )
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.size(100.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            FourWayDonutAllocationChart(
+                                                opFraction = opFraction,
+                                                comFraction = comFraction,
+                                                fortFraction = fortFraction,
+                                                cashFraction = cashFraction,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text("Liquid", fontSize = 9.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                                                Text(
+                                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalLiquidBalance)}",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    color = TextDark
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            AllocationStatPill(
+                                                title = "Operating",
+                                                percentage = if (totalLiquidBalance > 0) ((opTotal / totalLiquidBalance) * 100).toInt() else 0,
+                                                color = Color(0xFFE57A28),
+                                                amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", opTotal)}"
+                                            )
+                                            AllocationStatPill(
+                                                title = "Commitments",
+                                                percentage = if (totalLiquidBalance > 0) ((comTotal / totalLiquidBalance) * 100).toInt() else 0,
+                                                color = AccentPurple,
+                                                amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", comTotal)}"
+                                            )
+                                            AllocationStatPill(
+                                                title = "Fortress",
+                                                percentage = if (totalLiquidBalance > 0) ((fortTotal / totalLiquidBalance) * 100).toInt() else 0,
+                                                color = SoftTeal,
+                                                amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortTotal)}"
+                                            )
+                                            AllocationStatPill(
+                                                title = "Cash",
+                                                percentage = if (totalLiquidBalance > 0) ((cashTotal / totalLiquidBalance) * 100).toInt() else 0,
+                                                color = SoftGreen,
+                                                amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cashTotal)}"
+                                            )
+                                        }
+                                    }
                                 }
                             }
+                        }
 
-                            if (fortressDeficit > 0) {
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = "• Inflow needed: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressDeficit)} to fill liquid cushion before FD auto-sweeps.",
-                                    fontSize = 10.5.sp,
-                                    color = SoftAmber,
-                                    fontWeight = FontWeight.Medium
-                                )
+                        // Card 2: Fortress Vault Split
+                        item {
+                            Surface(
+                                modifier = Modifier
+                                    .width(320.dp)
+                                    .height(222.dp)
+                                    .shadow(3.dp, RoundedCornerShape(22.dp)),
+                                shape = RoundedCornerShape(22.dp),
+                                color = CardWhite,
+                                border = BorderStroke(0.8.dp, SoftTeal.copy(alpha = 0.28f))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(
+                                                    Color(0xFFFFFFFF),
+                                                    SoftTeal.copy(alpha = 0.04f)
+                                                )
+                                            )
+                                        )
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(30.dp)
+                                                    .clip(CircleShape)
+                                                    .background(SoftTeal.copy(alpha = 0.14f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Security,
+                                                    contentDescription = null,
+                                                    tint = SoftTeal,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column {
+                                                Text(
+                                                    text = "Fortress Vault Split",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.5.sp,
+                                                    color = TextDark
+                                                )
+                                                Text(
+                                                    text = "Liquid Cushion vs. Emergency FD",
+                                                    fontSize = 10.sp,
+                                                    color = TextMuted
+                                                )
+                                            }
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(7.dp),
+                                            color = if (fortressFd > 0) SoftTeal.copy(alpha = 0.12f) else SoftAmber.copy(alpha = 0.12f)
+                                        ) {
+                                            Text(
+                                                text = if (fortressFd > 0) "FD Active" else "Filling Cushion",
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (fortressFd > 0) SoftTeal else SoftAmber,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Column {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.5.dp)
+                                                .clip(RoundedCornerShape(3.5.dp))
+                                                .background(CanvasLight)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(fortressSavingsFraction.coerceAtLeast(0.02f))
+                                                    .fillMaxHeight()
+                                                    .background(SoftTeal)
+                                            )
+                                            if (fortressFd > 0) {
+                                                val fdFraction = (fortressFd / fortTotal.coerceAtLeast(1.0)).toFloat().coerceIn(0.05f, 0.95f)
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(fdFraction)
+                                                        .fillMaxHeight()
+                                                        .background(Color(0xFF0D9488))
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftTeal))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Liquid Cushion", fontSize = 10.5.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                                                }
+                                                Spacer(modifier = Modifier.height(1.5.dp))
+                                                Text(
+                                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressSavings)}",
+                                                    fontSize = 13.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = TextDark
+                                                )
+                                                Text(
+                                                    text = "Cap: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressCap)}",
+                                                    fontSize = 9.sp,
+                                                    color = TextMuted
+                                                )
+                                            }
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .height(28.dp)
+                                                    .width(1.dp)
+                                                    .background(BorderLight.copy(alpha = 0.7f))
+                                            )
+
+                                            Column(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .padding(start = 10.dp)
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(Color(0xFF0D9488)))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Emergency FD", fontSize = 10.5.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                                                }
+                                                Spacer(modifier = Modifier.height(1.5.dp))
+                                                Text(
+                                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressFd)}",
+                                                    fontSize = 13.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (fortressFd > 0) Color(0xFF0D9488) else TextMuted
+                                                )
+                                                Text(
+                                                    text = if (fortressFd > 0) "Auto-sweep excess" else "No excess swept",
+                                                    fontSize = 9.sp,
+                                                    color = TextMuted
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (fortressDeficit > 0) SoftAmber.copy(alpha = 0.10f) else SoftGreen.copy(alpha = 0.10f),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = if (fortressDeficit > 0)
+                                                "• Needs ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressDeficit)} to fill cushion before FD sweeps"
+                                            else "• Liquid cushion full. Surplus actively sweeps to FD.",
+                                            fontSize = 9.5.sp,
+                                            color = if (fortressDeficit > 0) SoftAmber else SoftGreen,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
                 // Connected Bank Accounts Header
@@ -970,7 +988,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Floating Bottom Navigation Dock (includes integrated animated gradient scrim)
+        // Floating Bottom Navigation Dock
         AppBottomDock(
             currentSelection = NavigationTarget.VAULT_ACCOUNTS,
             onSelectTarget = { target ->
@@ -1540,7 +1558,7 @@ fun VaultStrategyScreen(
             )
         }
 
-        // Standardized Transfer Bottom Sheet (With Past Date Support & Receipt)
+        // Standardized Transfer Bottom Sheet
         if (showTransferSheet) {
             AccountTransferDialog(
                 accounts = accountNames,
