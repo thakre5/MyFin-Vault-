@@ -539,7 +539,7 @@ fun MonthlyScreen(
                                 item {
                                     LazyRow(
                                         horizontalArrangement = Arrangement.spacedBy(14.dp),
-                                        contentPadding = PaddingValues(horizontal = 0.dp),
+                                        contentPadding = PaddingValues(horizontal = 6.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         // Card 1: Liquid Safe to Spend
