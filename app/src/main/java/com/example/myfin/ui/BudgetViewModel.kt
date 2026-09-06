@@ -143,11 +143,15 @@ data class MonthlyUiState(
     val budgetPlans: List<BudgetPlanEntity> = emptyList(),
     val commitmentsShortfall: CommitmentsShortfallStatus = CommitmentsShortfallStatus(),
     val paydaySuggestion: PaydayAllocationPlan? = null,
-    val reimbursementStatus: ReimbursementStatus = ReimbursementStatus()
+    val reimbursementStatus: ReimbursementStatus = ReimbursementStatus(),
+    // Frequency-sorted helpers for Bottom Sheets
+    val frequentCategories: List<CategoryEntity> = emptyList(),
+    val frequentSubcategories: List<SubcategoryEntity> = emptyList(),
+    val frequentAccounts: List<String> = emptyList()
 ) {
     val categoryBreakdowns: List<CategoryPerformance> get() = categories
-    val accountList: List<String> get() = activeAccounts.map { it.accountName }
-    val subcategories: List<SubcategoryEntity> get() = masterSubcategories
+    val accountList: List<String> get() = frequentAccounts.ifEmpty { activeAccounts.map { it.accountName } }
+    val subcategories: List<SubcategoryEntity> get() = frequentSubcategories.ifEmpty { masterSubcategories }
 }
 
 data class YearlyUiState(
@@ -244,12 +248,35 @@ class BudgetViewModel(
             Triple(plans, masterCats, masterSubcats)
         }
 
-        combine(coreDataFlow, metadataFlow) { coreData, metaData ->
+        val globalHistoryFlow = flow {
+            emit(try { dao.getAllTransactions() } catch (_: Exception) { emptyList() })
+        }
+
+        combine(coreDataFlow, metadataFlow, globalHistoryFlow) { coreData, metaData, allTimeTxs ->
             val (transactions, fixedBills, allAccounts) = coreData
             val (plans, masterCats, masterSubcats) = metaData
 
+            // Compute usage frequencies across all history for dynamic sorting
+            val categoryUsage = allTimeTxs.groupingBy { it.category }.eachCount()
+            val subcategoryUsage = allTimeTxs.groupingBy { it.subcategory }.eachCount()
+            val accountUsage = allTimeTxs.groupingBy { it.accountName }.eachCount()
+
+            val sortedMasterCats = masterCats.sortedWith(
+                compareByDescending<CategoryEntity> { categoryUsage[it.name] ?: 0 }
+                    .thenBy { it.name }
+            )
+
+            val sortedMasterSubcats = masterSubcats.sortedWith(
+                compareByDescending<SubcategoryEntity> { subcategoryUsage[it.name] ?: 0 }
+                    .thenBy { it.name }
+            )
+
             val activeAccounts = allAccounts.filter { !it.isArchived }
             val archivedAccounts = allAccounts.filter { it.isArchived }
+            val sortedActiveAccounts = activeAccounts.sortedWith(
+                compareByDescending<AccountBalanceResult> { accountUsage[it.accountName] ?: 0 }
+                    .thenBy { it.sortOrder }
+            )
 
             val regularTxs = transactions.filter { it.type != TransactionType.TRANSFER }
 
@@ -289,7 +316,7 @@ class BudgetViewModel(
                 isSettled = pendingReimbursement <= 0.0
             )
 
-            val allCategoryNames = (masterCats.map { it.name to it.type } +
+            val allCategoryNames = (sortedMasterCats.map { it.name to it.type } +
                     plans.map { it.category to it.type } +
                     fixedBills.map { it.category to it.type } +
                     regularTxs.map { it.category to it.type }).distinct()
@@ -345,14 +372,14 @@ class BudgetViewModel(
 
             val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
             val operatingAccounts = if (is3VaultMode) {
-                activeAccounts.filter {
+                sortedActiveAccounts.filter {
                     it.accountType.equals("Operating", ignoreCase = true) ||
                     it.accountType.equals("Cash", ignoreCase = true) ||
                     it.accountName.contains("CASH", ignoreCase = true) ||
                     it.accountName.contains("OPERATING", ignoreCase = true)
                 }
             } else {
-                activeAccounts
+                sortedActiveAccounts
             }
 
             val liquidOperatingCash = operatingAccounts.sumOf {
@@ -371,15 +398,15 @@ class BudgetViewModel(
 
             val isOverBudget = rawTheoreticalSafeToSpend < 0.0 || (plannedExpenses > 0 && actualExpenses > plannedExpenses)
             val netSaved = (actualIncome - actualExpenses) - actualAssets
-            val totalVault = activeAccounts.sumOf { it.currentBalance }
+            val totalVault = allAccounts.sumOf { it.currentBalance }
             val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
 
             // Commitments Vault Shortfall Engine
-            val commitmentsAccount = activeAccounts.find {
+            val commitmentsAccount = sortedActiveAccounts.find {
                 it.accountType.equals("Commitments", ignoreCase = true) ||
                 it.accountName.contains("COMMITMENT", ignoreCase = true) ||
                 it.accountName.contains("BILL", ignoreCase = true)
-            } ?: activeAccounts.firstOrNull()
+            } ?: sortedActiveAccounts.firstOrNull()
 
             val commitmentsAccountNameTarget = commitmentsAccount?.accountName ?: "Commitments"
 
@@ -478,17 +505,20 @@ class BudgetViewModel(
                     personalIncome = personalIncome
                 ),
                 accounts = allAccounts,
-                activeAccounts = activeAccounts,
+                activeAccounts = sortedActiveAccounts,
                 archivedAccounts = archivedAccounts,
                 fixedBills = fixedBills,
                 categories = matrixList,
-                masterCategories = masterCats,
-                masterSubcategories = masterSubcats,
+                masterCategories = sortedMasterCats,
+                masterSubcategories = sortedMasterSubcats,
                 groupedTransactions = grouped,
                 budgetPlans = plans,
                 commitmentsShortfall = shortfallStatus,
                 paydaySuggestion = paydaySuggestion,
-                reimbursementStatus = monthReimbursementStatus
+                reimbursementStatus = monthReimbursementStatus,
+                frequentCategories = sortedMasterCats,
+                frequentSubcategories = sortedMasterSubcats,
+                frequentAccounts = sortedActiveAccounts.map { it.accountName }
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthlyUiState())
@@ -2141,7 +2171,7 @@ class BudgetViewModel(
                     dateCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR) -> "Today"
             dateCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
                     dateCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR) - 1 -> "Yesterday"
-            else -> SimpleDateFormat("dd MMMM yyyy", Locale.US).format(Date(timestamp))
+            else -> SimpleDropDateFormat("dd MMMM yyyy", Locale.US).format(Date(timestamp))
         }
     }
 }
