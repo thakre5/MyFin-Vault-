@@ -1474,24 +1474,6 @@ fun MonthlyScreen(
             }
         }
 
-        // 3. BOTTOM GRADIENT SCRIM
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(115.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            CanvasLight.copy(alpha = 0.85f),
-                            CanvasLight
-                        )
-                    )
-                )
-                .zIndex(2.5f)
-        )
-
         // 4. FLOATING PAGER INDICATOR PILL
         FloatingPagerIndicator(
             pagerState = pagerState,
@@ -1504,7 +1486,7 @@ fun MonthlyScreen(
                 .zIndex(3.5f)
         )
 
-        // 5. FLOATING BOTTOM NAVIGATION DOCK WITH FAB
+        // 5. FLOATING BOTTOM NAVIGATION DOCK WITH FAB (includes integrated animated gradient scrim)
         AppBottomDock(
             currentSelection = NavigationTarget.MONTHLY_VIEW,
             onSelectTarget = { target ->
