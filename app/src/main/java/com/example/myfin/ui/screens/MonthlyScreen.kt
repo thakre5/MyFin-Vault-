@@ -77,6 +77,7 @@ fun MonthlyScreen(
     val showRollover by viewModel.showRolloverPrompt.collectAsState()
 
     val pagerState = rememberPagerState(pageCount = { 3 })
+    val cardPagerState = rememberPagerState(pageCount = { 2 })
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
     val pageTitles = remember { listOf("Summary", "Ledger", "AutoPay") }
 
@@ -543,8 +544,6 @@ fun MonthlyScreen(
 
                             // Full-Width Horizontal Pager for Hero Card & 3-Pillar Card (Eliminates Side Lines & Matches Heights)
                             item {
-                                val cardPagerState = rememberPagerState(pageCount = { 2 })
-
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     HorizontalPager(
                                         state = cardPagerState,
@@ -679,6 +678,8 @@ fun MonthlyScreen(
                                                                 modifier = Modifier.weight(1f),
                                                                 onClick = {
                                                                     coroutineScope.launch {
+                                                                        selectedTxFilterType = TransactionType.EXPENSE
+                                                                        viewModel.updateFilter(TransactionType.EXPENSE, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
                                                                         pagerState.animateScrollToPage(2)
                                                                     }
                                                                 }
@@ -2400,7 +2401,7 @@ private fun CategoryMatrixRow(
                                     color = TextDark
                                 )
                             }
-                            Spacer(modifier = Modifier.height(2.5.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
                             LinearProgressIndicator(
                                 progress = { (subPercentage / 100f).coerceIn(0f, 1f) },
                                 modifier = Modifier
@@ -2433,23 +2434,25 @@ private fun PillarMetricCard(
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(5.dp)
+                        .size(4.dp)
                         .clip(CircleShape)
                         .background(tintColor)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = title, fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(text = title, fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
             }
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = amount,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = tintColor
+                color = tintColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -2474,18 +2477,18 @@ private fun PillarDualBarRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
+                Spacer(modifier = Modifier.width(6.dp))
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = if (isAlert) SoftRed.copy(alpha = 0.12f) else CanvasLight
                 ) {
                     Text(
                         text = varianceText,
-                        fontSize = 9.5.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isAlert) SoftRed else TextMuted,
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
                     )
                 }
             }
@@ -2493,27 +2496,27 @@ private fun PillarDualBarRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (isDiscreet) "Plan: ••••" else "Plan: $currencySymbol${String.format(Locale.US, "%,.0f", planned)}",
-                    fontSize = 11.sp,
+                    fontSize = 10.5.sp,
                     color = TextMuted
                 )
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = if (isDiscreet) "Act: ••••" else "Act: $currencySymbol${String.format(Locale.US, "%,.0f", actual)}",
                     fontWeight = FontWeight.Black,
-                    fontSize = 13.sp,
+                    fontSize = 12.5.sp,
                     color = if (isAlert) SoftRed else barColor
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         LinearProgressIndicator(
             progress = { progressFraction },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp)),
+                .height(5.dp)
+                .clip(RoundedCornerShape(2.5.dp)),
             color = if (isAlert) SoftRed else barColor,
             trackColor = barColor.copy(alpha = 0.15f)
         )
