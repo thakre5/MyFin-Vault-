@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
+import com.example.myfin.data.TransactionType
 import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AccountTransferDialog
@@ -825,23 +826,39 @@ fun SimpleAccountsScreen(
             )
         }
 
-        // Standardized Instant Transfer Bottom Sheet (With Past Date Support)
+        // Standardized Instant Transfer Bottom Sheet (With Recurring Sweep Toggle Support)
         if (showTransferSheet) {
             AccountTransferDialog(
                 accounts = accountNames,
                 currencySymbol = userProfile.currencySymbol,
                 onDismiss = { showTransferSheet = false },
-                onTransfer = { from, to, amt, note, subtype, date ->
-                    viewModel.executeInstantTransfer(
-                        fromAccount = from,
-                        toAccount = to,
-                        amount = amt,
-                        note = note,
-                        subtype = subtype,
-                        date = date
-                    )
+                onTransfer = { from, to, amount, note, subtype, date, isRecurring, dueDay ->
+                    if (isRecurring) {
+                        viewModel.addFixedBill(
+                            title = note.ifBlank { "Vault Transfer ($from ➔ $to)" },
+                            amount = amount,
+                            category = "Transfer",
+                            subcategory = subtype.name,
+                            account = from,
+                            toAccount = to,
+                            type = TransactionType.TRANSFER,
+                            dueDay = dueDay,
+                            isPaid = true,
+                            paidDateMillis = date
+                        )
+                        Toast.makeText(context, "Saved as recurring sweep & transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        viewModel.executeInstantTransfer(
+                            fromAccount = from,
+                            toAccount = to,
+                            amount = amount,
+                            note = note,
+                            subtype = subtype,
+                            date = date
+                        )
+                        Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)} to $to", Toast.LENGTH_SHORT).show()
+                    }
                     showTransferSheet = false
-                    Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amt)} to $to", Toast.LENGTH_SHORT).show()
                 }
             )
         }
