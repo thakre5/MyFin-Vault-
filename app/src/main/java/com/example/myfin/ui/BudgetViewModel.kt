@@ -306,7 +306,7 @@ class BudgetViewModel(
             val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
             val actualAssets = regularTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
 
-            // 1. LEAK-PROOF TAXONOMY LAMBDAS
+            // 1. LEAK-PROOF TAXONOMY & CAPITAL CLASSIFICATION LAMBDAS
             val isLoanRepayment = { tx: TransactionEntity ->
                 tx.type == TransactionType.INCOME &&
                 (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
@@ -331,6 +331,15 @@ class BudgetViewModel(
                  tx.title.contains("Advance", ignoreCase = true))
             }
 
+            val isCapitalDrawdown = { tx: TransactionEntity ->
+                tx.type == TransactionType.INCOME &&
+                (tx.category.equals("Passive & Capital Drawdowns", ignoreCase = true) ||
+                 tx.subcategory.contains("Capital Gains", ignoreCase = true) ||
+                 tx.subcategory.contains("Realization", ignoreCase = true) ||
+                 tx.subcategory.contains("Emergency Fund Drawdown", ignoreCase = true) ||
+                 tx.subcategory.contains("FD / Deposit Maturity", ignoreCase = true))
+            }
+
             val isWorkExpense = { tx: TransactionEntity ->
                 tx.type == TransactionType.EXPENSE &&
                 (tx.category.equals("Work & Professional", ignoreCase = true) ||
@@ -340,8 +349,9 @@ class BudgetViewModel(
                  tx.title.contains("Reimbursable", ignoreCase = true))
             }
 
+            // Strips capital liquidations alongside claims, loans, and refunds from personal income
             val nonPersonalInflow = regularTxs.filter {
-                isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it)
+                isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it) || isCapitalDrawdown(it)
             }.sumOf { it.amount }
 
             val workExpenses = regularTxs.filter(isWorkExpense).sumOf { it.amount }
@@ -386,7 +396,7 @@ class BudgetViewModel(
 
             val actualSavingsAndInvestments = regularTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
 
-            // 4. CATEGORY PERFORMANCE & BUDGET MATRIX ENGINE (OPTION B APPLIED)
+            // 4. CATEGORY PERFORMANCE & BUDGET MATRIX ENGINE
             val allCategoryNames = (sortedMasterCats.map { it.name to it.type } +
                     plans.map { it.category to it.type } +
                     fixedBills.map { it.category to it.type } +
@@ -399,19 +409,19 @@ class BudgetViewModel(
                         (catName.equals("Work & Professional", ignoreCase = true) ||
                          catName.contains("Work", ignoreCase = true))
 
-                val isCorporateInflowCategory = catType == TransactionType.INCOME &&
+                val isNonPersonalIncomeCat = catType == TransactionType.INCOME &&
                         (catName.equals("Reimbursements & Corporate Inflow", ignoreCase = true) ||
-                         catName.contains("Reimbursement", ignoreCase = true))
+                         catName.equals("Passive & Capital Drawdowns", ignoreCase = true) ||
+                         catName.contains("Reimbursement", ignoreCase = true) ||
+                         catName.contains("Capital Drawdown", ignoreCase = true))
 
-                // Exclude capital recoveries and corporate inflows from the personal income matrix
                 val catTxs = regularTxs.filter { tx ->
                     tx.category == catName && tx.type == catType &&
-                    !(catType == TransactionType.INCOME && (isCorporateReimbursement(tx) || isLoanRepayment(tx) || isTaxOrPurchaseRefund(tx)))
+                    !(catType == TransactionType.INCOME && (isCorporateReimbursement(tx) || isLoanRepayment(tx) || isTaxOrPurchaseRefund(tx) || isCapitalDrawdown(tx)))
                 }
 
                 val rawActualTotal = catTxs.sumOf { it.amount }
 
-                // Option B: Net Outflow Display for Work Expenses
                 val actualTotal = if (isWorkCategory) {
                     (rawActualTotal - corporateReimbursements).coerceAtLeast(0.0)
                 } else {
@@ -422,8 +432,7 @@ class BudgetViewModel(
                 val fixedForCat = fixedBills.filter { it.category == catName && it.type == catType }.sumOf { it.amount }
                 val effectivePlanned = if (manualPlan > 0.0) max(manualPlan, fixedForCat) else fixedForCat
 
-                // Drop non-personal corporate income rows if no personal earnings or manual plans exist
-                if (isCorporateInflowCategory && actualTotal == 0.0 && effectivePlanned == 0.0) return@mapNotNull null
+                if (isNonPersonalIncomeCat && actualTotal == 0.0 && effectivePlanned == 0.0) return@mapNotNull null
                 if (actualTotal == 0.0 && effectivePlanned == 0.0) return@mapNotNull null
 
                 val activeSubs = if (isWorkCategory && actualTotal == 0.0) {
@@ -625,7 +634,7 @@ class BudgetViewModel(
                 )
             } else null
 
-            // Phase 2: Dynamic Month-End Wealth Sweep
+            // Dynamic Month-End Wealth Sweep
             val isMonthEndWindow = currentDay >= 28 && isCurrentSystemMonth
 
             val operatingAccountsList = sortedActiveAccounts.filter {
@@ -775,6 +784,15 @@ class BudgetViewModel(
                      tx.title.contains("Advance", ignoreCase = true))
                 }
 
+                val isCapitalDrawdown = { tx: TransactionEntity ->
+                    tx.type == TransactionType.INCOME &&
+                    (tx.category.equals("Passive & Capital Drawdowns", ignoreCase = true) ||
+                     tx.subcategory.contains("Capital Gains", ignoreCase = true) ||
+                     tx.subcategory.contains("Realization", ignoreCase = true) ||
+                     tx.subcategory.contains("Emergency Fund Drawdown", ignoreCase = true) ||
+                     tx.subcategory.contains("FD / Deposit Maturity", ignoreCase = true))
+                }
+
                 val isWorkExpense = { tx: TransactionEntity ->
                     tx.type == TransactionType.EXPENSE &&
                     (tx.category.equals("Work & Professional", ignoreCase = true) ||
@@ -806,6 +824,7 @@ class BudgetViewModel(
                     txCal.get(Calendar.YEAR) == year && tx.type != TransactionType.TRANSFER
                 }
 
+                // 8. TRUE PERSONAL NET SAVINGS CHART CALCULATION
                 val yearlyMonths = (1..12).map { m ->
                     val isFutureMonth = (year == thisYear && m > thisMonth) || (year > thisYear)
                     val monthTxs = allYearTransactions.filter { tx ->
@@ -824,7 +843,7 @@ class BudgetViewModel(
                     val lifestyleExp = (exp - workExp).coerceAtLeast(0.0)
 
                     val monthNonPersonalInflows = monthTxs.filter {
-                        isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it)
+                        isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it) || isCapitalDrawdown(it)
                     }.sumOf { it.amount }
                     val monthPersonalIncome = (inc - monthNonPersonalInflows).coerceAtLeast(0.0)
                     val monthGenuineAssets = monthTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
@@ -852,44 +871,71 @@ class BudgetViewModel(
                 val totalExpense = rollups.sumOf { it.totalActualExpense }
                 val totalAssets = rollups.sumOf { it.totalAsset }
 
-                // Multi-Year Assets Progression
-                val assetTxs = allTransactions.filter { it.type == TransactionType.ASSET }
-                val yearsGrouped = assetTxs.groupBy { tx ->
+                // 9. CUMULATIVE PORTFOLIO STOCK PROGRESSION (OPTION A)
+                val allTxYears = allTransactions.mapNotNull { tx ->
                     txCal.timeInMillis = tx.date
                     txCal.get(Calendar.YEAR)
-                }.mapValues { (_, txs) -> txs.sumOf { it.amount } }.toMutableMap()
+                }.distinct()
 
-                for (y in (year - 2)..year) {
-                    yearsGrouped.putIfAbsent(y, 0.0)
+                val minYearInHistory = allTxYears.minOrNull() ?: (year - 2)
+                val startYear = min(minYearInHistory, year - 2)
+
+                val annualNetAssetMap = mutableMapOf<Int, Double>()
+                for (y in startYear..year) {
+                    annualNetAssetMap[y] = 0.0
                 }
 
-                val sortedYears = yearsGrouped.toSortedMap()
-                var prevAssetAmt = 0.0
-                val multiYearAssetList = sortedYears.map { (y, amt) ->
-                    val growth = if (prevAssetAmt > 0.0) ((amt - prevAssetAmt) / prevAssetAmt) * 100.0 else 0.0
-                    prevAssetAmt = amt
-                    MultiYearAssetMetric(year = y, totalAssets = amt, growthPercent = growth)
+                allTransactions.forEach { tx ->
+                    txCal.timeInMillis = tx.date
+                    val txYear = txCal.get(Calendar.YEAR)
+                    if (txYear in startYear..year) {
+                        if (isGenuineSavingsOrAsset(tx)) {
+                            annualNetAssetMap[txYear] = (annualNetAssetMap[txYear] ?: 0.0) + tx.amount
+                        } else if (isCapitalDrawdown(tx)) {
+                            annualNetAssetMap[txYear] = (annualNetAssetMap[txYear] ?: 0.0) - tx.amount
+                        }
+                    }
                 }
 
-                // Asset Wealth & NPA Provisioning Engine
-                val totalInvestments = assetTxs.filter {
+                var runningCumulativeAssets = 0.0
+                val cumulativeAssetMap = sortedMapOf<Int, Double>()
+                annualNetAssetMap.toSortedMap().forEach { (y, netAmt) ->
+                    runningCumulativeAssets = (runningCumulativeAssets + netAmt).coerceAtLeast(0.0)
+                    cumulativeAssetMap[y] = runningCumulativeAssets
+                }
+
+                val displayYears = ((year - 2)..year).toList()
+                val multiYearAssetList = displayYears.map { y ->
+                    val currentCum = cumulativeAssetMap[y] ?: 0.0
+                    val prevCum = cumulativeAssetMap[y - 1] ?: 0.0
+                    val growth = if (prevCum > 0.0) {
+                        ((currentCum - prevCum) / prevCum) * 100.0
+                    } else 0.0
+                    MultiYearAssetMetric(year = y, totalAssets = currentCum, growthPercent = growth)
+                }
+
+                // 10. BALANCE-SHEET WEALTH & RECEIVABLES ENGINE
+                val allTimeInvestmentsInflow = allTransactions.filter {
+                    it.type == TransactionType.ASSET &&
                     it.category.equals("Investments & Wealth", ignoreCase = true)
                 }.sumOf { it.amount }
 
-                val activeLoanedReceivables = assetTxs.filter(isLoanGiven).sumOf { it.amount }
+                val allTimeCapitalDrawdowns = allTransactions.filter(isCapitalDrawdown).sumOf { it.amount }
+                val totalActiveInvestments = (allTimeInvestmentsInflow - allTimeCapitalDrawdowns).coerceAtLeast(0.0)
 
-                val npaWrittenOff = assetTxs.filter(isNpaWriteOff).sumOf { it.amount }
-
+                val activeLoanedReceivables = allTransactions.filter(isLoanGiven).sumOf { it.amount }
+                val npaWrittenOff = allTransactions.filter(isNpaWriteOff).sumOf { it.amount }
                 val repaymentsReceived = allTransactions.filter(isLoanRepayment).sumOf { it.amount }
 
                 val effectiveReceivables = (activeLoanedReceivables - repaymentsReceived - npaWrittenOff).coerceAtLeast(0.0)
                 val liquidReserves = allAccounts.filter { !it.isArchived }.sumOf { it.currentBalance }
-                val grossWealth = liquidReserves + totalInvestments + effectiveReceivables + npaWrittenOff
-                val realizableNetWorth = grossWealth - npaWrittenOff
+
+                val grossWealth = liquidReserves + totalActiveInvestments + effectiveReceivables + npaWrittenOff
+                val realizableNetWorth = liquidReserves + totalActiveInvestments + effectiveReceivables
 
                 val wealthMetrics = AssetWealthMetrics(
                     grossWealth = grossWealth,
-                    totalInvestments = totalInvestments,
+                    totalInvestments = totalActiveInvestments,
                     liquidReserves = liquidReserves,
                     activeReceivables = effectiveReceivables,
                     npaWrittenOff = npaWrittenOff,
@@ -902,7 +948,7 @@ class BudgetViewModel(
                 val annualLifestyleExpenses = (totalExpense - annualWorkExpenses).coerceAtLeast(0.0)
 
                 val annualNonPersonalInflows = allYearTransactions.filter {
-                    isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it)
+                    isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it) || isCapitalDrawdown(it)
                 }.sumOf { it.amount }
                 val annualPersonalIncome = (totalIncome - annualNonPersonalInflows).coerceAtLeast(0.0)
                 val annualGenuineAssets = allYearTransactions.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
