@@ -50,14 +50,34 @@ data class CommitmentsShortfallStatus(
     val commitmentsBalance: Double = 0.0,
     val requiredBuffer: Double = 0.0,
     val earliestDueDay: Int? = null,
-    val affectedAccountName: String = "Commitments"
+    val affectedAccountName: String = "Commitments",
+    val affectedAccountsCount: Int = 0
 )
 
 data class PaydayAllocationPlan(
     val salaryAmount: Double = 0.0,
-    val toFortress: Double = 0.0,
-    val remainingOperating: Double = 0.0,
+    val toOperating: Double = 0.0,
+    val toCommitments: Double = 0.0,
+    val toFortressBase: Double = 0.0,
+    val toFortressSurplus: Double = 0.0,
+    val totalToFortress: Double = 0.0,
+    val commitmentsShortfallCovered: Double = 0.0,
+    val remainingCommitmentsShortfall: Double = 0.0,
+    val isShortfallFullyFunded: Boolean = true,
+    val isOperatingFullyFunded: Boolean = true,
     val pendingBillsCount: Int = 0
+) {
+    // Backwards compatibility for existing UI views
+    val toFortress: Double get() = totalToFortress
+    val remainingOperating: Double get() = toOperating
+}
+
+data class MonthEndSweepPlan(
+    val availableOperatingCash: Double = 0.0,
+    val runwayBuffer: Double = 0.0,
+    val runwayDays: Int = 0,
+    val targetNextPayday: Int = 0,
+    val sweepAmount: Double = 0.0
 )
 
 data class ReimbursementStatus(
@@ -143,6 +163,7 @@ data class MonthlyUiState(
     val budgetPlans: List<BudgetPlanEntity> = emptyList(),
     val commitmentsShortfall: CommitmentsShortfallStatus = CommitmentsShortfallStatus(),
     val paydaySuggestion: PaydayAllocationPlan? = null,
+    val monthEndSweepSuggestion: MonthEndSweepPlan? = null,
     val reimbursementStatus: ReimbursementStatus = ReimbursementStatus(),
     val frequentCategories: List<CategoryEntity> = emptyList(),
     val frequentSubcategories: List<SubcategoryEntity> = emptyList(),
@@ -418,7 +439,6 @@ class BudgetViewModel(
                 acc.accountName.contains("TERTIARY", ignoreCase = true)
             }
 
-            // Bank Floor: Strictly combines Operating, Commitments, and Cash; excludes Fortress completely
             val liquidPoolAccounts = sortedActiveAccounts.filter { !isFortressAccount(it) }
 
             val liquidOperatingCash = liquidPoolAccounts.sumOf {
@@ -442,68 +462,183 @@ class BudgetViewModel(
             val totalVault = allAccounts.sumOf { it.currentBalance }
             val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
 
-            // Commitments Vault Shortfall Engine
+            // 6. MULTI-ACCOUNT COMMITMENTS SHORTFALL ENGINE (NO DANGEROUS FALLBACK)
             val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
-            val commitmentsAccount = sortedActiveAccounts.find {
-                it.accountType.equals("Commitments", ignoreCase = true) ||
-                it.accountName.contains("COMMITMENT", ignoreCase = true) ||
-                it.accountName.contains("BILL", ignoreCase = true)
-            } ?: sortedActiveAccounts.firstOrNull()
-
-            val commitmentsAccountNameTarget = commitmentsAccount?.accountName ?: "Commitments"
-
-            val commitmentsUnpaidBills = fixedBills.filter { bill ->
-                !bill.isPaid &&
-                bill.type != TransactionType.INCOME &&
-                (bill.accountName.equals(commitmentsAccountNameTarget, ignoreCase = true) ||
-                 bill.accountName.contains("Commitment", ignoreCase = true) ||
-                 bill.accountName.contains("Bill", ignoreCase = true))
+            val commitmentAccounts = sortedActiveAccounts.filter {
+                it.accountType.equals("Commitments", ignoreCase = true)
             }
-            val unpaidBillsSum = commitmentsUnpaidBills.sumOf { it.amount }
-            val commitmentsBalance = commitmentsAccount?.currentBalance ?: 0.0
-            val commitmentsFloor = commitmentsAccount?.minBalance ?: 0.0
-            val projectedCommitmentsNet = commitmentsBalance - unpaidBillsSum - commitmentsFloor
 
-            val isShortfall = is3VaultMode && (projectedCommitmentsNet < 0.0)
-            val earliestDueDay = commitmentsUnpaidBills.mapNotNull { it.dueDay }.minOrNull()
+            var totalCommitmentsShortfall = 0.0
+            var totalUnpaidCommitmentsSum = 0.0
+            var totalCommitmentsBalance = 0.0
+            var totalCommitmentsRequiredBuffer = 0.0
+            var earliestDueDay: Int? = null
+            var affectedAccountNames = mutableListOf<String>()
+
+            commitmentAccounts.forEach { acc ->
+                val accBills = fixedBills.filter { bill ->
+                    !bill.isPaid &&
+                    bill.type != TransactionType.INCOME &&
+                    bill.accountName.equals(acc.accountName, ignoreCase = true)
+                }
+                val accUnpaidTotal = accBills.sumOf { it.amount }
+                val accNet = acc.currentBalance - accUnpaidTotal - acc.minBalance
+
+                totalUnpaidCommitmentsSum += accUnpaidTotal
+                totalCommitmentsBalance += acc.currentBalance
+                totalCommitmentsRequiredBuffer += acc.minBalance
+
+                if (accNet < 0.0) {
+                    totalCommitmentsShortfall += abs(accNet)
+                    affectedAccountNames.add(acc.accountName)
+                }
+
+                val minDue = accBills.mapNotNull { it.dueDay }.minOrNull()
+                if (minDue != null) {
+                    earliestDueDay = if (earliestDueDay == null) minDue else min(earliestDueDay!!, minDue)
+                }
+            }
+
+            val isShortfall = is3VaultMode && (totalCommitmentsShortfall > 0.0)
+            val affectedAccountLabel = when {
+                affectedAccountNames.isEmpty() -> if (commitmentAccounts.isNotEmpty()) commitmentAccounts.first().accountName else "Commitments"
+                affectedAccountNames.size == 1 -> affectedAccountNames.first()
+                else -> "${affectedAccountNames.size} Commitments Vaults"
+            }
 
             val shortfallStatus = CommitmentsShortfallStatus(
                 isShortfall = isShortfall,
-                shortfallAmount = if (isShortfall) abs(projectedCommitmentsNet) else 0.0,
-                unpaidBillsTotal = unpaidBillsSum,
-                commitmentsBalance = commitmentsBalance,
-                requiredBuffer = commitmentsFloor,
+                shortfallAmount = if (isShortfall) totalCommitmentsShortfall else 0.0,
+                unpaidBillsTotal = totalUnpaidCommitmentsSum,
+                commitmentsBalance = totalCommitmentsBalance,
+                requiredBuffer = totalCommitmentsRequiredBuffer,
                 earliestDueDay = earliestDueDay,
-                affectedAccountName = commitmentsAccount?.accountName ?: "Commitments"
+                affectedAccountName = affectedAccountLabel,
+                affectedAccountsCount = affectedAccountNames.size
             )
 
-            // Automated Payday Fortress Surplus Allocation Engine
-            val todayCalCheck = Calendar.getInstance()
-            val isCurrentSystemMonth = (month == (todayCalCheck.get(Calendar.MONTH) + 1)) && (year == todayCalCheck.get(Calendar.YEAR))
-            val isAfter25th = todayCalCheck.get(Calendar.DAY_OF_MONTH) >= 25
+            // 7. PAYDAY ALLOCATION & DYNAMIC MONTH-END SWEEP ENGINES
+            val todayCal = Calendar.getInstance()
+            val currentDay = todayCal.get(Calendar.DAY_OF_MONTH)
+            val totalDaysInCurrentMonth = todayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            val isCurrentSystemMonth = (month == (todayCal.get(Calendar.MONTH) + 1)) && (year == todayCal.get(Calendar.YEAR))
 
+            // Historical Average Spend calculation for living buffer
+            val historicalMonthsSpend = allTimeTxs.filter { it.type == TransactionType.EXPENSE && !isWorkExpense(it) }
+                .groupBy { "${it.year}-${it.month}" }
+                .values
+                .map { it.sumOf { tx -> tx.amount } }
+                .filter { it > 0.0 }
+            val historicalAvgSpend = if (historicalMonthsSpend.isNotEmpty()) historicalMonthsSpend.average() else 25000.0
+            val livingBufferTarget = max(historicalAvgSpend, plannedExpenses.takeIf { it > 0.0 } ?: 25000.0)
+
+            // Salary Transaction Detection
             val salaryTx = regularTxs.find {
                 it.type == TransactionType.INCOME &&
                 it.category.equals("Salary & Professional Inflow", ignoreCase = true)
             }
 
-            val allUnpaidCommitments = fixedBills.filter { !it.isPaid && it.type != TransactionType.INCOME }
-            val totalUnpaidCommitmentsSum = allUnpaidCommitments.sumOf { it.amount }
+            // Dynamic Payday Anchor (Uses current month's salary day)
+            val dynamicSalaryDay = salaryTx?.let {
+                val c = Calendar.getInstance().apply { timeInMillis = it.date }
+                c.get(Calendar.DAY_OF_MONTH)
+            } ?: 1
 
-            val paydaySuggestion = if (salaryTx != null && is3VaultMode && isCurrentSystemMonth && isAfter25th) {
-                val neededForCommitments = (totalUnpaidCommitmentsSum + commitmentsFloor - commitmentsBalance).coerceAtLeast(0.0)
-                val avgMonthlySpend = max(actualExpenses, 25000.0)
+            // Payday Allocation Plan (Triggered whenever salary is recorded, with sweep idempotency)
+            val isPaydayAllocated = transactions.any { tx ->
+                tx.type == TransactionType.TRANSFER &&
+                salaryTx != null && tx.date >= salaryTx.date &&
+                (tx.transferSubtype == TransferSubtype.BILL_FUNDING || tx.title.contains("Payday Allocation", ignoreCase = true)) &&
+                tx.month == month && tx.year == year
+            }
 
-                val surplusForFortress = (salaryTx.amount - neededForCommitments - avgMonthlySpend).coerceAtLeast(0.0)
+            val paydaySuggestion = if (salaryTx != null && is3VaultMode && isCurrentSystemMonth && !isPaydayAllocated) {
+                val salaryAmt = salaryTx.amount
 
-                if (surplusForFortress > 0.0) {
-                    PaydayAllocationPlan(
-                        salaryAmount = salaryTx.amount,
-                        toFortress = surplusForFortress,
-                        remainingOperating = salaryTx.amount - surplusForFortress,
-                        pendingBillsCount = allUnpaidCommitments.size
-                    )
-                } else null
+                // Priority 1: Operating living buffer
+                val toOperating = min(salaryAmt, livingBufferTarget)
+                val remainingAfterOperating = max(0.0, salaryAmt - toOperating)
+
+                // Priority 2: Commitments shortfall
+                val toCommitments = min(remainingAfterOperating, totalCommitmentsShortfall)
+                val remainingAfterCommitments = max(0.0, remainingAfterOperating - toCommitments)
+
+                // Priority 3: Fortress base emergency fund (₹5,000 monthly)
+                val transferredToFortressThisMonth = transactions.filter { tx ->
+                    tx.type == TransactionType.TRANSFER &&
+                    (tx.transferSubtype == TransferSubtype.WEALTH_ALLOCATION ||
+                     tx.toAccountName?.contains("Fortress", ignoreCase = true) == true) &&
+                    tx.month == month && tx.year == year
+                }.sumOf { it.amount }
+
+                val pendingFortressBase = max(0.0, 5000.0 - transferredToFortressThisMonth)
+                val toFortressBase = min(remainingAfterCommitments, pendingFortressBase)
+
+                // Priority 4: All extra remains in Operating as liquidity cushion (Zero extra swept on payday)
+                val totalOperatingRetained = toOperating + max(0.0, remainingAfterCommitments - toFortressBase)
+
+                PaydayAllocationPlan(
+                    salaryAmount = salaryAmt,
+                    toOperating = totalOperatingRetained,
+                    toCommitments = toCommitments,
+                    toFortressBase = toFortressBase,
+                    toFortressSurplus = 0.0,
+                    totalToFortress = toFortressBase,
+                    commitmentsShortfallCovered = toCommitments,
+                    remainingCommitmentsShortfall = max(0.0, totalCommitmentsShortfall - toCommitments),
+                    isShortfallFullyFunded = toCommitments >= totalCommitmentsShortfall,
+                    isOperatingFullyFunded = toOperating >= livingBufferTarget,
+                    pendingBillsCount = fixedBills.count { !it.isPaid && it.type != TransactionType.INCOME }
+                )
+            } else null
+
+            // Phase 2: Dynamic Month-End Wealth Sweep (Active Day 28 onwards)
+            val isMonthEndWindow = currentDay >= 28 && isCurrentSystemMonth
+
+            val operatingAccountsList = sortedActiveAccounts.filter {
+                it.accountType.equals("Operating", ignoreCase = true) ||
+                it.accountType.equals("Cash", ignoreCase = true) ||
+                it.accountName.contains("OPERATING", ignoreCase = true) ||
+                it.accountName.contains("PRIMARY", ignoreCase = true) ||
+                it.accountName.contains("CASH", ignoreCase = true)
+            }
+
+            val operatingLiquidCash = operatingAccountsList.sumOf {
+                it.currentBalance - it.minBalance
+            }.coerceAtLeast(0.0)
+
+            val unpaidOperatingBills = fixedBills.filter { bill ->
+                !bill.isPaid &&
+                operatingAccountsList.any { it.accountName.equals(bill.accountName, ignoreCase = true) }
+            }.sumOf { it.amount }
+
+            // Calculate Runway Buffer to Next Payday
+            val nextMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, 1) }
+            val maxDaysInNextMonth = nextMonthCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            val targetNextPayday = min(dynamicSalaryDay, maxDaysInNextMonth)
+
+            val daysLeftInCurrentMonth = max(0, totalDaysInCurrentMonth - currentDay)
+            val runwayDays = daysLeftInCurrentMonth + targetNextPayday
+            val dailyBurn = livingBufferTarget / 30.0
+            val runwayBuffer = runwayDays * dailyBurn
+
+            val sweepableSurplus = (operatingLiquidCash - unpaidOperatingBills - runwayBuffer).coerceAtLeast(0.0)
+
+            val isMonthEndSweepDone = transactions.any { tx ->
+                tx.type == TransactionType.TRANSFER &&
+                tx.transferSubtype == TransferSubtype.WEALTH_ALLOCATION &&
+                tx.title.contains("Month-End", ignoreCase = true) &&
+                tx.month == month && tx.year == year
+            }
+
+            val monthEndSweepSuggestion = if (isMonthEndWindow && is3VaultMode && sweepableSurplus > 500.0 && !isMonthEndSweepDone) {
+                MonthEndSweepPlan(
+                    availableOperatingCash = operatingLiquidCash,
+                    runwayBuffer = runwayBuffer,
+                    runwayDays = runwayDays,
+                    targetNextPayday = targetNextPayday,
+                    sweepAmount = sweepableSurplus
+                )
             } else null
 
             val filtered = transactions.filter { tx ->
@@ -557,6 +692,7 @@ class BudgetViewModel(
                 budgetPlans = plans,
                 commitmentsShortfall = shortfallStatus,
                 paydaySuggestion = paydaySuggestion,
+                monthEndSweepSuggestion = monthEndSweepSuggestion,
                 reimbursementStatus = monthReimbursementStatus,
                 frequentCategories = sortedMasterCats,
                 frequentSubcategories = sortedMasterSubcats,
@@ -1336,15 +1472,49 @@ class BudgetViewModel(
         )
     }
 
-    fun applyPaydayAllocation(plan: PaydayAllocationPlan, operatingAccount: String, fortressAccount: String) {
-        if (plan.toFortress > 0.0) {
-            executeInstantTransfer(
-                fromAccount = operatingAccount,
-                toAccount = fortressAccount,
-                amount = plan.toFortress,
-                note = "Payday Surplus ➔ Fortress Wealth Sweep",
-                subtype = TransferSubtype.WEALTH_ALLOCATION
-            )
+    fun applyPaydayAllocation(
+        plan: PaydayAllocationPlan,
+        operatingAccount: String,
+        commitmentsAccount: String,
+        fortressAccount: String
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (plan.toCommitments > 0.0) {
+                executeInstantTransfer(
+                    fromAccount = operatingAccount,
+                    toAccount = commitmentsAccount,
+                    amount = plan.toCommitments,
+                    note = "Payday Allocation ➔ Commitments Bill Funding",
+                    subtype = TransferSubtype.BILL_FUNDING
+                )
+            }
+            if (plan.totalToFortress > 0.0) {
+                executeInstantTransfer(
+                    fromAccount = operatingAccount,
+                    toAccount = fortressAccount,
+                    amount = plan.totalToFortress,
+                    note = "Payday Allocation ➔ Fortress Emergency Base",
+                    subtype = TransferSubtype.WEALTH_ALLOCATION
+                )
+            }
+        }
+    }
+
+    fun applyMonthEndSweep(
+        plan: MonthEndSweepPlan,
+        operatingAccount: String,
+        fortressAccount: String
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (plan.sweepAmount > 0.0) {
+                executeInstantTransfer(
+                    fromAccount = operatingAccount,
+                    toAccount = fortressAccount,
+                    amount = plan.sweepAmount,
+                    note = "Month-End Wealth Sweep ➔ Fortress Extra",
+                    subtype = TransferSubtype.WEALTH_ALLOCATION
+                )
+            }
         }
     }
 
