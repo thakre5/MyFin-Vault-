@@ -67,7 +67,6 @@ data class PaydayAllocationPlan(
     val isOperatingFullyFunded: Boolean = true,
     val pendingBillsCount: Int = 0
 ) {
-    // Backwards compatibility for existing UI views
     val toFortress: Double get() = totalToFortress
     val remainingOperating: Double get() = toOperating
 }
@@ -84,7 +83,10 @@ data class ReimbursementStatus(
     val totalWorkExpenses: Double = 0.0,
     val totalClaimsReceived: Double = 0.0,
     val pendingReimbursement: Double = 0.0,
-    val isSettled: Boolean = true
+    val isSettled: Boolean = true,
+    val cumulativeWorkExpenses: Double = 0.0,
+    val cumulativeClaimsReceived: Double = 0.0,
+    val excessAdvanceHeld: Double = 0.0
 )
 
 data class AssetWealthMetrics(
@@ -303,27 +305,7 @@ class BudgetViewModel(
             val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
             val actualAssets = regularTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
 
-            // 1. WORK & CORPORATE REIMBURSEMENT OFFSET ENGINE
-            val isWorkExpense = { tx: TransactionEntity ->
-                tx.type == TransactionType.EXPENSE &&
-                (tx.category.equals("Work & Professional", ignoreCase = true) ||
-                 tx.subcategory.contains("Work Travel", ignoreCase = true) ||
-                 tx.subcategory.contains("Courier", ignoreCase = true) ||
-                 tx.subcategory.contains("Tools & Subscriptions", ignoreCase = true) ||
-                 tx.title.contains("Reimbursable", ignoreCase = true))
-            }
-
-            val isCorporateReimbursement = { tx: TransactionEntity ->
-                tx.type == TransactionType.INCOME &&
-                (tx.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true) &&
-                 (tx.subcategory.contains("Travel Advance", ignoreCase = true) ||
-                  tx.subcategory.contains("Travel Advances & Claims", ignoreCase = true) ||
-                  tx.subcategory.contains("Claim", ignoreCase = true) ||
-                  tx.title.contains("Reimbursement", ignoreCase = true) ||
-                  tx.title.contains("Advance", ignoreCase = true)))
-            }
-
-            // 2. LOAN REPAYMENTS & REFUNDS ENGINE (CAPITAL RECOVERY)
+            // 1. LEAK-PROOF TAXONOMY LAMBDAS
             val isLoanRepayment = { tx: TransactionEntity ->
                 tx.type == TransactionType.INCOME &&
                 (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
@@ -336,21 +318,53 @@ class BudgetViewModel(
                  tx.title.contains("Refund", ignoreCase = true))
             }
 
+            // Captures all corporate inflows without letting unmapped/General subcategories leak into personal earnings
+            val isCorporateReimbursement = { tx: TransactionEntity ->
+                tx.type == TransactionType.INCOME &&
+                !isLoanRepayment(tx) &&
+                !isTaxOrPurchaseRefund(tx) &&
+                (tx.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true) ||
+                 tx.subcategory.contains("Travel Advance", ignoreCase = true) ||
+                 tx.subcategory.contains("Travel Advances & Claims", ignoreCase = true) ||
+                 tx.subcategory.contains("Claim", ignoreCase = true) ||
+                 tx.title.contains("Reimbursement", ignoreCase = true) ||
+                 tx.title.contains("Advance", ignoreCase = true))
+            }
+
+            val isWorkExpense = { tx: TransactionEntity ->
+                tx.type == TransactionType.EXPENSE &&
+                (tx.category.equals("Work & Professional", ignoreCase = true) ||
+                 tx.subcategory.contains("Work Travel", ignoreCase = true) ||
+                 tx.subcategory.contains("Courier", ignoreCase = true) ||
+                 tx.subcategory.contains("Tools & Subscriptions", ignoreCase = true) ||
+                 tx.title.contains("Reimbursable", ignoreCase = true))
+            }
+
             val nonPersonalInflow = regularTxs.filter {
                 isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it)
             }.sumOf { it.amount }
 
+            // Monthly Activity
             val workExpenses = regularTxs.filter(isWorkExpense).sumOf { it.amount }
             val corporateReimbursements = regularTxs.filter(isCorporateReimbursement).sumOf { it.amount }
-            val pendingReimbursement = (workExpenses - corporateReimbursements).coerceAtLeast(0.0)
+
+            // 2. ALL-TIME CUMULATIVE FLOAT ENGINE
+            val allTimeWorkExpenses = allTimeTxs.filter(isWorkExpense).sumOf { it.amount }
+            val allTimeClaimsReceived = allTimeTxs.filter(isCorporateReimbursement).sumOf { it.amount }
+            val cumulativePending = (allTimeWorkExpenses - allTimeClaimsReceived).coerceAtLeast(0.0)
+            val excessAdvanceHeld = (allTimeClaimsReceived - allTimeWorkExpenses).coerceAtLeast(0.0)
+
             val lifestyleExpenses = (actualExpenses - workExpenses).coerceAtLeast(0.0)
             val personalIncome = (actualIncome - nonPersonalInflow).coerceAtLeast(0.0)
 
             val monthReimbursementStatus = ReimbursementStatus(
                 totalWorkExpenses = workExpenses,
                 totalClaimsReceived = corporateReimbursements,
-                pendingReimbursement = pendingReimbursement,
-                isSettled = pendingReimbursement <= 0.0
+                pendingReimbursement = cumulativePending,
+                isSettled = cumulativePending <= 0.0 && excessAdvanceHeld <= 0.0,
+                cumulativeWorkExpenses = allTimeWorkExpenses,
+                cumulativeClaimsReceived = allTimeClaimsReceived,
+                excessAdvanceHeld = excessAdvanceHeld
             )
 
             // 3. ASSET & SAVINGS SUBCATEGORY CLASSIFICATION
@@ -423,7 +437,7 @@ class BudgetViewModel(
                 else -> 0.0
             }
 
-            // 5. SAFE-TO-SPEND ENGINE
+            // 5. SAFE-TO-SPEND ENGINE (Ring-fencing company advances from daily burn)
             val personalDiscretionaryExpenses = regularTxs.filter { tx ->
                 tx.type == TransactionType.EXPENSE &&
                 tx.linkedFixedBillId == null &&
@@ -445,7 +459,8 @@ class BudgetViewModel(
                 it.currentBalance - it.minBalance
             }.coerceAtLeast(0.0)
 
-            val availableCashFloor = (liquidOperatingCash - pendingFixedCommitments).coerceAtLeast(0.0)
+            // Ring-fences company advance money: holding excess company cash never inflates daily living cash
+            val availableCashFloor = (liquidOperatingCash - pendingFixedCommitments - excessAdvanceHeld).coerceAtLeast(0.0)
 
             val realSafeToSpend = if (baseIncome > 0.0) {
                 min(theoreticalSafeToSpend, availableCashFloor)
@@ -462,7 +477,7 @@ class BudgetViewModel(
             val totalVault = allAccounts.sumOf { it.currentBalance }
             val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
 
-            // 6. MULTI-ACCOUNT COMMITMENTS SHORTFALL ENGINE (NO DANGEROUS FALLBACK)
+            // 6. MULTI-ACCOUNT COMMITMENTS SHORTFALL ENGINE
             val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
             val commitmentAccounts = sortedActiveAccounts.filter {
                 it.accountType.equals("Commitments", ignoreCase = true)
@@ -523,7 +538,6 @@ class BudgetViewModel(
             val totalDaysInCurrentMonth = todayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
             val isCurrentSystemMonth = (month == (todayCal.get(Calendar.MONTH) + 1)) && (year == todayCal.get(Calendar.YEAR))
 
-            // Historical Average Spend calculation for living buffer
             val historicalMonthsSpend = allTimeTxs.filter { it.type == TransactionType.EXPENSE && !isWorkExpense(it) }
                 .groupBy { "${it.year}-${it.month}" }
                 .values
@@ -532,19 +546,16 @@ class BudgetViewModel(
             val historicalAvgSpend = if (historicalMonthsSpend.isNotEmpty()) historicalMonthsSpend.average() else 25000.0
             val livingBufferTarget = max(historicalAvgSpend, plannedExpenses.takeIf { it > 0.0 } ?: 25000.0)
 
-            // Salary Transaction Detection
             val salaryTx = regularTxs.find {
                 it.type == TransactionType.INCOME &&
                 it.category.equals("Salary & Professional Inflow", ignoreCase = true)
             }
 
-            // Dynamic Payday Anchor (Uses current month's salary day)
             val dynamicSalaryDay = salaryTx?.let {
                 val c = Calendar.getInstance().apply { timeInMillis = it.date }
                 c.get(Calendar.DAY_OF_MONTH)
             } ?: 1
 
-            // Payday Allocation Plan (Triggered whenever salary is recorded, with sweep idempotency)
             val isPaydayAllocated = transactions.any { tx ->
                 tx.type == TransactionType.TRANSFER &&
                 salaryTx != null && tx.date >= salaryTx.date &&
@@ -555,15 +566,12 @@ class BudgetViewModel(
             val paydaySuggestion = if (salaryTx != null && is3VaultMode && isCurrentSystemMonth && !isPaydayAllocated) {
                 val salaryAmt = salaryTx.amount
 
-                // Priority 1: Operating living buffer
                 val toOperating = min(salaryAmt, livingBufferTarget)
                 val remainingAfterOperating = max(0.0, salaryAmt - toOperating)
 
-                // Priority 2: Commitments shortfall
                 val toCommitments = min(remainingAfterOperating, totalCommitmentsShortfall)
                 val remainingAfterCommitments = max(0.0, remainingAfterOperating - toCommitments)
 
-                // Priority 3: Fortress base emergency fund (₹5,000 monthly)
                 val transferredToFortressThisMonth = transactions.filter { tx ->
                     tx.type == TransactionType.TRANSFER &&
                     (tx.transferSubtype == TransferSubtype.WEALTH_ALLOCATION ||
@@ -574,7 +582,6 @@ class BudgetViewModel(
                 val pendingFortressBase = max(0.0, 5000.0 - transferredToFortressThisMonth)
                 val toFortressBase = min(remainingAfterCommitments, pendingFortressBase)
 
-                // Priority 4: All extra remains in Operating as liquidity cushion (Zero extra swept on payday)
                 val totalOperatingRetained = toOperating + max(0.0, remainingAfterCommitments - toFortressBase)
 
                 PaydayAllocationPlan(
@@ -592,7 +599,7 @@ class BudgetViewModel(
                 )
             } else null
 
-            // Phase 2: Dynamic Month-End Wealth Sweep (Active Day 28 onwards)
+            // Phase 2: Dynamic Month-End Wealth Sweep
             val isMonthEndWindow = currentDay >= 28 && isCurrentSystemMonth
 
             val operatingAccountsList = sortedActiveAccounts.filter {
@@ -612,7 +619,6 @@ class BudgetViewModel(
                 operatingAccountsList.any { it.accountName.equals(bill.accountName, ignoreCase = true) }
             }.sumOf { it.amount }
 
-            // Calculate Runway Buffer to Next Payday
             val nextMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, 1) }
             val maxDaysInNextMonth = nextMonthCal.getActualMaximum(Calendar.DAY_OF_MONTH)
             val targetNextPayday = min(dynamicSalaryDay, maxDaysInNextMonth)
@@ -622,7 +628,7 @@ class BudgetViewModel(
             val dailyBurn = livingBufferTarget / 30.0
             val runwayBuffer = runwayDays * dailyBurn
 
-            val sweepableSurplus = (operatingLiquidCash - unpaidOperatingBills - runwayBuffer).coerceAtLeast(0.0)
+            val sweepableSurplus = (operatingLiquidCash - unpaidOperatingBills - excessAdvanceHeld - runwayBuffer).coerceAtLeast(0.0)
 
             val isMonthEndSweepDone = transactions.any { tx ->
                 tx.type == TransactionType.TRANSFER &&
@@ -677,7 +683,7 @@ class BudgetViewModel(
                     dailyExpensePoints = dailyPoints,
                     workExpenses = workExpenses,
                     corporateReimbursements = corporateReimbursements,
-                    pendingReimbursement = pendingReimbursement,
+                    pendingReimbursement = cumulativePending,
                     lifestyleExpenses = lifestyleExpenses,
                     personalIncome = personalIncome
                 ),
@@ -719,25 +725,6 @@ class BudgetViewModel(
                 val thisYear = nowCal.get(Calendar.YEAR)
                 val thisMonth = nowCal.get(Calendar.MONTH) + 1
 
-                val isWorkExpense = { tx: TransactionEntity ->
-                    tx.type == TransactionType.EXPENSE &&
-                    (tx.category.equals("Work & Professional", ignoreCase = true) ||
-                     tx.subcategory.contains("Work Travel", ignoreCase = true) ||
-                     tx.subcategory.contains("Courier", ignoreCase = true) ||
-                     tx.subcategory.contains("Tools & Subscriptions", ignoreCase = true) ||
-                     tx.title.contains("Reimbursable", ignoreCase = true))
-                }
-
-                val isCorporateReimbursement = { tx: TransactionEntity ->
-                    tx.type == TransactionType.INCOME &&
-                    (tx.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true) &&
-                     (tx.subcategory.contains("Travel Advance", ignoreCase = true) ||
-                      tx.subcategory.contains("Travel Advances & Claims", ignoreCase = true) ||
-                      tx.subcategory.contains("Claim", ignoreCase = true) ||
-                      tx.title.contains("Reimbursement", ignoreCase = true) ||
-                      tx.title.contains("Advance", ignoreCase = true)))
-                }
-
                 val isLoanRepayment = { tx: TransactionEntity ->
                     tx.type == TransactionType.INCOME &&
                     (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
@@ -750,11 +737,50 @@ class BudgetViewModel(
                      tx.title.contains("Refund", ignoreCase = true))
                 }
 
+                val isCorporateReimbursement = { tx: TransactionEntity ->
+                    tx.type == TransactionType.INCOME &&
+                    !isLoanRepayment(tx) &&
+                    !isTaxOrPurchaseRefund(tx) &&
+                    (tx.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true) ||
+                     tx.subcategory.contains("Travel Advance", ignoreCase = true) ||
+                     tx.subcategory.contains("Travel Advances & Claims", ignoreCase = true) ||
+                     tx.subcategory.contains("Claim", ignoreCase = true) ||
+                     tx.title.contains("Reimbursement", ignoreCase = true) ||
+                     tx.title.contains("Advance", ignoreCase = true))
+                }
+
+                val isWorkExpense = { tx: TransactionEntity ->
+                    tx.type == TransactionType.EXPENSE &&
+                    (tx.category.equals("Work & Professional", ignoreCase = true) ||
+                     tx.subcategory.contains("Work Travel", ignoreCase = true) ||
+                     tx.subcategory.contains("Courier", ignoreCase = true) ||
+                     tx.subcategory.contains("Tools & Subscriptions", ignoreCase = true) ||
+                     tx.title.contains("Reimbursable", ignoreCase = true))
+                }
+
+                val isLoanGiven = { tx: TransactionEntity ->
+                    tx.type == TransactionType.ASSET &&
+                    (tx.subcategory.contains("Personal Loans", ignoreCase = true) ||
+                     tx.subcategory.contains("Loaned", ignoreCase = true))
+                }
+
+                val isNpaWriteOff = { tx: TransactionEntity ->
+                    tx.type == TransactionType.ASSET &&
+                    (tx.subcategory.contains("NPA", ignoreCase = true) ||
+                     tx.subcategory.contains("Bad Debt", ignoreCase = true) ||
+                     tx.category.equals("NPA", ignoreCase = true))
+                }
+
+                val isGenuineSavingsOrAsset = { tx: TransactionEntity ->
+                    tx.type == TransactionType.ASSET && !isLoanGiven(tx) && !isNpaWriteOff(tx)
+                }
+
                 val allYearTransactions = allTransactions.filter { tx ->
                     txCal.timeInMillis = tx.date
                     txCal.get(Calendar.YEAR) == year && tx.type != TransactionType.TRANSFER
                 }
 
+                // 8. TRUE PERSONAL NET SAVINGS CHART CALCULATION
                 val yearlyMonths = (1..12).map { m ->
                     val isFutureMonth = (year == thisYear && m > thisMonth) || (year > thisYear)
                     val monthTxs = allYearTransactions.filter { tx ->
@@ -765,12 +791,21 @@ class BudgetViewModel(
                     val inc = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
                     val exp = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
                     val ast = monthTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
+
                     val fixedExp = monthTxs.filter { it.type == TransactionType.EXPENSE && it.linkedFixedBillId != null }.sumOf { it.amount }
                     val varExp = exp - fixedExp
                     val workExp = monthTxs.filter(isWorkExpense).sumOf { it.amount }
                     val corpReimb = monthTxs.filter(isCorporateReimbursement).sumOf { it.amount }
                     val lifestyleExp = (exp - workExp).coerceAtLeast(0.0)
-                    val net = inc - exp - ast
+
+                    val monthNonPersonalInflows = monthTxs.filter {
+                        isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it)
+                    }.sumOf { it.amount }
+                    val monthPersonalIncome = (inc - monthNonPersonalInflows).coerceAtLeast(0.0)
+                    val monthGenuineAssets = monthTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
+
+                    // Net savings reflects True Personal Cashflow (unaffected by business floats)
+                    val truePersonalNetSavings = monthPersonalIncome - lifestyleExp - monthGenuineAssets
 
                     YearlyMonthData(
                         monthIndex = m,
@@ -781,7 +816,7 @@ class BudgetViewModel(
                         lifestyleExpenses = lifestyleExp,
                         workExpenses = workExp,
                         corporateReimbursements = corpReimb,
-                        netSavings = net,
+                        netSavings = truePersonalNetSavings,
                         fixedExpenses = fixedExp,
                         variableExpenses = varExp,
                         isFuture = isFutureMonth,
@@ -792,7 +827,6 @@ class BudgetViewModel(
                 val totalIncome = rollups.sumOf { it.totalActualIncome }
                 val totalExpense = rollups.sumOf { it.totalActualExpense }
                 val totalAssets = rollups.sumOf { it.totalAsset }
-                val netSurplus = totalIncome - totalExpense - totalAssets
 
                 // Multi-Year Assets Progression
                 val assetTxs = allTransactions.filter { it.type == TransactionType.ASSET }
@@ -818,16 +852,9 @@ class BudgetViewModel(
                     it.category.equals("Investments & Wealth", ignoreCase = true)
                 }.sumOf { it.amount }
 
-                val activeLoanedReceivables = assetTxs.filter {
-                    it.subcategory.contains("Personal Loans", ignoreCase = true) ||
-                    it.subcategory.contains("Loaned", ignoreCase = true)
-                }.sumOf { it.amount }
+                val activeLoanedReceivables = assetTxs.filter(isLoanGiven).sumOf { it.amount }
 
-                val npaWrittenOff = assetTxs.filter {
-                    it.subcategory.contains("NPA", ignoreCase = true) ||
-                    it.subcategory.contains("Bad Debt", ignoreCase = true) ||
-                    it.category.equals("NPA", ignoreCase = true)
-                }.sumOf { it.amount }
+                val npaWrittenOff = assetTxs.filter(isNpaWriteOff).sumOf { it.amount }
 
                 val repaymentsReceived = allTransactions.filter(isLoanRepayment).sumOf { it.amount }
 
@@ -845,21 +872,33 @@ class BudgetViewModel(
                     realizableNetWorth = realizableNetWorth
                 )
 
-                // Annual Reimbursement Status
+                // Annual Performance & Float Reconciliation
                 val annualWorkExpenses = allYearTransactions.filter(isWorkExpense).sumOf { it.amount }
                 val annualReimbursements = allYearTransactions.filter(isCorporateReimbursement).sumOf { it.amount }
-                val annualPendingReimbursement = (annualWorkExpenses - annualReimbursements).coerceAtLeast(0.0)
                 val annualLifestyleExpenses = (totalExpense - annualWorkExpenses).coerceAtLeast(0.0)
+
                 val annualNonPersonalInflows = allYearTransactions.filter {
                     isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it)
                 }.sumOf { it.amount }
                 val annualPersonalIncome = (totalIncome - annualNonPersonalInflows).coerceAtLeast(0.0)
+                val annualGenuineAssets = allYearTransactions.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
+
+                val annualNetSurplus = annualPersonalIncome - annualLifestyleExpenses - annualGenuineAssets
+
+                // All-Time float metrics passed to annual status
+                val allTimeWork = allTransactions.filter(isWorkExpense).sumOf { it.amount }
+                val allTimeReimb = allTransactions.filter(isCorporateReimbursement).sumOf { it.amount }
+                val allTimePending = (allTimeWork - allTimeReimb).coerceAtLeast(0.0)
+                val allTimeExcessAdvance = (allTimeReimb - allTimeWork).coerceAtLeast(0.0)
 
                 val annualReimbursementStatus = ReimbursementStatus(
                     totalWorkExpenses = annualWorkExpenses,
                     totalClaimsReceived = annualReimbursements,
-                    pendingReimbursement = annualPendingReimbursement,
-                    isSettled = annualPendingReimbursement <= 0.0
+                    pendingReimbursement = allTimePending,
+                    isSettled = allTimePending <= 0.0 && allTimeExcessAdvance <= 0.0,
+                    cumulativeWorkExpenses = allTimeWork,
+                    cumulativeClaimsReceived = allTimeReimb,
+                    excessAdvanceHeld = allTimeExcessAdvance
                 )
 
                 YearlyUiState(
@@ -869,7 +908,7 @@ class BudgetViewModel(
                     totalYearlyIncome = totalIncome,
                     totalYearlyExpense = totalExpense,
                     totalYearlyAssets = totalAssets,
-                    annualNetSurplus = netSurplus,
+                    annualNetSurplus = annualNetSurplus,
                     yearlyMonths = yearlyMonths,
                     multiYearAssets = multiYearAssetList,
                     assetWealthMetrics = wealthMetrics,
