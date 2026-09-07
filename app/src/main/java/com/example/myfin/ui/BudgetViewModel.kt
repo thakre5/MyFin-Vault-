@@ -282,7 +282,7 @@ class BudgetViewModel(
             val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
             val actualAssets = regularTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
 
-            // 1. REIMBURSEMENT OFFSET ENGINE
+            // 1. WORK & CORPORATE REIMBURSEMENT OFFSET ENGINE
             val isWorkExpense = { tx: TransactionEntity ->
                 tx.type == TransactionType.EXPENSE &&
                 (tx.category.equals("Work & Professional", ignoreCase = true) ||
@@ -296,16 +296,34 @@ class BudgetViewModel(
                 tx.type == TransactionType.INCOME &&
                 (tx.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true) &&
                  (tx.subcategory.contains("Travel Advance", ignoreCase = true) ||
+                  tx.subcategory.contains("Travel Advances & Claims", ignoreCase = true) ||
                   tx.subcategory.contains("Claim", ignoreCase = true) ||
                   tx.title.contains("Reimbursement", ignoreCase = true) ||
                   tx.title.contains("Advance", ignoreCase = true)))
             }
 
+            // 2. LOAN REPAYMENTS & REFUNDS ENGINE (CAPITAL RECOVERY)
+            val isLoanRepayment = { tx: TransactionEntity ->
+                tx.type == TransactionType.INCOME &&
+                (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
+                 tx.title.contains("Loan Payback", ignoreCase = true))
+            }
+
+            val isTaxOrPurchaseRefund = { tx: TransactionEntity ->
+                tx.type == TransactionType.INCOME &&
+                (tx.subcategory.contains("Tax & Purchase Refunds", ignoreCase = true) ||
+                 tx.title.contains("Refund", ignoreCase = true))
+            }
+
+            val nonPersonalInflow = regularTxs.filter {
+                isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it)
+            }.sumOf { it.amount }
+
             val workExpenses = regularTxs.filter(isWorkExpense).sumOf { it.amount }
             val corporateReimbursements = regularTxs.filter(isCorporateReimbursement).sumOf { it.amount }
             val pendingReimbursement = (workExpenses - corporateReimbursements).coerceAtLeast(0.0)
             val lifestyleExpenses = (actualExpenses - workExpenses).coerceAtLeast(0.0)
-            val personalIncome = (actualIncome - corporateReimbursements).coerceAtLeast(0.0)
+            val personalIncome = (actualIncome - nonPersonalInflow).coerceAtLeast(0.0)
 
             val monthReimbursementStatus = ReimbursementStatus(
                 totalWorkExpenses = workExpenses,
@@ -313,6 +331,26 @@ class BudgetViewModel(
                 pendingReimbursement = pendingReimbursement,
                 isSettled = pendingReimbursement <= 0.0
             )
+
+            // 3. ASSET & SAVINGS SUBCATEGORY CLASSIFICATION
+            val isLoanGiven = { tx: TransactionEntity ->
+                tx.type == TransactionType.ASSET &&
+                (tx.subcategory.contains("Personal Loans", ignoreCase = true) ||
+                 tx.subcategory.contains("Loaned", ignoreCase = true))
+            }
+
+            val isNpaWriteOff = { tx: TransactionEntity ->
+                tx.type == TransactionType.ASSET &&
+                (tx.subcategory.contains("NPA", ignoreCase = true) ||
+                 tx.subcategory.contains("Bad Debt", ignoreCase = true) ||
+                 tx.category.equals("NPA", ignoreCase = true))
+            }
+
+            val isGenuineSavingsOrAsset = { tx: TransactionEntity ->
+                tx.type == TransactionType.ASSET && !isLoanGiven(tx) && !isNpaWriteOff(tx)
+            }
+
+            val actualSavingsAndInvestments = regularTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
 
             val allCategoryNames = (sortedMasterCats.map { it.name to it.type } +
                     plans.map { it.category to it.type } +
@@ -348,58 +386,64 @@ class BudgetViewModel(
             val plannedExpenses = matrixList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.plannedAmount }
             val plannedAssets = matrixList.filter { it.type == TransactionType.ASSET }.sumOf { it.plannedAmount }
 
-            val fixedExpenseTotal = fixedBills.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+            // 4. RECURRING COMMITMENTS ENGINE (EXPENSE + TRANSFER)
+            val allFixedCommitments = fixedBills.filter {
+                it.type == TransactionType.EXPENSE || it.type == TransactionType.TRANSFER
+            }
+            val fixedExpenseTotal = allFixedCommitments.sumOf { it.amount }
+            val pendingFixedCommitments = allFixedCommitments.filter { !it.isPaid }.sumOf { it.amount }
+
+            val pendingAssetCommitment = (plannedAssets - actualSavingsAndInvestments).coerceAtLeast(0.0)
+            val totalPendingCommitments = pendingFixedCommitments + pendingAssetCommitment
 
             val baseIncome = when {
-                max(plannedIncome, actualIncome) > 0.0 -> max(plannedIncome, actualIncome)
+                max(plannedIncome, personalIncome) > 0.0 -> max(plannedIncome, personalIncome)
                 profile.baseMonthlyIncome > 0.0 -> profile.baseMonthlyIncome
                 else -> 0.0
             }
 
-            // Safe-to-Spend Engine: Unlinked expenses are directly counted without excluding whole subcategories
-            val commitments = fixedExpenseTotal + max(plannedAssets, actualAssets)
-
+            // 5. SAFE-TO-SPEND ENGINE
             val personalDiscretionaryExpenses = regularTxs.filter { tx ->
                 tx.type == TransactionType.EXPENSE &&
                 tx.linkedFixedBillId == null &&
                 !isWorkExpense(tx)
             }.sumOf { it.amount }
 
-            val rawTheoreticalSafeToSpend = baseIncome - commitments - personalDiscretionaryExpenses
+            val rawTheoreticalSafeToSpend = baseIncome - totalPendingCommitments - personalDiscretionaryExpenses
             val theoreticalSafeToSpend = if (baseIncome > 0) rawTheoreticalSafeToSpend.coerceAtLeast(0.0) else 0.0
 
-            val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
-            val operatingAccounts = if (is3VaultMode) {
-                sortedActiveAccounts.filter {
-                    it.accountType.equals("Operating", ignoreCase = true) ||
-                    it.accountType.equals("Cash", ignoreCase = true) ||
-                    it.accountName.contains("CASH", ignoreCase = true) ||
-                    it.accountName.contains("OPERATING", ignoreCase = true)
-                }
-            } else {
-                sortedActiveAccounts
+            val isFortressAccount = { acc: AccountBalanceResult ->
+                acc.accountType.equals("Fortress", ignoreCase = true) ||
+                acc.accountName.contains("FORTRESS", ignoreCase = true) ||
+                acc.accountName.contains("TERTIARY", ignoreCase = true)
             }
 
-            val liquidOperatingCash = operatingAccounts.sumOf {
-                (it.currentBalance - it.minBalance).coerceAtLeast(0.0)
-            }
+            // Bank Floor: Strictly combines Operating, Commitments, and Cash; excludes Fortress completely
+            val liquidPoolAccounts = sortedActiveAccounts.filter { !isFortressAccount(it) }
+
+            val liquidOperatingCash = liquidPoolAccounts.sumOf {
+                it.currentBalance - it.minBalance
+            }.coerceAtLeast(0.0)
+
+            val availableCashFloor = (liquidOperatingCash - pendingFixedCommitments).coerceAtLeast(0.0)
 
             val realSafeToSpend = if (baseIncome > 0.0) {
-                min(theoreticalSafeToSpend, liquidOperatingCash)
+                min(theoreticalSafeToSpend, availableCashFloor)
             } else {
-                liquidOperatingCash
+                availableCashFloor
             }
 
             val safeToSpendPercentage = if (baseIncome > 0.0) {
                 ((realSafeToSpend / baseIncome) * 100).toInt().coerceIn(0, 100)
             } else 0
 
-            val isOverBudget = rawTheoreticalSafeToSpend < 0.0 || (plannedExpenses > 0 && actualExpenses > plannedExpenses)
-            val netSaved = (actualIncome - actualExpenses) - actualAssets
+            val isOverBudget = rawTheoreticalSafeToSpend < 0.0 || (plannedExpenses > 0 && lifestyleExpenses > plannedExpenses)
+            val netSaved = (personalIncome - lifestyleExpenses) - actualSavingsAndInvestments
             val totalVault = allAccounts.sumOf { it.currentBalance }
             val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
 
             // Commitments Vault Shortfall Engine
+            val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
             val commitmentsAccount = sortedActiveAccounts.find {
                 it.accountType.equals("Commitments", ignoreCase = true) ||
                 it.accountName.contains("COMMITMENT", ignoreCase = true) ||
@@ -487,10 +531,10 @@ class BudgetViewModel(
                     actualExpenses = actualExpenses,
                     plannedAssets = plannedAssets,
                     actualAssets = actualAssets,
-                    fixedCommitmentsTotal = fixedBills.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount },
+                    fixedCommitmentsTotal = fixedExpenseTotal,
                     safeToSpend = realSafeToSpend,
                     theoreticalSafeToSpend = theoreticalSafeToSpend,
-                    liquidOperatingCash = liquidOperatingCash,
+                    liquidOperatingCash = availableCashFloor,
                     safeToSpendPercentage = safeToSpendPercentage,
                     netSavedAfterInvest = netSaved,
                     totalVaultBalance = totalVault,
@@ -552,9 +596,22 @@ class BudgetViewModel(
                     tx.type == TransactionType.INCOME &&
                     (tx.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true) &&
                      (tx.subcategory.contains("Travel Advance", ignoreCase = true) ||
+                      tx.subcategory.contains("Travel Advances & Claims", ignoreCase = true) ||
                       tx.subcategory.contains("Claim", ignoreCase = true) ||
                       tx.title.contains("Reimbursement", ignoreCase = true) ||
                       tx.title.contains("Advance", ignoreCase = true)))
+                }
+
+                val isLoanRepayment = { tx: TransactionEntity ->
+                    tx.type == TransactionType.INCOME &&
+                    (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
+                     tx.title.contains("Loan Payback", ignoreCase = true))
+                }
+
+                val isTaxOrPurchaseRefund = { tx: TransactionEntity ->
+                    tx.type == TransactionType.INCOME &&
+                    (tx.subcategory.contains("Tax & Purchase Refunds", ignoreCase = true) ||
+                     tx.title.contains("Refund", ignoreCase = true))
                 }
 
                 val allYearTransactions = allTransactions.filter { tx ->
@@ -636,10 +693,7 @@ class BudgetViewModel(
                     it.category.equals("NPA", ignoreCase = true)
                 }.sumOf { it.amount }
 
-                val repaymentsReceived = allTransactions.filter {
-                    it.type == TransactionType.INCOME &&
-                    it.subcategory.contains("Loan Paybacks Received", ignoreCase = true)
-                }.sumOf { it.amount }
+                val repaymentsReceived = allTransactions.filter(isLoanRepayment).sumOf { it.amount }
 
                 val effectiveReceivables = (activeLoanedReceivables - repaymentsReceived - npaWrittenOff).coerceAtLeast(0.0)
                 val liquidReserves = allAccounts.filter { !it.isArchived }.sumOf { it.currentBalance }
@@ -660,7 +714,10 @@ class BudgetViewModel(
                 val annualReimbursements = allYearTransactions.filter(isCorporateReimbursement).sumOf { it.amount }
                 val annualPendingReimbursement = (annualWorkExpenses - annualReimbursements).coerceAtLeast(0.0)
                 val annualLifestyleExpenses = (totalExpense - annualWorkExpenses).coerceAtLeast(0.0)
-                val annualPersonalIncome = (totalIncome - annualReimbursements).coerceAtLeast(0.0)
+                val annualNonPersonalInflows = allYearTransactions.filter {
+                    isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it)
+                }.sumOf { it.amount }
+                val annualPersonalIncome = (totalIncome - annualNonPersonalInflows).coerceAtLeast(0.0)
 
                 val annualReimbursementStatus = ReimbursementStatus(
                     totalWorkExpenses = annualWorkExpenses,
