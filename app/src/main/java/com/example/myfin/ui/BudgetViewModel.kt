@@ -32,10 +32,11 @@ data class CategoryPerformance(
     val type: TransactionType,
     val plannedAmount: Double,
     val actualAmount: Double,
-    val activeSubcategories: List<SubcategoryPerformance> = emptyList()
+    val activeSubcategories: List<SubcategoryPerformance> = emptyList(),
+    val isReimbursableFloat: Boolean = false
 ) {
     val variance: Double get() = plannedAmount - actualAmount
-    val isOverBudget: Boolean get() = type == TransactionType.EXPENSE && actualAmount > plannedAmount && plannedAmount > 0
+    val isOverBudget: Boolean get() = !isReimbursableFloat && type == TransactionType.EXPENSE && actualAmount > plannedAmount && plannedAmount > 0
 
     val name: String get() = category
     val categoryName: String get() = category
@@ -318,7 +319,6 @@ class BudgetViewModel(
                  tx.title.contains("Refund", ignoreCase = true))
             }
 
-            // Captures all corporate inflows without letting unmapped/General subcategories leak into personal earnings
             val isCorporateReimbursement = { tx: TransactionEntity ->
                 tx.type == TransactionType.INCOME &&
                 !isLoanRepayment(tx) &&
@@ -344,7 +344,6 @@ class BudgetViewModel(
                 isCorporateReimbursement(it) || isLoanRepayment(it) || isTaxOrPurchaseRefund(it)
             }.sumOf { it.amount }
 
-            // Monthly Activity
             val workExpenses = regularTxs.filter(isWorkExpense).sumOf { it.amount }
             val corporateReimbursements = regularTxs.filter(isCorporateReimbursement).sumOf { it.amount }
 
@@ -387,6 +386,7 @@ class BudgetViewModel(
 
             val actualSavingsAndInvestments = regularTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
 
+            // 4. CATEGORY PERFORMANCE & BUDGET MATRIX ENGINE (OPTION B APPLIED)
             val allCategoryNames = (sortedMasterCats.map { it.name to it.type } +
                     plans.map { it.category to it.type } +
                     fixedBills.map { it.category to it.type } +
@@ -395,33 +395,60 @@ class BudgetViewModel(
             val matrixList = allCategoryNames.mapNotNull { (catName, catType) ->
                 if (catType == TransactionType.TRANSFER) return@mapNotNull null
 
-                val catTxs = regularTxs.filter { it.category == catName && it.type == catType }
-                val actualTotal = catTxs.sumOf { it.amount }
+                val isWorkCategory = catType == TransactionType.EXPENSE &&
+                        (catName.equals("Work & Professional", ignoreCase = true) ||
+                         catName.contains("Work", ignoreCase = true))
+
+                val isCorporateInflowCategory = catType == TransactionType.INCOME &&
+                        (catName.equals("Reimbursements & Corporate Inflow", ignoreCase = true) ||
+                         catName.contains("Reimbursement", ignoreCase = true))
+
+                // Exclude capital recoveries and corporate inflows from the personal income matrix
+                val catTxs = regularTxs.filter { tx ->
+                    tx.category == catName && tx.type == catType &&
+                    !(catType == TransactionType.INCOME && (isCorporateReimbursement(tx) || isLoanRepayment(tx) || isTaxOrPurchaseRefund(tx)))
+                }
+
+                val rawActualTotal = catTxs.sumOf { it.amount }
+
+                // Option B: Net Outflow Display for Work Expenses
+                val actualTotal = if (isWorkCategory) {
+                    (rawActualTotal - corporateReimbursements).coerceAtLeast(0.0)
+                } else {
+                    rawActualTotal
+                }
 
                 val manualPlan = plans.find { it.category == catName && it.type == catType }?.plannedAmount ?: 0.0
                 val fixedForCat = fixedBills.filter { it.category == catName && it.type == catType }.sumOf { it.amount }
                 val effectivePlanned = if (manualPlan > 0.0) max(manualPlan, fixedForCat) else fixedForCat
 
+                // Drop non-personal corporate income rows if no personal earnings or manual plans exist
+                if (isCorporateInflowCategory && actualTotal == 0.0 && effectivePlanned == 0.0) return@mapNotNull null
                 if (actualTotal == 0.0 && effectivePlanned == 0.0) return@mapNotNull null
 
-                val activeSubs = catTxs.groupBy { it.subcategory }
-                    .map { (subName, txs) -> SubcategoryPerformance(subName, txs.sumOf { it.amount }) }
-                    .filter { it.amount != 0.0 }
+                val activeSubs = if (isWorkCategory && actualTotal == 0.0) {
+                    emptyList()
+                } else {
+                    catTxs.groupBy { it.subcategory }
+                        .map { (subName, txs) -> SubcategoryPerformance(subName, txs.sumOf { it.amount }) }
+                        .filter { it.amount != 0.0 }
+                }
 
                 CategoryPerformance(
                     category = catName,
                     type = catType,
                     plannedAmount = effectivePlanned,
                     actualAmount = actualTotal,
-                    activeSubcategories = activeSubs
+                    activeSubcategories = activeSubs,
+                    isReimbursableFloat = isWorkCategory
                 )
             }
 
             val plannedIncome = matrixList.filter { it.type == TransactionType.INCOME }.sumOf { it.plannedAmount }
-            val plannedExpenses = matrixList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.plannedAmount }
+            val plannedExpenses = matrixList.filter { it.type == TransactionType.EXPENSE && !it.isReimbursableFloat }.sumOf { it.plannedAmount }
             val plannedAssets = matrixList.filter { it.type == TransactionType.ASSET }.sumOf { it.plannedAmount }
 
-            // 4. RECURRING COMMITMENTS ENGINE (EXPENSE + TRANSFER)
+            // 5. RECURRING COMMITMENTS ENGINE (EXPENSE + TRANSFER)
             val allFixedCommitments = fixedBills.filter {
                 it.type == TransactionType.EXPENSE || it.type == TransactionType.TRANSFER
             }
@@ -437,7 +464,7 @@ class BudgetViewModel(
                 else -> 0.0
             }
 
-            // 5. SAFE-TO-SPEND ENGINE (Ring-fencing company advances from daily burn)
+            // 6. SAFE-TO-SPEND ENGINE
             val personalDiscretionaryExpenses = regularTxs.filter { tx ->
                 tx.type == TransactionType.EXPENSE &&
                 tx.linkedFixedBillId == null &&
@@ -459,7 +486,6 @@ class BudgetViewModel(
                 it.currentBalance - it.minBalance
             }.coerceAtLeast(0.0)
 
-            // Ring-fences company advance money: holding excess company cash never inflates daily living cash
             val availableCashFloor = (liquidOperatingCash - pendingFixedCommitments - excessAdvanceHeld).coerceAtLeast(0.0)
 
             val realSafeToSpend = if (baseIncome > 0.0) {
@@ -477,7 +503,7 @@ class BudgetViewModel(
             val totalVault = allAccounts.sumOf { it.currentBalance }
             val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
 
-            // 6. MULTI-ACCOUNT COMMITMENTS SHORTFALL ENGINE
+            // 7. MULTI-ACCOUNT COMMITMENTS SHORTFALL ENGINE
             val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
             val commitmentAccounts = sortedActiveAccounts.filter {
                 it.accountType.equals("Commitments", ignoreCase = true)
@@ -532,7 +558,7 @@ class BudgetViewModel(
                 affectedAccountsCount = affectedAccountNames.size
             )
 
-            // 7. PAYDAY ALLOCATION & DYNAMIC MONTH-END SWEEP ENGINES
+            // 8. PAYDAY ALLOCATION & DYNAMIC MONTH-END SWEEP ENGINES
             val todayCal = Calendar.getInstance()
             val currentDay = todayCal.get(Calendar.DAY_OF_MONTH)
             val totalDaysInCurrentMonth = todayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
@@ -780,7 +806,6 @@ class BudgetViewModel(
                     txCal.get(Calendar.YEAR) == year && tx.type != TransactionType.TRANSFER
                 }
 
-                // 8. TRUE PERSONAL NET SAVINGS CHART CALCULATION
                 val yearlyMonths = (1..12).map { m ->
                     val isFutureMonth = (year == thisYear && m > thisMonth) || (year > thisYear)
                     val monthTxs = allYearTransactions.filter { tx ->
@@ -804,7 +829,6 @@ class BudgetViewModel(
                     val monthPersonalIncome = (inc - monthNonPersonalInflows).coerceAtLeast(0.0)
                     val monthGenuineAssets = monthTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
 
-                    // Net savings reflects True Personal Cashflow (unaffected by business floats)
                     val truePersonalNetSavings = monthPersonalIncome - lifestyleExp - monthGenuineAssets
 
                     YearlyMonthData(
@@ -885,7 +909,6 @@ class BudgetViewModel(
 
                 val annualNetSurplus = annualPersonalIncome - annualLifestyleExpenses - annualGenuineAssets
 
-                // All-Time float metrics passed to annual status
                 val allTimeWork = allTransactions.filter(isWorkExpense).sumOf { it.amount }
                 val allTimeReimb = allTransactions.filter(isCorporateReimbursement).sumOf { it.amount }
                 val allTimePending = (allTimeWork - allTimeReimb).coerceAtLeast(0.0)
