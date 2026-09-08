@@ -18,7 +18,7 @@ object ReminderScheduler {
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
-            
+
             if (notificationManager.getNotificationChannel(CHANNEL_ID_REMINDERS) == null) {
                 val name = "Daily Check-in & AutoPay Alerts"
                 val descriptionText = "Notifications for recurring bill reminders and end-of-day spend logging"
@@ -88,7 +88,7 @@ object ReminderScheduler {
                     pendingIntent
                 )
             } catch (_: Exception) { }
-        }
+        } catch (_: Exception) { }
     }
 
     fun cancelReminder(context: Context) {
