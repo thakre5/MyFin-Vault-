@@ -57,8 +57,13 @@ class ReminderReceiver : BroadcastReceiver() {
                 val currentMonth = cal.get(Calendar.MONTH) + 1
                 val currentYear = cal.get(Calendar.YEAR)
 
+                // Exclude Income and Corporate Claim Receivables from outgoing bill alerts
                 val fixedBills = dao.getFixedBillsForMonthDirect(currentMonth, currentYear)
-                    .filter { !it.isPaid && it.dueDay != null && it.dueDay in 1..31 }
+                    .filter { !it.isPaid && 
+                        it.type != TransactionType.INCOME && 
+                        !(it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
+                        it.dueDay != null && it.dueDay in 1..31 
+                    }
 
                 val dueToday = fixedBills.filter { it.dueDay == currentDay }
                 val dueWithin48h = if (profile.isAutoPayReminderEnabled) {
