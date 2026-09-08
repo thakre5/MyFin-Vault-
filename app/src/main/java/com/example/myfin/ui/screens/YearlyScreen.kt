@@ -2053,9 +2053,9 @@ private fun BudgetVsActualDualPillarsCard(
             Spacer(modifier = Modifier.height(18.dp))
 
             val displayList = categoryTrajectories.take(4)
-            val maxBurn = displayList.maxOfOrNull { cat ->
+            val maxBurn = displayList.maxOrNull() { cat ->
                 maxOf(cat.annualTotal, plannedCategoryCeilings[cat.categoryName] ?: 0.0)
-            }?.coerceAtLeast(100.0) ?: 100.0
+            }?.let { maxOf(it.annualTotal, plannedCategoryCeilings[it.categoryName] ?: 0.0) }?.coerceAtLeast(100.0) ?: 100.0
 
             Row(
                 modifier = Modifier
@@ -2072,7 +2072,7 @@ private fun BudgetVsActualDualPillarsCard(
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Alignment.Bottom,
+                        verticalArrangement = Arrangement.Bottom,
                         modifier = Modifier.fillMaxHeight()
                     ) {
                         Row(
