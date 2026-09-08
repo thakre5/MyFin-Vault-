@@ -78,15 +78,15 @@ interface BudgetDao {
             COALESCE(a.isArchived, 0) AS isArchived,
             a.sortOrder,
             (a.startingBalance + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName COLLATE NOCASE), 0.0) - 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'INCOME' OR (t.type = 'CORPORATE' AND t.category = 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) - 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET' OR (t.type = 'CORPORATE' AND t.category != 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
              COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0) - 
              COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS currentBalance,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'INCOME' OR (t.type = 'CORPORATE' AND t.category = 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
              COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS totalInflow,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET' OR (t.type = 'CORPORATE' AND t.category != 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
              COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS totalOutflow
         FROM accounts a
@@ -103,15 +103,15 @@ interface BudgetDao {
             COALESCE(a.isArchived, 0) AS isArchived,
             a.sortOrder,
             (a.startingBalance + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName COLLATE NOCASE), 0.0) - 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'INCOME' OR (t.type = 'CORPORATE' AND t.category = 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) - 
+             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET' OR (t.type = 'CORPORATE' AND t.category != 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
              COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0) - 
              COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS currentBalance,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'INCOME' AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'INCOME' OR (t.type = 'CORPORATE' AND t.category = 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
              COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS totalInflow,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET') AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET' OR (t.type = 'CORPORATE' AND t.category != 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
              COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
             ) AS totalOutflow
         FROM accounts a
