@@ -102,7 +102,7 @@ fun MasterDataSetScreen(
     // Taxonomy Metrics
     val totalCats = segmentCategories.size
     val totalSubs = segmentSubcategories.size
-    val protectedCount = segmentCategories.count { viewModel.protectedCategories.contains(it.name) }
+    val protectedCount = segmentCategories.count { viewModel.protectedCategories.contains(it.name) && !it.isLegacy }
     val customCount = (totalCats - protectedCount).coerceAtLeast(0)
 
     val segmentColor = when (selectedSegment) {
@@ -135,7 +135,7 @@ fun MasterDataSetScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. PINNED TOP HEADER WITH SHELF DISSOLVE
+            // 1. PINNED TOP HEADER
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -189,6 +189,61 @@ fun MasterDataSetScreen(
                                 color = TextDark,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
+                        }
+                    }
+
+                    // Informational Grace Window Banner
+                    AnimatedVisibility(
+                        visible = uiState.isTaxonomyBannerVisible,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFFFF9E6),
+                            border = BorderStroke(1.dp, Color(0xFFFFCC00).copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Icon(
+                                    Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD48800),
+                                    modifier = Modifier.size(18.dp).padding(top = 1.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Corporate Float Segregation Active",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF873800)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Work expenses are now isolated under 'Corporate'. Legacy categories remain visible this month and can be renamed or deleted. Untouched legacy items will retire next month.",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF614700),
+                                        lineHeight = 15.sp
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { viewModel.dismissTaxonomyBanner() },
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Dismiss",
+                                        tint = Color(0xFF873800),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -376,23 +431,19 @@ fun MasterDataSetScreen(
                     }
                 }
 
-                // Smooth Dissolve Shelf Placed Below Search Bar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(14.dp)
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(
-                                    CanvasLight,
-                                    CanvasLight.copy(alpha = 0f)
-                                )
+                                colors = listOf(CanvasLight, CanvasLight.copy(alpha = 0f))
                             )
                         )
                 )
             }
 
-            // 2. SCROLLABLE CATEGORY & SUBCATEGORY TREE
+            // 2. CATEGORY & SUBCATEGORY TREE
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -413,8 +464,8 @@ fun MasterDataSetScreen(
                         }
                     }
                 } else {
-                    items(filteredCategories, key = { "${it.type.name}_${it.name}" }) { cat ->
-                        val isProtected = viewModel.protectedCategories.contains(cat.name)
+                    items(filteredCategories, key = { "${it.type.name}_${it.name}_${it.isLegacy}" }) { cat ->
+                        val isProtected = viewModel.protectedCategories.contains(cat.name) && !cat.isLegacy
                         val subList = segmentSubcategories.filter { it.parentCategory == cat.name }
                         val isExpanded = expandedCategories[cat.name] ?: false
 
@@ -427,7 +478,7 @@ fun MasterDataSetScreen(
                             onSwipeEditCategory = { categoryToEdit = cat },
                             onSwipeDeleteCategory = {
                                 if (isProtected) {
-                                    alertNoticeMessage = "'${cat.name}' is a core protected category and cannot be deleted."
+                                    alertNoticeMessage = "'${cat.name}' is an active core category and cannot be deleted."
                                 } else {
                                     categoryToDelete = cat
                                 }
@@ -442,7 +493,7 @@ fun MasterDataSetScreen(
             }
         }
 
-        // 3. STANDARDIZED FLOATING BOTTOM DOCK WITH FAB
+        // 3. FLOATING BOTTOM DOCK WITH FAB
         AppBottomDock(
             currentSelection = NavigationTarget.DATA_SET,
             onSelectTarget = { target ->
@@ -480,10 +531,14 @@ fun MasterDataSetScreen(
         categoryToDelete?.let { cat ->
             AlertDialog(
                 onDismissRequest = { categoryToDelete = null },
-                title = { Text("Delete Category '${cat.name}'?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                title = { Text(if (cat.isLegacy) "Retire Legacy Category '${cat.name}'?" else "Delete Category '${cat.name}'?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                 text = {
                     Text(
-                        "Deleting this category will remove its subcategories. Historical transactions will be reassigned to 'General' to protect your balances, and future unpaid AutoPay bills will be removed.",
+                        if (cat.isLegacy) {
+                            "This legacy category will be permanently removed from active selection. All historical transaction logs will remain fully preserved in your reports."
+                        } else {
+                            "Deleting this category will remove its subcategories. Historical transactions will be preserved under their current names, and future unpaid AutoPay bills will be cleared."
+                        },
                         fontSize = 13.sp,
                         color = TextDark
                     )
@@ -497,7 +552,7 @@ fun MasterDataSetScreen(
                             categoryToDelete = null
                         }
                     ) {
-                        Text("Delete", color = SoftRed, fontWeight = FontWeight.Bold)
+                        Text(if (cat.isLegacy) "Retire" else "Delete", color = SoftRed, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
@@ -515,7 +570,7 @@ fun MasterDataSetScreen(
                 title = { Text("Delete Subcategory '${sub.name}'?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                 text = {
                     Text(
-                        "Are you sure you want to remove '${sub.name}' from ${sub.parentCategory}? Future unpaid AutoPay commitments linked to it will be cleared.",
+                        "Are you sure you want to remove '${sub.name}' from ${sub.parentCategory}? Future unpaid commitments linked to it will be cleared.",
                         fontSize = 13.sp,
                         color = TextDark
                     )
@@ -718,7 +773,7 @@ fun MasterDataSetScreen(
             }
         }
 
-        // Sheet: Rename Category
+        // Sheet: Rename / Adopt Category
         categoryToEdit?.let { cat ->
             var renameText by remember(cat) { mutableStateOf(cat.name) }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -743,9 +798,17 @@ fun MasterDataSetScreen(
                         .imePadding()
                         .padding(horizontal = 22.dp, vertical = 6.dp)
                 ) {
-                    Text("Rename Category", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                    Text(if (cat.isLegacy) "Adopt / Rename Legacy Category" else "Rename Category", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("All historical transactions, plans, and bills will cascade automatically.", fontSize = 11.5.sp, color = TextMuted)
+                    Text(
+                        if (cat.isLegacy) {
+                            "Saving or renaming this legacy category converts it into a permanent custom category."
+                        } else {
+                            "All historical transactions, plans, and bills will cascade automatically."
+                        },
+                        fontSize = 11.5.sp,
+                        color = TextMuted
+                    )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
@@ -769,7 +832,7 @@ fun MasterDataSetScreen(
                         onClick = {
                             val trimmedNew = renameText.trim()
                             if (trimmedNew.isNotBlank()) {
-                                if (trimmedNew.equals(cat.name, ignoreCase = false)) {
+                                if (trimmedNew.equals(cat.name, ignoreCase = false) && !cat.isLegacy) {
                                     categoryToEdit = null
                                 } else {
                                     val alreadyExists = segmentCategories.any {
@@ -789,7 +852,7 @@ fun MasterDataSetScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                     ) {
-                        Text("Apply Cascade Rename", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(if (cat.isLegacy) "Convert to Custom Category" else "Apply Cascade Rename", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -847,7 +910,7 @@ fun MasterDataSetScreen(
                         onClick = {
                             val trimmedNew = renameText.trim()
                             if (trimmedNew.isNotBlank()) {
-                                if (trimmedNew == sub.name) {
+                                if (trimmedNew == sub.name && !sub.isLegacy) {
                                     subcategoryToEdit = null
                                 } else {
                                     val alreadyExists = segmentSubcategories.any {
@@ -943,19 +1006,19 @@ private fun IntegratedCategoryTreeCard(
             .shadow(1.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
         color = CardWhite,
-        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        border = BorderStroke(0.8.dp, if (category.isLegacy) Color(0xFFFFB74D).copy(alpha = 0.8f) else BorderLight.copy(alpha = 0.6f))
     ) {
         Column {
             SwipeToDismissBox(
                 state = dismissState,
                 enableDismissFromStartToEnd = true,
-                enableDismissFromEndToStart = !isProtected,
+                enableDismissFromEndToStart = !isProtected || category.isLegacy,
                 backgroundContent = {
                     val direction = dismissState.dismissDirection
                     val backgroundColor by animateColorAsState(
                         targetValue = when (dismissState.targetValue) {
                             SwipeToDismissBoxValue.StartToEnd -> AccentPurple
-                            SwipeToDismissBoxValue.EndToStart -> if (!isProtected) SoftRed else Color.Transparent
+                            SwipeToDismissBoxValue.EndToStart -> if (!isProtected || category.isLegacy) SoftRed else Color.Transparent
                             SwipeToDismissBoxValue.Settled -> Color.Transparent
                         },
                         animationSpec = tween(200),
@@ -973,11 +1036,11 @@ private fun IntegratedCategoryTreeCard(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Rename", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(if (category.isLegacy) "Adopt" else "Rename", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
-                        } else if (direction == SwipeToDismissBoxValue.EndToStart && !isProtected) {
+                        } else if (direction == SwipeToDismissBoxValue.EndToStart && (!isProtected || category.isLegacy)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(if (category.isLegacy) "Retire" else "Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(18.dp))
                             }
@@ -1006,14 +1069,14 @@ private fun IntegratedCategoryTreeCard(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(typeColor.copy(alpha = 0.12f)),
+                                    .background(if (category.isLegacy) Color(0xFFFFF3E0) else typeColor.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = category.name.take(1).uppercase(),
                                     fontWeight = FontWeight.Black,
                                     fontSize = 14.sp,
-                                    color = typeColor
+                                    color = if (category.isLegacy) Color(0xFFE65100) else typeColor
                                 )
                             }
 
@@ -1029,7 +1092,38 @@ private fun IntegratedCategoryTreeCard(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    if (isProtected) {
+
+                                    if (category.isLegacy) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(0xFFFFF3E0),
+                                            border = BorderStroke(0.6.dp, Color(0xFFFFB74D))
+                                        ) {
+                                            Text(
+                                                text = "Legacy",
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFE65100),
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    } else if (category.isNew) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF4CAF50))
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(
+                                            text = "NEW",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = Color(0xFF2E7D32)
+                                        )
+                                    } else if (isProtected) {
                                         Spacer(modifier = Modifier.width(5.dp))
                                         Icon(
                                             Icons.Default.Lock,
@@ -1183,9 +1277,9 @@ private fun IntegratedSubcategoryRow(
         ) {
             Box(
                 modifier = Modifier
-                    .size(4.dp)
+                    .size(if (subcategory.isNew) 6.dp else 4.dp)
                     .clip(CircleShape)
-                    .background(TextMuted)
+                    .background(if (subcategory.isNew) Color(0xFF4CAF50) else if (subcategory.isLegacy) Color(0xFFE65100) else TextMuted)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
@@ -1195,6 +1289,21 @@ private fun IntegratedSubcategoryRow(
                 color = TextDark,
                 modifier = Modifier.weight(1f)
             )
+            if (subcategory.isLegacy) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color(0xFFFFF3E0),
+                    border = BorderStroke(0.6.dp, Color(0xFFFFB74D))
+                ) {
+                    Text(
+                        text = "Legacy",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE65100),
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
         }
     }
 }
