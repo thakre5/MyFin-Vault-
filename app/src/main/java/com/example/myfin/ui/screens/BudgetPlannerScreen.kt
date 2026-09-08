@@ -51,21 +51,26 @@ private val EXPENSE_PRIORITY = listOf(
     "Everyday Living",
     "Health & Medical",
     "Family & Home Support",
-    "Work & Professional",
     "Leisure, Trips & Media",
     "General"
 )
 
 private val INCOME_PRIORITY = listOf(
     "Salary & Professional Inflow",
-    "Reimbursements & Corporate Inflow",
     "Passive & Capital Drawdowns",
+    "Refunds & Recoveries",
     "General"
 )
 
 private val ASSET_PRIORITY = listOf(
     "Investments & Wealth",
     "Liquid Reserves & Receivables",
+    "General"
+)
+
+private val CORPORATE_PRIORITY = listOf(
+    "Work & Professional",
+    "Reimbursements & Claims",
     "General"
 )
 
@@ -128,6 +133,7 @@ fun BudgetPlannerScreen(
             TransactionType.EXPENSE -> EXPENSE_PRIORITY
             TransactionType.INCOME -> INCOME_PRIORITY
             TransactionType.ASSET -> ASSET_PRIORITY
+            TransactionType.CORPORATE -> CORPORATE_PRIORITY
             TransactionType.TRANSFER -> emptyList()
         }
 
@@ -212,6 +218,30 @@ fun BudgetPlannerScreen(
                 DockFabAction(
                     icon = Icons.Default.PieChart,
                     label = "Set SIP Target",
+                    onClick = {
+                        if (isPastMonth) {
+                            Toast.makeText(context, "Historical months are read-only.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showQuickSelectTargetSheet = true
+                        }
+                    }
+                ),
+                DockFabAction(
+                    icon = Icons.Default.History,
+                    label = "Copy Last Month's Plan",
+                    onClick = {
+                        if (isPastMonth) {
+                            Toast.makeText(context, "Cannot overwrite historical months.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showCopyPlanDialog = true
+                        }
+                    }
+                )
+            )
+            TransactionType.CORPORATE -> listOf(
+                DockFabAction(
+                    icon = Icons.Default.Work,
+                    label = "Set Corporate Target",
                     onClick = {
                         if (isPastMonth) {
                             Toast.makeText(context, "Historical months are read-only.", Toast.LENGTH_SHORT).show()
@@ -464,7 +494,7 @@ fun BudgetPlannerScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Flow Segment Switcher
+                    // 4-Way Segment Switcher Row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -475,7 +505,8 @@ fun BudgetPlannerScreen(
                         listOf(
                             Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
                             Triple(TransactionType.INCOME, "Income", SoftGreen),
-                            Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal)
+                            Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal),
+                            Triple(TransactionType.CORPORATE, "Corporate", Color(0xFFE57A28))
                         ).forEach { (type, label, color) ->
                             val isSelected = selectedSegment == type
                             Box(
@@ -490,7 +521,7 @@ fun BudgetPlannerScreen(
                                 Text(
                                     text = label,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 11.sp,
+                                    fontSize = 10.5.sp,
                                     color = if (isSelected) color else TextMuted,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -973,6 +1004,7 @@ private fun BudgetCategoryCleanCard(
         TransactionType.INCOME -> SoftGreen
         TransactionType.EXPENSE -> SoftRed
         TransactionType.ASSET -> SoftTeal
+        TransactionType.CORPORATE -> Color(0xFFE57A28)
         TransactionType.TRANSFER -> AccentPurple
     }
 
@@ -991,6 +1023,11 @@ private fun BudgetCategoryCleanCard(
             committedAutoPay > 0.0 -> "Recurring SIP: $currencySymbol${String.format(Locale.US, "%,.0f", committedAutoPay)}"
             category.plannedAmount > 0.0 -> "Actual invested: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}"
             else -> "Tap to set asset target"
+        }
+        TransactionType.CORPORATE -> when {
+            committedAutoPay > 0.0 -> "Committed: $currencySymbol${String.format(Locale.US, "%,.0f", committedAutoPay)}"
+            category.plannedAmount > 0.0 -> "Actual: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}"
+            else -> "Tap to set corporate float ceiling"
         }
         TransactionType.TRANSFER -> "Vault sweep transfer"
     }
