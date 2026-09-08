@@ -125,17 +125,17 @@ fun YearlyScreen(
     val multiYearAssets = yearlyState.multiYearAssets
     val allYearTransactions = yearlyState.allYearTransactions
 
-    // Personal savings rate calculated strictly against earned personal income
-    val annualSavingsRate = if (annualPersonalIncome > 0) ((annualNetSurplus / annualPersonalIncome) * 100).coerceIn(0.0, 100.0) else 0.0
+    val annualSavingsRate = if (annualPersonalIncome > 0) ((annualNetSurplus / annualPersonalIncome) * 100).coerceIn(-100.0, 100.0) else 0.0
 
-    val annualTargetGoal = remember(annualPersonalIncome, userProfile.baseMonthlyIncome, userProfile.fortressThreshold) {
+    // Dynamic wealth goal bound to dynamic fortressTarget with no hardcoded currency defaults
+    val annualTargetGoal = remember(annualPersonalIncome, userProfile.baseMonthlyIncome, uiState.fortressTarget) {
         val base = if (annualPersonalIncome > 0) annualPersonalIncome else (userProfile.baseMonthlyIncome * 12)
-        maxOf(base * 0.25, userProfile.fortressThreshold, 25000.0)
+        val target = maxOf(base * 0.25, uiState.fortressTarget)
+        if (target > 0.0) target else 1.0
     }
     val currentWealthAccumulated = (annualAssets + annualNetSurplus).coerceAtLeast(0.0)
-    val goalCompletionPercentage = (currentWealthAccumulated / annualTargetGoal).toFloat().coerceIn(0f, 1f)
+    val goalCompletionPercentage = if (annualTargetGoal > 0.0) (currentWealthAccumulated / annualTargetGoal).toFloat().coerceIn(0f, 1f) else 0f
 
-    // True personal quarterly metrics
     val quarterlyData = remember(yearlyMonthsData) {
         if (yearlyMonthsData.size >= 12) {
             listOf(
@@ -148,7 +148,7 @@ fun YearlyScreen(
                 val qExp = months.sumOf { it.lifestyleExpenses }
                 val qAst = months.sumOf { it.assets }
                 val qNet = months.sumOf { it.netSavings }
-                val qRate = if (qInc > 0) ((qNet / qInc) * 100).coerceIn(0.0, 100.0) else 0.0
+                val qRate = if (qInc > 0) ((qNet / qInc) * 100).coerceIn(-100.0, 100.0) else 0.0
                 QuarterlyMetrics(
                     quarterLabel = label,
                     quarterIndex = qIdx + 1,
@@ -344,9 +344,6 @@ fun YearlyScreen(
                     .fillMaxWidth()
             ) { page ->
                 when (page) {
-                    // ==========================================
-                    // TAB 0: CASHFLOW (True Personal Cash Dynamics)
-                    // ==========================================
                     0 -> {
                         LazyColumn(
                             modifier = Modifier
@@ -493,9 +490,6 @@ fun YearlyScreen(
                         }
                     }
 
-                    // ==========================================
-                    // TAB 1: 12 MONTHS (Layered Mountain Outflow Composition)
-                    // ==========================================
                     1 -> {
                         val chunkedMonths = remember(yearlyMonthsData) { yearlyMonthsData.chunked(2) }
 
@@ -571,9 +565,6 @@ fun YearlyScreen(
                         }
                     }
 
-                    // ==========================================
-                    // TAB 2: ASSETS & WEALTH (Option A: Cumulative Portfolio Stock)
-                    // ==========================================
                     2 -> {
                         LazyColumn(
                             modifier = Modifier
@@ -719,9 +710,6 @@ fun YearlyScreen(
                         }
                     }
 
-                    // ==========================================
-                    // TAB 3: AUDIT & VARIANCE (Real Budget Ceilings vs. Actuals)
-                    // ==========================================
                     3 -> {
                         LazyColumn(
                             modifier = Modifier
@@ -794,10 +782,14 @@ fun YearlyScreen(
                                 }
                             } else {
                                 items(categoryTrajectories, key = { it.categoryName }) { item ->
+                                    val isLegacy = remember(uiState.masterCategories, item.categoryName) {
+                                        uiState.masterCategories.any { it.name.equals(item.categoryName, ignoreCase = true) && it.isLegacy }
+                                    }
                                     CategoryTrajectoryRowCard(
                                         item = item,
                                         currencySymbol = userProfile.currencySymbol,
-                                        isDiscreet = isDiscreetMode
+                                        isDiscreet = isDiscreetMode,
+                                        isLegacy = isLegacy
                                     )
                                     Spacer(modifier = Modifier.height(10.dp))
                                 }
@@ -808,7 +800,6 @@ fun YearlyScreen(
             }
         }
 
-        // Floating Pager Indicator
         FloatingPagerIndicator(
             pagerState = pagerState,
             pageTitles = pageTitles,
@@ -820,7 +811,6 @@ fun YearlyScreen(
                 .zIndex(3.5f)
         )
 
-        // Bottom Navigation Dock
         AppBottomDock(
             currentSelection = NavigationTarget.YEARLY_VIEW,
             onSelectTarget = { target ->
@@ -840,7 +830,6 @@ fun YearlyScreen(
                 .zIndex(4f)
         )
 
-        // Educational Graph Insight Sheet
         activeGraphGuide?.let { guide ->
             ModalBottomSheet(
                 onDismissRequest = { activeGraphGuide = null },
@@ -946,7 +935,6 @@ fun YearlyScreen(
             }
         }
 
-        // Month Quick-Inspect Bottom Sheet
         inspectedMonth?.let { mData ->
             val monthPersonalIncome = mData.netSavings + mData.lifestyleExpenses + mData.assets
             ModalBottomSheet(
@@ -2153,13 +2141,14 @@ private fun QuickMetricTile(
 private fun CategoryTrajectoryRowCard(
     item: CategoryAnnualTrajectory,
     currencySymbol: String,
-    isDiscreet: Boolean
+    isDiscreet: Boolean,
+    isLegacy: Boolean = false
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         color = CardWhite,
-        border = BorderStroke(0.6.dp, BorderLight)
+        border = BorderStroke(0.6.dp, if (isLegacy) Color(0xFFFFB74D).copy(alpha = 0.7f) else BorderLight)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -2167,8 +2156,26 @@ private fun CategoryTrajectoryRowCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(item.categoryName, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(item.categoryName, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                        if (isLegacy) {
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFFFF3E0),
+                                border = BorderStroke(0.6.dp, Color(0xFFFFB74D))
+                            ) {
+                                Text(
+                                    text = "Legacy",
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE65100),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
                     Text("${String.format(Locale.US, "%.1f", item.percentageOfTotal)}% of annual outflow", fontSize = 10.5.sp, color = TextMuted)
                 }
 
