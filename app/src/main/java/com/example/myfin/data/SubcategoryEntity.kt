@@ -27,15 +27,17 @@ data class SubcategoryEntity(
 ) {
     companion object {
         val defaultSubcategories = listOf(
-            // Utilities & Living Bills (Expense)
+            // ========================================================
+            // EXPENSE (Personal Living Burn)
+            // ========================================================
+            // Utilities & Living Bills
             SubcategoryEntity("Utilities & Living Bills", "Rent & Housing", TransactionType.EXPENSE),
-            SubcategoryEntity("Utilities & Living Bills", "PG Rent", TransactionType.EXPENSE),
             SubcategoryEntity("Utilities & Living Bills", "Electricity & Water", TransactionType.EXPENSE),
             SubcategoryEntity("Utilities & Living Bills", "Phone & Internet", TransactionType.EXPENSE),
             SubcategoryEntity("Utilities & Living Bills", "Subscriptions & Cloud", TransactionType.EXPENSE),
             SubcategoryEntity("Utilities & Living Bills", "General", TransactionType.EXPENSE),
 
-            // Everyday Living (Expense)
+            // Everyday Living
             SubcategoryEntity("Everyday Living", "Groceries", TransactionType.EXPENSE),
             SubcategoryEntity("Everyday Living", "Restaurants & Dining", TransactionType.EXPENSE),
             SubcategoryEntity("Everyday Living", "Daily Transit & Fuel", TransactionType.EXPENSE),
@@ -44,21 +46,21 @@ data class SubcategoryEntity(
             SubcategoryEntity("Everyday Living", "Coffee, Tea & Snacks", TransactionType.EXPENSE),
             SubcategoryEntity("Everyday Living", "General", TransactionType.EXPENSE),
 
-            // Leisure, Trips & Media (Expense)
+            // Leisure, Trips & Media
             SubcategoryEntity("Leisure, Trips & Media", "Trips & Stays", TransactionType.EXPENSE),
             SubcategoryEntity("Leisure, Trips & Media", "Events & Outings", TransactionType.EXPENSE),
             SubcategoryEntity("Leisure, Trips & Media", "Media & Gaming", TransactionType.EXPENSE),
             SubcategoryEntity("Leisure, Trips & Media", "Books & Learning", TransactionType.EXPENSE),
             SubcategoryEntity("Leisure, Trips & Media", "General", TransactionType.EXPENSE),
 
-            // Health & Medical (Expense)
+            // Health & Medical
             SubcategoryEntity("Health & Medical", "Doctors & Specialist Care", TransactionType.EXPENSE),
             SubcategoryEntity("Health & Medical", "Pharmacy & Medicines", TransactionType.EXPENSE),
             SubcategoryEntity("Health & Medical", "Emergency Care", TransactionType.EXPENSE),
             SubcategoryEntity("Health & Medical", "Health Insurance", TransactionType.EXPENSE),
             SubcategoryEntity("Health & Medical", "General", TransactionType.EXPENSE),
 
-            // Family & Home Support (Expense)
+            // Family & Home Support
             SubcategoryEntity("Family & Home Support", "Parents Support", TransactionType.EXPENSE),
             SubcategoryEntity("Family & Home Support", "Mom", TransactionType.EXPENSE),
             SubcategoryEntity("Family & Home Support", "Grandma", TransactionType.EXPENSE),
@@ -66,43 +68,42 @@ data class SubcategoryEntity(
             SubcategoryEntity("Family & Home Support", "Gifts & Donations", TransactionType.EXPENSE),
             SubcategoryEntity("Family & Home Support", "General", TransactionType.EXPENSE),
 
-            // Debt & Financial Obligations (Expense)
+            // Debt & Financial Obligations
             SubcategoryEntity("Debt & Financial Obligations", "Credit Cards & EMI", TransactionType.EXPENSE),
             SubcategoryEntity("Debt & Financial Obligations", "Pay Later", TransactionType.EXPENSE),
             SubcategoryEntity("Debt & Financial Obligations", "Taxes", TransactionType.EXPENSE),
             SubcategoryEntity("Debt & Financial Obligations", "Other Debts", TransactionType.EXPENSE),
             SubcategoryEntity("Debt & Financial Obligations", "General", TransactionType.EXPENSE),
 
-            // Work & Professional (Expense)
-            SubcategoryEntity("Work & Professional", "Work Travel", TransactionType.EXPENSE),
-            SubcategoryEntity("Work & Professional", "Tools & Subscriptions", TransactionType.EXPENSE),
-            SubcategoryEntity("Work & Professional", "Courier & Logistics", TransactionType.EXPENSE),
-            SubcategoryEntity("Work & Professional", "General", TransactionType.EXPENSE),
-
-            // General (Expense)
+            // General Expense
             SubcategoryEntity("General", "Miscellaneous", TransactionType.EXPENSE),
             SubcategoryEntity("General", "Cash Out", TransactionType.EXPENSE),
 
-            // Salary & Professional Inflow (Income)
+            // ========================================================
+            // INCOME (Personal Inflows)
+            // ========================================================
+            // Salary & Professional Inflow
             SubcategoryEntity("Salary & Professional Inflow", "Base Salary (Pay Slip)", TransactionType.INCOME),
             SubcategoryEntity("Salary & Professional Inflow", "Bonus & Incentives", TransactionType.INCOME),
             SubcategoryEntity("Salary & Professional Inflow", "Commission & Freelance", TransactionType.INCOME),
             SubcategoryEntity("Salary & Professional Inflow", "General", TransactionType.INCOME),
 
-            // Reimbursements & Corporate Inflow (Income)
-            SubcategoryEntity("Reimbursements & Corporate Inflow", "Travel Advances & Claims", TransactionType.INCOME),
-            SubcategoryEntity("Reimbursements & Corporate Inflow", "Loan Paybacks Received", TransactionType.INCOME),
-            SubcategoryEntity("Reimbursements & Corporate Inflow", "Tax & Purchase Refunds", TransactionType.INCOME),
-            SubcategoryEntity("Reimbursements & Corporate Inflow", "General", TransactionType.INCOME),
-
-            // Passive & Capital Drawdowns (Income)
+            // Passive & Capital Drawdowns
             SubcategoryEntity("Passive & Capital Drawdowns", "Interest & Dividends", TransactionType.INCOME),
             SubcategoryEntity("Passive & Capital Drawdowns", "Capital Gains / Realization", TransactionType.INCOME),
             SubcategoryEntity("Passive & Capital Drawdowns", "Emergency Fund Drawdown", TransactionType.INCOME),
             SubcategoryEntity("Passive & Capital Drawdowns", "FD / Deposit Maturity", TransactionType.INCOME),
             SubcategoryEntity("Passive & Capital Drawdowns", "General", TransactionType.INCOME),
 
-            // Investments & Wealth (Asset / SIP)
+            // Refunds & Recoveries
+            SubcategoryEntity("Refunds & Recoveries", "Tax & Purchase Refunds", TransactionType.INCOME),
+            SubcategoryEntity("Refunds & Recoveries", "Loan Paybacks Received", TransactionType.INCOME),
+            SubcategoryEntity("Refunds & Recoveries", "General", TransactionType.INCOME),
+
+            // ========================================================
+            // ASSET / SIP (Wealth & Capital Stock)
+            // ========================================================
+            // Investments & Wealth
             SubcategoryEntity("Investments & Wealth", "Mutual Funds (MF)", TransactionType.ASSET),
             SubcategoryEntity("Investments & Wealth", "Fixed Deposits (FD)", TransactionType.ASSET),
             SubcategoryEntity("Investments & Wealth", "Recurring Deposits (RD)", TransactionType.ASSET),
@@ -111,12 +112,28 @@ data class SubcategoryEntity(
             SubcategoryEntity("Investments & Wealth", "PMS & Equity", TransactionType.ASSET),
             SubcategoryEntity("Investments & Wealth", "General", TransactionType.ASSET),
 
-            // Liquid Reserves & Receivables (Asset / SIP)
+            // Liquid Reserves & Receivables
             SubcategoryEntity("Liquid Reserves & Receivables", "Emergency Fund", TransactionType.ASSET),
             SubcategoryEntity("Liquid Reserves & Receivables", "Bank Savings", TransactionType.ASSET),
             SubcategoryEntity("Liquid Reserves & Receivables", "Personal Loans (Friends & Family)", TransactionType.ASSET),
             SubcategoryEntity("Liquid Reserves & Receivables", "NPA / Bad Debt Write-off", TransactionType.ASSET),
-            SubcategoryEntity("Liquid Reserves & Receivables", "General", TransactionType.ASSET)
+            SubcategoryEntity("Liquid Reserves & Receivables", "General", TransactionType.ASSET),
+
+            // ========================================================
+            // CORPORATE (Isolated Company Float)
+            // ========================================================
+            // Work & Professional
+            SubcategoryEntity("Work & Professional", "Work Travel", TransactionType.CORPORATE),
+            SubcategoryEntity("Work & Professional", "Tools & Subscriptions", TransactionType.CORPORATE),
+            SubcategoryEntity("Work & Professional", "Courier & Logistics", TransactionType.CORPORATE),
+            SubcategoryEntity("Work & Professional", "Client Dining & Hospitality", TransactionType.CORPORATE),
+            SubcategoryEntity("Work & Professional", "General", TransactionType.CORPORATE),
+
+            // Reimbursements & Claims
+            SubcategoryEntity("Reimbursements & Claims", "Travel Advances & Claims", TransactionType.CORPORATE),
+            SubcategoryEntity("Reimbursements & Claims", "Reimbursement Claims Settled", TransactionType.CORPORATE),
+            SubcategoryEntity("Reimbursements & Claims", "Vendor Reimbursements", TransactionType.CORPORATE),
+            SubcategoryEntity("Reimbursements & Claims", "General", TransactionType.CORPORATE)
         )
     }
 }
