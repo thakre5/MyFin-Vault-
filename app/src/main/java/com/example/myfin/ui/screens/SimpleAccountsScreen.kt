@@ -239,7 +239,7 @@ fun SimpleAccountsScreen(
                 contentPadding = PaddingValues(top = 8.dp, bottom = 125.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Overview Liquidity Card (Vault-Style Gradient Shell)
+                // Overview Liquidity Card
                 item(key = "overview_liquidity_card") {
                     Surface(
                         modifier = Modifier
@@ -431,7 +431,6 @@ fun SimpleAccountsScreen(
                         val effectiveBal = account.currentBalance - pendingBillsForAccount
                         val isMabBreached = account.minBalance > 0.0 && effectiveBal < account.minBalance
 
-                        // Physical Card Matching VaultStrategyScreen Styling
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -455,7 +454,6 @@ fun SimpleAccountsScreen(
                                     )
                                     .padding(16.dp)
                             ) {
-                                // Top Row: Tier Icon Box + Status Badges + Edit Button
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -503,6 +501,8 @@ fun SimpleAccountsScreen(
                                                 fontSize = 9.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = tier.color,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }
@@ -525,7 +525,6 @@ fun SimpleAccountsScreen(
 
                                 Spacer(modifier = Modifier.height(12.dp))
 
-                                // Account Name & Masked Digits
                                 Text(
                                     text = account.accountName,
                                     fontWeight = FontWeight.Bold,
@@ -548,7 +547,7 @@ fun SimpleAccountsScreen(
 
                                     if (account.minBalance > 0.0) {
                                         Text(
-                                            text = "MAB: ${userProfile.currencySymbol}${account.minBalance.toInt()}",
+                                            text = "MAB: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", account.minBalance)}",
                                             fontSize = 10.sp,
                                             color = if (isMabBreached) SoftRed else TextMuted,
                                             fontWeight = if (isMabBreached) FontWeight.Bold else FontWeight.Normal
@@ -558,7 +557,6 @@ fun SimpleAccountsScreen(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Balance Row & Auxiliary Stats
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -568,7 +566,8 @@ fun SimpleAccountsScreen(
                                         text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", account.currentBalance)}",
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Black,
-                                        color = if (account.currentBalance >= 0) TextDark else SoftRed
+                                        color = if (account.currentBalance >= 0) TextDark else SoftRed,
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
 
                                     Row(
@@ -668,7 +667,7 @@ fun SimpleAccountsScreen(
                     NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
                     NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.REPORTS_ANALYTICS -> onNavigateToVaultAnalytics()
-                    NavigationTarget.VAULT_ACCOUNTS -> { /* Active */ }
+                    NavigationTarget.VAULT_ACCOUNTS -> {}
                     else -> {}
                 }
             },
@@ -791,7 +790,6 @@ fun SimpleAccountsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Archive Status Toggle
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -822,7 +820,7 @@ fun SimpleAccountsScreen(
                                 pendingEditConfirmation = SimplePendingEditConfirmation(
                                     originalAccount = acc,
                                     updatedName = nameText.trim().uppercase(),
-                                    updatedType = typeText.trim(),
+                                    updatedType = typeText.trim().ifBlank { "Operating" },
                                     targetBalance = targetBal,
                                     minBalance = minBal,
                                     isArchived = isArchivedState
@@ -841,7 +839,7 @@ fun SimpleAccountsScreen(
             }
         }
 
-        // Confirmation Modal Before Applying Changes
+        // Confirmation Modal
         pendingEditConfirmation?.let { conf ->
             val isNameChanged = !conf.originalAccount.accountName.equals(conf.updatedName, ignoreCase = true)
             val isTypeChanged = !conf.originalAccount.accountType.equals(conf.updatedType, ignoreCase = true)
@@ -865,7 +863,7 @@ fun SimpleAccountsScreen(
                             Text("• Balance Adjustment: ${if (diff > 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", diff)}")
                         }
                         if (isMabChanged) {
-                            Text("• Minimum Balance (MAB): ${userProfile.currencySymbol}${conf.minBalance.toInt()}")
+                            Text("• Minimum Balance (MAB): ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", conf.minBalance)}")
                         }
                         if (isArchiveChanged) {
                             Text("• Archive Status: ${if (conf.isArchived) "Archived" else "Active"}")
@@ -883,7 +881,7 @@ fun SimpleAccountsScreen(
                                 oldName = orig.accountName,
                                 newName = conf.updatedName,
                                 startingBalance = orig.startingBalance,
-                                accountType = conf.updatedType,
+                                accountType = conf.updatedType.ifBlank { "Operating" },
                                 minBalance = conf.minBalance,
                                 isArchived = conf.isArchived,
                                 sortOrder = orig.sortOrder
@@ -911,7 +909,7 @@ fun SimpleAccountsScreen(
             )
         }
 
-        // Reorder Accounts Bottom Sheet
+        // Reorder Accounts Sheet
         if (showReorderSheet) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             var reorderedList by remember(displayAccounts) { mutableStateOf(displayAccounts) }
@@ -1195,7 +1193,7 @@ fun SimpleAccountsScreen(
                                 viewModel.addAccount(
                                     name = name.trim().uppercase(),
                                     startingBalance = bal,
-                                    type = type.trim(),
+                                    type = type.trim().ifBlank { "Operating" },
                                     minBalance = minBal
                                 )
                                 showAddAccountSheet = false
