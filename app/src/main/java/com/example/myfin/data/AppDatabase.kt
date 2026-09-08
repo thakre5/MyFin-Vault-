@@ -63,17 +63,31 @@ abstract class AppDatabase : RoomDatabase() {
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
-                            // Seed default categories
+                            seedMasterTaxonomy(db)
+                        }
+
+                        override fun onOpen(db: SupportSQLiteDatabase) {
+                            super.onOpen(db)
+                            // Ensures newly added master categories & subcategories (e.g. CORPORATE)
+                            // are automatically available in existing databases without wiping data
+                            seedMasterTaxonomy(db)
+                        }
+
+                        private fun seedMasterTaxonomy(db: SupportSQLiteDatabase) {
                             db.beginTransaction()
                             try {
                                 CategoryEntity.defaultCategories.forEach { category ->
                                     val catNameEscaped = category.name.replace("'", "''")
-                                    db.execSQL("INSERT OR IGNORE INTO categories (name, type) VALUES ('$catNameEscaped', '${category.type.name}')")
+                                    db.execSQL(
+                                        "INSERT OR IGNORE INTO categories (name, type) VALUES ('$catNameEscaped', '${category.type.name}')"
+                                    )
                                 }
                                 SubcategoryEntity.defaultSubcategories.forEach { subcategory ->
                                     val parentEscaped = subcategory.parentCategory.replace("'", "''")
                                     val subNameEscaped = subcategory.name.replace("'", "''")
-                                    db.execSQL("INSERT OR IGNORE INTO subcategories (parentCategory, name, type) VALUES ('$parentEscaped', '$subNameEscaped', '${subcategory.type.name}')")
+                                    db.execSQL(
+                                        "INSERT OR IGNORE INTO subcategories (parentCategory, name, type) VALUES ('$parentEscaped', '$subNameEscaped', '${subcategory.type.name}')"
+                                    )
                                 }
                                 db.setTransactionSuccessful()
                             } finally {
