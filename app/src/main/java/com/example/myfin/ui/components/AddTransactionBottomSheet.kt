@@ -1,5 +1,6 @@
 package com.example.myfin.ui.components
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,12 +15,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -57,6 +60,7 @@ fun AddTransactionBottomSheet(
         dueDay: Int?
     ) -> Unit
 ) {
+    val context = LocalContext.current
     val isEditing = editingTransaction != null
     var selectedType by remember { mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE) }
 
@@ -91,9 +95,13 @@ fun AddTransactionBottomSheet(
         )
     }
 
-    var selectedToAccount by remember(accountList) {
+    var selectedAccount by remember(accountList) {
+        mutableStateOf(editingTransaction?.accountName ?: accountList.firstOrNull().orEmpty())
+    }
+
+    var selectedToAccount by remember(accountList, selectedAccount) {
         mutableStateOf(
-            editingTransaction?.toAccountName ?: accountList.getOrNull(1) ?: accountList.firstOrNull().orEmpty()
+            editingTransaction?.toAccountName ?: accountList.firstOrNull { !it.equals(selectedAccount, ignoreCase = true) } ?: accountList.firstOrNull().orEmpty()
         )
     }
 
@@ -122,27 +130,24 @@ fun AddTransactionBottomSheet(
         }
     }
 
-    var selectedAccount by remember(accountList) {
-        mutableStateOf(editingTransaction?.accountName ?: accountList.firstOrNull().orEmpty())
-    }
-
     val availableCategories = remember(masterCategories, selectedType) {
         masterCategories.filter { it.type == selectedType }.map { it.name }
     }
     var selectedCategory by remember(availableCategories) {
-        mutableStateOf(editingTransaction?.category ?: availableCategories.firstOrNull().orEmpty())
+        mutableStateOf(editingTransaction?.category ?: availableCategories.firstOrNull() ?: "General")
     }
 
     val availableSubcategories = remember(masterSubcategories, selectedCategory) {
         masterSubcategories.filter { it.parentCategory == selectedCategory }.map { it.name }
     }
     var selectedSubcategory by remember(availableSubcategories) {
-        mutableStateOf(editingTransaction?.subcategory ?: availableSubcategories.firstOrNull().orEmpty())
+        mutableStateOf(editingTransaction?.subcategory ?: availableSubcategories.firstOrNull() ?: "General")
     }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
-    val isInputValid = parsedAmount > 0.0 && selectedAccount.isNotBlank()
+    val isSelfTransfer = selectedType == TransactionType.TRANSFER && selectedAccount.isNotBlank() && selectedToAccount.isNotBlank() && selectedAccount.equals(selectedToAccount, ignoreCase = true)
+    val isInputValid = parsedAmount > 0.0 && selectedAccount.isNotBlank() && !isSelfTransfer
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -210,9 +215,9 @@ fun AddTransactionBottomSheet(
                                 selectedType = type
                                 if (type != TransactionType.TRANSFER) {
                                     val cats = masterCategories.filter { it.type == type }.map { it.name }
-                                    selectedCategory = cats.firstOrNull().orEmpty()
+                                    selectedCategory = cats.firstOrNull() ?: "General"
                                     val subs = masterSubcategories.filter { it.parentCategory == selectedCategory }.map { it.name }
-                                    selectedSubcategory = subs.firstOrNull().orEmpty()
+                                    selectedSubcategory = subs.firstOrNull() ?: "General"
                                 }
                             }
                             .padding(vertical = 8.dp),
@@ -399,7 +404,7 @@ fun AddTransactionBottomSheet(
             } else {
                 Spacer(modifier = Modifier.height(14.dp))
 
-                Text("Category (Most Used First)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                Text("Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(availableCategories.ifEmpty { listOf("General") }) { cat ->
@@ -409,7 +414,7 @@ fun AddTransactionBottomSheet(
                             onClick = {
                                 selectedCategory = cat
                                 val subs = masterSubcategories.filter { it.parentCategory == cat }.map { it.name }
-                                selectedSubcategory = subs.firstOrNull().orEmpty()
+                                selectedSubcategory = subs.firstOrNull() ?: "General"
                             },
                             label = { Text(cat, fontSize = 11.5.sp) },
                             shape = RoundedCornerShape(8.dp),
@@ -425,7 +430,7 @@ fun AddTransactionBottomSheet(
 
                 if (availableSubcategories.isNotEmpty()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Subcategory (Most Used First)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                        Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("(Primary Identification)", fontSize = 9.5.sp, color = TextMuted.copy(alpha = 0.7f))
                     }
@@ -451,7 +456,7 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Vault Account (Most Used First)",
+                text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Vault Account",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextMuted
@@ -459,10 +464,15 @@ fun AddTransactionBottomSheet(
             Spacer(modifier = Modifier.height(6.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(accountList) { acc ->
-                    val isSelected = selectedAccount == acc
+                    val isSelected = selectedAccount.equals(acc, ignoreCase = true)
                     FilterChip(
                         selected = isSelected,
-                        onClick = { selectedAccount = acc },
+                        onClick = {
+                            selectedAccount = acc
+                            if (selectedToAccount.equals(acc, ignoreCase = true)) {
+                                selectedToAccount = accountList.firstOrNull { !it.equals(acc, ignoreCase = true) }.orEmpty()
+                            }
+                        },
                         label = { Text(acc, fontSize = 11.5.sp) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
@@ -478,8 +488,8 @@ fun AddTransactionBottomSheet(
                 Text("Destination Vault (To)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(accountList.filter { it != selectedAccount }) { acc ->
-                        val isSelected = selectedToAccount == acc
+                    items(accountList.filter { !it.equals(selectedAccount, ignoreCase = true) }) { acc ->
+                        val isSelected = selectedToAccount.equals(acc, ignoreCase = true)
                         FilterChip(
                             selected = isSelected,
                             onClick = { selectedToAccount = acc },
@@ -490,6 +500,15 @@ fun AddTransactionBottomSheet(
                                 selectedLabelColor = SoftTeal
                             )
                         )
+                    }
+                }
+
+                if (isSelfTransfer) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = SoftRed, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Source and destination vaults must be distinct.", fontSize = 10.5.sp, color = SoftRed, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -616,6 +635,9 @@ fun AddTransactionBottomSheet(
                             parsedDueDay
                         )
                         onDismiss()
+                    } else {
+                        val msg = if (isSelfTransfer) "Source and destination vaults must be distinct." else "Please enter a valid amount > 0"
+                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                     }
                 },
                 enabled = isInputValid,
