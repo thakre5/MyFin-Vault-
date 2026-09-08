@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.CategoryEntity
@@ -137,11 +138,25 @@ fun AddTransactionBottomSheet(
         mutableStateOf(editingTransaction?.category ?: availableCategories.firstOrNull() ?: "General")
     }
 
-    val availableSubcategories = remember(masterSubcategories, selectedCategory) {
-        masterSubcategories.filter { it.parentCategory == selectedCategory }.map { it.name }
+    LaunchedEffect(selectedType) {
+        if (selectedType != TransactionType.TRANSFER) {
+            if (availableCategories.isNotEmpty() && selectedCategory !in availableCategories) {
+                selectedCategory = availableCategories.firstOrNull() ?: "General"
+            }
+        }
+    }
+
+    val availableSubcategories = remember(masterSubcategories, selectedCategory, selectedType) {
+        masterSubcategories.filter { it.parentCategory == selectedCategory && it.type == selectedType }.map { it.name }
     }
     var selectedSubcategory by remember(availableSubcategories) {
         mutableStateOf(editingTransaction?.subcategory ?: availableSubcategories.firstOrNull() ?: "General")
+    }
+
+    LaunchedEffect(availableSubcategories) {
+        if (availableSubcategories.isNotEmpty() && selectedSubcategory !in availableSubcategories) {
+            selectedSubcategory = availableSubcategories.firstOrNull() ?: "General"
+        }
     }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -192,6 +207,7 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // 5-Way Segment Switcher
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -202,7 +218,8 @@ fun AddTransactionBottomSheet(
                 listOf(
                     TransactionType.EXPENSE to "Expense",
                     TransactionType.INCOME to "Income",
-                    TransactionType.ASSET to "Asset / SIP",
+                    TransactionType.ASSET to "Asset",
+                    TransactionType.CORPORATE to "Corporate",
                     TransactionType.TRANSFER to "Transfer"
                 ).forEach { (type, label) ->
                     val isSelected = selectedType == type
@@ -216,7 +233,7 @@ fun AddTransactionBottomSheet(
                                 if (type != TransactionType.TRANSFER) {
                                     val cats = masterCategories.filter { it.type == type }.map { it.name }
                                     selectedCategory = cats.firstOrNull() ?: "General"
-                                    val subs = masterSubcategories.filter { it.parentCategory == selectedCategory }.map { it.name }
+                                    val subs = masterSubcategories.filter { it.parentCategory == selectedCategory && it.type == type }.map { it.name }
                                     selectedSubcategory = subs.firstOrNull() ?: "General"
                                 }
                             }
@@ -226,15 +243,18 @@ fun AddTransactionBottomSheet(
                         Text(
                             text = label,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 11.5.sp,
+                            fontSize = 10.5.sp,
                             color = if (isSelected) {
                                 when (type) {
                                     TransactionType.EXPENSE -> SoftRed
                                     TransactionType.INCOME -> SoftGreen
                                     TransactionType.ASSET -> SoftTeal
+                                    TransactionType.CORPORATE -> Color(0xFFE57A28)
                                     TransactionType.TRANSFER -> AccentPurple
                                 }
-                            } else TextMuted
+                            } else TextMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -269,7 +289,7 @@ fun AddTransactionBottomSheet(
                 placeholder = {
                     Text(
                         if (selectedType == TransactionType.TRANSFER) "e.g., Emergency Reserve"
-                        else selectedSubcategory.ifBlank { "e.g., Grocery Store" }
+                        else selectedSubcategory.ifBlank { "e.g., Flight Ticket, Courier" }
                     )
                 },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
@@ -413,7 +433,7 @@ fun AddTransactionBottomSheet(
                             selected = isSelected,
                             onClick = {
                                 selectedCategory = cat
-                                val subs = masterSubcategories.filter { it.parentCategory == cat }.map { it.name }
+                                val subs = masterSubcategories.filter { it.parentCategory == cat && it.type == selectedType }.map { it.name }
                                 selectedSubcategory = subs.firstOrNull() ?: "General"
                             },
                             label = { Text(cat, fontSize = 11.5.sp) },
