@@ -222,7 +222,6 @@ class BudgetViewModel(
     val filterCriteria = MutableStateFlow(FilterCriteria())
     val isAppUnlocked = MutableStateFlow(false)
 
-    // Automated month-end rollover banner state
     val showRolloverBanner = MutableStateFlow(false)
     val rolloverBannerMessage = MutableStateFlow("")
 
@@ -287,26 +286,46 @@ class BudgetViewModel(
             val (plans, masterCats, masterSubcats) = metaData
             val (isBannerVisible, bannerMsg) = bannerInfo
 
-            val categoryUsage = allTimeTxs.groupingBy { it.category }.eachCount()
-            val subcategoryUsage = allTimeTxs.groupingBy { it.subcategory }.eachCount()
-            val accountUsage = allTimeTxs.groupingBy { it.accountName }.eachCount()
+            // 1. DYNAMIC RECENT-HABITS FREQUENCY ENGINE (LAST 90 DAYS WEIGHTED)
+            val ninetyDaysAgo = System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000L
+
+            val categoryScores = mutableMapOf<String, Int>()
+            val subcategoryScores = mutableMapOf<String, Int>()
+            val accountScores = mutableMapOf<String, Int>()
+
+            allTimeTxs.forEach { tx ->
+                val weight = if (tx.date >= ninetyDaysAgo) 3 else 1
+                categoryScores[tx.category] = (categoryScores[tx.category] ?: 0) + weight
+
+                // Compound key to eliminate name collision across different parent categories
+                val subKey = "${tx.category.trim().lowercase()}:::${tx.subcategory.trim().lowercase()}"
+                subcategoryScores[subKey] = (subcategoryScores[subKey] ?: 0) + weight
+
+                accountScores[tx.accountName] = (accountScores[tx.accountName] ?: 0) + weight
+                if (!tx.toAccountName.isNullOrBlank()) {
+                    accountScores[tx.toAccountName] = (accountScores[tx.toAccountName] ?: 0) + weight
+                }
+            }
 
             val sortedMasterCats = masterCats.sortedWith(
-                compareByDescending<CategoryEntity> { categoryUsage[it.name] ?: 0 }
+                compareByDescending<CategoryEntity> { categoryScores[it.name] ?: 0 }
                     .thenBy { it.name }
             )
 
             val sortedMasterSubcats = masterSubcats.sortedWith(
-                compareByDescending<SubcategoryEntity> { subcategoryUsage[it.name] ?: 0 }
-                    .thenBy { it.name }
+                compareByDescending<SubcategoryEntity> {
+                    subcategoryScores["${it.parentCategory.trim().lowercase()}:::${it.name.trim().lowercase()}"] ?: 0
+                }.thenBy { it.name }
             )
 
-            val activeAccounts = allAccounts.filter { !it.isArchived }
-            val archivedAccounts = allAccounts.filter { it.isArchived }
-            val sortedActiveAccounts = activeAccounts.sortedWith(
-                compareByDescending<AccountBalanceResult> { accountUsage[it.accountName] ?: 0 }
+            // 2. DASHBOARD ACCOUNTS PRESERVE DRAG-AND-DROP ORDER, QUICK-PICK CHIPS USE USAGE SCORE
+            val activeAccounts = allAccounts.filter { !it.isArchived }.sortedBy { it.sortOrder }
+            val archivedAccounts = allAccounts.filter { it.isArchived }.sortedBy { it.sortOrder }
+
+            val frequentAccounts = activeAccounts.sortedWith(
+                compareByDescending<AccountBalanceResult> { accountScores[it.accountName] ?: 0 }
                     .thenBy { it.sortOrder }
-            )
+            ).map { it.accountName }
 
             val regularTxs = transactions.filter { it.type != TransactionType.TRANSFER }
 
@@ -314,7 +333,7 @@ class BudgetViewModel(
             val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
             val actualAssets = regularTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
 
-            // 1. LEAK-PROOF TAXONOMY & CAPITAL CLASSIFICATION LAMBDAS
+            // 3. LEAK-PROOF TAXONOMY & CAPITAL CLASSIFICATION LAMBDAS
             val isLoanRepayment = { tx: TransactionEntity ->
                 tx.type == TransactionType.INCOME &&
                 (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
@@ -364,7 +383,7 @@ class BudgetViewModel(
             val workExpenses = regularTxs.filter(isWorkExpense).sumOf { it.amount }
             val corporateReimbursements = regularTxs.filter(isCorporateReimbursement).sumOf { it.amount }
 
-            // 2. ALL-TIME CUMULATIVE FLOAT ENGINE
+            // 4. ALL-TIME CUMULATIVE FLOAT ENGINE
             val allTimeWorkExpenses = allTimeTxs.filter(isWorkExpense).sumOf { it.amount }
             val allTimeClaimsReceived = allTimeTxs.filter(isCorporateReimbursement).sumOf { it.amount }
             val cumulativePending = (allTimeWorkExpenses - allTimeClaimsReceived).coerceAtLeast(0.0)
@@ -383,7 +402,7 @@ class BudgetViewModel(
                 excessAdvanceHeld = excessAdvanceHeld
             )
 
-            // 3. ASSET & SAVINGS SUBCATEGORY CLASSIFICATION
+            // 5. ASSET & SAVINGS SUBCATEGORY CLASSIFICATION
             val isLoanGiven = { tx: TransactionEntity ->
                 tx.type == TransactionType.ASSET &&
                 (tx.subcategory.contains("Personal Loans", ignoreCase = true) ||
@@ -403,7 +422,7 @@ class BudgetViewModel(
 
             val actualSavingsAndInvestments = regularTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
 
-            // 4. CATEGORY PERFORMANCE & BUDGET MATRIX ENGINE
+            // 6. CATEGORY PERFORMANCE & BUDGET MATRIX ENGINE
             val allCategoryNames = (sortedMasterCats.map { it.name to it.type } +
                     plans.map { it.category to it.type } +
                     fixedBills.map { it.category to it.type } +
@@ -464,7 +483,7 @@ class BudgetViewModel(
             val plannedExpenses = matrixList.filter { it.type == TransactionType.EXPENSE && !it.isReimbursableFloat }.sumOf { it.plannedAmount }
             val plannedAssets = matrixList.filter { it.type == TransactionType.ASSET }.sumOf { it.plannedAmount }
 
-            // 5. RECURRING COMMITMENTS ENGINE (EXPENSE + TRANSFER)
+            // 7. RECURRING COMMITMENTS ENGINE (EXPENSE + TRANSFER)
             val allFixedCommitments = fixedBills.filter {
                 it.type == TransactionType.EXPENSE || it.type == TransactionType.TRANSFER
             }
@@ -480,7 +499,7 @@ class BudgetViewModel(
                 else -> 0.0
             }
 
-            // 6. SAFE-TO-SPEND ENGINE
+            // 8. SAFE-TO-SPEND ENGINE
             val personalDiscretionaryExpenses = regularTxs.filter { tx ->
                 tx.type == TransactionType.EXPENSE &&
                 tx.linkedFixedBillId == null &&
@@ -496,7 +515,7 @@ class BudgetViewModel(
                 acc.accountName.contains("TERTIARY", ignoreCase = true)
             }
 
-            val liquidPoolAccounts = sortedActiveAccounts.filter { !isFortressAccount(it) }
+            val liquidPoolAccounts = activeAccounts.filter { !isFortressAccount(it) }
 
             val liquidOperatingCash = liquidPoolAccounts.sumOf {
                 it.currentBalance - it.minBalance
@@ -519,9 +538,9 @@ class BudgetViewModel(
             val totalVault = allAccounts.sumOf { it.currentBalance }
             val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
 
-            // 7. MULTI-ACCOUNT COMMITMENTS SHORTFALL ENGINE
+            // 9. MULTI-ACCOUNT COMMITMENTS SHORTFALL ENGINE
             val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
-            val commitmentAccounts = sortedActiveAccounts.filter {
+            val commitmentAccounts = activeAccounts.filter {
                 it.accountType.equals("Commitments", ignoreCase = true)
             }
 
@@ -574,7 +593,7 @@ class BudgetViewModel(
                 affectedAccountsCount = affectedAccountNames.size
             )
 
-            // 8. PAYDAY ALLOCATION & DYNAMIC MONTH-END SWEEP ENGINES
+            // 10. PAYDAY ALLOCATION & DYNAMIC MONTH-END SWEEP ENGINES
             val todayCal = Calendar.getInstance()
             val currentDay = todayCal.get(Calendar.DAY_OF_MONTH)
             val totalDaysInCurrentMonth = todayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
@@ -643,7 +662,7 @@ class BudgetViewModel(
 
             val isMonthEndWindow = currentDay >= 28 && isCurrentSystemMonth
 
-            val operatingAccountsList = sortedActiveAccounts.filter {
+            val operatingAccountsList = activeAccounts.filter {
                 it.accountType.equals("Operating", ignoreCase = true) ||
                 it.accountType.equals("Cash", ignoreCase = true) ||
                 it.accountName.contains("OPERATING", ignoreCase = true) ||
@@ -729,7 +748,7 @@ class BudgetViewModel(
                     personalIncome = personalIncome
                 ),
                 accounts = allAccounts,
-                activeAccounts = sortedActiveAccounts,
+                activeAccounts = activeAccounts,
                 archivedAccounts = archivedAccounts,
                 fixedBills = fixedBills,
                 categories = matrixList,
@@ -743,7 +762,7 @@ class BudgetViewModel(
                 reimbursementStatus = monthReimbursementStatus,
                 frequentCategories = sortedMasterCats,
                 frequentSubcategories = sortedMasterSubcats,
-                frequentAccounts = sortedActiveAccounts.map { it.accountName },
+                frequentAccounts = frequentAccounts,
                 isRolloverBannerVisible = isBannerVisible,
                 rolloverBannerMessage = bannerMsg
             )
@@ -1054,7 +1073,6 @@ class BudgetViewModel(
             val day = nowCal.get(Calendar.DAY_OF_MONTH)
             val maxDayInMonth = nowCal.getActualMaximum(Calendar.DAY_OF_MONTH)
 
-            // Activates in the month-end window (day 28 to last day of month)
             if (day >= 28 || day == maxDayInMonth) {
                 val nextMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, 1) }
                 val nMonth = nextMonthCal.get(Calendar.MONTH) + 1
@@ -1860,7 +1878,6 @@ class BudgetViewModel(
         }
     }
 
-    // Cascades deletion forward to all future unpaid instances so cancelled subscriptions never resurrect
     fun deleteFixedBill(bill: FixedBillEntity, cascadeFuture: Boolean = true) {
         viewModelScope.launch(Dispatchers.IO) {
             dao.deleteFixedBill(bill)
@@ -2388,7 +2405,6 @@ class BudgetViewModel(
         }
     }
 
-    // Bill signature strictly omits amount so fluctuating variable bills never duplicate
     private fun getBillSignature(b: FixedBillEntity): String {
         val cleanCat = b.category.trim().lowercase()
         val cleanSubcat = b.subcategory.trim().lowercase()
