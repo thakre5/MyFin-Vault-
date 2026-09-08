@@ -36,7 +36,6 @@ import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
 import com.example.myfin.data.TransactionType
-import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AccountTransferDialog
 import com.example.myfin.ui.components.AppBottomDock
@@ -55,6 +54,24 @@ data class SimplePendingEditConfirmation(
     val minBalance: Double,
     val isArchived: Boolean = false
 )
+
+private fun getAccountTier(accountType: String, accountName: String): VaultTier {
+    return when {
+        accountType.equals("Operating", ignoreCase = true) -> VaultTier.OPERATING
+        accountType.equals("Commitments", ignoreCase = true) -> VaultTier.COMMITMENTS
+        accountType.equals("Fortress", ignoreCase = true) -> VaultTier.FORTRESS
+        accountType.equals("Cash", ignoreCase = true) -> VaultTier.CASH
+        else -> {
+            val name = accountName.uppercase()
+            when {
+                name.contains("CASH") || name.contains("WALLET") -> VaultTier.CASH
+                name.contains("COMMITMENT") || name.contains("BILL") || name.contains("BOM") || name.contains("EMI") -> VaultTier.COMMITMENTS
+                name.contains("FORTRESS") || name.contains("EMERGENCY") || name.contains("FD") || name.contains("RESERVE") || name.contains("INDUSIND") -> VaultTier.FORTRESS
+                else -> VaultTier.OPERATING
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,7 +109,6 @@ fun SimpleAccountsScreen(
     val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
     val totalLiquidBalance = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
 
-    // Active cycle flows aligned with monthly accounting
     val monthInflow = uiState.metrics.actualIncome
     val monthOutflow = uiState.metrics.actualExpenses + uiState.metrics.actualAssets
 
@@ -122,7 +138,7 @@ fun SimpleAccountsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // Header Bar
+            // Top Navigation Bar
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -223,7 +239,7 @@ fun SimpleAccountsScreen(
                 contentPadding = PaddingValues(top = 8.dp, bottom = 125.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Overview Liquidity Card
+                // Overview Liquidity Card (Vault-Style Gradient Shell)
                 item(key = "overview_liquidity_card") {
                     Surface(
                         modifier = Modifier
@@ -231,7 +247,7 @@ fun SimpleAccountsScreen(
                             .shadow(3.dp, RoundedCornerShape(22.dp)),
                         shape = RoundedCornerShape(22.dp),
                         color = CardWhite,
-                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.18f))
+                        border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.20f))
                     ) {
                         Column(
                             modifier = Modifier
@@ -397,113 +413,187 @@ fun SimpleAccountsScreen(
                     }
                 } else {
                     items(displayAccounts, key = { it.accountName }) { account ->
+                        val tier = getAccountTier(account.accountType, account.accountName)
+                        val maskedDigits = remember(account.accountName) {
+                            val safeHash = abs(account.accountName.hashCode().toLong())
+                            String.format(Locale.US, "%04d", safeHash % 9000 + 1000)
+                        }
+
                         val pendingBillsForAccount = remember(uiState.fixedBills, account.accountName) {
                             uiState.fixedBills.filter {
-                                !it.isPaid && it.type != TransactionType.INCOME &&
+                                !it.isPaid &&
+                                it.type != TransactionType.INCOME &&
+                                !(it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
                                 it.accountName.equals(account.accountName, ignoreCase = true)
                             }.sumOf { it.amount }
                         }
+
                         val effectiveBal = account.currentBalance - pendingBillsForAccount
                         val isMabBreached = account.minBalance > 0.0 && effectiveBal < account.minBalance
 
+                        // Physical Card Matching VaultStrategyScreen Styling
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .shadow(2.dp, RoundedCornerShape(16.dp)),
-                            shape = RoundedCornerShape(16.dp),
+                                .shadow(2.dp, RoundedCornerShape(20.dp)),
+                            shape = RoundedCornerShape(20.dp),
                             color = CardWhite,
-                            border = BorderStroke(0.8.dp, if (isMabBreached) SoftRed.copy(alpha = 0.5f) else BorderLight.copy(alpha = 0.8f))
+                            border = BorderStroke(
+                                width = if (isMabBreached) 1.dp else 0.8.dp,
+                                color = if (isMabBreached) SoftRed else BorderLight.copy(alpha = 0.7f)
+                            )
                         ) {
-                            Row(
+                            Column(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Surface(
-                                        modifier = Modifier.size(42.dp),
-                                        shape = CircleShape,
-                                        color = AccentPurple.copy(alpha = 0.12f)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = if (account.accountName.contains("CASH", ignoreCase = true) || account.accountType.equals("Cash", ignoreCase = true)) Icons.Default.Payments else Icons.Default.AccountBalance,
-                                                contentDescription = null,
-                                                tint = AccentPurple,
-                                                modifier = Modifier.size(20.dp)
+                                    .background(
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                tier.bgTint.copy(alpha = 0.45f),
+                                                CardWhite
                                             )
-                                        }
+                                        )
+                                    )
+                                    .padding(16.dp)
+                            ) {
+                                // Top Row: Tier Icon Box + Status Badges + Edit Button
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .background(tier.bgTint),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = tier.icon,
+                                            contentDescription = null,
+                                            tint = tier.color,
+                                            modifier = Modifier.size(19.dp)
+                                        )
                                     }
 
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    Column {
-                                        Text(
-                                            text = account.accountName,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp,
-                                            color = TextDark,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (isMabBreached) {
                                             Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = CanvasLight
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = SoftRed.copy(alpha = 0.15f),
+                                                border = BorderStroke(0.6.dp, SoftRed.copy(alpha = 0.4f))
                                             ) {
                                                 Text(
-                                                    text = account.accountType,
-                                                    fontSize = 9.5.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = TextMuted,
-                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                    text = "! MAB",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    color = SoftRed,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                                 )
                                             }
-                                            if (account.minBalance > 0.0) {
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(
-                                                    text = if (isMabBreached) "! MAB Risk: ${userProfile.currencySymbol}${account.minBalance.toInt()}" else "MAB: ${userProfile.currencySymbol}${account.minBalance.toInt()}",
-                                                    fontSize = 9.5.sp,
-                                                    color = if (isMabBreached) SoftRed else AccentPurple,
-                                                    fontWeight = if (isMabBreached) FontWeight.Bold else FontWeight.Medium
-                                                )
-                                            }
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = tier.color.copy(alpha = 0.14f)
+                                        ) {
+                                            Text(
+                                                text = account.accountType.ifBlank { tier.title },
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = tier.color,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(6.dp))
+
+                                        IconButton(
+                                            onClick = { editingAccount = account },
+                                            modifier = Modifier.size(26.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Edit,
+                                                contentDescription = "Edit Account",
+                                                tint = TextMuted,
+                                                modifier = Modifier.size(16.dp)
+                                            )
                                         }
                                     }
                                 }
 
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Column(horizontalAlignment = Alignment.End) {
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Account Name & Masked Digits
+                                Text(
+                                    text = account.accountName,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = TextDark,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "•••• $maskedDigits",
+                                        fontSize = 11.sp,
+                                        color = TextMuted
+                                    )
+
+                                    if (account.minBalance > 0.0) {
                                         Text(
-                                            text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", account.currentBalance)}",
-                                            fontWeight = FontWeight.Black,
-                                            fontSize = 15.sp,
-                                            color = if (account.currentBalance >= 0) TextDark else SoftRed
+                                            text = "MAB: ${userProfile.currencySymbol}${account.minBalance.toInt()}",
+                                            fontSize = 10.sp,
+                                            color = if (isMabBreached) SoftRed else TextMuted,
+                                            fontWeight = if (isMabBreached) FontWeight.Bold else FontWeight.Normal
                                         )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Balance Row & Auxiliary Stats
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Bottom
+                                ) {
+                                    Text(
+                                        text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", account.currentBalance)}",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (account.currentBalance >= 0) TextDark else SoftRed
+                                    )
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        if (pendingBillsForAccount > 0.0) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = AccentPurple.copy(alpha = 0.10f)
+                                            ) {
+                                                Text(
+                                                    text = "AutoPay: -${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingBillsForAccount)}",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AccentPurple,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+
                                         Text(
                                             text = if (isDiscreetMode) "Base: ••••" else "Base: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", account.startingBalance)}",
                                             fontSize = 10.sp,
                                             color = TextMuted
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(6.dp))
-
-                                    IconButton(
-                                        onClick = { editingAccount = account },
-                                        modifier = Modifier.size(30.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Edit,
-                                            contentDescription = "Edit Account",
-                                            tint = TextMuted,
-                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
@@ -527,14 +617,14 @@ fun SimpleAccountsScreen(
                     items(archivedAccounts, key = { it.accountName }) { acc ->
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(16.dp),
                             color = CardWhite,
                             border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -542,7 +632,7 @@ fun SimpleAccountsScreen(
                                     Text(
                                         text = acc.accountName,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
+                                        fontSize = 13.5.sp,
                                         color = TextMuted
                                     )
                                     Text(
@@ -658,7 +748,7 @@ fun SimpleAccountsScreen(
                     OutlinedTextField(
                         value = typeText,
                         onValueChange = { typeText = it },
-                        label = { Text("Account Type (e.g., Bank, Savings, Cash)", fontSize = 12.sp) },
+                        label = { Text("Account Role / Type (e.g., Operating, Commitments, Fortress, Cash)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -691,7 +781,7 @@ fun SimpleAccountsScreen(
                             val parts = filtered.split('.')
                             minBalanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
                         },
-                        label = { Text("Minimum Balance (MAB)", fontSize = 12.sp) },
+                        label = { Text("Minimum Balance Threshold (MAB)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -768,7 +858,7 @@ fun SimpleAccountsScreen(
                             Text("• Rename: '${conf.originalAccount.accountName}' ➔ '${conf.updatedName}'")
                         }
                         if (isTypeChanged) {
-                            Text("• Type: '${conf.originalAccount.accountType}' ➔ '${conf.updatedType}'")
+                            Text("• Role/Type: '${conf.originalAccount.accountType}' ➔ '${conf.updatedType}'")
                         }
                         if (isBalChanged) {
                             val diff = conf.targetBalance - conf.originalAccount.currentBalance
@@ -971,7 +1061,7 @@ fun SimpleAccountsScreen(
             )
         }
 
-        // Standardized Instant Transfer Bottom Sheet
+        // Instant Transfer Bottom Sheet
         if (showTransferSheet) {
             AccountTransferDialog(
                 accounts = accountNames,
@@ -1011,7 +1101,7 @@ fun SimpleAccountsScreen(
         // Add Account Bottom Sheet
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
-            var type by remember { mutableStateOf("Bank") }
+            var type by remember { mutableStateOf("Operating") }
             var balanceText by remember { mutableStateOf("") }
             var minBalanceText by remember { mutableStateOf("0") }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -1054,7 +1144,7 @@ fun SimpleAccountsScreen(
                     OutlinedTextField(
                         value = type,
                         onValueChange = { type = it },
-                        label = { Text("Account Type (e.g., Bank, Savings, Cash)", fontSize = 12.sp) },
+                        label = { Text("Account Role / Type (e.g., Operating, Commitments, Fortress, Cash)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
