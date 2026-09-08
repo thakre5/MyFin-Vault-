@@ -95,11 +95,9 @@ fun MonthlyScreen(
     var showFilterSheet by remember { mutableStateOf(false) }
     var showMonthPicker by remember { mutableStateOf(false) }
 
-    // Recurring Commitments Filter States
     var hideSettledCommitments by remember { mutableStateOf(false) }
     var selectedCommitmentFilter by remember { mutableStateOf<TransactionType?>(null) }
 
-    // Transaction Details & Editing States
     var viewingTx by remember { mutableStateOf<TransactionEntity?>(null) }
     var editingTx by remember { mutableStateOf<TransactionEntity?>(null) }
     var showAddFixedBill by remember { mutableStateOf(false) }
@@ -278,16 +276,13 @@ fun MonthlyScreen(
                         .height(14.dp)
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(
-                                    CanvasLight,
-                                    CanvasLight.copy(alpha = 0f)
-                                )
+                                colors = listOf(CanvasLight, CanvasLight.copy(alpha = 0f))
                             )
                         )
                 )
             }
 
-            // 2. FULL-SCREEN HORIZONTAL PAGER
+            // 2. HORIZONTAL PAGER
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
@@ -315,7 +310,6 @@ fun MonthlyScreen(
                                             modifier = Modifier.fillMaxWidth(),
                                             verticalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
-                                            // SHORTFALL ALERT BANNER
                                             if (uiState.commitmentsShortfall.isShortfall) {
                                                 val shortfall = uiState.commitmentsShortfall
                                                 Surface(
@@ -382,7 +376,6 @@ fun MonthlyScreen(
                                                 }
                                             }
 
-                                            // AUTOMATED MONTH-END ROLLOVER BANNER
                                             if (uiState.isRolloverBannerVisible) {
                                                 Surface(
                                                     modifier = Modifier
@@ -449,7 +442,6 @@ fun MonthlyScreen(
                                                 }
                                             }
 
-                                            // 3-WAY PAYDAY WATERFALL BANNER
                                             if (showWaterfallPrompt && paydayPlan != null) {
                                                 Surface(
                                                     modifier = Modifier
@@ -544,7 +536,6 @@ fun MonthlyScreen(
                                                 }
                                             }
 
-                                            // MONTH-END WEALTH SWEEP BANNER
                                             if (showMonthEndSweepPrompt && monthEndSweepPlan != null) {
                                                 Surface(
                                                     modifier = Modifier
@@ -634,7 +625,7 @@ fun MonthlyScreen(
                                     }
                                 }
 
-                                // 3. HORIZONTAL CAROUSEL: SAFE TO SPEND & 3-PILLAR TARGET CARDS
+                                // 3. HORIZONTAL CAROUSEL: SAFE TO SPEND, 3-PILLAR TARGET, & FORTRESS EMERGENCY CARDS
                                 item {
                                     LazyRow(
                                         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -880,7 +871,6 @@ fun MonthlyScreen(
                                                         }
                                                     }
 
-                                                    // Shelf 1: Expenses
                                                     Surface(
                                                         shape = RoundedCornerShape(12.dp),
                                                         color = CanvasLight.copy(alpha = 0.6f),
@@ -951,7 +941,6 @@ fun MonthlyScreen(
                                                         }
                                                     }
 
-                                                    // Shelf 2: Income
                                                     Surface(
                                                         shape = RoundedCornerShape(12.dp),
                                                         color = CanvasLight.copy(alpha = 0.6f),
@@ -1022,7 +1011,6 @@ fun MonthlyScreen(
                                                         }
                                                     }
 
-                                                    // Shelf 3: Assets / SIP
                                                     Surface(
                                                         shape = RoundedCornerShape(12.dp),
                                                         color = CanvasLight.copy(alpha = 0.6f),
@@ -1090,6 +1078,157 @@ fun MonthlyScreen(
                                                                 color = SoftTeal,
                                                                 trackColor = SoftTeal.copy(alpha = 0.15f)
                                                             )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Card 3: Fortress Auto-Sweep & Emergency Reservoir
+                                        item {
+                                            val fortressGoal = uiState.fortressTarget
+                                            val currentFds = uiState.fortressFdBalance
+                                            val sweepFloor = userProfile.fortressSweepThreshold
+                                            val progressPct = uiState.fortressProgressPercentage
+                                            val progressFraction = (progressPct / 100f).coerceIn(0f, 1f)
+
+                                            Surface(
+                                                modifier = Modifier
+                                                    .width(320.dp)
+                                                    .height(290.dp)
+                                                    .shadow(3.dp, RoundedCornerShape(22.dp)),
+                                                shape = RoundedCornerShape(22.dp),
+                                                color = CardWhite,
+                                                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .background(
+                                                            Brush.verticalGradient(
+                                                                colors = listOf(
+                                                                    Color(0xFFFFFFFF),
+                                                                    Color(0xFFF7FCFB),
+                                                                    Color(0xFF0D9488).copy(alpha = 0.05f)
+                                                                )
+                                                            )
+                                                        )
+                                                        .padding(16.dp),
+                                                    verticalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Column {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(7.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(Color(0xFF0D9488))
+                                                                )
+                                                                Spacer(modifier = Modifier.width(6.dp))
+                                                                Text(
+                                                                    text = "FORTRESS SAFETY NET & SWEEP",
+                                                                    color = TextMuted,
+                                                                    fontSize = 10.5.sp,
+                                                                    fontWeight = FontWeight.Black,
+                                                                    letterSpacing = 0.7.sp
+                                                                )
+                                                            }
+
+                                                            Surface(
+                                                                shape = RoundedCornerShape(8.dp),
+                                                                color = Color(0xFF0D9488).copy(alpha = 0.12f),
+                                                                border = BorderStroke(0.6.dp, Color(0xFF0D9488).copy(alpha = 0.3f))
+                                                            ) {
+                                                                Text(
+                                                                    text = "$progressPct% Funded",
+                                                                    color = Color(0xFF0D9488),
+                                                                    fontSize = 10.5.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                                                )
+                                                            }
+                                                        }
+
+                                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                                        Text(
+                                                            text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentFds)}",
+                                                            fontSize = 27.sp,
+                                                            fontWeight = FontWeight.Black,
+                                                            color = TextDark,
+                                                            letterSpacing = (-0.5).sp
+                                                        )
+
+                                                        Spacer(modifier = Modifier.height(2.dp))
+
+                                                        Text(
+                                                            text = if (isDiscreetMode) "Emergency Corpus Protected" else "Corpus in Sweep FDs (Goal: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressGoal)})",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Medium,
+                                                            color = TextMuted,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+
+                                                        Spacer(modifier = Modifier.height(14.dp))
+
+                                                        LinearProgressIndicator(
+                                                            progress = { progressFraction },
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .height(6.dp)
+                                                                .clip(RoundedCornerShape(3.dp)),
+                                                            color = Color(0xFF0D9488),
+                                                            trackColor = Color(0xFF0D9488).copy(alpha = 0.15f)
+                                                        )
+                                                    }
+
+                                                    Surface(
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        color = CanvasLight.copy(alpha = 0.7f),
+                                                        border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Column {
+                                                                Text("Liquid Savings Floor", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                                                                Spacer(modifier = Modifier.height(2.dp))
+                                                                Text(
+                                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", sweepFloor)}",
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = TextDark
+                                                                )
+                                                            }
+
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .height(26.dp)
+                                                                    .width(1.dp)
+                                                                    .background(BorderLight.copy(alpha = 0.7f))
+                                                            )
+
+                                                            Column(horizontalAlignment = Alignment.End) {
+                                                                Text("Runway Target", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                                                                Spacer(modifier = Modifier.height(2.dp))
+                                                                Text(
+                                                                    text = "${userProfile.fortressEmergencyMonths} Months Burn",
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = Color(0xFF0D9488)
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -1193,7 +1332,7 @@ fun MonthlyScreen(
                                     Spacer(modifier = Modifier.height(18.dp))
                                 }
 
-                                // 5. Category Matrix Section Header & 4-Way Segment Switcher
+                                // 5. Category Matrix Header & Switcher
                                 item {
                                     Text(text = "Category Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                     Spacer(modifier = Modifier.height(10.dp))
@@ -1259,6 +1398,13 @@ fun MonthlyScreen(
                                         ) {
                                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
                                                 activeMatrix.forEachIndexed { index, cat ->
+                                                    val isLegacy = remember(uiState.masterCategories, cat) {
+                                                        uiState.masterCategories.any { it.name.equals(cat.category, ignoreCase = true) && it.type == cat.type && it.isLegacy }
+                                                    }
+                                                    val isNew = remember(uiState.masterCategories, cat) {
+                                                        uiState.masterCategories.any { it.name.equals(cat.category, ignoreCase = true) && it.type == cat.type && it.isNew }
+                                                    }
+
                                                     CategoryMatrixRow(
                                                         cat = cat,
                                                         isExpanded = expandedCategories[cat.category] ?: false,
@@ -1266,7 +1412,9 @@ fun MonthlyScreen(
                                                             expandedCategories[cat.category] = !(expandedCategories[cat.category] ?: false)
                                                         },
                                                         currencySymbol = userProfile.currencySymbol,
-                                                        isDiscreetMode = isDiscreetMode
+                                                        isDiscreetMode = isDiscreetMode,
+                                                        isLegacy = isLegacy,
+                                                        isNew = isNew
                                                     )
                                                     if (index < activeMatrix.lastIndex) {
                                                         HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
@@ -1814,7 +1962,7 @@ fun MonthlyScreen(
                     NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
                     NavigationTarget.REPORTS_ANALYTICS -> onNavigateToAnalytics()
                     NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
-                    NavigationTarget.MONTHLY_VIEW -> { /* Active */ }
+                    NavigationTarget.MONTHLY_VIEW -> {}
                     else -> {}
                 }
             },
@@ -2596,113 +2744,14 @@ fun MonthlyScreen(
 }
 
 @Composable
-private fun PillarExecutionShelf(
-    title: String,
-    icon: ImageVector,
-    actual: Double,
-    planned: Double,
-    progress: Float,
-    accentColor: Color,
-    statusBadgeText: String,
-    isAlert: Boolean,
-    currencySymbol: String,
-    isDiscreet: Boolean
-) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = CanvasLight.copy(alpha = 0.6f),
-        border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 7.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(accentColor.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = accentColor,
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(7.dp))
-
-                    Text(
-                        text = title,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        color = TextDark
-                    )
-
-                    Spacer(modifier = Modifier.width(5.dp))
-
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = if (isAlert) SoftRed.copy(alpha = 0.12f) else CardWhite,
-                        border = BorderStroke(0.5.dp, if (isAlert) SoftRed.copy(alpha = 0.35f) else BorderLight.copy(alpha = 0.7f))
-                    ) {
-                        Text(
-                            text = statusBadgeText,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isAlert) SoftRed else TextMuted,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                        )
-                    }
-                }
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", actual)}",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 12.5.sp,
-                        color = if (isAlert) SoftRed else TextDark
-                    )
-                    Text(
-                        text = if (isDiscreet) "Target: ••••" else "Target: $currencySymbol${String.format(Locale.US, "%,.0f", planned)}",
-                        fontSize = 9.sp,
-                        color = TextMuted
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                color = if (isAlert) SoftRed else accentColor,
-                trackColor = accentColor.copy(alpha = 0.15f)
-            )
-        }
-    }
-}
-
-@Composable
 private fun CategoryMatrixRow(
     cat: CategoryPerformance,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
     currencySymbol: String,
-    isDiscreetMode: Boolean
+    isDiscreetMode: Boolean,
+    isLegacy: Boolean = false,
+    isNew: Boolean = false
 ) {
     val rotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
@@ -2747,14 +2796,14 @@ private fun CategoryMatrixRow(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(progressColor.copy(alpha = 0.12f)),
+                        .background(if (isLegacy) Color(0xFFFFF3E0) else progressColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = cat.category.take(1).uppercase(),
                         fontWeight = FontWeight.Black,
                         fontSize = 14.sp,
-                        color = progressColor
+                        color = if (isLegacy) Color(0xFFE65100) else progressColor
                     )
                 }
 
@@ -2763,7 +2812,7 @@ private fun CategoryMatrixRow(
                 Column(modifier = Modifier.weight(1f, fill = false)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = cat.category,
@@ -2775,7 +2824,33 @@ private fun CategoryMatrixRow(
                             modifier = Modifier.weight(1f, fill = false)
                         )
 
+                        if (isLegacy) {
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFFFF3E0),
+                                border = BorderStroke(0.6.dp, Color(0xFFFFB74D))
+                            ) {
+                                Text(
+                                    text = "Legacy",
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE65100),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        } else if (isNew) {
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF4CAF50))
+                            )
+                        }
+
                         if (cat.isOverBudget) {
+                            Spacer(modifier = Modifier.width(5.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = SoftRed.copy(alpha = 0.12f),
@@ -2804,7 +2879,9 @@ private fun CategoryMatrixRow(
                             "Exceeded by $currencySymbol${String.format(Locale.US, "%,.0f", abs(remaining))}"
                         }
                     } else {
-                        if (cat.type == TransactionType.CORPORATE) {
+                        if (isLegacy) {
+                            "Retiring next month • Logged: $currencySymbol${String.format(Locale.US, "%,.0f", cat.actualAmount)}"
+                        } else if (cat.type == TransactionType.CORPORATE) {
                             "Logged actual: $currencySymbol${String.format(Locale.US, "%,.0f", cat.actualAmount)}"
                         } else {
                             "No target limit configured"
@@ -2974,70 +3051,5 @@ private fun PillarMetricCard(
                 color = tintColor
             )
         }
-    }
-}
-
-@Composable
-private fun PillarDualBarRow(
-    title: String,
-    planned: Double,
-    actual: Double,
-    currencySymbol: String,
-    progressFraction: Float,
-    barColor: Color,
-    isDiscreet: Boolean,
-    varianceText: String,
-    isAlert: Boolean
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = TextDark)
-                Spacer(modifier = Modifier.width(6.dp))
-                Surface(
-                    shape = RoundedCornerShape(5.dp),
-                    color = if (isAlert) SoftRed.copy(alpha = 0.12f) else CanvasLight
-                ) {
-                    Text(
-                        text = varianceText,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isAlert) SoftRed else TextMuted,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
-                    )
-                }
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = if (isDiscreet) "Plan: ••••" else "Plan: $currencySymbol${String.format(Locale.US, "%,.0f", planned)}",
-                    fontSize = 10.5.sp,
-                    color = TextMuted
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (isDiscreet) "Act: ••••" else "Act: $currencySymbol${String.format(Locale.US, "%,.0f", actual)}",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 12.sp,
-                    color = if (isAlert) SoftRed else barColor
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        LinearProgressIndicator(
-            progress = { progressFraction },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(5.dp)
-                .clip(RoundedCornerShape(2.5.dp)),
-            color = if (isAlert) SoftRed else barColor,
-            trackColor = barColor.copy(alpha = 0.15f)
-        )
     }
 }
