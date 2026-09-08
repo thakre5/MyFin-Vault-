@@ -172,7 +172,12 @@ data class MonthlyUiState(
     val frequentSubcategories: List<SubcategoryEntity> = emptyList(),
     val frequentAccounts: List<String> = emptyList(),
     val isRolloverBannerVisible: Boolean = false,
-    val rolloverBannerMessage: String = ""
+    val rolloverBannerMessage: String = "",
+    val isTaxonomyGracePeriodActive: Boolean = false,
+    val isTaxonomyBannerVisible: Boolean = false,
+    val fortressTarget: Double = 0.0,
+    val fortressFdBalance: Double = 0.0,
+    val fortressProgressPercentage: Int = 0
 ) {
     val categoryBreakdowns: List<CategoryPerformance> get() = categories
     val accountList: List<String> get() = frequentAccounts.ifEmpty { activeAccounts.map { it.accountName } }
@@ -287,7 +292,28 @@ class BudgetViewModel(
             val (plans, masterCats, masterSubcats) = metaData
             val (isBannerVisible, bannerMsg) = bannerInfo
 
-            // 1. DYNAMIC RECENT-HABITS FREQUENCY ENGINE (LAST 90 DAYS WEIGHTED)
+            val todayCal = Calendar.getInstance()
+            val sysMonth = todayCal.get(Calendar.MONTH) + 1
+            val sysYear = todayCal.get(Calendar.YEAR)
+
+            // MASTER TAXONOMY GRACE ENGINE
+            val isGracePeriodActive = (profile.taxonomyGraceYear == sysYear && profile.taxonomyGraceMonth == sysMonth)
+            val isTaxonomyBannerVisible = isGracePeriodActive && !profile.isTaxonomyBannerDismissed
+
+            // Filter out retired legacy categories if grace period has expired
+            val activeTaxonomyCats = if (isGracePeriodActive) {
+                masterCats
+            } else {
+                masterCats.filter { !it.isLegacy }
+            }
+
+            val activeTaxonomySubcats = if (isGracePeriodActive) {
+                masterSubcats
+            } else {
+                masterSubcats.filter { !it.isLegacy }
+            }
+
+            // 1. RECENT-HABITS FREQUENCY ENGINE (LAST 90 DAYS WEIGHTED)
             val ninetyDaysAgo = System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000L
 
             val categoryScores = mutableMapOf<String, Int>()
@@ -307,12 +333,12 @@ class BudgetViewModel(
                 }
             }
 
-            val sortedMasterCats = masterCats.sortedWith(
+            val sortedMasterCats = activeTaxonomyCats.sortedWith(
                 compareByDescending<CategoryEntity> { categoryScores[it.name] ?: 0 }
                     .thenBy { it.name }
             )
 
-            val sortedMasterSubcats = masterSubcats.sortedWith(
+            val sortedMasterSubcats = activeTaxonomySubcats.sortedWith(
                 compareByDescending<SubcategoryEntity> {
                     subcategoryScores["${it.parentCategory.trim().lowercase()}:::${it.name.trim().lowercase()}"] ?: 0
                 }.thenBy { it.name }
@@ -329,12 +355,11 @@ class BudgetViewModel(
 
             val regularTxs = transactions.filter { it.type != TransactionType.TRANSFER }
 
-            // 3. NATIVE FLOW METRICS (SEGREGATED BY FIRST-CLASS ENUM)
+            // 3. FLOW METRICS (SEGREGATED BY ENUM)
             val actualIncome = regularTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
             val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
             val actualAssets = regularTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
 
-            // Dedicated Corporate Float Segregation
             val corporateTxs = regularTxs.filter { it.type == TransactionType.CORPORATE }
             val workExpenses = corporateTxs.filter { !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
             val corporateReimbursements = corporateTxs.filter { it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
@@ -356,7 +381,6 @@ class BudgetViewModel(
                 excessAdvanceHeld = excessAdvanceHeld
             )
 
-            // Personal Inflow Isolation (Passive drawdowns & loan repayments)
             val isLoanRepayment = { tx: TransactionEntity ->
                 tx.type == TransactionType.INCOME &&
                 (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
@@ -385,7 +409,6 @@ class BudgetViewModel(
             val lifestyleExpenses = actualExpenses
             val personalIncome = (actualIncome - nonPersonalInflow).coerceAtLeast(0.0)
 
-            // Asset Classification
             val isLoanGiven = { tx: TransactionEntity ->
                 tx.type == TransactionType.ASSET &&
                 (tx.subcategory.contains("Personal Loans", ignoreCase = true) ||
@@ -405,7 +428,7 @@ class BudgetViewModel(
 
             val actualSavingsAndInvestments = regularTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
 
-            // 4. CLEAN CATEGORY PERFORMANCE & MATRIX ENGINE
+            // 4. CATEGORY MATRIX ENGINE
             val allCategoryNames = (sortedMasterCats.map { it.name to it.type } +
                     plans.map { it.category to it.type } +
                     fixedBills.map { it.category to it.type } +
@@ -468,7 +491,7 @@ class BudgetViewModel(
                 else -> 0.0
             }
 
-            // 6. SAFE-TO-SPEND ENGINE (INHERENTLY IMMUNE TO CORPORATE OUTLAYS)
+            // 6. SAFE-TO-SPEND ENGINE
             val personalDiscretionaryExpenses = regularTxs.filter { tx ->
                 tx.type == TransactionType.EXPENSE && tx.linkedFixedBillId == null
             }.sumOf { it.amount }
@@ -504,7 +527,6 @@ class BudgetViewModel(
             val netSaved = (personalIncome - lifestyleExpenses) - actualSavingsAndInvestments
             val totalVault = allAccounts.sumOf { it.currentBalance }
 
-            // Daily Sparkline Points (Pure Lifestyle Burn Velocity)
             val dailyPoints = calculateDailySparklinePoints(regularTxs, month, year)
 
             // 7. COMMITMENTS SHORTFALL ENGINE
@@ -562,19 +584,24 @@ class BudgetViewModel(
                 affectedAccountsCount = affectedAccountNames.size
             )
 
-            // 8. PAYDAY ALLOCATION & MONTH-END SWEEP ENGINES
-            val todayCal = Calendar.getInstance()
+            // 8. PAYDAY ALLOCATION & MONTH-END SWEEP ENGINES (NEUTRAL DYNAMIC BASELINE)
             val currentDay = todayCal.get(Calendar.DAY_OF_MONTH)
             val totalDaysInCurrentMonth = todayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
-            val isCurrentSystemMonth = (month == (todayCal.get(Calendar.MONTH) + 1)) && (year == todayCal.get(Calendar.YEAR))
+            val isCurrentSystemMonth = (month == sysMonth) && (year == sysYear)
 
             val historicalMonthsSpend = allTimeTxs.filter { it.type == TransactionType.EXPENSE }
                 .groupBy { "${it.year}-${it.month}" }
                 .values
                 .map { it.sumOf { tx -> tx.amount } }
                 .filter { it > 0.0 }
-            val historicalAvgSpend = if (historicalMonthsSpend.isNotEmpty()) historicalMonthsSpend.average() else 25000.0
-            val livingBufferTarget = max(historicalAvgSpend, plannedExpenses.takeIf { it > 0.0 } ?: 25000.0)
+
+            val historicalAvgSpend = if (historicalMonthsSpend.isNotEmpty()) {
+                historicalMonthsSpend.average()
+            } else {
+                if (plannedExpenses > 0.0) plannedExpenses else profile.baseMonthlyIncome.coerceAtLeast(0.0)
+            }
+
+            val livingBufferTarget = max(historicalAvgSpend, plannedExpenses.takeIf { it > 0.0 } ?: profile.baseMonthlyIncome.coerceAtLeast(0.0))
 
             val salaryTx = regularTxs.find {
                 it.type == TransactionType.INCOME &&
@@ -609,7 +636,8 @@ class BudgetViewModel(
                     tx.month == month && tx.year == year
                 }.sumOf { it.amount }
 
-                val pendingFortressBase = max(0.0, 5000.0 - transferredToFortressThisMonth)
+                val dynamicFortressTargetSweep = if (profile.fortressSweepThreshold > 0.0) profile.fortressSweepThreshold else (profile.baseMonthlyIncome * 0.1)
+                val pendingFortressBase = max(0.0, dynamicFortressTargetSweep - transferredToFortressThisMonth)
                 val toFortressBase = min(remainingAfterCommitments, pendingFortressBase)
 
                 val totalOperatingRetained = toOperating + max(0.0, remainingAfterCommitments - toFortressBase)
@@ -666,7 +694,7 @@ class BudgetViewModel(
                 tx.month == month && tx.year == year
             }
 
-            val monthEndSweepSuggestion = if (isMonthEndWindow && is3VaultMode && sweepableSurplus > 500.0 && !isMonthEndSweepDone) {
+            val monthEndSweepSuggestion = if (isMonthEndWindow && is3VaultMode && sweepableSurplus > 50.0 && !isMonthEndSweepDone) {
                 MonthEndSweepPlan(
                     availableOperatingCash = operatingLiquidCash,
                     runwayBuffer = runwayBuffer,
@@ -675,6 +703,22 @@ class BudgetViewModel(
                     sweepAmount = sweepableSurplus
                 )
             } else null
+
+            // 9. FORTRESS DUAL-TARGET ENGINE
+            val fortressVaultAccount = allAccounts.find { isFortressAccount(it) }
+            val fortressTotalBalance = fortressVaultAccount?.currentBalance ?: 0.0
+            val currentFdReserve = max(0.0, fortressTotalBalance - profile.fortressSweepThreshold)
+
+            val computedFortressTarget = if (profile.fortressManualTarget > 0.0) {
+                profile.fortressManualTarget
+            } else {
+                val months = if (profile.fortressEmergencyMonths > 0) profile.fortressEmergencyMonths else 6
+                historicalAvgSpend * months
+            }
+
+            val fortressProgress = if (computedFortressTarget > 0.0) {
+                ((currentFdReserve / computedFortressTarget) * 100).toInt().coerceIn(0, 100)
+            } else 0
 
             val filtered = transactions.filter { tx ->
                 val matchesQuery = filter.query.isBlank() ||
@@ -733,7 +777,12 @@ class BudgetViewModel(
                 frequentSubcategories = sortedMasterSubcats,
                 frequentAccounts = frequentAccounts,
                 isRolloverBannerVisible = isBannerVisible,
-                rolloverBannerMessage = bannerMsg
+                rolloverBannerMessage = bannerMsg,
+                isTaxonomyGracePeriodActive = isGracePeriodActive,
+                isTaxonomyBannerVisible = isTaxonomyBannerVisible,
+                fortressTarget = computedFortressTarget,
+                fortressFdBalance = currentFdReserve,
+                fortressProgressPercentage = fortressProgress
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthlyUiState())
@@ -969,9 +1018,9 @@ class BudgetViewModel(
             val curActual = monthly.metrics.lifestyleExpenses
             val planned = monthly.metrics.plannedExpenses
             val fixed = monthly.metrics.fixedCommitmentsTotal
-            max(curActual, max(planned, max(fixed, 25000.0)))
+            max(curActual, max(planned, fixed))
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 25000.0)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     fun selectMonth(month: Int) {
         currentMonth.value = month
@@ -1012,8 +1061,10 @@ class BudgetViewModel(
         showRolloverBanner.value = false
     }
 
-    fun dismissRolloverPrompt() {
-        dismissRolloverBanner()
+    fun dismissTaxonomyBanner() {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.dismissTaxonomyBanner()
+        }
     }
 
     fun checkAndExecuteMonthEndAutoRollover() {
@@ -1037,10 +1088,6 @@ class BudgetViewModel(
                 }
             }
         }
-    }
-
-    fun checkIfRolloverPromptNeeded() {
-        checkAndExecuteMonthEndAutoRollover()
     }
 
     fun saveUserProfile(profile: UserProfile) {
@@ -1095,10 +1142,6 @@ class BudgetViewModel(
         securityManager.setPin(pin)
     }
 
-    fun saveMasterPin(pin: String) {
-        savePin(pin)
-    }
-
     fun updateProfileImageUri(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
@@ -1118,10 +1161,6 @@ class BudgetViewModel(
             val current = userProfile.value
             dao.saveUserProfile(current.copy(id = 1, displayName = name))
         }
-    }
-
-    fun updateProfileName(name: String) {
-        updateDisplayName(name)
     }
 
     fun updateEmail(email: String) {
@@ -1146,15 +1185,29 @@ class BudgetViewModel(
         }
     }
 
-    fun updateCurrency(symbol: String) {
-        updateCurrencySymbol(symbol)
+    fun updateFortressSweepThreshold(threshold: Double) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = userProfile.value
+            dao.saveUserProfile(current.copy(id = 1, fortressSweepThreshold = threshold))
+        }
+    }
+
+    fun updateFortressEmergencyMonths(months: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = userProfile.value
+            dao.saveUserProfile(current.copy(id = 1, fortressEmergencyMonths = months))
+        }
+    }
+
+    fun updateFortressManualTarget(target: Double) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = userProfile.value
+            dao.saveUserProfile(current.copy(id = 1, fortressManualTarget = target))
+        }
     }
 
     fun updateFortressThreshold(newThreshold: Double) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
-            dao.saveUserProfile(current.copy(id = 1, fortressThreshold = newThreshold))
-        }
+        updateFortressSweepThreshold(newThreshold)
     }
 
     fun updateBiometricEnabled(enabled: Boolean) {
@@ -1162,10 +1215,6 @@ class BudgetViewModel(
             val current = userProfile.value
             dao.saveUserProfile(current.copy(id = 1, isBiometricEnabled = enabled))
         }
-    }
-
-    fun setBiometricEnabled(enabled: Boolean) {
-        updateBiometricEnabled(enabled)
     }
 
     fun updateScreenCaptureAllowed(allowed: Boolean) {
@@ -1195,19 +1244,12 @@ class BudgetViewModel(
         }
     }
 
-    fun completeOnboarding() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
-            dao.saveUserProfile(current.copy(id = 1, isOnboardingCompleted = true))
-            isAppUnlocked.value = true
-        }
-    }
-
     fun completeOnboarding(
         displayName: String,
         dob: String,
         baseIncome: Double,
-        fortressThreshold: Double,
+        fortressSweepThreshold: Double = 0.0,
+        fortressEmergencyMonths: Int = 6,
         masterPin: String,
         isBiometricEnabled: Boolean,
         vaultMode: String = "3-VAULT"
@@ -1220,7 +1262,8 @@ class BudgetViewModel(
                 displayName = displayName,
                 dateOfBirth = dob,
                 baseMonthlyIncome = baseIncome,
-                fortressThreshold = fortressThreshold,
+                fortressSweepThreshold = fortressSweepThreshold,
+                fortressEmergencyMonths = fortressEmergencyMonths,
                 isOnboardingCompleted = true,
                 isBiometricEnabled = isBiometricEnabled,
                 vaultMode = vaultMode
@@ -1245,24 +1288,11 @@ class BudgetViewModel(
             dao.insertAccounts(
                 listOf(
                     AccountEntity(accountName = "PRIMARY BANK", startingBalance = 0.0, accountType = "Operating", minBalance = 0.0, sortOrder = 0),
-                    AccountEntity(accountName = "SECONDARY BANK", startingBalance = 0.0, accountType = "Commitments", minBalance = 10000.0, sortOrder = 1),
+                    AccountEntity(accountName = "SECONDARY BANK", startingBalance = 0.0, accountType = "Commitments", minBalance = 0.0, sortOrder = 1),
                     AccountEntity(accountName = "TERTIARY BANK", startingBalance = 0.0, accountType = "Fortress", minBalance = 0.0, sortOrder = 2),
                     AccountEntity(accountName = "CASH WALLET", startingBalance = 0.0, accountType = "Cash", minBalance = 0.0, sortOrder = 3)
                 )
             )
-        }
-    }
-
-    fun replaceAllAccounts(accounts: List<AccountEntity>) {
-        viewModelScope.launch(Dispatchers.IO) {
-            dao.clearAllAccounts()
-            dao.insertAccounts(accounts)
-        }
-    }
-
-    fun clearAllAccounts() {
-        viewModelScope.launch(Dispatchers.IO) {
-            dao.clearAllAccounts()
         }
     }
 
@@ -1291,7 +1321,9 @@ class BudgetViewModel(
             val prevYear = if (currentMonth.value == 1) currentYear.value - 1 else currentYear.value
             val previousPlans = dao.getBudgetPlansForMonthDirect(prevMonth, prevYear)
 
-            val clonedPlans = previousPlans.map { plan ->
+            val activeCategories = dao.getAllCategoriesDirect().filter { !it.isLegacy }.map { it.name }.toSet()
+
+            val clonedPlans = previousPlans.filter { activeCategories.contains(it.category) }.map { plan ->
                 BudgetPlanEntity(
                     category = plan.category,
                     plannedAmount = plan.plannedAmount,
@@ -1324,18 +1356,6 @@ class BudgetViewModel(
                     )
                 )
             }
-        }
-    }
-
-    fun saveBudgetPlan(category: String, amount: Double, type: TransactionType) {
-        updateCategoryBudget(category, amount, type)
-    }
-
-    fun saveBudgetPlan(plan: BudgetPlanEntity) {
-        viewModelScope.launch(Dispatchers.IO) {
-            dao.insertBudgetPlan(
-                plan.copy(month = currentMonth.value, year = currentYear.value)
-            )
         }
     }
 
@@ -1503,14 +1523,6 @@ class BudgetViewModel(
         }
     }
 
-    fun addTransaction(tx: TransactionEntity) {
-        saveTransaction(tx.id, tx.title, tx.amount, tx.category, tx.subcategory, tx.accountName, tx.type, tx.date, tx.toAccountName, tx.transferSubtype)
-    }
-
-    fun updateTransaction(tx: TransactionEntity) {
-        saveTransaction(tx.id, tx.title, tx.amount, tx.category, tx.subcategory, tx.accountName, tx.type, tx.date, tx.toAccountName, tx.transferSubtype)
-    }
-
     fun executeInstantTransfer(
         fromAccount: String,
         toAccount: String,
@@ -1592,11 +1604,7 @@ class BudgetViewModel(
     }
 
     fun addCategory(name: String, type: TransactionType) {
-        viewModelScope.launch(Dispatchers.IO) { dao.insertCategory(CategoryEntity(name = name.trim(), type = type)) }
-    }
-
-    fun addCategory(category: CategoryEntity) {
-        addCategory(category.name, category.type)
+        viewModelScope.launch(Dispatchers.IO) { dao.insertCategory(CategoryEntity(name = name.trim(), type = type, isLegacy = false, isNew = false)) }
     }
 
     fun updateCategory(category: CategoryEntity, newName: String) {
@@ -1606,25 +1614,21 @@ class BudgetViewModel(
     }
 
     fun deleteCategory(category: CategoryEntity, onResult: (Boolean, String) -> Unit) {
-        if (protectedCategories.contains(category.name)) {
-            onResult(false, "'${category.name}' is a protected system category and cannot be deleted.")
+        if (!category.isLegacy && protectedCategories.contains(category.name)) {
+            onResult(false, "'${category.name}' is an active system default and cannot be deleted.")
             return
         }
         viewModelScope.launch(Dispatchers.IO) {
             dao.deleteCategoryAndCascade(category)
             dao.deleteFutureUnpaidFixedBillsByCategory(category.name, currentMonth.value, currentYear.value)
             withContext(Dispatchers.Main) {
-                onResult(true, "Category deleted. Historical entries safely reassigned to 'General'.")
+                onResult(true, "Category deleted. Historical logs safely preserved.")
             }
         }
     }
 
     fun addSubcategory(parentCategory: String, name: String, type: TransactionType = TransactionType.EXPENSE) {
-        viewModelScope.launch(Dispatchers.IO) { dao.insertSubcategory(SubcategoryEntity(parentCategory = parentCategory, name = name.trim(), type = type)) }
-    }
-
-    fun addSubcategory(sub: SubcategoryEntity) {
-        addSubcategory(sub.parentCategory, sub.name, sub.type)
+        viewModelScope.launch(Dispatchers.IO) { dao.insertSubcategory(SubcategoryEntity(parentCategory = parentCategory, name = name.trim(), type = type, isLegacy = false, isNew = false)) }
     }
 
     fun updateSubcategory(sub: SubcategoryEntity, newName: String) {
@@ -1702,12 +1706,6 @@ class BudgetViewModel(
                     )
                 )
             }
-        }
-    }
-
-    fun insertFixedBillDirect(bill: FixedBillEntity) {
-        viewModelScope.launch(Dispatchers.IO) {
-            dao.insertFixedBill(bill)
         }
     }
 
@@ -1874,60 +1872,6 @@ class BudgetViewModel(
         }
     }
 
-    fun updateAccountStartingBalance(
-        accountName: String,
-        startingBalance: Double,
-        type: String = "Operating",
-        minBalance: Double? = null
-    ) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val existing = dao.getAccountByName(accountName)
-            if (existing != null) {
-                dao.insertAccount(
-                    existing.copy(
-                        startingBalance = startingBalance,
-                        minBalance = minBalance ?: existing.minBalance
-                    )
-                )
-            } else {
-                dao.insertAccount(
-                    AccountEntity(
-                        accountName = accountName,
-                        startingBalance = startingBalance,
-                        accountType = type,
-                        minBalance = minBalance ?: 0.0
-                    )
-                )
-            }
-        }
-    }
-
-    fun adjustAccountBalance(accountName: String, targetBalance: Double) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val existing = dao.getAccountByName(accountName)
-            val balances = dao.getAccountBalances().first()
-            val currentBal = balances.find { it.accountName.equals(accountName, ignoreCase = true) }?.currentBalance ?: 0.0
-            val diff = targetBalance - currentBal
-            if (diff != 0.0) {
-                val txType = if (diff > 0.0) TransactionType.INCOME else TransactionType.EXPENSE
-                val cal = Calendar.getInstance()
-                dao.insertTransaction(
-                    TransactionEntity(
-                        title = "Balance Adjustment",
-                        amount = abs(diff),
-                        category = "General",
-                        subcategory = existing?.accountType ?: "Adjustment",
-                        accountName = accountName,
-                        type = txType,
-                        date = System.currentTimeMillis(),
-                        month = cal.get(Calendar.MONTH) + 1,
-                        year = cal.get(Calendar.YEAR)
-                    )
-                )
-            }
-        }
-    }
-
     fun updateAccountDetails(
         oldName: String,
         newName: String,
@@ -1997,67 +1941,6 @@ class BudgetViewModel(
         }
     }
 
-    fun restoreVaultFromUri(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val success = restoreFromJsonUri(context, uri, wipeExisting = true)
-            withContext(Dispatchers.Main) {
-                if (success) {
-                    onResult(true, "Vault restored successfully.")
-                } else {
-                    onResult(false, "Failed to restore backup snapshot.")
-                }
-            }
-        }
-    }
-
-    fun backupVaultToEncryptedJson(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val success = exportJsonBackupToUri(context, uri)
-            withContext(Dispatchers.Main) {
-                onResult(success, if (success) "" else "Backup failed")
-            }
-        }
-    }
-
-    fun restoreVaultFromEncryptedJson(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
-        restoreVaultFromUri(context, uri, onResult)
-    }
-
-    suspend fun exportCsvToUri(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val transactions = dao.getAllTransactions()
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-            val builder = StringBuilder()
-
-            builder.append('\uFEFF')
-            builder.append("Date,Title,Flow Type,Category,Subcategory,Amount,Source Vault,Destination Vault\n")
-
-            transactions.forEach { tx ->
-                val escapedTitle = tx.title.replace("\"", "\"\"")
-                val escapedCat = tx.category.replace("\"", "\"\"")
-                val escapedSub = tx.subcategory.replace("\"", "\"\"")
-                val dateStr = dateFormat.format(Date(tx.date))
-                val toAcc = tx.toAccountName ?: ""
-
-                builder.append("\"$dateStr\",")
-                builder.append("\"$escapedTitle\",")
-                builder.append("\"${tx.type.name}\",")
-                builder.append("\"$escapedCat\",")
-                builder.append("\"$escapedSub\",")
-                builder.append("${tx.amount},")
-                builder.append("\"${tx.accountName}\",")
-                builder.append("\"$toAcc\"\n")
-            }
-
-            context.contentResolver.openOutputStream(uri)?.use { os ->
-                os.write(builder.toString().toByteArray(Charsets.UTF_8))
-            }
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
     suspend fun exportJsonBackupToUri(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
         try {
             val root = JSONObject()
@@ -2077,7 +1960,12 @@ class BudgetViewModel(
                 put("currencySymbol", currentProfile.currencySymbol)
                 put("profileImageUri", currentProfile.profileImageUri ?: JSONObject.NULL)
                 put("coverImageUri", currentProfile.coverImageUri ?: JSONObject.NULL)
-                put("fortressThreshold", currentProfile.fortressThreshold)
+                put("fortressSweepThreshold", currentProfile.fortressSweepThreshold)
+                put("fortressEmergencyMonths", currentProfile.fortressEmergencyMonths)
+                put("fortressManualTarget", currentProfile.fortressManualTarget)
+                put("taxonomyGraceMonth", currentProfile.taxonomyGraceMonth)
+                put("taxonomyGraceYear", currentProfile.taxonomyGraceYear)
+                put("isTaxonomyBannerDismissed", currentProfile.isTaxonomyBannerDismissed)
                 put("isOnboardingCompleted", currentProfile.isOnboardingCompleted)
                 put("isBiometricEnabled", currentProfile.isBiometricEnabled)
                 put("isScreenCaptureAllowed", currentProfile.isScreenCaptureAllowed)
@@ -2116,6 +2004,8 @@ class BudgetViewModel(
                 catArray.put(JSONObject().apply {
                     put("name", c.name)
                     put("type", c.type.name)
+                    put("isLegacy", c.isLegacy)
+                    put("isNew", c.isNew)
                 })
             }
             root.put("categories", catArray)
@@ -2126,6 +2016,8 @@ class BudgetViewModel(
                     put("parentCategory", s.parentCategory)
                     put("name", s.name)
                     put("type", s.type.name)
+                    put("isLegacy", s.isLegacy)
+                    put("isNew", s.isNew)
                 })
             }
             root.put("subcategories", subArray)
@@ -2196,8 +2088,7 @@ class BudgetViewModel(
                     }
                 }
             }
-            val jsonContent = stringBuilder.toString()
-            val root = JSONObject(jsonContent)
+            val root = JSONObject(stringBuilder.toString())
 
             if (wipeExisting) {
                 dao.clearAllTransactions()
@@ -2211,7 +2102,14 @@ class BudgetViewModel(
                 val catList = mutableListOf<CategoryEntity>()
                 for (i in 0 until catArray.length()) {
                     val c = catArray.getJSONObject(i)
-                    catList.add(CategoryEntity(name = c.getString("name"), type = TransactionType.valueOf(c.getString("type"))))
+                    catList.add(
+                        CategoryEntity(
+                            name = c.getString("name"),
+                            type = TransactionType.valueOf(c.getString("type")),
+                            isLegacy = c.optBoolean("isLegacy", false),
+                            isNew = c.optBoolean("isNew", false)
+                        )
+                    )
                 }
                 dao.insertCategories(catList)
             }
@@ -2220,7 +2118,15 @@ class BudgetViewModel(
                 val subList = mutableListOf<SubcategoryEntity>()
                 for (i in 0 until subArray.length()) {
                     val s = subArray.getJSONObject(i)
-                    subList.add(SubcategoryEntity(parentCategory = s.getString("parentCategory"), name = s.getString("name"), type = TransactionType.valueOf(s.getString("type"))))
+                    subList.add(
+                        SubcategoryEntity(
+                            parentCategory = s.getString("parentCategory"),
+                            name = s.getString("name"),
+                            type = TransactionType.valueOf(s.getString("type")),
+                            isLegacy = s.optBoolean("isLegacy", false),
+                            isNew = s.optBoolean("isNew", false)
+                        )
+                    )
                 }
                 dao.insertSubcategories(subList)
             }
@@ -2335,7 +2241,12 @@ class BudgetViewModel(
                     currencySymbol = p.optString("currencySymbol", updatedProfile.currencySymbol),
                     profileImageUri = parsedProfileImg ?: updatedProfile.profileImageUri,
                     coverImageUri = parsedCoverImg ?: updatedProfile.coverImageUri,
-                    fortressThreshold = p.optDouble("fortressThreshold", updatedProfile.fortressThreshold),
+                    fortressSweepThreshold = p.optDouble("fortressSweepThreshold", 0.0),
+                    fortressEmergencyMonths = p.optInt("fortressEmergencyMonths", 6),
+                    fortressManualTarget = p.optDouble("fortressManualTarget", 0.0),
+                    taxonomyGraceMonth = p.optInt("taxonomyGraceMonth", -1),
+                    taxonomyGraceYear = p.optInt("taxonomyGraceYear", -1),
+                    isTaxonomyBannerDismissed = p.optBoolean("isTaxonomyBannerDismissed", false),
                     isBiometricEnabled = p.optBoolean("isBiometricEnabled", updatedProfile.isBiometricEnabled),
                     isScreenCaptureAllowed = p.optBoolean("isScreenCaptureAllowed", updatedProfile.isScreenCaptureAllowed),
                     isAutoPayReminderEnabled = p.optBoolean("isAutoPayReminderEnabled", updatedProfile.isAutoPayReminderEnabled),
