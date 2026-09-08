@@ -170,7 +170,9 @@ data class MonthlyUiState(
     val reimbursementStatus: ReimbursementStatus = ReimbursementStatus(),
     val frequentCategories: List<CategoryEntity> = emptyList(),
     val frequentSubcategories: List<SubcategoryEntity> = emptyList(),
-    val frequentAccounts: List<String> = emptyList()
+    val frequentAccounts: List<String> = emptyList(),
+    val isRolloverBannerVisible: Boolean = false,
+    val rolloverBannerMessage: String = ""
 ) {
     val categoryBreakdowns: List<CategoryPerformance> get() = categories
     val accountList: List<String> get() = frequentAccounts.ifEmpty { activeAccounts.map { it.accountName } }
@@ -219,7 +221,10 @@ class BudgetViewModel(
     val currentMonth = MutableStateFlow(cal.get(Calendar.MONTH) + 1)
     val filterCriteria = MutableStateFlow(FilterCriteria())
     val isAppUnlocked = MutableStateFlow(false)
-    val showRolloverPrompt = MutableStateFlow(false)
+
+    // Automated month-end rollover banner state
+    val showRolloverBanner = MutableStateFlow(false)
+    val rolloverBannerMessage = MutableStateFlow("")
 
     val protectedCategories = setOf(
         "Utilities & Living Bills",
@@ -246,7 +251,7 @@ class BudgetViewModel(
             seedFullExcelTaxonomyIfEmpty()
             seedDefaultAccountsIfEmpty()
             checkAndRolloverRecurringBills(currentMonth.value, currentYear.value)
-            checkIfRolloverPromptNeeded()
+            checkAndExecuteMonthEndAutoRollover()
         }
     }
 
@@ -275,9 +280,12 @@ class BudgetViewModel(
             emit(try { dao.getAllTransactions() } catch (_: Exception) { emptyList() })
         }
 
-        combine(coreDataFlow, metadataFlow, globalHistoryFlow) { coreData, metaData, allTimeTxs ->
+        val bannerFlow = combine(showRolloverBanner, rolloverBannerMessage) { show, msg -> show to msg }
+
+        combine(coreDataFlow, metadataFlow, globalHistoryFlow, bannerFlow) { coreData, metaData, allTimeTxs, bannerInfo ->
             val (transactions, fixedBills, allAccounts) = coreData
             val (plans, masterCats, masterSubcats) = metaData
+            val (isBannerVisible, bannerMsg) = bannerInfo
 
             val categoryUsage = allTimeTxs.groupingBy { it.category }.eachCount()
             val subcategoryUsage = allTimeTxs.groupingBy { it.subcategory }.eachCount()
@@ -735,7 +743,9 @@ class BudgetViewModel(
                 reimbursementStatus = monthReimbursementStatus,
                 frequentCategories = sortedMasterCats,
                 frequentSubcategories = sortedMasterSubcats,
-                frequentAccounts = sortedActiveAccounts.map { it.accountName }
+                frequentAccounts = sortedActiveAccounts.map { it.accountName },
+                isRolloverBannerVisible = isBannerVisible,
+                rolloverBannerMessage = bannerMsg
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthlyUiState())
@@ -1030,34 +1040,40 @@ class BudgetViewModel(
     fun unlockApp() { isAppUnlocked.value = true }
     fun lockApp() { isAppUnlocked.value = false }
 
-    fun checkIfRolloverPromptNeeded() {
+    fun dismissRolloverBanner() {
+        showRolloverBanner.value = false
+    }
+
+    fun dismissRolloverPrompt() {
+        dismissRolloverBanner()
+    }
+
+    fun checkAndExecuteMonthEndAutoRollover() {
         viewModelScope.launch(Dispatchers.IO) {
             val nowCal = Calendar.getInstance()
             val day = nowCal.get(Calendar.DAY_OF_MONTH)
-            if (day >= 28) {
+            val maxDayInMonth = nowCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+
+            // Activates in the month-end window (day 28 to last day of month)
+            if (day >= 28 || day == maxDayInMonth) {
                 val nextMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, 1) }
                 val nMonth = nextMonthCal.get(Calendar.MONTH) + 1
                 val nYear = nextMonthCal.get(Calendar.YEAR)
                 val count = dao.getFixedBillCount(nMonth, nYear)
-                showRolloverPrompt.value = (count == 0)
-            } else {
-                showRolloverPrompt.value = false
+
+                if (count == 0) {
+                    val clonedCount = checkAndRolloverRecurringBills(nMonth, nYear)
+                    if (clonedCount > 0) {
+                        rolloverBannerMessage.value = "${MONTH_NAMES[nMonth - 1]} recurring bills ($clonedCount) automatically scheduled."
+                        showRolloverBanner.value = true
+                    }
+                }
             }
         }
     }
 
-    fun executeRolloverToNextMonth() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val nextMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, 1) }
-            val nMonth = nextMonthCal.get(Calendar.MONTH) + 1
-            val nYear = nextMonthCal.get(Calendar.YEAR)
-            checkAndRolloverRecurringBills(nMonth, nYear)
-            showRolloverPrompt.value = false
-        }
-    }
-
-    fun dismissRolloverPrompt() {
-        showRolloverPrompt.value = false
+    fun checkIfRolloverPromptNeeded() {
+        checkAndExecuteMonthEndAutoRollover()
     }
 
     fun saveUserProfile(profile: UserProfile) {
@@ -1356,7 +1372,6 @@ class BudgetViewModel(
         }
     }
 
-    // 11. CENTRALIZED UNPAID BILL MATCHER WITH >= 50 CONFIDENCE CUTOFF
     private suspend fun findMatchingUnpaidBill(
         txMonth: Int,
         txYear: Int,
@@ -1420,7 +1435,7 @@ class BudgetViewModel(
             }
 
             bill to score
-        }.filter { it.second >= 50 } // Eliminates false-positive links
+        }.filter { it.second >= 50 }
          .maxByOrNull { it.second }
          ?.first
     }
@@ -1440,7 +1455,6 @@ class BudgetViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val cleanTitle = title.trim()
             val cleanSubcat = subcategory.trim()
-            // Preserves keywords for accurate title matching without stripping prefixes
             val resolvedTitle = if (cleanTitle.isBlank()) cleanSubcat else cleanTitle
 
             val calTx = Calendar.getInstance().apply { timeInMillis = date }
@@ -1480,11 +1494,9 @@ class BudgetViewModel(
                                 )
                             )
                         } else {
-                            // Category/type changed: safely unlink the old bill and reset it to unpaid
                             dao.updateFixedBill(linkedBill.copy(isPaid = false))
                             resolvedLinkedBillId = null
 
-                            // Search for a candidate bill under the new category/type
                             val newMatchingBill = findMatchingUnpaidBill(
                                 txMonth, txYear, resolvedTitle, amount, category, subcategory, accountName, toAccountName, type
                             )
@@ -1848,10 +1860,25 @@ class BudgetViewModel(
         }
     }
 
-    fun deleteFixedBill(bill: FixedBillEntity) {
+    // Cascades deletion forward to all future unpaid instances so cancelled subscriptions never resurrect
+    fun deleteFixedBill(bill: FixedBillEntity, cascadeFuture: Boolean = true) {
         viewModelScope.launch(Dispatchers.IO) {
             dao.deleteFixedBill(bill)
             dao.deleteTransactionByLinkedBill(bill.id)
+
+            if (cascadeFuture) {
+                val sig = getBillSignature(bill)
+                val allBills = dao.getAllFixedBills()
+                val futureBills = allBills.filter { candidate ->
+                    !candidate.isPaid &&
+                    (candidate.year > bill.year || (candidate.year == bill.year && candidate.month > bill.month)) &&
+                    getBillSignature(candidate) == sig
+                }
+                futureBills.forEach { futureBill ->
+                    dao.deleteFixedBill(futureBill)
+                    dao.deleteTransactionByLinkedBill(futureBill.id)
+                }
+            }
         }
     }
 
@@ -2361,6 +2388,7 @@ class BudgetViewModel(
         }
     }
 
+    // Bill signature strictly omits amount so fluctuating variable bills never duplicate
     private fun getBillSignature(b: FixedBillEntity): String {
         val cleanCat = b.category.trim().lowercase()
         val cleanSubcat = b.subcategory.trim().lowercase()
@@ -2373,20 +2401,21 @@ class BudgetViewModel(
             "${cleanCat}_${cleanSubcat}_${cleanTitle}_${cleanAcc}_${cleanToAcc}_${cleanType}"
         } else {
             val due = b.dueDay ?: -1
-            val amt = String.format(Locale.US, "%.2f", b.amount)
-            "${cleanCat}_${cleanSubcat}_${due}_${amt}_${cleanAcc}_${cleanToAcc}_${cleanType}"
+            "${cleanCat}_${cleanSubcat}_${due}_${cleanAcc}_${cleanToAcc}_${cleanType}"
         }
     }
 
-    private suspend fun checkAndRolloverRecurringBills(targetMonth: Int, targetYear: Int) = withContext(Dispatchers.IO) {
+    private suspend fun checkAndRolloverRecurringBills(targetMonth: Int, targetYear: Int): Int = withContext(Dispatchers.IO) {
         val historicalBills = dao.getLatestHistoricalFixedBills(targetMonth, targetYear)
-        if (historicalBills.isEmpty()) return@withContext
+        if (historicalBills.isEmpty()) return@withContext 0
 
         var currentIterMonth = historicalBills.first().month
         var currentIterYear = historicalBills.first().year
         var latestKnownBills: List<FixedBillEntity> = historicalBills.filter {
             it.month == currentIterMonth && it.year == currentIterYear
         }
+
+        var totalClonedInRun = 0
 
         while (currentIterYear < targetYear || (currentIterYear == targetYear && currentIterMonth < targetMonth)) {
             val prevMonth = currentIterMonth
@@ -2425,10 +2454,13 @@ class BudgetViewModel(
 
             if (missingToClone.isNotEmpty()) {
                 dao.insertFixedBills(missingToClone)
+                totalClonedInRun += missingToClone.size
             }
 
             latestKnownBills = dao.getFixedBillsForMonthDirect(currentIterMonth, currentIterYear)
         }
+
+        totalClonedInRun
     }
 
     private fun calculateDailySparklinePoints(transactions: List<TransactionEntity>, month: Int, year: Int): List<Float> {
