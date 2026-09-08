@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -72,24 +73,28 @@ fun SimpleAccountsScreen(
 
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
 
+    var isDiscreetMode by remember { mutableStateOf(false) }
     var showTransferSheet by remember { mutableStateOf(false) }
     var showAddAccountSheet by remember { mutableStateOf(false) }
+    var showReorderSheet by remember { mutableStateOf(false) }
 
     var editingAccount by remember { mutableStateOf<AccountBalanceResult?>(null) }
     var pendingEditConfirmation by remember { mutableStateOf<SimplePendingEditConfirmation?>(null) }
     var accountToDelete by remember { mutableStateOf<AccountEntity?>(null) }
 
-    val displayAccounts = remember(uiState.accounts) {
-        uiState.accounts.filter { !it.isArchived }.sortedBy { it.sortOrder }
+    val displayAccounts = remember(uiState.activeAccounts) {
+        uiState.activeAccounts
     }
-    val archivedAccounts = remember(uiState.accounts) {
-        uiState.accounts.filter { it.isArchived }
+    val archivedAccounts = remember(uiState.archivedAccounts) {
+        uiState.archivedAccounts
     }
 
     val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
     val totalLiquidBalance = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
-    val totalInflow = remember(displayAccounts) { displayAccounts.sumOf { it.totalInflow } }
-    val totalOutflow = remember(displayAccounts) { displayAccounts.sumOf { it.totalOutflow } }
+
+    // Active cycle flows aligned with monthly accounting
+    val monthInflow = uiState.metrics.actualIncome
+    val monthOutflow = uiState.metrics.actualExpenses + uiState.metrics.actualAssets
 
     val fabActions = remember {
         listOf(
@@ -138,14 +143,30 @@ fun SimpleAccountsScreen(
                     )
                 }
 
-                Text(
-                    text = "Unified Accounts",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 17.sp,
-                    color = TextDark,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.align(Alignment.Center)
-                )
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Unified Accounts",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 17.sp,
+                        color = TextDark,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(
+                        onClick = { isDiscreetMode = !isDiscreetMode },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = "Toggle Balance Privacy",
+                            tint = if (isDiscreetMode) AccentPurple else TextMuted,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                }
 
                 Surface(
                     modifier = Modifier
@@ -226,14 +247,14 @@ fun SimpleAccountsScreen(
                                 .padding(18.dp)
                         ) {
                             Text(
-                                text = "Total Net Balance",
+                                text = "Total Net Liquidity",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = TextMuted
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalLiquidBalance)}",
+                                text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalLiquidBalance)}",
                                 fontSize = 28.sp,
                                 fontWeight = FontWeight.Black,
                                 color = TextDark,
@@ -272,9 +293,9 @@ fun SimpleAccountsScreen(
                                         }
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
-                                            Text("Total Inflow", fontSize = 10.sp, color = TextMuted)
+                                            Text("Month Inflow", fontSize = 10.sp, color = TextMuted)
                                             Text(
-                                                "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalInflow)}",
+                                                text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthInflow)}",
                                                 fontSize = 12.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = TextDark
@@ -309,9 +330,9 @@ fun SimpleAccountsScreen(
                                         }
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
-                                            Text("Total Outflow", fontSize = 10.sp, color = TextMuted)
+                                            Text("Month Outflow", fontSize = 10.sp, color = TextMuted)
                                             Text(
-                                                "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalOutflow)}",
+                                                text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthOutflow)}",
                                                 fontSize = 12.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = TextDark
@@ -331,12 +352,28 @@ fun SimpleAccountsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Active Accounts (${displayAccounts.size})",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.5.sp,
-                            color = TextDark
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Active Accounts (${displayAccounts.size})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.5.sp,
+                                color = TextDark
+                            )
+                            if (displayAccounts.size > 1) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                IconButton(
+                                    onClick = { showReorderSheet = true },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.SwapVert,
+                                        contentDescription = "Reorder Accounts",
+                                        tint = AccentPurple,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                }
+                            }
+                        }
                         Text(
                             text = "Tap edit to modify",
                             fontSize = 11.sp,
@@ -360,7 +397,14 @@ fun SimpleAccountsScreen(
                     }
                 } else {
                     items(displayAccounts, key = { it.accountName }) { account ->
-                        val isMabBreached = account.minBalance > 0.0 && account.currentBalance < account.minBalance
+                        val pendingBillsForAccount = remember(uiState.fixedBills, account.accountName) {
+                            uiState.fixedBills.filter {
+                                !it.isPaid && it.type != TransactionType.INCOME &&
+                                it.accountName.equals(account.accountName, ignoreCase = true)
+                            }.sumOf { it.amount }
+                        }
+                        val effectiveBal = account.currentBalance - pendingBillsForAccount
+                        val isMabBreached = account.minBalance > 0.0 && effectiveBal < account.minBalance
 
                         Surface(
                             modifier = Modifier
@@ -388,7 +432,7 @@ fun SimpleAccountsScreen(
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
-                                                imageVector = if (account.accountName.contains("CASH", ignoreCase = true)) Icons.Default.Payments else Icons.Default.AccountBalance,
+                                                imageVector = if (account.accountName.contains("CASH", ignoreCase = true) || account.accountType.equals("Cash", ignoreCase = true)) Icons.Default.Payments else Icons.Default.AccountBalance,
                                                 contentDescription = null,
                                                 tint = AccentPurple,
                                                 modifier = Modifier.size(20.dp)
@@ -424,7 +468,7 @@ fun SimpleAccountsScreen(
                                             if (account.minBalance > 0.0) {
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
-                                                    text = "MAB: ${userProfile.currencySymbol}${account.minBalance.toInt()}",
+                                                    text = if (isMabBreached) "! MAB Risk: ${userProfile.currencySymbol}${account.minBalance.toInt()}" else "MAB: ${userProfile.currencySymbol}${account.minBalance.toInt()}",
                                                     fontSize = 9.5.sp,
                                                     color = if (isMabBreached) SoftRed else AccentPurple,
                                                     fontWeight = if (isMabBreached) FontWeight.Bold else FontWeight.Medium
@@ -437,13 +481,13 @@ fun SimpleAccountsScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
-                                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", account.currentBalance)}",
+                                            text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", account.currentBalance)}",
                                             fontWeight = FontWeight.Black,
                                             fontSize = 15.sp,
                                             color = if (account.currentBalance >= 0) TextDark else SoftRed
                                         )
                                         Text(
-                                            text = "Starting: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", account.startingBalance)}",
+                                            text = if (isDiscreetMode) "Base: ••••" else "Base: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", account.startingBalance)}",
                                             fontSize = 10.sp,
                                             color = TextMuted
                                         )
@@ -502,7 +546,7 @@ fun SimpleAccountsScreen(
                                         color = TextMuted
                                     )
                                     Text(
-                                        text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", acc.currentBalance)}",
+                                        text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", acc.currentBalance)}",
                                         fontSize = 12.sp,
                                         color = TextMuted
                                     )
@@ -525,7 +569,7 @@ fun SimpleAccountsScreen(
             }
         }
 
-        // Floating Bottom Navigation Dock with FAB (includes integrated animated gradient scrim)
+        // Floating Bottom Navigation Dock
         AppBottomDock(
             currentSelection = NavigationTarget.VAULT_ACCOUNTS,
             onSelectTarget = { target ->
@@ -777,6 +821,125 @@ fun SimpleAccountsScreen(
             )
         }
 
+        // Reorder Accounts Bottom Sheet
+        if (showReorderSheet) {
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            var reorderedList by remember(displayAccounts) { mutableStateOf(displayAccounts) }
+
+            ModalBottomSheet(
+                onDismissRequest = { showReorderSheet = false },
+                sheetState = sheetState,
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+                dragHandle = {
+                    Surface(modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp), shape = CircleShape, color = BorderLight) {}
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 22.dp, vertical = 8.dp)
+                ) {
+                    Text("Reorder Accounts", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                    Text("Adjust display sequence across screens and quick-pick menus", fontSize = 11.5.sp, color = TextMuted)
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        itemsIndexed(
+                            items = reorderedList,
+                            key = { _, acc -> acc.accountName }
+                        ) { index, account ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                color = CanvasLight,
+                                border = BorderStroke(0.6.dp, BorderLight)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${index + 1}. ${account.accountName}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = TextDark
+                                    )
+
+                                    Row {
+                                        IconButton(
+                                            onClick = {
+                                                if (index > 0) {
+                                                    val mutable = reorderedList.toMutableList()
+                                                    val temp = mutable[index]
+                                                    mutable[index] = mutable[index - 1]
+                                                    mutable[index - 1] = temp
+                                                    reorderedList = mutable
+                                                }
+                                            },
+                                            enabled = index > 0,
+                                            modifier = Modifier.size(30.dp)
+                                        ) {
+                                            Icon(Icons.Default.ArrowUpward, contentDescription = "Move Up", tint = if (index > 0) AccentPurple else TextMuted.copy(alpha = 0.4f))
+                                        }
+
+                                        IconButton(
+                                            onClick = {
+                                                if (index < reorderedList.size - 1) {
+                                                    val mutable = reorderedList.toMutableList()
+                                                    val temp = mutable[index]
+                                                    mutable[index] = mutable[index + 1]
+                                                    mutable[index + 1] = temp
+                                                    reorderedList = mutable
+                                                }
+                                            },
+                                            enabled = index < reorderedList.size - 1,
+                                            modifier = Modifier.size(30.dp)
+                                        ) {
+                                            Icon(Icons.Default.ArrowDownward, contentDescription = "Move Down", tint = if (index < reorderedList.size - 1) AccentPurple else TextMuted.copy(alpha = 0.4f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Button(
+                        onClick = {
+                            val updatedEntities = reorderedList.mapIndexed { i, acc ->
+                                AccountEntity(
+                                    accountName = acc.accountName,
+                                    startingBalance = acc.startingBalance,
+                                    accountType = acc.accountType,
+                                    minBalance = acc.minBalance,
+                                    isArchived = acc.isArchived,
+                                    sortOrder = i
+                                )
+                            }
+                            viewModel.reorderAccounts(updatedEntities)
+                            showReorderSheet = false
+                            Toast.makeText(context, "Account sequence saved", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    ) {
+                        Text("Save New Order", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+        }
+
         // Delete Account Alert
         accountToDelete?.let { acc ->
             AlertDialog(
@@ -808,7 +971,7 @@ fun SimpleAccountsScreen(
             )
         }
 
-        // Standardized Instant Transfer Bottom Sheet (With Recurring Sweep Toggle Support)
+        // Standardized Instant Transfer Bottom Sheet
         if (showTransferSheet) {
             AccountTransferDialog(
                 accounts = accountNames,
