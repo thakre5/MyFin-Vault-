@@ -1142,6 +1142,10 @@ class BudgetViewModel(
         securityManager.setPin(pin)
     }
 
+    fun saveMasterPin(pin: String) {
+        securityManager.setPin(pin)
+    }
+
     fun updateProfileImageUri(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = userProfile.value
@@ -1270,6 +1274,100 @@ class BudgetViewModel(
             )
             dao.saveUserProfile(profile)
             isAppUnlocked.value = true
+        }
+    }
+
+    fun replaceAllAccounts(accounts: List<AccountEntity>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.clearAllAccounts()
+            dao.insertAccounts(accounts)
+        }
+    }
+
+    fun adjustAccountBalance(accountName: String, targetBalance: Double) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = dao.getAccountByName(accountName)
+            val balances = dao.getAccountBalances().first()
+            val currentBal = balances.find { it.accountName.equals(accountName, ignoreCase = true) }?.currentBalance ?: 0.0
+            val diff = targetBalance - currentBal
+            if (diff != 0.0) {
+                val txType = if (diff > 0.0) TransactionType.INCOME else TransactionType.EXPENSE
+                val cal = Calendar.getInstance()
+                dao.insertTransaction(
+                    TransactionEntity(
+                        title = "Balance Adjustment",
+                        amount = abs(diff),
+                        category = "General",
+                        subcategory = existing?.accountType ?: "Adjustment",
+                        accountName = accountName,
+                        type = txType,
+                        date = System.currentTimeMillis(),
+                        month = cal.get(Calendar.MONTH) + 1,
+                        year = cal.get(Calendar.YEAR)
+                    )
+                )
+            }
+        }
+    }
+
+    fun restoreVaultFromUri(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = restoreFromJsonUri(context, uri, wipeExisting = true)
+            withContext(Dispatchers.Main) {
+                if (success) {
+                    onResult(true, "Vault restored successfully.")
+                } else {
+                    onResult(false, "Failed to restore backup snapshot.")
+                }
+            }
+        }
+    }
+
+    fun backupVaultToEncryptedJson(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = exportJsonBackupToUri(context, uri)
+            withContext(Dispatchers.Main) {
+                onResult(success, if (success) "Full encrypted backup saved!" else "Backup failed")
+            }
+        }
+    }
+
+    fun restoreVaultFromEncryptedJson(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
+        restoreVaultFromUri(context, uri, onResult)
+    }
+
+    suspend fun exportCsvToUri(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val transactions = dao.getAllTransactions()
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+            val builder = StringBuilder()
+
+            builder.append('\uFEFF')
+            builder.append("Date,Title,Flow Type,Category,Subcategory,Amount,Source Vault,Destination Vault\n")
+
+            transactions.forEach { tx ->
+                val escapedTitle = tx.title.replace("\"", "\"\"")
+                val escapedCat = tx.category.replace("\"", "\"\"")
+                val escapedSub = tx.subcategory.replace("\"", "\"\"")
+                val dateStr = dateFormat.format(Date(tx.date))
+                val toAcc = tx.toAccountName ?: ""
+
+                builder.append("\"$dateStr\",")
+                builder.append("\"$escapedTitle\",")
+                builder.append("\"${tx.type.name}\",")
+                builder.append("\"$escapedCat\",")
+                builder.append("\"$escapedSub\",")
+                builder.append("${tx.amount},")
+                builder.append("\"${tx.accountName}\",")
+                builder.append("\"$toAcc\"\n")
+            }
+
+            context.contentResolver.openOutputStream(uri)?.use { os ->
+                os.write(builder.toString().toByteArray(Charsets.UTF_8))
+            }
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 
