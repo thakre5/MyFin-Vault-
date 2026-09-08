@@ -297,7 +297,6 @@ class BudgetViewModel(
                 val weight = if (tx.date >= ninetyDaysAgo) 3 else 1
                 categoryScores[tx.category] = (categoryScores[tx.category] ?: 0) + weight
 
-                // Compound key to eliminate name collision across different parent categories
                 val subKey = "${tx.category.trim().lowercase()}:::${tx.subcategory.trim().lowercase()}"
                 subcategoryScores[subKey] = (subcategoryScores[subKey] ?: 0) + weight
 
@@ -536,7 +535,9 @@ class BudgetViewModel(
             val isOverBudget = rawTheoreticalSafeToSpend < 0.0 || (plannedExpenses > 0 && lifestyleExpenses > plannedExpenses)
             val netSaved = (personalIncome - lifestyleExpenses) - actualSavingsAndInvestments
             val totalVault = allAccounts.sumOf { it.currentBalance }
-            val dailyPoints = calculateDailySparklinePoints(transactions, month, year)
+
+            // Auxiliary Calculator 1: Daily Sparkline Points (Pure Lifestyle Burn Velocity)
+            val dailyPoints = calculateDailySparklinePoints(regularTxs, month, year, isWorkExpense)
 
             // 9. MULTI-ACCOUNT COMMITMENTS SHORTFALL ENGINE
             val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
@@ -720,6 +721,7 @@ class BudgetViewModel(
                 matchesQuery && matchesType && matchesAccount && matchesDate
             }
 
+            // Auxiliary Calculator 3: Format Date Headers
             val grouped = filtered.groupBy { formatDateHeader(it.date) }
 
             MonthlyUiState(
@@ -1012,15 +1014,17 @@ class BudgetViewModel(
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), YearlyUiState())
 
+    // Auxiliary Calculator 2: Average Monthly Spend (Arithmetic Mean of Historical Lifestyle Spend with Protected Fallback)
     val averageMonthlySpend: StateFlow<Double> = combine(yearlyUiState, monthlyUiState) { yearly, monthly ->
-        val activeMonths = yearly.monthlyRollups.filter { it.totalActualExpense > 0 }
-        if (activeMonths.isNotEmpty()) {
-            activeMonths.sumOf { it.totalActualExpense } / activeMonths.size
+        val completedHistoricalMonths = yearly.yearlyMonthsData.filter { !it.isFuture && it.lifestyleExpenses > 0 }
+
+        if (completedHistoricalMonths.isNotEmpty()) {
+            completedHistoricalMonths.map { it.lifestyleExpenses }.average()
         } else {
-            val curActual = monthly.metrics.actualExpenses
-            if (curActual > 0.0) curActual
-            else monthly.metrics.plannedExpenses.takeIf { it > 0.0 }
-                ?: monthly.metrics.fixedCommitmentsTotal.coerceAtLeast(25000.0)
+            val curActual = monthly.metrics.lifestyleExpenses
+            val planned = monthly.metrics.plannedExpenses
+            val fixed = monthly.metrics.fixedCommitmentsTotal
+            max(curActual, max(planned, max(fixed, 25000.0)))
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 25000.0)
 
@@ -2479,12 +2483,18 @@ class BudgetViewModel(
         totalClonedInRun
     }
 
-    private fun calculateDailySparklinePoints(transactions: List<TransactionEntity>, month: Int, year: Int): List<Float> {
+    // Auxiliary Calculator 1: Daily Sparkline Points (Pure Lifestyle Burn Velocity)
+    private fun calculateDailySparklinePoints(
+        transactions: List<TransactionEntity>,
+        month: Int,
+        year: Int,
+        isWorkExpense: (TransactionEntity) -> Boolean
+    ): List<Float> {
         val daysInMonth = Calendar.getInstance().apply { set(year, month - 1, 1) }.getActualMaximum(Calendar.DAY_OF_MONTH)
         val dataMap = FloatArray(daysInMonth) { 0f }
         val calTx = Calendar.getInstance()
 
-        transactions.filter { it.type == TransactionType.EXPENSE }.forEach { tx ->
+        transactions.filter { it.type == TransactionType.EXPENSE && !isWorkExpense(it) }.forEach { tx ->
             calTx.timeInMillis = tx.date
             val day = calTx.get(Calendar.DAY_OF_MONTH)
             if (day in 1..daysInMonth) {
@@ -2499,15 +2509,28 @@ class BudgetViewModel(
         }
     }
 
+    // Auxiliary Calculator 3: Format Date Headers (Exact Midnight Comparison)
     private fun formatDateHeader(timestamp: Long): String {
-        val dateCal = Calendar.getInstance().apply { timeInMillis = timestamp }
-        val nowCal = Calendar.getInstance()
+        val nowMidnight = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
 
-        return when {
-            dateCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
-                    dateCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR) -> "Today"
-            dateCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
-                    dateCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR) - 1 -> "Yesterday"
+        val txMidnight = Calendar.getInstance().apply {
+            timeInMillis = timestamp
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+        val diffDays = (nowMidnight.timeInMillis - txMidnight.timeInMillis) / (24 * 60 * 60 * 1000L)
+
+        return when (diffDays) {
+            0L -> "Today"
+            1L -> "Yesterday"
             else -> SimpleDateFormat("dd MMMM yyyy", Locale.US).format(Date(timestamp))
         }
     }
