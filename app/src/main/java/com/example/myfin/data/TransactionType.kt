@@ -4,6 +4,7 @@ enum class TransactionType {
     EXPENSE,
     INCOME,
     ASSET,
+    CORPORATE,
     TRANSFER
 }
 
