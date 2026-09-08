@@ -23,7 +23,9 @@ import androidx.room.Index
 data class SubcategoryEntity(
     val parentCategory: String,
     val name: String,
-    val type: TransactionType
+    val type: TransactionType,
+    val isLegacy: Boolean = false,
+    val isNew: Boolean = false
 ) {
     companion object {
         val defaultSubcategories = listOf(
@@ -120,20 +122,20 @@ data class SubcategoryEntity(
             SubcategoryEntity("Liquid Reserves & Receivables", "General", TransactionType.ASSET),
 
             // ========================================================
-            // CORPORATE (Isolated Company Float)
+            // CORPORATE (Isolated Company Float - New Defaults)
             // ========================================================
             // Work & Professional
-            SubcategoryEntity("Work & Professional", "Work Travel", TransactionType.CORPORATE),
-            SubcategoryEntity("Work & Professional", "Tools & Subscriptions", TransactionType.CORPORATE),
-            SubcategoryEntity("Work & Professional", "Courier & Logistics", TransactionType.CORPORATE),
-            SubcategoryEntity("Work & Professional", "Client Dining & Hospitality", TransactionType.CORPORATE),
-            SubcategoryEntity("Work & Professional", "General", TransactionType.CORPORATE),
+            SubcategoryEntity("Work & Professional", "Work Travel", TransactionType.CORPORATE, isNew = true),
+            SubcategoryEntity("Work & Professional", "Tools & Subscriptions", TransactionType.CORPORATE, isNew = true),
+            SubcategoryEntity("Work & Professional", "Courier & Logistics", TransactionType.CORPORATE, isNew = true),
+            SubcategoryEntity("Work & Professional", "Client Dining & Hospitality", TransactionType.CORPORATE, isNew = true),
+            SubcategoryEntity("Work & Professional", "General", TransactionType.CORPORATE, isNew = true),
 
             // Reimbursements & Claims
-            SubcategoryEntity("Reimbursements & Claims", "Travel Advances & Claims", TransactionType.CORPORATE),
-            SubcategoryEntity("Reimbursements & Claims", "Reimbursement Claims Settled", TransactionType.CORPORATE),
-            SubcategoryEntity("Reimbursements & Claims", "Vendor Reimbursements", TransactionType.CORPORATE),
-            SubcategoryEntity("Reimbursements & Claims", "General", TransactionType.CORPORATE)
+            SubcategoryEntity("Reimbursements & Claims", "Travel Advances & Claims", TransactionType.CORPORATE, isNew = true),
+            SubcategoryEntity("Reimbursements & Claims", "Reimbursement Claims Settled", TransactionType.CORPORATE, isNew = true),
+            SubcategoryEntity("Reimbursements & Claims", "Vendor Reimbursements", TransactionType.CORPORATE, isNew = true),
+            SubcategoryEntity("Reimbursements & Claims", "General", TransactionType.CORPORATE, isNew = true)
         )
     }
 }
