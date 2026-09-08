@@ -72,9 +72,6 @@ fun AddEditFixedBillDialog(
                 val cleanSubcat = bill.subcategory.trim()
                 when {
                     cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
-                    cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
-                        cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
-                    }
                     else -> cleanTitle
                 }
             } ?: ""
@@ -86,10 +83,14 @@ fun AddEditFixedBillDialog(
 
     var selectedTransferSubtype by remember {
         mutableStateOf(
-            when (initialBill?.subcategory) {
-                TransferSubtype.WEALTH_ALLOCATION.name, "Fortress Sweep" -> TransferSubtype.WEALTH_ALLOCATION
-                TransferSubtype.REBALANCE.name, "Rebalance" -> TransferSubtype.REBALANCE
-                else -> TransferSubtype.BILL_FUNDING
+            try {
+                TransferSubtype.valueOf(initialBill?.subcategory.orEmpty())
+            } catch (_: Exception) {
+                when (initialBill?.subcategory) {
+                    "Fortress Sweep" -> TransferSubtype.WEALTH_ALLOCATION
+                    "Rebalance" -> TransferSubtype.REBALANCE
+                    else -> TransferSubtype.BILL_FUNDING
+                }
             }
         )
     }
@@ -153,10 +154,10 @@ fun AddEditFixedBillDialog(
     }
 
     var selectedAccount by remember {
-        mutableStateOf(initialBill?.accountName ?: accountList.firstOrNull() ?: "Primary Account")
+        mutableStateOf(initialBill?.accountName ?: accountList.firstOrNull() ?: "PRIMARY BANK")
     }
     var selectedToAccount by remember {
-        mutableStateOf(initialBill?.toAccountName ?: accountList.getOrNull(1) ?: accountList.firstOrNull() ?: "Secondary Account")
+        mutableStateOf(initialBill?.toAccountName ?: accountList.getOrNull(1) ?: accountList.firstOrNull() ?: "SECONDARY BANK")
     }
 
     var showNewCategoryDialog by remember { mutableStateOf(false) }
@@ -298,7 +299,7 @@ fun AddEditFixedBillDialog(
                 value = noteText,
                 onValueChange = { noteText = it },
                 label = { Text("Note / Title (Optional)", fontSize = 12.sp) },
-                placeholder = { Text("e.g. Paji, Phone, Emergency Reserve", fontSize = 12.sp) },
+                placeholder = { Text("e.g. Netflix, Electricity, Rent", fontSize = 12.sp) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -359,7 +360,7 @@ fun AddEditFixedBillDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Category (Most Used First)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Text("Category", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                     TextButton(
                         onClick = { showNewCategoryDialog = true },
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
@@ -394,7 +395,7 @@ fun AddEditFixedBillDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Subcategory (Most Used First)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Text("Subcategory", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("(Primary Identification)", fontSize = 10.sp, color = TextMuted)
                     }
@@ -428,7 +429,7 @@ fun AddEditFixedBillDialog(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Deduction Vault (Most Used First)",
+                text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Deduction Vault",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextDark
@@ -619,16 +620,9 @@ fun AddEditFixedBillDialog(
 
                         val cleanNote = noteText.trim()
                         val finalTitle = when {
-                            cleanNote.isNotBlank() && !cleanNote.equals(resolvedSubcategory, ignoreCase = true) -> {
-                                if (cleanNote.startsWith(resolvedSubcategory, ignoreCase = true)) {
-                                    val stripped = cleanNote.removePrefix(resolvedSubcategory).trim(' ', '-', ':', '(', ')')
-                                    if (stripped.isNotBlank()) stripped else resolvedSubcategory
-                                } else {
-                                    cleanNote
-                                }
-                            }
+                            cleanNote.isNotBlank() && !cleanNote.equals(resolvedSubcategory, ignoreCase = true) -> cleanNote
                             selectedType == TransactionType.TRANSFER -> "Vault Transfer ($selectedAccount ➔ $selectedToAccount)"
-                            else -> resolvedSubcategory.ifBlank { resolvedCategory }
+                            else -> resolvedSubcategory
                         }
 
                         onSave(
