@@ -293,7 +293,7 @@ fun UserGuideScreen(
                     GuideTextParagraph("Aggregates all connected bank accounts and cash balances into a single flat liquidity pool without segregated reserve buckets.")
                 }
 
-                // Section 3: MAB Floors & Spendable Surplus
+                // Section 3: MAB Floors & Liquid Surplus
                 GuideAccordionCard(
                     icon = Icons.Default.AccountBalance,
                     title = "3. MAB Floors & Spendable Surplus",
@@ -327,7 +327,7 @@ fun UserGuideScreen(
                     )
                 }
 
-                // Section 4: Mathematical Engine & Formulas
+                // Section 4: Mathematical Engine & Formulas (Fully aligned with BudgetViewModel)
                 GuideAccordionCard(
                     icon = Icons.Default.Functions,
                     title = "4. Mathematical Engine & Formulas",
@@ -343,32 +343,32 @@ fun UserGuideScreen(
                 ) {
                     GuideSubheading("A. Effective Base Inflow Determination")
                     GuideFormulaBox(
-                        formula = "I_base = max(I_planned, I_personal)\nI_personal = I_actual - Σ Non_Personal_Inflows",
-                        explanation = "Corporate reimbursements, loan paybacks received, and capital drawdowns are excluded from personal income to ensure true budgeting accuracy."
+                        formula = "I_base = max(I_planned, I_personal)\nI_personal = max(0, I_actual - Σ Non_Personal_Inflows)",
+                        explanation = "Corporate reimbursements are tracked under CORPORATE and do not touch I_actual. Only non-operating capital drawdowns, deposit maturities, and loan paybacks received are deducted from realized income."
                     )
 
                     GuideSubheading("B. Fixed Commitments Load")
                     GuideFormulaBox(
-                        formula = "C_fixed = Σ FixedBills_EXPENSE + max(A_planned, A_actual)\nLoad_% = (C_fixed / I_base) * 100",
-                        explanation = "Evaluates the percentage of monthly inflow strictly pre-committed to recurring bills and fixed asset investments."
+                        formula = "C_fixed = Σ FixedBills_(EXPENSE + TRANSFER)\nC_pending = Σ Unpaid_Bills + max(0, A_planned - A_invested)\nLoad_% = (C_fixed / I_base) * 100",
+                        explanation = "Fixed commitments incorporate recurring living bills, AutoPay sweeps, and unfulfilled SIP targets, calculating the percentage of monthly base inflow strictly pre-committed."
                     )
 
                     GuideSubheading("C. Safe-to-Spend (S2S) Dual Engine")
                     GuideFormulaBox(
-                        formula = "S2S_theoretical = max(0, I_base - C_fixed - E_discretionary)\nS2S_real = min(S2S_theoretical, Liquid_Operating_Cash - Excess_Advance)",
-                        explanation = "S2S bounds theoretical budget headroom by physical cash in Operating vaults, ring-fencing pending bills, MAB floors, and any excess corporate advances held."
+                        formula = "S2S_theoretical = max(0, I_base - C_pending - E_discretionary)\nCash_Floor = max(0, Liquid_Operating_Cash - C_pending - Advance_Held)\nS2S_real = min(S2S_theoretical, Cash_Floor)",
+                        explanation = "Theoretical headroom is bounded by physical cash in Operating accounts above their MAB floors, strictly ring-fencing unpaid commitments and company advances held."
                     )
 
                     GuideSubheading("D. Net Capital Retained & Retention Rate")
                     GuideFormulaBox(
-                        formula = "R_net = I_personal - E_lifestyle - A_actual\nRetention_% = (R_net / I_personal) * 100",
-                        explanation = "Measures true preserved wealth after deducting living expenses (E_lifestyle) and investments (A_actual) from earned personal income."
+                        formula = "R_net = (I_personal - E_lifestyle) - A_genuine\nRetention_% = (R_net / I_personal) * 100",
+                        explanation = "Measures true preserved wealth after deducting living expenses (E_lifestyle) and genuine capital investments (A_genuine, excluding personal loans given out or NPAs) from earned personal income."
                     )
 
                     GuideSubheading("E. Corporate Float & Settlement Isolation")
                     GuideFormulaBox(
                         formula = "Float_pending = max(0, Σ Work_Outlays - Σ Claims_Received)\nAdvance_held = max(0, Σ Claims_Received - Σ Work_Outlays)",
-                        explanation = "Work expenses are tracked as corporate float. Outlays reduce bank balances while pending claims remain ring-fenced from personal lifestyle burn."
+                        explanation = "Work expenses reduce bank vault balances but are completely quarantined from personal lifestyle burn. Corporate claims increase bank balances without being counted as personal taxable earnings."
                     )
 
                     GuideSubheading("F. 50 / 30 / 20 Cashflow Split")
@@ -442,7 +442,7 @@ fun UserGuideScreen(
                     )
                 }
 
-                // Section 7: Mathematical Legend & Symbol Index
+                // Section 7: Mathematical Legend & Symbol Index (Fully aligned with BudgetViewModel)
                 GuideAccordionCard(
                     icon = Icons.Default.FormatListNumbered,
                     title = "7. Mathematical Legend & Symbols",
@@ -457,13 +457,14 @@ fun UserGuideScreen(
                     }
                 ) {
                     GuideSymbolRow(symbol = "I_personal", meaning = "Pure Personal Inflow", formula = "I_actual - NonPersonal_Inflow")
-                    GuideSymbolRow(symbol = "E_lifestyle", meaning = "Pure Lifestyle Outflow", formula = "E_actual - Work_Outlays")
-                    GuideSymbolRow(symbol = "C_fixed", meaning = "Total Fixed Commitments", formula = "Σ Bills_EXPENSE + max(A_plan, A_act)")
+                    GuideSymbolRow(symbol = "E_lifestyle", meaning = "Pure Lifestyle Outflow", formula = "Type == EXPENSE (Pure living)")
+                    GuideSymbolRow(symbol = "C_fixed", meaning = "Total Fixed Commitments", formula = "Σ Bills_(EXPENSE + TRANSFER)")
+                    GuideSymbolRow(symbol = "C_pending", meaning = "Queued Unpaid Commitments", formula = "Σ Unpaid_Bills + Pending_SIP")
                     GuideSymbolRow(symbol = "MAB", meaning = "Minimum Average Balance Floor", formula = "Protected Account Minimum")
                     GuideSymbolRow(symbol = "Surplus", meaning = "Spendable Cash Above Floor", formula = "max(0, Balance - MAB)")
-                    GuideSymbolRow(symbol = "S2S", meaning = "Safe-to-Spend Liquidity", formula = "min(S2S_theo, Operating_Cash - Adv)")
+                    GuideSymbolRow(symbol = "S2S", meaning = "Liquid Safe-to-Spend", formula = "min(S2S_theo, Cash_Floor)")
                     GuideSymbolRow(symbol = "F_corp", meaning = "Pending Corporate Claims", formula = "max(0, Outlays - Claims)")
-                    GuideSymbolRow(symbol = "R_net", meaning = "Net Retained Capital", formula = "I_personal - E_lifestyle - A_actual")
+                    GuideSymbolRow(symbol = "R_net", meaning = "Net Retained Capital", formula = "(I_personal - E_lifestyle) - A_genuine")
                     GuideSymbolRow(symbol = "M_runway", meaning = "Emergency Cushion Months", formula = "Liquid Vaults / max(1.0, Monthly_Burn)")
                 }
 
