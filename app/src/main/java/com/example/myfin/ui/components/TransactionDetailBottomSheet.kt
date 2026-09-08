@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -40,10 +41,16 @@ fun TransactionDetailBottomSheet(
     val dateFormatter = remember { SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale.US) }
     val monthNameFormatter = remember { SimpleDateFormat("MMMM yyyy", Locale.US) }
 
+    val isCorporateInflow = remember(transaction.type, transaction.category) {
+        transaction.type == TransactionType.CORPORATE &&
+        transaction.category.equals("Reimbursements & Claims", ignoreCase = true)
+    }
+
     val typeColor = when (transaction.type) {
         TransactionType.INCOME -> SoftGreen
         TransactionType.EXPENSE -> SoftRed
         TransactionType.ASSET -> SoftTeal
+        TransactionType.CORPORATE -> if (isCorporateInflow) SoftGreen else Color(0xFFE57A28)
         TransactionType.TRANSFER -> AccentPurple
     }
 
@@ -51,6 +58,7 @@ fun TransactionDetailBottomSheet(
         TransactionType.INCOME -> "Income Inflow"
         TransactionType.EXPENSE -> "Discretionary Expense"
         TransactionType.ASSET -> "Wealth / SIP Investment"
+        TransactionType.CORPORATE -> if (isCorporateInflow) "Corporate Claim / Advance" else "Corporate Work Outlay"
         TransactionType.TRANSFER -> "Internal Vault Sweep"
     }
 
@@ -58,6 +66,7 @@ fun TransactionDetailBottomSheet(
         TransactionType.EXPENSE -> "-"
         TransactionType.INCOME -> "+"
         TransactionType.ASSET -> "•"
+        TransactionType.CORPORATE -> if (isCorporateInflow) "+" else "-"
         TransactionType.TRANSFER -> "⇄"
     }
 
@@ -122,15 +131,6 @@ fun TransactionDetailBottomSheet(
             isYesterday -> "Yesterday"
             else -> "Logged Past Date"
         }
-    }
-
-    // Work / Corporate Reimbursement Pass-through Check
-    val isReimbursableWorkOutlay = remember(transaction) {
-        transaction.type == TransactionType.EXPENSE &&
-        (transaction.category.equals("Work & Professional", ignoreCase = true) ||
-         transaction.subcategory.contains("Work Travel", ignoreCase = true) ||
-         transaction.subcategory.contains("Courier", ignoreCase = true) ||
-         transaction.title.contains("Reimbursable", ignoreCase = true))
     }
 
     ModalBottomSheet(
@@ -331,12 +331,16 @@ fun TransactionDetailBottomSheet(
                         value = if (transaction.linkedFixedBillId != null) "Linked to Recurring AutoPay" else "Standalone Entry"
                     )
 
-                    if (isReimbursableWorkOutlay) {
+                    if (transaction.type == TransactionType.CORPORATE) {
                         HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
                         DetailInfoRow(
                             icon = Icons.Default.WorkOutline,
-                            label = "Reimbursement Policy",
-                            value = "Excluded from personal lifestyle burn"
+                            label = "Accounting Policy",
+                            value = if (isCorporateInflow) {
+                                "Corporate Settlement (Excluded from personal income)"
+                            } else {
+                                "Corporate Float (Excluded from personal expenses)"
+                            }
                         )
                     }
                 }
