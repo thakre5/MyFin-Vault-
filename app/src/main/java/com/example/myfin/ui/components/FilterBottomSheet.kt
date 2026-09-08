@@ -28,7 +28,6 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
 
-
 private enum class DatePreset(val label: String) {
     ALL_TIME("All Time"),
     TODAY("Today"),
@@ -117,7 +116,7 @@ fun FilterBottomSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Flow Type Filter
+            // Flow Type Filter (Now includes Corporate)
             Text("Flow Type", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
             Spacer(modifier = Modifier.height(6.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -138,6 +137,7 @@ fun FilterBottomSheet(
                         TransactionType.EXPENSE to "Expense",
                         TransactionType.INCOME to "Income",
                         TransactionType.ASSET to "Asset / SIP",
+                        TransactionType.CORPORATE to "Corporate",
                         TransactionType.TRANSFER to "Transfer"
                     )
                 ) { (type, label) ->
@@ -487,6 +487,5 @@ private fun calculatePresetRange(preset: DatePreset): Pair<Long, Long> {
 private fun isPresetRange(start: Long?, end: Long?, preset: DatePreset): Boolean {
     if (start == null || end == null) return false
     val (expectedStart, expectedEnd) = calculatePresetRange(preset)
-    // Tolerate up to 1 second variance for clock shifts
     return abs(start - expectedStart) < 1000 && abs(end - expectedEnd) < 1000
 }
