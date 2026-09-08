@@ -109,7 +109,7 @@ fun BudgetPlannerScreen(
             (uiState.selectedYear == currentCalendarYear && uiState.selectedMonth < currentCalendarMonth)
     val isPastFifth = isCurrentMonth && (currentDayOfMonth > 5)
 
-    // Financial Allocation Baseline Metrics (With Profile Base Income Fallback)
+    // Financial Allocation Baseline Metrics
     val totalPlannedIncome = uiState.metrics.plannedIncome
     val effectiveIncomeBaseline = if (totalPlannedIncome > 0.0) totalPlannedIncome else userProfile.baseMonthlyIncome
     val totalPlannedExpenses = uiState.metrics.plannedExpenses
@@ -158,7 +158,6 @@ fun BudgetPlannerScreen(
         )
     }
 
-    // Dynamic Contextual FAB Actions per Selected Tab
     val fabActions = remember(selectedSegment, isPastMonth, isPastFifth) {
         when (selectedSegment) {
             TransactionType.EXPENSE -> listOf(
@@ -273,7 +272,7 @@ fun BudgetPlannerScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. PINNED TOP HEADER WITH SHELF GRADIENT DISSOLVE
+            // 1. PINNED TOP HEADER
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -341,7 +340,7 @@ fun BudgetPlannerScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Inflow Baseline Zero-Based Budget Hero Card
+                    // Inflow Baseline Hero Card
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -422,7 +421,7 @@ fun BudgetPlannerScreen(
                                 text = when {
                                     effectiveIncomeBaseline == 0.0 -> "Configure expected income in the Income tab to track allocation buffer"
                                     isOverAllocated -> "Deficit: Outflows exceed income by ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(unallocatedBuffer))}"
-                                    isBalancedBudget -> "Zero-Based Budget achieved: Every rupee has been assigned a job"
+                                    isBalancedBudget -> "Zero-Based Budget achieved: Every currency unit is assigned"
                                     else -> "Unallocated buffer: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", unallocatedBuffer)} available to assign"
                                 },
                                 fontSize = 10.5.sp,
@@ -432,7 +431,6 @@ fun BudgetPlannerScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // Dual Segment Allocation Progress Bar
                             val expenseFraction = if (effectiveIncomeBaseline > 0) (totalPlannedExpenses / effectiveIncomeBaseline).toFloat().coerceIn(0f, 1f) else 0f
                             val assetFraction = if (effectiveIncomeBaseline > 0) (totalPlannedAssets / effectiveIncomeBaseline).toFloat().coerceIn(0f, 1f) else 0f
 
@@ -472,7 +470,6 @@ fun BudgetPlannerScreen(
 
                             Spacer(modifier = Modifier.height(6.dp))
 
-                            // Allocation Legends
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -494,7 +491,7 @@ fun BudgetPlannerScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // 4-Way Segment Switcher Row
+                    // 4-Way Segment Switcher
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -531,17 +528,13 @@ fun BudgetPlannerScreen(
                     }
                 }
 
-                // Smooth Dissolve Shelf Placed Below Segment Bar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(14.dp)
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(
-                                    CanvasLight,
-                                    CanvasLight.copy(alpha = 0f)
-                                )
+                                colors = listOf(CanvasLight, CanvasLight.copy(alpha = 0f))
                             )
                         )
                 )
@@ -574,11 +567,20 @@ fun BudgetPlannerScreen(
                         }
                         val isLocked = isPastMonth || (isCurrentMonth && isPastFifth && cat.plannedAmount > 0.0)
 
+                        val isLegacy = remember(uiState.masterCategories, cat) {
+                            uiState.masterCategories.any { it.name.equals(cat.category, ignoreCase = true) && it.type == cat.type && it.isLegacy }
+                        }
+                        val isNew = remember(uiState.masterCategories, cat) {
+                            uiState.masterCategories.any { it.name.equals(cat.category, ignoreCase = true) && it.type == cat.type && it.isNew }
+                        }
+
                         BudgetCategoryCleanCard(
                             category = cat,
                             committedAutoPay = committedAmount,
                             currencySymbol = userProfile.currencySymbol,
                             isLocked = isLocked,
+                            isLegacy = isLegacy,
+                            isNew = isNew,
                             onClick = {
                                 if (isPastMonth) {
                                     Toast.makeText(context, "Historical months cannot be modified.", Toast.LENGTH_SHORT).show()
@@ -595,7 +597,7 @@ fun BudgetPlannerScreen(
             }
         }
 
-        // 3. FLOATING BOTTOM DOCK WITH TAB-AWARE FAB
+        // 3. FLOATING BOTTOM DOCK
         AppBottomDock(
             currentSelection = NavigationTarget.BUDGET_PLANNER,
             onSelectTarget = { target ->
@@ -605,7 +607,7 @@ fun BudgetPlannerScreen(
                     NavigationTarget.VAULT_ACCOUNTS -> onNavigateToVaults()
                     NavigationTarget.REPORTS_ANALYTICS -> onNavigateToAnalytics()
                     NavigationTarget.YEARLY_VIEW -> onNavigateToYearly()
-                    NavigationTarget.BUDGET_PLANNER -> { /* Active */ }
+                    NavigationTarget.BUDGET_PLANNER -> {}
                     else -> {}
                 }
             },
@@ -670,7 +672,7 @@ fun BudgetPlannerScreen(
             }
         }
 
-        // Alert: Locked Past the 5th (With Emergency Override Support)
+        // Alert: Locked Past the 5th
         lockedCategoryAlert?.let { cat ->
             AlertDialog(
                 onDismissRequest = { lockedCategoryAlert = null },
@@ -708,7 +710,7 @@ fun BudgetPlannerScreen(
                 title = { Text("Copy Last Month's Plan?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                 text = {
                     Text(
-                        "This will copy all planned category limits and baseline goals from the previous month into ${MONTH_NAMES[uiState.selectedMonth - 1]} ${uiState.selectedYear}.",
+                        "This will copy active planned category limits from the previous month into ${MONTH_NAMES[uiState.selectedMonth - 1]} ${uiState.selectedYear}. Retired legacy categories are excluded.",
                         fontSize = 13.sp,
                         color = TextDark
                     )
@@ -717,7 +719,7 @@ fun BudgetPlannerScreen(
                     Button(
                         onClick = {
                             viewModel.copyPreviousMonthBudget { count ->
-                                Toast.makeText(context, "$count budget targets synced from previous month!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "$count active budget targets synced from previous month!", Toast.LENGTH_SHORT).show()
                             }
                             showCopyPlanDialog = false
                         },
@@ -844,10 +846,7 @@ fun BudgetPlannerScreen(
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                 dragHandle = {
                     Surface(
-                        modifier = Modifier
-                            .padding(vertical = 10.dp)
-                            .width(40.dp)
-                            .height(4.dp),
+                        modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp),
                         shape = CircleShape,
                         color = BorderLight
                     ) {}
@@ -912,7 +911,6 @@ fun BudgetPlannerScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Quick Increment Buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -944,7 +942,6 @@ fun BudgetPlannerScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Actions
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -998,6 +995,8 @@ private fun BudgetCategoryCleanCard(
     committedAutoPay: Double,
     currencySymbol: String,
     isLocked: Boolean,
+    isLegacy: Boolean = false,
+    isNew: Boolean = false,
     onClick: () -> Unit
 ) {
     val typeColor = when (category.type) {
@@ -1012,21 +1011,25 @@ private fun BudgetCategoryCleanCard(
         TransactionType.EXPENSE -> when {
             committedAutoPay > 0.0 -> "AutoPay committed: $currencySymbol${String.format(Locale.US, "%,.0f", committedAutoPay)}"
             category.plannedAmount > 0.0 -> "Actual spent: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}"
+            isLegacy -> "Legacy category (retiring next month)"
             else -> "Tap to set budget target"
         }
         TransactionType.INCOME -> when {
             committedAutoPay > 0.0 -> "Recurring inflow: $currencySymbol${String.format(Locale.US, "%,.0f", committedAutoPay)}"
             category.plannedAmount > 0.0 -> "Actual received: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}"
+            isLegacy -> "Legacy category (retiring next month)"
             else -> "Tap to set income target"
         }
         TransactionType.ASSET -> when {
             committedAutoPay > 0.0 -> "Recurring SIP: $currencySymbol${String.format(Locale.US, "%,.0f", committedAutoPay)}"
             category.plannedAmount > 0.0 -> "Actual invested: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}"
+            isLegacy -> "Legacy category (retiring next month)"
             else -> "Tap to set asset target"
         }
         TransactionType.CORPORATE -> when {
             committedAutoPay > 0.0 -> "Committed: $currencySymbol${String.format(Locale.US, "%,.0f", committedAutoPay)}"
             category.plannedAmount > 0.0 -> "Actual: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}"
+            isLegacy -> "Legacy category (retiring next month)"
             else -> "Tap to set corporate float ceiling"
         }
         TransactionType.TRANSFER -> "Vault sweep transfer"
@@ -1049,7 +1052,11 @@ private fun BudgetCategoryCleanCard(
         color = CardWhite,
         border = BorderStroke(
             0.8.dp,
-            if (isOverBudget) SoftRed.copy(alpha = 0.5f) else BorderLight.copy(alpha = 0.6f)
+            when {
+                isOverBudget -> SoftRed.copy(alpha = 0.5f)
+                isLegacy -> Color(0xFFFFB74D).copy(alpha = 0.8f)
+                else -> BorderLight.copy(alpha = 0.6f)
+            }
         )
     ) {
         Column(
@@ -1070,29 +1077,59 @@ private fun BudgetCategoryCleanCard(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(typeColor.copy(alpha = 0.12f)),
+                            .background(if (isLegacy) Color(0xFFFFF3E0) else typeColor.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = category.category.take(1).uppercase(),
                             fontWeight = FontWeight.Black,
                             fontSize = 14.sp,
-                            color = typeColor
+                            color = if (isLegacy) Color(0xFFE65100) else typeColor
                         )
                     }
 
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(
                                 text = category.category,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.5.sp,
                                 color = TextDark,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
+
+                            if (isLegacy) {
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFFFFF3E0),
+                                    border = BorderStroke(0.6.dp, Color(0xFFFFB74D))
+                                ) {
+                                    Text(
+                                        text = "Legacy",
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFE65100),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            } else if (isNew) {
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(5.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF4CAF50))
+                                )
+                            }
+
                             if (isLocked) {
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Icon(
@@ -1102,6 +1139,7 @@ private fun BudgetCategoryCleanCard(
                                     modifier = Modifier.size(12.dp)
                                 )
                             }
+
                             if (isOverBudget) {
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Surface(
@@ -1113,12 +1151,14 @@ private fun BudgetCategoryCleanCard(
                                         fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = SoftRed,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                                     )
                                 }
                             }
                         }
+
                         Spacer(modifier = Modifier.height(2.dp))
+
                         Text(
                             text = subtitleText,
                             fontSize = 11.sp,
