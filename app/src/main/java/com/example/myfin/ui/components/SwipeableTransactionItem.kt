@@ -28,7 +28,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionEntity
@@ -212,6 +211,7 @@ fun SwipeableTransactionItem(
             TransactionType.INCOME -> SoftGreen
             TransactionType.EXPENSE -> SoftRed
             TransactionType.ASSET -> SoftTeal
+            TransactionType.CORPORATE -> Color(0xFFE57A28)
             TransactionType.TRANSFER -> AccentPurple
         }
 
@@ -355,10 +355,14 @@ fun SwipeableTransactionItem(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.Center
                 ) {
+                    val isCorporateInflow = txType == TransactionType.CORPORATE &&
+                        txCategory.equals("Reimbursements & Claims", ignoreCase = true)
+
                     val amountPrefix = when (txType) {
                         TransactionType.EXPENSE -> "-"
                         TransactionType.INCOME -> "+"
                         TransactionType.ASSET -> "•"
+                        TransactionType.CORPORATE -> if (isCorporateInflow) "+" else "-"
                         TransactionType.TRANSFER -> "⇄"
                     }
 
@@ -366,6 +370,7 @@ fun SwipeableTransactionItem(
                         TransactionType.INCOME -> SoftGreen
                         TransactionType.EXPENSE -> TextDark
                         TransactionType.ASSET -> SoftTeal
+                        TransactionType.CORPORATE -> if (isCorporateInflow) SoftGreen else Color(0xFFE57A28)
                         TransactionType.TRANSFER -> AccentPurple
                     }
 
@@ -416,6 +421,10 @@ private fun getCategoryIcon(category: String, type: TransactionType): ImageVecto
         TransactionType.INCOME -> Icons.AutoMirrored.Filled.TrendingUp
         TransactionType.ASSET -> Icons.Default.Savings
         TransactionType.TRANSFER -> Icons.Default.SyncAlt
+        TransactionType.CORPORATE -> when {
+            category.equals("Reimbursements & Claims", ignoreCase = true) -> Icons.Default.AccountBalance
+            else -> Icons.Default.Work
+        }
         TransactionType.EXPENSE -> when (category) {
             "Utilities & Living Bills" -> Icons.Default.Bolt
             "Everyday Living" -> Icons.Default.ShoppingCart
@@ -423,7 +432,6 @@ private fun getCategoryIcon(category: String, type: TransactionType): ImageVecto
             "Health & Medical" -> Icons.Default.LocalHospital
             "Family & Home Support" -> Icons.Default.Favorite
             "Debt & Financial Obligations" -> Icons.Default.CreditCard
-            "Work & Professional" -> Icons.Default.Work
             else -> Icons.Default.Receipt
         }
     }
