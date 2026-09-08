@@ -176,17 +176,6 @@ fun VaultStrategyScreen(
     val fortressFd = remember(fortTotal, fortressCap) { max(0.0, fortTotal - fortressCap) }
     val fortressSavingsFraction = if (fortressCap > 0) (fortressSavings / fortressCap).toFloat().coerceIn(0f, 1f) else 1f
 
-    val isWorkExpense = remember {
-        { tx: TransactionEntity ->
-            tx.type == TransactionType.EXPENSE &&
-            (tx.category.equals("Work & Professional", ignoreCase = true) ||
-             tx.subcategory.contains("Work Travel", ignoreCase = true) ||
-             tx.subcategory.contains("Courier", ignoreCase = true) ||
-             tx.subcategory.contains("Tools & Subscriptions", ignoreCase = true) ||
-             tx.title.contains("Reimbursable", ignoreCase = true))
-        }
-    }
-
     // Unfiltered transaction stream for the active month (immune to search filter contamination)
     val activeAccountTxs = remember(yearlyState.allYearTransactions, uiState.selectedMonth, uiState.selectedYear, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
@@ -198,7 +187,7 @@ fun VaultStrategyScreen(
 
     val activeExpenses = remember(activeAccountTxs, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
-        activeAccountTxs.filter { it.type == TransactionType.EXPENSE && it.accountName.equals(name, ignoreCase = true) && !isWorkExpense(it) }
+        activeAccountTxs.filter { it.type == TransactionType.EXPENSE && it.accountName.equals(name, ignoreCase = true) }
             .sumOf { it.amount }
     }
     val activeAssets = remember(activeAccountTxs, activeAccount?.accountName) {
@@ -218,8 +207,26 @@ fun VaultStrategyScreen(
     }
     val activeTransfersIn = remember(activeAccountTxs, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
-        activeAccountTxs.filter { it.type == TransactionType.TRANSFER && it.toAccountName.equals(name, ignoreCase = true) }
+        activeAccountTxs.filter { it.type == TransactionType.TRANSFER && it.toAccountName?.equals(name, ignoreCase = true) == true }
             .sumOf { it.amount }
+    }
+
+    // Segregated corporate flows for exact physical cash reconciliation
+    val activeCorporateOutlays = remember(activeAccountTxs, activeAccount?.accountName) {
+        val name = activeAccount?.accountName.orEmpty()
+        activeAccountTxs.filter {
+            it.type == TransactionType.CORPORATE &&
+            it.accountName.equals(name, ignoreCase = true) &&
+            !it.category.equals("Reimbursements & Claims", ignoreCase = true)
+        }.sumOf { it.amount }
+    }
+    val activeCorporateInflows = remember(activeAccountTxs, activeAccount?.accountName) {
+        val name = activeAccount?.accountName.orEmpty()
+        activeAccountTxs.filter {
+            it.type == TransactionType.CORPORATE &&
+            it.accountName.equals(name, ignoreCase = true) &&
+            it.category.equals("Reimbursements & Claims", ignoreCase = true)
+        }.sumOf { it.amount }
     }
 
     val calendar = remember { Calendar.getInstance() }
@@ -240,7 +247,9 @@ fun VaultStrategyScreen(
     val pendingBillsForAccount = remember(uiState.fixedBills, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         uiState.fixedBills.filter {
-            !it.isPaid && it.type != TransactionType.INCOME &&
+            !it.isPaid &&
+            it.type != TransactionType.INCOME &&
+            !(it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
             it.accountName.equals(name, ignoreCase = true)
         }
     }
@@ -859,7 +868,8 @@ fun VaultStrategyScreen(
 
                                     Spacer(modifier = Modifier.width(12.dp))
 
-                                    val netDelta = (activeIncome + activeTransfersIn) - (activeExpenses + activeAssets + activeTransfersOut)
+                                    val netDelta = (activeIncome + activeTransfersIn + activeCorporateInflows) -
+                                            (activeExpenses + activeAssets + activeTransfersOut + activeCorporateOutlays)
                                     MatrixMetricCell(
                                         title = "Net Cashflow",
                                         value = "${if (netDelta >= 0) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(netDelta))}",
@@ -941,10 +951,13 @@ fun VaultStrategyScreen(
                                         .clip(CircleShape)
                                         .background(CanvasLight)
                                 ) {
-                                    val totalOut = (activeExpenses + activeAssets + totalPendingBillsAmount + activeTransfersOut).coerceAtLeast(1.0)
+                                    val totalOut = (activeExpenses + activeAssets + totalPendingBillsAmount + activeTransfersOut + activeCorporateOutlays).coerceAtLeast(1.0)
                                     Box(modifier = Modifier.weight(((activeExpenses + activeAssets) / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(Color(0xFFE57A28)))
                                     Box(modifier = Modifier.weight((totalPendingBillsAmount / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(AccentPurple))
                                     Box(modifier = Modifier.weight(((activeTransfersOut + 1.0) / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(SoftTeal))
+                                    if (activeCorporateOutlays > 0.0) {
+                                        Box(modifier = Modifier.weight((activeCorporateOutlays / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(Color(0xFFD97706)))
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(12.dp))
@@ -1565,6 +1578,17 @@ fun VaultStrategyScreen(
                                     Text("Transfers & Fortress Sweeps", fontSize = 12.sp, color = TextDark)
                                 }
                                 Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeTransfersOut)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                            }
+
+                            if (activeCorporateOutlays > 0.0) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFD97706)))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Corporate Float Outlays", fontSize = 12.sp, color = TextDark)
+                                    }
+                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeCorporateOutlays)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                }
                             }
                         }
                     }
