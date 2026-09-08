@@ -109,6 +109,7 @@ fun MasterDataSetScreen(
         TransactionType.EXPENSE -> SoftRed
         TransactionType.INCOME -> SoftGreen
         TransactionType.ASSET -> SoftTeal
+        TransactionType.CORPORATE -> Color(0xFFE57A28)
         TransactionType.TRANSFER -> AccentPurple
     }
 
@@ -296,7 +297,7 @@ fun MasterDataSetScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Flow Segment Switcher
+                    // 4-Way Segment Switcher
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -307,7 +308,8 @@ fun MasterDataSetScreen(
                         listOf(
                             Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
                             Triple(TransactionType.INCOME, "Income", SoftGreen),
-                            Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal)
+                            Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal),
+                            Triple(TransactionType.CORPORATE, "Corporate", Color(0xFFE57A28))
                         ).forEach { (type, label, color) ->
                             val isSelected = selectedSegment == type
                             Box(
@@ -322,7 +324,7 @@ fun MasterDataSetScreen(
                                 Text(
                                     text = label,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 11.sp,
+                                    fontSize = 10.5.sp,
                                     color = if (isSelected) color else TextMuted,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -440,7 +442,7 @@ fun MasterDataSetScreen(
             }
         }
 
-        // 3. STANDARDIZED FLOATING BOTTOM DOCK WITH FAB (includes integrated animated gradient scrim)
+        // 3. STANDARDIZED FLOATING BOTTOM DOCK WITH FAB
         AppBottomDock(
             currentSelection = NavigationTarget.DATA_SET,
             onSelectTarget = { target ->
@@ -931,6 +933,7 @@ private fun IntegratedCategoryTreeCard(
         TransactionType.INCOME -> SoftGreen
         TransactionType.EXPENSE -> SoftRed
         TransactionType.ASSET -> SoftTeal
+        TransactionType.CORPORATE -> Color(0xFFE57A28)
         TransactionType.TRANSFER -> AccentPurple
     }
 
