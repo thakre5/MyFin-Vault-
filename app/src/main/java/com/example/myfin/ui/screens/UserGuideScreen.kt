@@ -2,6 +2,7 @@
 
 package com.example.myfin.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -30,6 +31,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,7 +58,14 @@ enum class GuideAccordionSection {
 fun UserGuideScreen(
     onBack: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
     var expandedSection by rememberSaveable { mutableStateOf(GuideAccordionSection.ARCHITECTURE) }
+
+    // Intercept hardware and gesture back actions for a seamless exit transition
+    BackHandler {
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        onBack()
+    }
 
     Box(
         modifier = Modifier
@@ -63,7 +73,7 @@ fun UserGuideScreen(
             .background(CanvasLight)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. PINNED HEADER SECTION (STATIC ON TOP)
+            // 1. PINNED HEADER SECTION
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -103,7 +113,10 @@ fun UserGuideScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(
-                                    onClick = onBack,
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onBack()
+                                    },
                                     modifier = Modifier
                                         .size(40.dp)
                                         .clip(CircleShape)
@@ -111,7 +124,7 @@ fun UserGuideScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.ChevronLeft,
-                                        contentDescription = "Back",
+                                        contentDescription = "Back to Settings",
                                         tint = Color.White,
                                         modifier = Modifier.size(24.dp)
                                     )
@@ -172,7 +185,7 @@ fun UserGuideScreen(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Mathematical Engine, MAB Floors & Local Privacy Specs",
+                            text = "Mathematical Engine, MAB Floors & Corporate Float Specs",
                             fontSize = 12.5.sp,
                             color = TextMuted
                         )
@@ -221,7 +234,7 @@ fun UserGuideScreen(
                         }
                     }
                 ) {
-                    GuideTextParagraph("MyFin Vault is engineered around a 100% offline-first local ledger model. The application maintains zero external cloud databases, zero telemetry, and zero network trackers. All data stays strictly on your physical device.")
+                    GuideTextParagraph("MyFin Vault is engineered around a 100% offline-first local ledger model. The application maintains zero external cloud databases, zero telemetry, and zero network trackers. All financial data stays strictly on your physical device.")
 
                     GuideFeatureBullet(
                         title = "Local Data Sovereignty",
@@ -229,11 +242,11 @@ fun UserGuideScreen(
                     )
                     GuideFeatureBullet(
                         title = "Hardware-Backed Biometrics",
-                        desc = "Biometric authentication uses native BiometricPrompt & Android KeyStore hardware crypto sandboxes. Keys never leave the local environment."
+                        desc = "Biometric authentication uses native BiometricPrompt and Android KeyStore hardware crypto sandboxes. Cryptographic keys never leave the local secure environment."
                     )
                     GuideFeatureBullet(
-                        title = "Immutable DOB Security Key",
-                        desc = "Your Date of Birth is stored locally as an immutable emergency key for master PIN resets and database authorization."
+                        title = "Corporate Float Segregation",
+                        desc = "Business travel, client dining, and courier expenses are recorded under a dedicated first-class Corporate flow. They reduce physical bank balances without contaminating personal lifestyle spending or inflating earned personal income."
                     )
                     GuideFeatureBullet(
                         title = "Anti-Spy Window Guard (FLAG_SECURE)",
@@ -255,24 +268,24 @@ fun UserGuideScreen(
                         }
                     }
                 ) {
-                    GuideTextParagraph("You can switch between two capital segregation frameworks in Settings & Vault Hub at any time:")
+                    GuideTextParagraph("You can switch between two capital segregation frameworks in Settings and Vault Hub at any time:")
 
                     GuideSubheading("A. 3-Vault Strategy (Recommended)")
                     GuideFeatureBullet(
                         title = "Operating Vault",
-                        desc = "Absorbs day-to-day variable lifestyle expenses (groceries, leisure, transport, dining)."
+                        desc = "Absorbs day-to-day variable lifestyle expenses (groceries, leisure, transport, dining). Suggests sweeps when surplus exceeds your dynamic monthly runway target."
                     )
                     GuideFeatureBullet(
                         title = "Commitments Vault",
-                        desc = "Reserved for fixed obligations (AutoPay bills, rent, EMIs, insurance, recurring dues)."
+                        desc = "Reserved strictly for fixed obligations (AutoPay bills, rent, EMIs, insurance, recurring dues) so funds cannot be accidentally spent."
                     )
                     GuideFeatureBullet(
                         title = "Fortress Vault",
-                        desc = "High-reserve emergency buffer. Shielded from everyday spending metrics and used for emergency runway calculations."
+                        desc = "High-reserve emergency buffer. Automatically categorizes balances up to your safety threshold as liquid cushion, and sweeps excess amounts into emergency fixed deposits."
                     )
                     GuideFeatureBullet(
                         title = "Cash Wallet",
-                        desc = "Physical petty cash tracking on hand."
+                        desc = "Physical petty cash tracking for micro-payments."
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
@@ -280,7 +293,7 @@ fun UserGuideScreen(
                     GuideTextParagraph("Aggregates all connected bank accounts and cash balances into a single flat liquidity pool without segregated reserve buckets.")
                 }
 
-                // Section 3: MAB Floors & Liquid Surplus
+                // Section 3: MAB Floors & Spendable Surplus
                 GuideAccordionCard(
                     icon = Icons.Default.AccountBalance,
                     title = "3. MAB Floors & Spendable Surplus",
@@ -294,23 +307,23 @@ fun UserGuideScreen(
                         }
                     }
                 ) {
-                    GuideTextParagraph("MyFin Vault introduces dedicated protection for bank minimum balance (MAB) requirements across all active bank accounts:")
+                    GuideTextParagraph("MyFin Vault enforces protection for bank minimum balance (MAB) requirements across all active accounts:")
 
                     GuideFeatureBullet(
                         title = "Protected MAB Floor",
-                        desc = "Each bank account can be assigned a minimum balance floor (e.g. ₹10,000 for Commitments or salary accounts) to prevent non-maintenance penalty charges."
+                        desc = "Each bank account can be assigned a minimum balance floor to prevent non-maintenance penalty charges."
                     )
                     GuideFeatureBullet(
                         title = "Spendable Surplus Calculation",
-                        desc = "Surplus = max(0, Current Balance - MAB). This ensures your dashboard and allocation engines only suggest truly disposable cash rather than eating into your required banking floor."
+                        desc = "Surplus = max(0, Current Balance - MAB). This ensures allocation engines only suggest truly disposable cash rather than eating into your required banking floor."
                     )
                     GuideFeatureBullet(
                         title = "Commitments Shortfall Warnings",
-                        desc = "If unpaid global outlays (Expenses, Assets, and Transfers originating from the Commitments vault) exceed your Commitments account balance, MyFin triggers an urgent shortfall warning banner with 1-tap transfer prompts."
+                        desc = "If unpaid global outlays (bills and recurring commitments originating from the Commitments vault) exceed your balance, MyFin surfaces an urgent shortfall warning with 1-tap transfer prompts."
                     )
                     GuideFeatureBullet(
-                        title = "Payday Fortress Surplus Engine",
-                        desc = "From the 25th of each month onwards, when an income transaction under 'Salary & Professional Inflow' is logged in 3-Vault mode, the app computes available excess cash after securing commitments and protecting average monthly spend buffers, surfacing a 1-tap 'Sweep Now' banner to route funds directly into the Fortress Vault."
+                        title = "Payday & Month-End Sweep Engines",
+                        desc = "When your salary is logged in 3-Vault mode, the app calculates exact bill funding and emergency transfers. At month-end (from the 28th), any surplus remaining above your living buffer can be swept directly into the Fortress vault."
                     )
                 }
 
@@ -318,7 +331,7 @@ fun UserGuideScreen(
                 GuideAccordionCard(
                     icon = Icons.Default.Functions,
                     title = "4. Mathematical Engine & Formulas",
-                    subtitle = "Real-Time S2S, Runways, Pacing & Splits",
+                    subtitle = "Real-Time S2S, Runways, Corporate Float & Splits",
                     isExpanded = expandedSection == GuideAccordionSection.MATHEMATICAL_FORMULAS,
                     onToggleExpand = {
                         expandedSection = if (expandedSection == GuideAccordionSection.MATHEMATICAL_FORMULAS) {
@@ -330,8 +343,8 @@ fun UserGuideScreen(
                 ) {
                     GuideSubheading("A. Effective Base Inflow Determination")
                     GuideFormulaBox(
-                        formula = "I_base = max(I_planned, I_actual)",
-                        explanation = "If actual income is not yet logged and no plan exists, I_base defaults to expected UserProfile.baseMonthlyIncome."
+                        formula = "I_base = max(I_planned, I_personal)\nI_personal = I_actual - Σ Non_Personal_Inflows",
+                        explanation = "Corporate reimbursements, loan paybacks received, and capital drawdowns are excluded from personal income to ensure true budgeting accuracy."
                     )
 
                     GuideSubheading("B. Fixed Commitments Load")
@@ -342,26 +355,26 @@ fun UserGuideScreen(
 
                     GuideSubheading("C. Safe-to-Spend (S2S) Dual Engine")
                     GuideFormulaBox(
-                        formula = "S2S_theoretical = max(0, I_base - C_fixed - E_variable)\nS2S_real = min(S2S_theoretical, Liquid_Operating_Cash)",
-                        explanation = "S2S dynamically bounds theoretical budget surplus by actual real liquid cash in your Operating accounts minus MAB thresholds."
+                        formula = "S2S_theoretical = max(0, I_base - C_fixed - E_discretionary)\nS2S_real = min(S2S_theoretical, Liquid_Operating_Cash - Excess_Advance)",
+                        explanation = "S2S bounds theoretical budget headroom by physical cash in Operating vaults, ring-fencing pending bills, MAB floors, and any excess corporate advances held."
                     )
 
                     GuideSubheading("D. Net Capital Retained & Retention Rate")
                     GuideFormulaBox(
-                        formula = "R_net = I_actual - E_actual - A_actual\nRetention_% = (R_net / I_actual) * 100",
-                        explanation = "Measures true preserved wealth after deducting gross expenses (E_actual) and asset transfers (A_actual) from realized income."
+                        formula = "R_net = I_personal - E_lifestyle - A_actual\nRetention_% = (R_net / I_personal) * 100",
+                        explanation = "Measures true preserved wealth after deducting living expenses (E_lifestyle) and investments (A_actual) from earned personal income."
                     )
 
-                    GuideSubheading("E. Daily Burn Rate & Runway Buffer")
+                    GuideSubheading("E. Corporate Float & Settlement Isolation")
                     GuideFormulaBox(
-                        formula = "B_daily = (Σ Outflow over last 7 Days) / 7\nMonths_Runway = (Total Liquid Vaults) / max(1.0, E_monthly_burn)",
-                        explanation = "Calculates exact runway buffer in months based on current liquid reserves and actual monthly burn rate."
+                        formula = "Float_pending = max(0, Σ Work_Outlays - Σ Claims_Received)\nAdvance_held = max(0, Σ Claims_Received - Σ Work_Outlays)",
+                        explanation = "Work expenses are tracked as corporate float. Outlays reduce bank balances while pending claims remain ring-fenced from personal lifestyle burn."
                     )
 
                     GuideSubheading("F. 50 / 30 / 20 Cashflow Split")
                     GuideFormulaBox(
-                        formula = "Needs (50%) = Fixed Bills + Essential Categories\nWants (30%) = max(0, E_total - Needs)\nAssets (20%) = Σ Asset Investments",
-                        explanation = "Organizes monthly outflow into standard macro allocations for balance health."
+                        formula = "Needs (50%) = Fixed Bills + Essential Categories\nWants (30%) = max(0, E_lifestyle - Needs)\nAssets (20%) = Σ Asset Investments",
+                        explanation = "Organizes monthly personal outflow into standard macro allocations for long-term financial health."
                     )
                 }
 
@@ -381,23 +394,23 @@ fun UserGuideScreen(
                 ) {
                     GuideFeatureBullet(
                         title = "Monthly Dashboard",
-                        desc = "Real Liquid Safe-to-Spend hero display, cumulative spending Bézier sparkline curve, fixed bill checklist with one-tap payment marking (supporting custom payment dates like Today/Yesterday/Calendar Picker), and category progress bars."
+                        desc = "Real Liquid Safe-to-Spend hero display, lifestyle burn velocity sparklines, AutoPay checklist, and a 4-way Category Matrix (Expenses, Income, Assets/SIP, and Corporate)."
                     )
                     GuideFeatureBullet(
                         title = "Budget Planner",
-                        desc = "Pre-allocate planned caps for Income, Expenses, and Assets. Features 1-click previous month budget cloning, AutoPay floor protection, and 5th-of-the-month ceiling freezes."
+                        desc = "Pre-allocate planned ceilings for Expenses, Income, Assets, and Corporate float. Features 1-click previous month budget cloning, AutoPay floor protection, and ceiling freezes."
                     )
                     GuideFeatureBullet(
                         title = "Taxonomy Master DB",
-                        desc = "Full CRUD management for Categories and Subcategories with cascading historical SQLite updates."
+                        desc = "Full CRUD management for Categories and Subcategories across all four transaction types, with cascading historical SQLite updates."
                     )
                     GuideFeatureBullet(
                         title = "Reports & Analytics Hub",
-                        desc = "Dedicated 3-tab dock: (1) Summary Analytics (Net Capital spline wave, concentric donut, burn velocity bars), (2) Category Analytics (6-axis radar web, 50/30/20 ribbon), (3) Wealth Analytics (reserve mountain chart, asset bubble map, runway gauge)."
+                        desc = "Dedicated 3-tab dock: (1) Summary Analytics (Net Capital spline wave, concentric donut, burn velocity bars), (2) Category Analytics (6-axis radar web, 50/30/20 ribbon, corporate float card), (3) Wealth Analytics (reserve mountain chart, asset bubble map, runway gauge)."
                     )
                     GuideFeatureBullet(
                         title = "Vault Accounts Hub & Carousel",
-                        desc = "Swipeable 3D card carousel with card reordering, MAB badge editing, auto-sweep threshold calibration, and instant inter-vault transfers with backdated date support."
+                        desc = "Swipeable physical bank cards with card reordering, MAB badge editing, auto-sweep threshold calibration, and instant inter-vault transfers with backdated date support."
                     )
                 }
 
@@ -443,15 +456,15 @@ fun UserGuideScreen(
                         }
                     }
                 ) {
-                    GuideSymbolRow(symbol = "I_base", meaning = "Effective Base Inflow", formula = "max(I_planned, I_actual)")
+                    GuideSymbolRow(symbol = "I_personal", meaning = "Pure Personal Inflow", formula = "I_actual - NonPersonal_Inflow")
+                    GuideSymbolRow(symbol = "E_lifestyle", meaning = "Pure Lifestyle Outflow", formula = "E_actual - Work_Outlays")
                     GuideSymbolRow(symbol = "C_fixed", meaning = "Total Fixed Commitments", formula = "Σ Bills_EXPENSE + max(A_plan, A_act)")
-                    GuideSymbolRow(symbol = "E_variable", meaning = "Discretionary Outflow", formula = "Σ Unlinked Expenses")
                     GuideSymbolRow(symbol = "MAB", meaning = "Minimum Average Balance Floor", formula = "Protected Account Minimum")
                     GuideSymbolRow(symbol = "Surplus", meaning = "Spendable Cash Above Floor", formula = "max(0, Balance - MAB)")
-                    GuideSymbolRow(symbol = "S2S", meaning = "Safe-to-Spend Liquidity", formula = "min(S2S_theo, Operating_Cash)")
-                    GuideSymbolRow(symbol = "R_net", meaning = "Net Retained Capital", formula = "I_actual - E_actual - A_actual")
-                    GuideSymbolRow(symbol = "B_daily", meaning = "7-Day Daily Burn Rate", formula = "(Σ 7-Day Outflow) / 7")
-                    GuideSymbolRow(symbol = "M_runway", meaning = "Emergency Cushion Months", formula = "Liquid Vaults / max(1.0, E_monthly)")
+                    GuideSymbolRow(symbol = "S2S", meaning = "Safe-to-Spend Liquidity", formula = "min(S2S_theo, Operating_Cash - Adv)")
+                    GuideSymbolRow(symbol = "F_corp", meaning = "Pending Corporate Claims", formula = "max(0, Outlays - Claims)")
+                    GuideSymbolRow(symbol = "R_net", meaning = "Net Retained Capital", formula = "I_personal - E_lifestyle - A_actual")
+                    GuideSymbolRow(symbol = "M_runway", meaning = "Emergency Cushion Months", formula = "Liquid Vaults / max(1.0, Monthly_Burn)")
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
