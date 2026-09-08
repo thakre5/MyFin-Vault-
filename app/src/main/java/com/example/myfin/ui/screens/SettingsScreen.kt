@@ -92,6 +92,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val userProfile by viewModel.userProfile.collectAsState()
+    val monthlyUiState by viewModel.monthlyUiState.collectAsState()
     val avgMonthlySpend by viewModel.averageMonthlySpend.collectAsState()
 
     var activeSheet by rememberSaveable { mutableStateOf(initialActiveSheet) }
@@ -438,7 +439,8 @@ fun SettingsScreen(
                 }
 
                 // Strategy & Architecture
-                val autoSweepLimit = userProfile.fortressThreshold
+                val autoSweepLimit = userProfile.fortressSweepThreshold
+                val fortressTarget = monthlyUiState.fortressTarget
                 ExpandableSettingsCard(
                     icon = Icons.Default.Layers,
                     title = "Strategy & Architecture",
@@ -464,7 +466,7 @@ fun SettingsScreen(
                     )
                     SettingsChildNavRow(
                         title = "Fortress Safety Net Target",
-                        value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.fortressThreshold)}",
+                        value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressTarget)} (${userProfile.fortressEmergencyMonths}M)",
                         onClick = { activeSheet = SettingsActiveSheet.FORTRESS_SAFETY_NET }
                     )
                     SettingsChildNavRow(
@@ -998,7 +1000,11 @@ fun SettingsScreen(
     // Auto-Sweep Threshold Sheet
     if (activeSheet == SettingsActiveSheet.AUTO_SWEEP_THRESHOLD) {
         var thresholdInput by remember(userProfile) {
-            mutableStateOf(String.format(Locale.US, "%.0f", userProfile.fortressThreshold))
+            mutableStateOf(
+                if (userProfile.fortressSweepThreshold > 0.0) {
+                    String.format(Locale.US, "%.0f", userProfile.fortressSweepThreshold)
+                } else ""
+            )
         }
 
         ModalBottomSheet(
@@ -1014,7 +1020,7 @@ fun SettingsScreen(
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Auto-Sweep Operating Threshold", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Sets the liquid savings cap in your Fortress account. Any balance above this limit is automatically categorized as your Emergency Fixed Deposit.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
+                Text("Sets the liquid savings cap maintained in your Fortress account. Any savings balance exceeding this limit automatically sweeps into Emergency Fixed Deposits within the same account.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1025,7 +1031,8 @@ fun SettingsScreen(
                         val parts = filtered.split('.')
                         thresholdInput = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
                     },
-                    label = { Text("Savings Cap Amount (${userProfile.currencySymbol})") },
+                    label = { Text("Savings Liquid Cap (${userProfile.currencySymbol})") },
+                    placeholder = { Text("e.g. 25000") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -1036,8 +1043,8 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        val parsed = thresholdInput.toDoubleOrNull() ?: userProfile.fortressThreshold
-                        viewModel.updateFortressThreshold(parsed)
+                        val parsed = thresholdInput.toDoubleOrNull() ?: 0.0
+                        viewModel.updateFortressSweepThreshold(parsed)
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, "Auto-sweep threshold set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", parsed)}", Toast.LENGTH_SHORT).show()
                     },
@@ -1057,7 +1064,7 @@ fun SettingsScreen(
 
     // Fortress Safety Net Target Sheet
     if (activeSheet == SettingsActiveSheet.FORTRESS_SAFETY_NET) {
-        var selectedMonths by remember { mutableIntStateOf(6) }
+        var selectedMonths by remember(userProfile) { mutableIntStateOf(userProfile.fortressEmergencyMonths.takeIf { it > 0 } ?: 6) }
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -1072,7 +1079,7 @@ fun SettingsScreen(
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Fortress Safety Net Target", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Macro runway calculated dynamically from your actual spending average across the year", fontSize = 12.sp, color = TextMuted)
+                Text("Represents your target Emergency Reserve in sweep-in FDs, calculated from your average monthly living spend.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1088,7 +1095,7 @@ fun SettingsScreen(
                         modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("Dynamic Emergency Fund Target", fontSize = 11.5.sp, color = TextMuted)
+                        Text("Emergency Fund Goal (Sweep FDs)", fontSize = 11.5.sp, color = TextMuted)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)}",
@@ -1107,25 +1114,26 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Text("Select Runway Months:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Text("Select Runway Target:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf(3, 6, 12).forEach { months ->
+                    listOf(3, 6, 9, 12).forEach { months ->
                         val isSel = selectedMonths == months
                         OutlinedButton(
                             onClick = { selectedMonths = months },
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 containerColor = if (isSel) SettingsTealColor.copy(alpha = 0.12f) else Color.Transparent
                             ),
                             border = BorderStroke(1.dp, if (isSel) SettingsTealColor else BorderLight)
                         ) {
-                            Text("$months Months", fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium, color = if (isSel) SettingsTealColor else TextDark)
+                            Text("$months M", fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium, color = if (isSel) SettingsTealColor else TextDark)
                         }
                     }
                 }
@@ -1134,7 +1142,8 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        viewModel.updateFortressThreshold(computedTarget)
+                        viewModel.updateFortressEmergencyMonths(selectedMonths)
+                        viewModel.updateFortressManualTarget(0.0)
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, "Fortress target set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)} ($selectedMonths Months)", Toast.LENGTH_SHORT).show()
                     },
@@ -1144,7 +1153,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
-                    Text("Apply as Fortress Target", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Apply Target Runway", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
