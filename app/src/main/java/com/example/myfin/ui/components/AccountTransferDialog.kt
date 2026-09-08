@@ -15,14 +15,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -56,12 +54,29 @@ fun AccountTransferDialog(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var fromAccount by remember(accounts) { mutableStateOf(accounts.firstOrNull().orEmpty()) }
-    var toAccount by remember(accounts) {
-        mutableStateOf(accounts.getOrNull(1) ?: accounts.firstOrNull().orEmpty())
+    var toAccount by remember(accounts, fromAccount) {
+        mutableStateOf(
+            accounts.firstOrNull { !it.equals(fromAccount, ignoreCase = true) }
+                ?: accounts.getOrNull(1)
+                ?: accounts.firstOrNull().orEmpty()
+        )
     }
+
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
-    var selectedSubtype by remember { mutableStateOf(TransferSubtype.WEALTH_ALLOCATION) }
+
+    // Auto-resolve initial strategic subtype based on destination vault
+    var selectedSubtype by remember(toAccount) {
+        mutableStateOf(
+            when {
+                toAccount.contains("FORTRESS", ignoreCase = true) || toAccount.contains("TERTIARY", ignoreCase = true) ->
+                    TransferSubtype.WEALTH_ALLOCATION
+                toAccount.contains("COMMITMENT", ignoreCase = true) || toAccount.contains("SECONDARY", ignoreCase = true) ->
+                    TransferSubtype.BILL_FUNDING
+                else -> TransferSubtype.REBALANCE
+            }
+        )
+    }
 
     // Recurring Monthly Sweep Toggle States
     var isRecurringSweep by remember { mutableStateOf(false) }
@@ -96,6 +111,13 @@ fun AccountTransferDialog(
     val isSelfTransfer = fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount.equals(toAccount, ignoreCase = true)
     val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
     val isTransferValid = parsedAmount > 0.0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && !isSelfTransfer
+
+    val notePlaceholder = when (selectedSubtype) {
+        TransferSubtype.WEALTH_ALLOCATION -> "e.g., Operating Surplus Sweep into Fortress FDs"
+        TransferSubtype.BILL_FUNDING -> "e.g., Payday Funding for Scheduled AutoPay"
+        TransferSubtype.REBALANCE -> "e.g., Liquidity Rebalance for Everyday Burn"
+        else -> "e.g., Internal Liquidity Move"
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -198,6 +220,14 @@ fun AccountTransferDialog(
                                 toAccount = acc
                                 if (fromAccount.equals(acc, ignoreCase = true)) {
                                     fromAccount = accounts.firstOrNull { !it.equals(acc, ignoreCase = true) }.orEmpty()
+                                }
+                                // Auto-switch subtype to match destination tier
+                                selectedSubtype = when {
+                                    acc.contains("FORTRESS", ignoreCase = true) || acc.contains("TERTIARY", ignoreCase = true) ->
+                                        TransferSubtype.WEALTH_ALLOCATION
+                                    acc.contains("COMMITMENT", ignoreCase = true) || acc.contains("SECONDARY", ignoreCase = true) ->
+                                        TransferSubtype.BILL_FUNDING
+                                    else -> TransferSubtype.REBALANCE
                                 }
                             },
                         shape = RoundedCornerShape(8.dp),
@@ -359,11 +389,12 @@ fun AccountTransferDialog(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Note Input
+            // Purpose Note Input
             OutlinedTextField(
                 value = noteText,
                 onValueChange = { noteText = it },
                 label = { Text("Purpose Note (Optional)", fontSize = 12.sp) },
+                placeholder = { Text(notePlaceholder, fontSize = 11.5.sp, color = TextMuted) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -477,11 +508,20 @@ fun AccountTransferDialog(
                                     ?: Calendar.getInstance().apply { timeInMillis = selectedDateMillis }.get(Calendar.DAY_OF_MONTH)
                             } else null
 
+                            val cleanNote = noteText.trim().ifBlank {
+                                when (selectedSubtype) {
+                                    TransferSubtype.WEALTH_ALLOCATION -> "Fortress Sweep ($fromAccount ➔ $toAccount)"
+                                    TransferSubtype.BILL_FUNDING -> "Bill Funding ($fromAccount ➔ $toAccount)"
+                                    TransferSubtype.REBALANCE -> "Vault Rebalance ($fromAccount ➔ $toAccount)"
+                                    else -> "Vault Transfer ($fromAccount ➔ $toAccount)"
+                                }
+                            }
+
                             onTransfer(
                                 fromAccount,
                                 toAccount,
                                 parsedAmount,
-                                noteText.trim(),
+                                cleanNote,
                                 selectedSubtype,
                                 selectedDateMillis,
                                 isRecurringSweep,
