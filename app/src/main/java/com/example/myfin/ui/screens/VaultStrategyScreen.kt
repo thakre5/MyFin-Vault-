@@ -44,9 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
-import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
-import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
@@ -169,14 +167,25 @@ fun VaultStrategyScreen(
         displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.CASH }.sumOf { it.currentBalance }
     }
 
-    val fortressCap = remember(userProfile.fortressThreshold) {
-        if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
+    // Fortress decoupled engine values
+    val sweepThreshold = userProfile.fortressSweepThreshold
+    val fortressSavings = remember(fortTotal, sweepThreshold) {
+        if (sweepThreshold > 0.0) min(fortTotal, sweepThreshold) else fortTotal
     }
-    val fortressSavings = remember(fortTotal, fortressCap) { min(fortTotal, fortressCap) }
-    val fortressFd = remember(fortTotal, fortressCap) { max(0.0, fortTotal - fortressCap) }
-    val fortressSavingsFraction = if (fortressCap > 0) (fortressSavings / fortressCap).toFloat().coerceIn(0f, 1f) else 1f
+    val fortressFd = remember(fortTotal, sweepThreshold) {
+        if (sweepThreshold > 0.0) max(0.0, fortTotal - sweepThreshold) else 0.0
+    }
+    val fortressSavingsFraction = if (sweepThreshold > 0.0) (fortressSavings / sweepThreshold).toFloat().coerceIn(0f, 1f) else 1f
 
-    // Unfiltered transaction stream for the active month (immune to search filter contamination)
+    val fortressCushionDeficit = remember(fortTotal, sweepThreshold) {
+        if (sweepThreshold > 0.0) (sweepThreshold - fortTotal).coerceAtLeast(0.0) else 0.0
+    }
+    val emergencyTarget = uiState.fortressTarget
+    val fdDeficit = remember(fortressFd, emergencyTarget) {
+        (emergencyTarget - fortressFd).coerceAtLeast(0.0)
+    }
+
+    // Unfiltered transaction stream for the active month
     val activeAccountTxs = remember(yearlyState.allYearTransactions, uiState.selectedMonth, uiState.selectedYear, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         yearlyState.allYearTransactions.filter { tx ->
@@ -211,7 +220,6 @@ fun VaultStrategyScreen(
             .sumOf { it.amount }
     }
 
-    // Segregated corporate flows for exact physical cash reconciliation
     val activeCorporateOutlays = remember(activeAccountTxs, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         activeAccountTxs.filter {
@@ -234,7 +242,6 @@ fun VaultStrategyScreen(
     val daysInMonth = remember { calendar.getActualMaximum(Calendar.DAY_OF_MONTH) }
     val daysRemaining = remember(daysElapsed, daysInMonth) { max(1, daysInMonth - daysElapsed) }
 
-    // Robust daily burn rate anchored to historical average monthly spend
     val normalizedDailyBurn = remember(avgMonthlySpend) {
         max(avgMonthlySpend / 30.0, 100.0)
     }
@@ -260,15 +267,10 @@ fun VaultStrategyScreen(
     val mabBuffer = remember(activeAccount) { activeAccount?.minBalance ?: 0.0 }
     val excessCompanyAdvance = uiState.reimbursementStatus.excessAdvanceHeld
 
-    // True spendable surplus for Operating accounts (reserving daily burn + pending bills + MAB + company advance float)
     val calculatedSweepSurplus = remember(activeAccount?.currentBalance, totalPendingBillsAmount, normalizedDailyBurn, daysRemaining, mabBuffer, excessCompanyAdvance) {
         val bal = activeAccount?.currentBalance ?: 0.0
         val monthlyRemainingSpendProtection = normalizedDailyBurn * daysRemaining
         (bal - mabBuffer - totalPendingBillsAmount - monthlyRemainingSpendProtection - excessCompanyAdvance).coerceAtLeast(0.0)
-    }
-
-    val fortressDeficit = remember(fortTotal, fortressCap) {
-        (fortressCap - fortTotal).coerceAtLeast(0.0)
     }
 
     val fabActions = remember {
@@ -584,13 +586,28 @@ fun VaultStrategyScreen(
 
                                         Surface(
                                             shape = RoundedCornerShape(7.dp),
-                                            color = if (fortressFd > 0) SoftTeal.copy(alpha = 0.12f) else SoftAmber.copy(alpha = 0.12f)
+                                            color = when {
+                                                fortressCushionDeficit > 0 -> SoftAmber.copy(alpha = 0.12f)
+                                                emergencyTarget > 0 && fdDeficit <= 0 -> SoftTeal.copy(alpha = 0.14f)
+                                                fortressFd > 0 -> SoftTeal.copy(alpha = 0.12f)
+                                                else -> SoftGreen.copy(alpha = 0.12f)
+                                            }
                                         ) {
                                             Text(
-                                                text = if (fortressFd > 0) "FD Active" else "Filling Cushion",
+                                                text = when {
+                                                    fortressCushionDeficit > 0 -> "Filling Cushion"
+                                                    emergencyTarget > 0 && fdDeficit <= 0 -> "Goal 100%"
+                                                    fortressFd > 0 -> "FD Active"
+                                                    else -> "Cushion Full"
+                                                },
                                                 fontSize = 9.5.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (fortressFd > 0) SoftTeal else SoftAmber,
+                                                color = when {
+                                                    fortressCushionDeficit > 0 -> SoftAmber
+                                                    emergencyTarget > 0 && fdDeficit <= 0 -> SoftTeal
+                                                    fortressFd > 0 -> SoftTeal
+                                                    else -> SoftGreen
+                                                },
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }
@@ -642,7 +659,7 @@ fun VaultStrategyScreen(
                                                     color = TextDark
                                                 )
                                                 Text(
-                                                    text = "Cap: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressCap)}",
+                                                    text = if (sweepThreshold > 0.0) "Cap: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", sweepThreshold)}" else "No Cap Set",
                                                     fontSize = 9.sp,
                                                     color = TextMuted
                                                 )
@@ -673,7 +690,7 @@ fun VaultStrategyScreen(
                                                     color = if (fortressFd > 0) Color(0xFF0D9488) else TextMuted
                                                 )
                                                 Text(
-                                                    text = if (fortressFd > 0) "Auto-sweep excess" else "No excess swept",
+                                                    text = if (emergencyTarget > 0.0) "Goal: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", emergencyTarget)} (${userProfile.fortressEmergencyMonths}M)" else "Target Unset",
                                                     fontSize = 9.sp,
                                                     color = TextMuted
                                                 )
@@ -683,15 +700,23 @@ fun VaultStrategyScreen(
 
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (fortressDeficit > 0) SoftAmber.copy(alpha = 0.10f) else SoftGreen.copy(alpha = 0.10f),
+                                        color = if (fortressCushionDeficit > 0) SoftAmber.copy(alpha = 0.10f) else SoftTeal.copy(alpha = 0.10f),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
+                                        val statusNotice = when {
+                                            fortressCushionDeficit > 0 ->
+                                                "• Needs ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressCushionDeficit)} to fill cushion before auto-booking FDs"
+                                            emergencyTarget > 0.0 && fdDeficit > 0 ->
+                                                "• Cushion full. FDs need ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fdDeficit)} for ${userProfile.fortressEmergencyMonths}M target."
+                                            emergencyTarget > 0.0 && fdDeficit <= 0 ->
+                                                "• Cushion full & ${userProfile.fortressEmergencyMonths}M Emergency FD target 100% funded!"
+                                            else ->
+                                                "• Liquid cushion full. Surplus actively sweeps to Emergency FDs."
+                                        }
                                         Text(
-                                            text = if (fortressDeficit > 0)
-                                                "• Needs ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressDeficit)} to fill cushion before FD sweeps"
-                                            else "• Liquid cushion full. Surplus actively sweeps to FD.",
+                                            text = statusNotice,
                                             fontSize = 9.5.sp,
-                                            color = if (fortressDeficit > 0) SoftAmber else SoftGreen,
+                                            color = if (fortressCushionDeficit > 0) SoftAmber else SoftTeal,
                                             fontWeight = FontWeight.Medium,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -1088,7 +1113,7 @@ fun VaultStrategyScreen(
                     NavigationTarget.BUDGET_PLANNER -> onNavigateToPlanner()
                     NavigationTarget.DATA_SET -> onNavigateToTaxonomy()
                     NavigationTarget.REPORTS_ANALYTICS -> onNavigateToVaultAnalytics()
-                    NavigationTarget.VAULT_ACCOUNTS -> { /* Active */ }
+                    NavigationTarget.VAULT_ACCOUNTS -> {}
                     else -> {}
                 }
             },
@@ -1297,7 +1322,7 @@ fun VaultStrategyScreen(
             }
         }
 
-        // Confirmation Modal Before Applying Changes
+        // Confirmation Modal
         pendingEditConfirmation?.let { conf ->
             val isNameChanged = !conf.originalAccount.accountName.equals(conf.updatedName, ignoreCase = true)
             val isRoleChanged = !conf.originalAccount.accountType.equals(conf.updatedRole.title, ignoreCase = true)
@@ -1367,7 +1392,7 @@ fun VaultStrategyScreen(
             )
         }
 
-        // Reorder Accounts Bottom Sheet
+        // Reorder Accounts Sheet
         if (showReorderSheet) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             var reorderedList by remember(displayAccounts) { mutableStateOf(displayAccounts) }
@@ -1650,6 +1675,10 @@ fun VaultStrategyScreen(
                                     Text("Emergency Sweep FD Volume", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                     Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", fortressFd)}", fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = SoftTeal)
                                 }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Safety Net Runway Goal (${userProfile.fortressEmergencyMonths}M)", fontSize = 12.sp, color = TextMuted)
+                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", emergencyTarget)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                }
                             }
                         }
                     }
@@ -1712,7 +1741,7 @@ fun VaultStrategyScreen(
             )
         }
 
-        // Standardized Transfer Bottom Sheet
+        // Transfer Bottom Sheet
         if (showTransferSheet) {
             AccountTransferDialog(
                 accounts = accountNames,
