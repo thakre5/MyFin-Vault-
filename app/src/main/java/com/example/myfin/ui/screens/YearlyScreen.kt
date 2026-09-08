@@ -119,20 +119,23 @@ fun YearlyScreen(
     val annualAssets = yearlyState.totalYearlyAssets
     val annualNetSurplus = yearlyState.annualNetSurplus
     val annualLifestyleExpenses = yearlyState.annualLifestyleExpenses
+    val annualPersonalIncome = yearlyState.annualPersonalIncome
     val reimbursementStatus = yearlyState.reimbursementStatus
     val wealthMetrics = yearlyState.assetWealthMetrics
     val multiYearAssets = yearlyState.multiYearAssets
     val allYearTransactions = yearlyState.allYearTransactions
 
-    val annualSavingsRate = if (annualIncome > 0) ((annualNetSurplus / annualIncome) * 100).coerceIn(0.0, 100.0) else 0.0
+    // Personal savings rate calculated strictly against earned personal income
+    val annualSavingsRate = if (annualPersonalIncome > 0) ((annualNetSurplus / annualPersonalIncome) * 100).coerceIn(0.0, 100.0) else 0.0
 
-    val annualTargetGoal = remember(annualIncome, userProfile.baseMonthlyIncome, userProfile.fortressThreshold) {
-        val base = if (annualIncome > 0) annualIncome else (userProfile.baseMonthlyIncome * 12)
+    val annualTargetGoal = remember(annualPersonalIncome, userProfile.baseMonthlyIncome, userProfile.fortressThreshold) {
+        val base = if (annualPersonalIncome > 0) annualPersonalIncome else (userProfile.baseMonthlyIncome * 12)
         maxOf(base * 0.25, userProfile.fortressThreshold, 25000.0)
     }
     val currentWealthAccumulated = (annualAssets + annualNetSurplus).coerceAtLeast(0.0)
     val goalCompletionPercentage = (currentWealthAccumulated / annualTargetGoal).toFloat().coerceIn(0f, 1f)
 
+    // True personal quarterly metrics
     val quarterlyData = remember(yearlyMonthsData) {
         if (yearlyMonthsData.size >= 12) {
             listOf(
@@ -141,10 +144,10 @@ fun YearlyScreen(
                 "Q3" to yearlyMonthsData.subList(6, 9),
                 "Q4" to yearlyMonthsData.subList(9, 12)
             ).mapIndexed { qIdx, (label, months) ->
-                val qInc = months.sumOf { it.income }
-                val qExp = months.sumOf { it.expenses }
+                val qInc = months.sumOf { it.netSavings + it.lifestyleExpenses + it.assets }
+                val qExp = months.sumOf { it.lifestyleExpenses }
                 val qAst = months.sumOf { it.assets }
-                val qNet = qInc - qExp - qAst
+                val qNet = months.sumOf { it.netSavings }
                 val qRate = if (qInc > 0) ((qNet / qInc) * 100).coerceIn(0.0, 100.0) else 0.0
                 QuarterlyMetrics(
                     quarterLabel = label,
@@ -182,6 +185,10 @@ fun YearlyScreen(
                 peakMonthAmount = monthlySums[peakMonth]
             )
         }.sortedByDescending { it.annualTotal }
+    }
+
+    val plannedCategoryCeilings = remember(uiState.categories) {
+        uiState.categories.associate { it.category to (it.plannedAmount * 12.0) }
     }
 
     val xlsxExportLauncher = rememberLauncherForActivityResult(
@@ -338,7 +345,7 @@ fun YearlyScreen(
             ) { page ->
                 when (page) {
                     // ==========================================
-                    // TAB 0: CASHFLOW (Dual Smooth Wave Card)
+                    // TAB 0: CASHFLOW (True Personal Cash Dynamics)
                     // ==========================================
                     0 -> {
                         LazyColumn(
@@ -350,31 +357,31 @@ fun YearlyScreen(
                             item(key = "dual_smooth_wave_card") {
                                 DualSmoothWaveCard(
                                     title = "Cashflow Dynamics",
-                                    subtitle = "Inflow vs. Personal Lifestyle Burn",
+                                    subtitle = "Personal Inflow vs. Lifestyle Burn",
                                     yearlyMonths = yearlyMonthsData,
-                                    annualIncome = annualIncome,
+                                    annualIncome = annualPersonalIncome,
                                     annualExpenses = annualLifestyleExpenses,
                                     currencySymbol = userProfile.currencySymbol,
                                     isDiscreet = isDiscreetMode,
                                     onInfoClick = {
                                         activeGraphGuide = GraphExplanationGuide(
                                             title = "Cashflow Dynamics",
-                                            subtitle = "Inflow vs. Personal Lifestyle Burn",
-                                            whatItShows = "This graph maps your monthly cash intake against actual personal living expenses across all 12 months. It automatically filters out corporate work outlays that will be reimbursed.",
+                                            subtitle = "Personal Inflow vs. Lifestyle Burn",
+                                            whatItShows = "Maps monthly personal earnings against true lifestyle expenses across 12 months. All corporate travel floats and capital liquidations are excluded.",
                                             visualElements = listOf(
-                                                "Emerald Line" to "Total monthly cash inflows (salary, bonuses, passive gains).",
-                                                "Purple Line" to "Actual personal lifestyle burn (living costs, food, utilities).",
-                                                "Gap Between Lines" to "Your net surplus cash that compounds into savings."
+                                                "Emerald Line" to "Personal earned income (Salary & Professional earnings).",
+                                                "Purple Line" to "Personal lifestyle burn (Living costs, groceries, utilities).",
+                                                "Gap Between Lines" to "Operating cash surplus that compounds into your wealth."
                                             ),
-                                            whyItMatters = "Prevents lifestyle inflation. Whenever the purple burn line approaches or crosses above the green inflow line, your burn velocity is exceeding your income.",
-                                            actionableTip = "Aim to keep the vertical spread between the green and purple lines as wide as possible to maximize your savings rate."
+                                            whyItMatters = "Directly audits living discipline. When the purple burn line approaches the green line, lifestyle inflation is absorbing your capacity to invest.",
+                                            actionableTip = "Keep the spread between the green and purple lines as wide as possible to sustain high savings rates."
                                         )
                                     }
                                 )
                                 Spacer(modifier = Modifier.height(18.dp))
                             }
 
-                            if (reimbursementStatus.totalWorkExpenses > 0.0) {
+                            if (reimbursementStatus.cumulativeWorkExpenses > 0.0 || reimbursementStatus.excessAdvanceHeld > 0.0) {
                                 item(key = "reimbursement_banner") {
                                     Surface(
                                         modifier = Modifier.fillMaxWidth(),
@@ -404,12 +411,15 @@ fun YearlyScreen(
                                             Spacer(modifier = Modifier.width(14.dp))
 
                                             Column(modifier = Modifier.weight(1f)) {
-                                                Text("Corporate Reimbursements", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
+                                                Text("Corporate Float & Claims", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
                                                 Text(
-                                                    text = if (reimbursementStatus.isSettled)
-                                                        "All work claims fully settled."
-                                                    else
-                                                        "Pending claim recovery of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", reimbursementStatus.pendingReimbursement)}",
+                                                    text = when {
+                                                        reimbursementStatus.excessAdvanceHeld > 0.0 ->
+                                                            "Holding ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", reimbursementStatus.excessAdvanceHeld)} upfront company advance (ring-fenced)."
+                                                        reimbursementStatus.pendingReimbursement > 0.0 ->
+                                                            "Company owes you ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", reimbursementStatus.pendingReimbursement)} in pending claims."
+                                                        else -> "All corporate outlays fully settled."
+                                                    },
                                                     fontSize = 11.sp,
                                                     color = if (reimbursementStatus.isSettled) SoftGreen else SoftRed
                                                 )
@@ -470,7 +480,7 @@ fun YearlyScreen(
                     }
 
                     // ==========================================
-                    // TAB 1: 12 MONTHS (Layered Mountain Composition Card)
+                    // TAB 1: 12 MONTHS (Layered Mountain Outflow Composition)
                     // ==========================================
                     1 -> {
                         val chunkedMonths = remember(yearlyMonthsData) { yearlyMonthsData.chunked(2) }
@@ -492,14 +502,14 @@ fun YearlyScreen(
                                         activeGraphGuide = GraphExplanationGuide(
                                             title = "Monthly Outflow Composition",
                                             subtitle = "Stacked Expenditure Silhouette",
-                                            whatItShows = "This mountain graph breaks your monthly spend into three functional layers so you can see whether money is going toward mandatory commitments, daily life, or future wealth.",
+                                            whatItShows = "Breaks your monthly spend into three functional layers, isolating personal living burn from long-term capital deployment.",
                                             visualElements = listOf(
                                                 "Bottom Slate Layer" to "Fixed non-negotiable bills (Rent, Utilities, EMI commitments).",
-                                                "Middle Violet Layer" to "Discretionary lifestyle burn (Groceries, Dining, Travel).",
+                                                "Middle Violet Layer" to "Discretionary lifestyle burn (Groceries, Dining, Fuel).",
                                                 "Top Cyan Crest" to "Capital deployed directly into wealth building (Mutual Funds, SIPs)."
                                             ),
-                                            whyItMatters = "Separates baseline fixed costs from variable spending. Even in high-expense months, you can check whether your investing layer stayed intact.",
-                                            actionableTip = "If the bottom fixed layer exceeds 50% of your total income, look for ways to optimize fixed recurring bills."
+                                            whyItMatters = "Validates that high-spend months aren't eating into your investing layer.",
+                                            actionableTip = "If the bottom fixed layer exceeds 50% of your earnings, restructure subscriptions and fixed contracts."
                                         )
                                     }
                                 )
@@ -548,7 +558,7 @@ fun YearlyScreen(
                     }
 
                     // ==========================================
-                    // TAB 2: ASSETS & WEALTH (Liquid Wave Heart & Segmented Pillars)
+                    // TAB 2: ASSETS & WEALTH (Option A: Cumulative Portfolio Stock)
                     // ==========================================
                     2 -> {
                         LazyColumn(
@@ -569,14 +579,14 @@ fun YearlyScreen(
                                         activeGraphGuide = GraphExplanationGuide(
                                             title = "Wealth Accumulation Goal",
                                             subtitle = "Live Liquid Capital Tracker",
-                                            whatItShows = "Visualizes your progress toward your annual net worth milestone. It tracks real capital deployed into investments plus unspent cash retained.",
+                                            whatItShows = "Visualizes progress toward your annual net worth milestone, tracking capital deployed into investments plus retained cash.",
                                             visualElements = listOf(
-                                                "Liquid Wave Level" to "Percentage of your annual wealth accumulation target achieved.",
-                                                "Target Fraction" to "Current capital saved vs. target threshold (e.g., ₹15k / ₹25k).",
-                                                "Outer Border" to "Total annual compounding target capacity."
+                                                "Liquid Wave Level" to "Percentage of your annual wealth target achieved.",
+                                                "Target Fraction" to "Current capital saved vs. target threshold.",
+                                                "Outer Shield" to "Total annual compounding target capacity."
                                             ),
-                                            whyItMatters = "Shifts focus from day-to-day spending survival to long-term wealth building and runway creation.",
-                                            actionableTip = "Aim to hit 100% by Q4. Every surplus rupee routed to investments or fortress reserves raises the water level."
+                                            whyItMatters = "Shifts focus from daily survival to multi-year wealth accumulation.",
+                                            actionableTip = "Aim to hit 100% by Q4. Every surplus rupee routed to Fortress raises the water level."
                                         )
                                     }
                                 )
@@ -677,17 +687,16 @@ fun YearlyScreen(
                                     isDiscreet = isDiscreetMode,
                                     onInfoClick = {
                                         activeGraphGuide = GraphExplanationGuide(
-                                            title = "Multi-Year Asset Flow",
-                                            subtitle = "Compounding Across Years",
-                                            whatItShows = "Compares total capital deployed to wealth-building assets (SIPs, Stocks, Gold, and Liquid Reserves) across previous and current years.",
+                                            title = "Cumulative Portfolio Stock",
+                                            subtitle = "Compounding Wealth Across Years",
+                                            whatItShows = "Displays your total accumulated asset stock over time (Investments + Liquid Reserves - Capital Drawdowns) according to Option A cumulative accounting.",
                                             visualElements = listOf(
-                                                "Segmented Pillars" to "Each bar shows total assets added for that calendar year.",
-                                                "Green Segment" to "Liquid bank reserves and emergency cash added.",
-                                                "Purple Segment" to "Long-term market investments (Mutual funds, Stocks, Gold).",
-                                                "Growth Badge" to "Year-over-year percentage increase in investment volume."
+                                                "Unified Pillar" to "Total cumulative asset stock accumulated up to that year.",
+                                                "Emerald Pillar" to "Active year's accumulated net worth stock.",
+                                                "Growth Badge" to "Year-over-year expansion rate of your asset portfolio."
                                             ),
-                                            whyItMatters = "Validates that your investment capacity is expanding over time rather than stagnating.",
-                                            actionableTip = "Aim to increase total annual capital deployed by 10-15% each year as your earnings grow."
+                                            whyItMatters = "Validates that your wealth base is compounding continuously across multi-year cycles.",
+                                            actionableTip = "Aim to sustain steady positive year-over-year asset base growth."
                                         )
                                     }
                                 )
@@ -697,7 +706,7 @@ fun YearlyScreen(
                     }
 
                     // ==========================================
-                    // TAB 3: AUDIT & VARIANCE (Curved Star Radar & Dual Pillars)
+                    // TAB 3: AUDIT & VARIANCE (Real Budget Ceilings vs. Actuals)
                     // ==========================================
                     3 -> {
                         LazyColumn(
@@ -713,14 +722,14 @@ fun YearlyScreen(
                                         activeGraphGuide = GraphExplanationGuide(
                                             title = "Annual Spending Pareto",
                                             subtitle = "Organic Category Weight Distribution",
-                                            whatItShows = "A soft organic star radar mapping out which life categories absorb the highest percentage of your outflow over the course of the year.",
+                                            whatItShows = "Maps which lifestyle categories absorb the highest percentage of your outflow over the course of the year.",
                                             visualElements = listOf(
                                                 "Outer Spikes" to "Categories where spending is concentrated or spiking.",
                                                 "Center Rings" to "Lower spending thresholds.",
-                                                "Radial Symmetry" to "A balanced star indicates well-distributed, controlled expenditure."
+                                                "Radial Symmetry" to "A balanced star indicates well-distributed expenditure."
                                             ),
                                             whyItMatters = "Identifies disproportionate budget drains according to the Pareto Principle (80% of expenses often come from 20% of categories).",
-                                            actionableTip = "Focus budget cuts on the longest protruding spike to make the biggest impact with the least effort."
+                                            actionableTip = "Focus optimizations on the longest protruding spike to make the biggest impact."
                                         )
                                     }
                                 )
@@ -730,20 +739,21 @@ fun YearlyScreen(
                             item(key = "budget_vs_actual_dual_pillars") {
                                 BudgetVsActualDualPillarsCard(
                                     categoryTrajectories = categoryTrajectories,
+                                    plannedCategoryCeilings = plannedCategoryCeilings,
                                     currencySymbol = userProfile.currencySymbol,
                                     isDiscreet = isDiscreetMode,
                                     onInfoClick = {
                                         activeGraphGuide = GraphExplanationGuide(
                                             title = "Budgeted vs. Actual Outflow",
                                             subtitle = "Variance Analysis",
-                                            whatItShows = "Places your planned budget limits side-by-side with actual spending across your top expense categories.",
+                                            whatItShows = "Compares actual realized spending against real annualized budget ceilings set in your Budget Planner.",
                                             visualElements = listOf(
-                                                "Muted Grey Bar" to "The planned budget limit set for the category.",
-                                                "Purple Bar" to "Actual realized spending.",
-                                                "Height Difference" to "Shows whether you are under budget (savings) or over budget (overrun)."
+                                                "Slate Grey Bar" to "Real annualized budget limit (Monthly Target × 12).",
+                                                "Purple Bar" to "Actual realized annual spending.",
+                                                "Height Difference" to "Reflects true surplus or overrun."
                                             ),
-                                            whyItMatters = "Gives an immediate visual check on discipline. You can instantly spot which categories violated their targets without doing math.",
-                                            actionableTip = "Categories where the purple bar consistently exceeds the grey bar need either tighter spending limits or an updated, more realistic budget allocation."
+                                            whyItMatters = "Instantly highlights categories where annual spending has exceeded planning targets.",
+                                            actionableTip = "Categories where the purple bar exceeds the grey bar require tighter variable spend controls."
                                         )
                                     }
                                 )
@@ -796,7 +806,7 @@ fun YearlyScreen(
                 .zIndex(3.5f)
         )
 
-        // Bottom Navigation Dock (includes integrated animated gradient scrim)
+        // Bottom Navigation Dock
         AppBottomDock(
             currentSelection = NavigationTarget.YEARLY_VIEW,
             onSelectTarget = { target ->
@@ -924,6 +934,7 @@ fun YearlyScreen(
 
         // Month Quick-Inspect Bottom Sheet
         inspectedMonth?.let { mData ->
+            val monthPersonalIncome = mData.netSavings + mData.lifestyleExpenses + mData.assets
             ModalBottomSheet(
                 onDismissRequest = { inspectedMonth = null },
                 containerColor = CardWhite,
@@ -968,14 +979,14 @@ fun YearlyScreen(
                     ) {
                         QuickMetricTile(
                             modifier = Modifier.weight(1f),
-                            label = "Inflow",
-                            value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", mData.income)}",
+                            label = "Personal Inflow",
+                            value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthPersonalIncome)}",
                             tint = SoftGreen
                         )
                         QuickMetricTile(
                             modifier = Modifier.weight(1f),
-                            label = "Outflow",
-                            value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", mData.expenses)}",
+                            label = "Lifestyle Burn",
+                            value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", mData.lifestyleExpenses)}",
                             tint = AccentPurple
                         )
                         QuickMetricTile(
@@ -1047,7 +1058,7 @@ fun YearlyScreen(
 }
 
 // =========================================================
-// 1. DUAL SMOOTH WAVE GRAPH WITH INFO BUTTON (PAGE 0)
+// 1. DUAL SMOOTH WAVE GRAPH WITH TRUE CASHFLOW METRICS (PAGE 0)
 // =========================================================
 
 @Composable
@@ -1063,7 +1074,7 @@ private fun DualSmoothWaveCard(
 ) {
     val monthlyAvgBurn = if (annualExpenses > 0) annualExpenses / 12.0 else 0.0
     val netRetained = annualIncome - annualExpenses
-    val peakMonth = yearlyMonths.maxByOrNull { it.expenses }
+    val peakMonth = yearlyMonths.maxByOrNull { it.lifestyleExpenses }
 
     Surface(
         modifier = Modifier
@@ -1119,13 +1130,13 @@ private fun DualSmoothWaveCard(
             ) {
                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF10B981)))
                 Spacer(modifier = Modifier.width(5.dp))
-                Text("Inflow", fontSize = 11.sp, color = TextDark, fontWeight = FontWeight.Bold)
+                Text("Personal Inflow", fontSize = 11.sp, color = TextDark, fontWeight = FontWeight.Bold)
 
                 Spacer(modifier = Modifier.width(24.dp))
 
                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF8B5CF6)))
                 Spacer(modifier = Modifier.width(5.dp))
-                Text("Personal Burn", fontSize = 11.sp, color = TextDark, fontWeight = FontWeight.Bold)
+                Text("Lifestyle Burn", fontSize = 11.sp, color = TextDark, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -1154,7 +1165,7 @@ private fun DualSmoothWaveCard(
                 }
 
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Net Retained", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Text("Operating Surplus", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", netRetained)}",
@@ -1163,7 +1174,7 @@ private fun DualSmoothWaveCard(
                         color = if (netRetained >= 0) SoftTeal else SoftRed
                     )
                     Text(
-                        text = "Annual Retained",
+                        text = "Net Cash Retained",
                         fontSize = 10.sp,
                         color = TextMuted,
                         fontWeight = FontWeight.SemiBold
@@ -1187,7 +1198,11 @@ private fun DualWaveCanvas(
         val count = 12
         val stepX = w / (count - 1).toFloat()
 
-        val maxVal = yearlyMonths.flatMap { listOf(it.income, it.lifestyleExpenses) }.maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
+        // Pure personal numbers isolated from company floats
+        val personalInflows = yearlyMonths.map { it.netSavings + it.lifestyleExpenses + it.assets }
+        val personalBurns = yearlyMonths.map { it.lifestyleExpenses }
+
+        val maxVal = (personalInflows + personalBurns).maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
 
         for (i in 1..3) {
             val y = h * (i / 4f)
@@ -1199,16 +1214,16 @@ private fun DualWaveCanvas(
             )
         }
 
-        val ptsInflow = yearlyMonths.mapIndexed { idx, m ->
+        val ptsInflow = personalInflows.mapIndexed { idx, inf ->
             val x = idx * stepX
-            val ratio = (m.income / maxVal).toFloat().coerceIn(0.04f, 0.92f)
+            val ratio = (inf / maxVal).toFloat().coerceIn(0.04f, 0.92f)
             val y = h * (1f - ratio)
             Offset(x, y)
         }
 
-        val ptsBurn = yearlyMonths.mapIndexed { idx, m ->
+        val ptsBurn = personalBurns.mapIndexed { idx, burn ->
             val x = idx * stepX
-            val ratio = (m.lifestyleExpenses / maxVal).toFloat().coerceIn(0.04f, 0.92f)
+            val ratio = (burn / maxVal).toFloat().coerceIn(0.04f, 0.92f)
             val y = h * (1f - ratio)
             Offset(x, y)
         }
@@ -1251,8 +1266,8 @@ private fun DualWaveCanvas(
         drawSmoothLineAndArea(ptsInflow, Color(0xFF10B981), Color(0xFF10B981))
         drawSmoothLineAndArea(ptsBurn, Color(0xFF8B5CF6), Color(0xFF8B5CF6))
 
-        val peakBurnIdx = yearlyMonths.indices.maxByOrNull { yearlyMonths[it].lifestyleExpenses } ?: 0
-        val peakInflowIdx = yearlyMonths.indices.maxByOrNull { yearlyMonths[it].income } ?: 0
+        val peakBurnIdx = personalBurns.indices.maxByOrNull { personalBurns[it] } ?: 0
+        val peakInflowIdx = personalInflows.indices.maxByOrNull { personalInflows[it] } ?: 0
 
         if (ptsBurn.isNotEmpty()) {
             val peakPt = ptsBurn[peakBurnIdx]
@@ -1267,7 +1282,7 @@ private fun DualWaveCanvas(
 }
 
 // =========================================================
-// 2. LAYERED MOUNTAIN COMPOSITION GRAPH WITH INFO BUTTON (PAGE 1)
+// 2. LAYERED MOUNTAIN COMPOSITION GRAPH (PAGE 1)
 // =========================================================
 
 @Composable
@@ -1369,7 +1384,8 @@ private fun LayeredMountainCanvas(
         val count = 12
         val stepX = w / (count - 1).toFloat()
 
-        val maxStack = yearlyMonths.maxOfOrNull { it.fixedExpenses + it.variableExpenses + it.assets }?.coerceAtLeast(100.0) ?: 100.0
+        // Evaluates pure personal outflow stack (Fixed + Lifestyle + SIP)
+        val maxStack = yearlyMonths.maxOfOrNull { it.lifestyleExpenses + it.assets }?.coerceAtLeast(100.0) ?: 100.0
 
         val ptsFixed = mutableListOf<Offset>()
         val ptsLifestyle = mutableListOf<Offset>()
@@ -1377,9 +1393,9 @@ private fun LayeredMountainCanvas(
 
         yearlyMonths.forEachIndexed { idx, m ->
             val x = idx * stepX
-            val rFixed = ((m.fixedExpenses) / maxStack).toFloat().coerceIn(0.04f, 0.92f)
-            val rLife = ((m.fixedExpenses + m.variableExpenses) / maxStack).toFloat().coerceIn(0.04f, 0.92f)
-            val rAsset = ((m.fixedExpenses + m.variableExpenses + m.assets) / maxStack).toFloat().coerceIn(0.04f, 0.92f)
+            val rFixed = (m.fixedExpenses / maxStack).toFloat().coerceIn(0.04f, 0.92f)
+            val rLife = (m.lifestyleExpenses / maxStack).toFloat().coerceIn(0.04f, 0.92f)
+            val rAsset = ((m.lifestyleExpenses + m.assets) / maxStack).toFloat().coerceIn(0.04f, 0.92f)
 
             ptsFixed.add(Offset(x, h * (1f - rFixed)))
             ptsLifestyle.add(Offset(x, h * (1f - rLife)))
@@ -1433,7 +1449,7 @@ private fun LayeredMountainCanvas(
 }
 
 // =========================================================
-// 3. LIVE CONTINUOUS LIQUID WAVE HEART CARD WITH INFO BUTTON (PAGE 2)
+// 3. LIVE CONTINUOUS LIQUID WAVE HEART CARD (PAGE 2)
 // =========================================================
 
 @Composable
@@ -1663,7 +1679,7 @@ private fun CleanLivingHeartCanvas(
 }
 
 // =========================================================
-// 4. MULTI-YEAR SEGMENTED PILLARS CARD WITH INFO BUTTON (PAGE 2)
+// 4. MULTI-YEAR CUMULATIVE WEALTH PILLARS CARD (OPTION A)
 // =========================================================
 
 @Composable
@@ -1689,8 +1705,8 @@ private fun MultiYearSegmentedPillarsCard(
                 verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Multi-Year Asset Flow", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                    Text("Capital compounding progression across active years", fontSize = 11.5.sp, color = TextMuted)
+                    Text("Cumulative Portfolio Stock", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Text("Accumulated asset compounding across calendar years", fontSize = 11.5.sp, color = TextMuted)
                 }
 
                 IconButton(
@@ -1791,20 +1807,23 @@ private fun MultiYearSegmentedCanvas(
             val isCurrent = item.year == selectedYear
             val baseY = h - 22.dp.toPx()
 
-            val topH = barH * 0.45f
-            val botH = barH * 0.55f
-
+            // Unified gradient pillars reflecting cumulative portfolio stock
             drawRoundRect(
-                color = if (isCurrent) Color(0xFF10B981) else Color(0xFFCBD5E1),
-                topLeft = Offset(x, baseY - botH),
-                size = Size(barWidth, botH),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
-            )
-
-            drawRoundRect(
-                color = if (isCurrent) Color(0xFF8B5CF6) else Color(0xFF94A3B8),
+                brush = if (isCurrent) {
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF8B5CF6), Color(0xFF10B981)),
+                        startY = baseY - barH,
+                        endY = baseY
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF94A3B8), Color(0xFFCBD5E1)),
+                        startY = baseY - barH,
+                        endY = baseY
+                    )
+                },
                 topLeft = Offset(x, baseY - barH),
-                size = Size(barWidth, topH),
+                size = Size(barWidth, barH),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
             )
         }
@@ -1819,7 +1838,7 @@ private fun MultiYearSegmentedCanvas(
 }
 
 // =========================================================
-// 5. ORGANIC CURVED STAR RADAR CARD WITH INFO BUTTON (PAGE 3)
+// 5. ORGANIC CURVED STAR RADAR CARD (PAGE 3)
 // =========================================================
 
 @Composable
@@ -1947,12 +1966,13 @@ private fun OrganicStarRadarCanvas(
 }
 
 // =========================================================
-// 6. BUDGET VS ACTUAL DUAL PILLARS CARD WITH INFO BUTTON (PAGE 3)
+// 6. REAL BUDGET VS ACTUAL DUAL PILLARS CARD (PAGE 3)
 // =========================================================
 
 @Composable
 private fun BudgetVsActualDualPillarsCard(
     categoryTrajectories: List<CategoryAnnualTrajectory>,
+    plannedCategoryCeilings: Map<String, Double>,
     currencySymbol: String,
     isDiscreet: Boolean,
     onInfoClick: () -> Unit
@@ -1973,7 +1993,7 @@ private fun BudgetVsActualDualPillarsCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Budgeted vs. Actual Outflow", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
-                    Text("Side-by-side variance analysis for primary channels", fontSize = 11.5.sp, color = TextMuted)
+                    Text("Real variance analysis against annualized budget targets", fontSize = 11.5.sp, color = TextMuted)
                 }
 
                 IconButton(
@@ -1994,7 +2014,9 @@ private fun BudgetVsActualDualPillarsCard(
             Spacer(modifier = Modifier.height(18.dp))
 
             val displayList = categoryTrajectories.take(4)
-            val maxBurn = displayList.maxOfOrNull { it.annualTotal }?.coerceAtLeast(100.0) ?: 100.0
+            val maxBurn = displayList.maxOfOrNull { cat ->
+                maxOf(cat.annualTotal, plannedCategoryCeilings[cat.categoryName] ?: 0.0)
+            }?.coerceAtLeast(100.0) ?: 100.0
 
             Row(
                 modifier = Modifier
@@ -2004,8 +2026,10 @@ private fun BudgetVsActualDualPillarsCard(
                 verticalAlignment = Alignment.Bottom
             ) {
                 displayList.forEach { cat ->
-                    val actualRatio = (cat.annualTotal / maxBurn).toFloat().coerceIn(0.12f, 1f)
-                    val plannedRatio = (actualRatio * 0.88f).coerceIn(0.10f, 1f)
+                    val actualRatio = (cat.annualTotal / maxBurn).toFloat().coerceIn(0.10f, 1f)
+                    val plannedAmt = plannedCategoryCeilings[cat.categoryName] ?: 0.0
+                    val plannedRatio = if (plannedAmt > 0) (plannedAmt / maxBurn).toFloat().coerceIn(0.08f, 1f) else 0.04f
+                    val isOverrun = plannedAmt > 0 && cat.annualTotal > plannedAmt
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -2016,19 +2040,21 @@ private fun BudgetVsActualDualPillarsCard(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.Bottom
                         ) {
+                            // Grey bar: Real annualized planned ceiling
                             Box(
                                 modifier = Modifier
                                     .width(14.dp)
                                     .height((90 * plannedRatio).dp)
                                     .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                    .background(Color(0xFFCBD5E1))
+                                    .background(if (plannedAmt > 0) Color(0xFFCBD5E1) else Color(0xFFE2E8F0))
                             )
+                            // Realized spending bar
                             Box(
                                 modifier = Modifier
                                     .width(14.dp)
                                     .height((90 * actualRatio).dp)
                                     .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                    .background(Color(0xFF8B5CF6))
+                                    .background(if (isOverrun) SoftRed else Color(0xFF8B5CF6))
                             )
                         }
                         Spacer(modifier = Modifier.height(6.dp))
@@ -2048,13 +2074,13 @@ private fun BudgetVsActualDualPillarsCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFCBD5E1)))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Planned", fontSize = 10.5.sp, color = TextMuted)
+                    Text("Planned Target", fontSize = 10.5.sp, color = TextMuted)
                 }
                 Spacer(modifier = Modifier.width(20.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF8B5CF6)))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Realized", fontSize = 10.5.sp, color = TextMuted)
+                    Text("Realized Spend", fontSize = 10.5.sp, color = TextMuted)
                 }
             }
         }
@@ -2210,16 +2236,27 @@ private fun MonthGridTimelineCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", data.expenses)}",
+                text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", data.lifestyleExpenses)}",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
                 color = if (data.isFuture || !hasActivity) TextMuted else TextDark
             )
-            Text(text = "Outflow Burn", fontSize = 10.sp, color = TextMuted)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "Personal Burn", fontSize = 10.sp, color = TextMuted)
+                if (data.workExpenses > 0.0) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "+${(data.workExpenses / 1000).toInt()}k float",
+                        fontSize = 9.sp,
+                        color = AccentPurple,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            val total = (data.income + data.expenses + data.assets).coerceAtLeast(1.0)
+            val total = (data.income + data.lifestyleExpenses + data.assets).coerceAtLeast(1.0)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2229,7 +2266,7 @@ private fun MonthGridTimelineCard(
             ) {
                 if (hasActivity) {
                     Box(modifier = Modifier.weight((data.income / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(SoftGreen))
-                    Box(modifier = Modifier.weight((data.expenses / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(AccentPurple))
+                    Box(modifier = Modifier.weight((data.lifestyleExpenses / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(AccentPurple))
                     Box(modifier = Modifier.weight((data.assets / total).toFloat().coerceIn(0.05f, 0.9f)).fillMaxHeight().background(SoftTeal))
                 }
             }
