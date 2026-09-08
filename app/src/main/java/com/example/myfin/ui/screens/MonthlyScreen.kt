@@ -75,7 +75,6 @@ fun MonthlyScreen(
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val filterCriteria by viewModel.filterCriteria.collectAsState()
-    val showRollover by viewModel.showRolloverPrompt.collectAsState()
 
     val pagerState = rememberPagerState(pageCount = { 3 })
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
@@ -86,6 +85,7 @@ fun MonthlyScreen(
 
     var isDiscreetMode by remember { mutableStateOf(false) }
     var dismissedWaterfallMonth by remember { mutableIntStateOf(0) }
+    var dismissedSweepMonth by remember { mutableIntStateOf(0) }
 
     var showAddSheet by remember { mutableStateOf(false) }
     var showTransferSheet by remember { mutableStateOf(false) }
@@ -118,11 +118,15 @@ fun MonthlyScreen(
 
     val operatingAccountName = remember(activeAccounts) {
         activeAccounts.firstOrNull { it.accountType.equals("Operating", ignoreCase = true) }?.accountName
-            ?: activeAccounts.firstOrNull()?.accountName ?: "Primary Bank"
+            ?: activeAccounts.firstOrNull()?.accountName ?: "PRIMARY BANK"
+    }
+    val commitmentsAccountName = remember(activeAccounts) {
+        activeAccounts.firstOrNull { it.accountType.equals("Commitments", ignoreCase = true) }?.accountName
+            ?: activeAccounts.getOrNull(1)?.accountName ?: "SECONDARY BANK"
     }
     val fortressAccountName = remember(activeAccounts) {
         activeAccounts.firstOrNull { it.accountType.equals("Fortress", ignoreCase = true) }?.accountName
-            ?: activeAccounts.getOrNull(2)?.accountName ?: "Tertiary Bank"
+            ?: activeAccounts.getOrNull(2)?.accountName ?: "TERTIARY BANK"
     }
 
     val daysInMonth = remember(uiState.selectedMonth, uiState.selectedYear) {
@@ -147,7 +151,12 @@ fun MonthlyScreen(
 
     val paydayPlan = uiState.paydaySuggestion
     val showWaterfallPrompt = remember(paydayPlan, uiState.selectedMonth, dismissedWaterfallMonth) {
-        paydayPlan != null && dismissedWaterfallMonth != uiState.selectedMonth
+        paydayPlan != null && (paydayPlan.toCommitments > 0.0 || paydayPlan.totalToFortress > 0.0) && dismissedWaterfallMonth != uiState.selectedMonth
+    }
+
+    val monthEndSweepPlan = uiState.monthEndSweepSuggestion
+    val showMonthEndSweepPrompt = remember(monthEndSweepPlan, uiState.selectedMonth, dismissedSweepMonth) {
+        monthEndSweepPlan != null && monthEndSweepPlan.sweepAmount > 0.0 && dismissedSweepMonth != uiState.selectedMonth
     }
 
     val fabActions = remember {
@@ -297,12 +306,13 @@ fun MonthlyScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
                             ) {
-                                if (showRollover || showWaterfallPrompt || uiState.commitmentsShortfall.isShortfall) {
+                                if (uiState.isRolloverBannerVisible || showWaterfallPrompt || showMonthEndSweepPrompt || uiState.commitmentsShortfall.isShortfall) {
                                     item {
                                         Column(
                                             modifier = Modifier.fillMaxWidth(),
                                             verticalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
+                                            // SHORTFALL ALERT BANNER
                                             if (uiState.commitmentsShortfall.isShortfall) {
                                                 val shortfall = uiState.commitmentsShortfall
                                                 Surface(
@@ -346,7 +356,7 @@ fun MonthlyScreen(
                                                             Spacer(modifier = Modifier.height(2.dp))
                                                             val dueText = if (shortfall.earliestDueDay != null) " by ${shortfall.earliestDueDay}th" else ""
                                                             Text(
-                                                                text = "Transfer ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", shortfall.shortfallAmount)}$dueText to protect MAB & avoid bill bounce.",
+                                                                text = "Transfer ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", shortfall.shortfallAmount)}$dueText to ${shortfall.affectedAccountName} to protect MAB & avoid bill bounce.",
                                                                 fontSize = 11.sp,
                                                                 color = TextMuted,
                                                                 lineHeight = 15.sp,
@@ -369,7 +379,8 @@ fun MonthlyScreen(
                                                 }
                                             }
 
-                                            if (showRollover) {
+                                            // AUTOMATED MONTH-END ROLLOVER BANNER
+                                            if (uiState.isRolloverBannerVisible) {
                                                 Surface(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
@@ -403,14 +414,16 @@ fun MonthlyScreen(
 
                                                         Column(modifier = Modifier.weight(1f)) {
                                                             Text(
-                                                                text = "Clone & Roll Over Commitments",
+                                                                text = "Recurring Commitments Scheduled",
                                                                 fontWeight = FontWeight.Bold,
                                                                 fontSize = 13.sp,
                                                                 color = TextDark
                                                             )
                                                             Spacer(modifier = Modifier.height(2.dp))
                                                             Text(
-                                                                text = "Carry forward recurring AutoPay bills and budget limits to the next cycle.",
+                                                                text = uiState.rolloverBannerMessage.ifBlank {
+                                                                    "Recurring AutoPay bills and budget limits have been scheduled for next cycle."
+                                                                },
                                                                 fontSize = 11.sp,
                                                                 color = TextMuted,
                                                                 lineHeight = 15.sp,
@@ -420,32 +433,20 @@ fun MonthlyScreen(
 
                                                         Spacer(modifier = Modifier.width(10.dp))
 
-                                                        Column(
-                                                            horizontalAlignment = Alignment.End,
-                                                            verticalArrangement = Arrangement.Center
+                                                        Button(
+                                                            onClick = { viewModel.dismissRolloverBanner() },
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                                            modifier = Modifier.height(32.dp)
                                                         ) {
-                                                            Button(
-                                                                onClick = { viewModel.executeRolloverToNextMonth() },
-                                                                shape = RoundedCornerShape(8.dp),
-                                                                colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
-                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                                                modifier = Modifier.height(32.dp)
-                                                            ) {
-                                                                Text(text = "Sync", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                                                            }
-                                                            Spacer(modifier = Modifier.height(2.dp))
-                                                            TextButton(
-                                                                onClick = { viewModel.dismissRolloverPrompt() },
-                                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                                                modifier = Modifier.height(22.dp)
-                                                            ) {
-                                                                Text(text = "Dismiss", fontSize = 10.sp, color = TextMuted)
-                                                            }
+                                                            Text(text = "Dismiss", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                                                         }
                                                     }
                                                 }
                                             }
 
+                                            // 3-WAY PAYDAY WATERFALL BANNER
                                             if (showWaterfallPrompt && paydayPlan != null) {
                                                 Surface(
                                                     modifier = Modifier
@@ -469,7 +470,7 @@ fun MonthlyScreen(
                                                             contentAlignment = Alignment.Center
                                                         ) {
                                                             Icon(
-                                                                imageVector = Icons.Default.Security,
+                                                                imageVector = Icons.Default.AccountBalanceWallet,
                                                                 contentDescription = null,
                                                                 tint = SoftTeal,
                                                                 modifier = Modifier.size(20.dp)
@@ -480,14 +481,22 @@ fun MonthlyScreen(
 
                                                         Column(modifier = Modifier.weight(1f)) {
                                                             Text(
-                                                                text = "Fortress Surplus Detected",
+                                                                text = "Payday Allocation Ready",
                                                                 fontWeight = FontWeight.Bold,
                                                                 fontSize = 13.sp,
                                                                 color = TextDark
                                                             )
                                                             Spacer(modifier = Modifier.height(2.dp))
+                                                            val planParts = buildList {
+                                                                if (paydayPlan.toCommitments > 0.0) {
+                                                                    add("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toCommitments)} to Commitments")
+                                                                }
+                                                                if (paydayPlan.totalToFortress > 0.0) {
+                                                                    add("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.totalToFortress)} to Fortress")
+                                                                }
+                                                            }
                                                             Text(
-                                                                text = "Sweep ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toFortress)} excess cash into Fortress Vault.",
+                                                                text = if (planParts.isNotEmpty()) "Allocate ${planParts.joinToString(" & ")}." else "Living cushion preserved in Operating.",
                                                                 fontSize = 11.sp,
                                                                 color = TextMuted,
                                                                 lineHeight = 15.sp,
@@ -506,21 +515,108 @@ fun MonthlyScreen(
                                                                     viewModel.applyPaydayAllocation(
                                                                         plan = paydayPlan,
                                                                         operatingAccount = operatingAccountName,
+                                                                        commitmentsAccount = commitmentsAccountName,
                                                                         fortressAccount = fortressAccountName
                                                                     )
                                                                     dismissedWaterfallMonth = uiState.selectedMonth
-                                                                    Toast.makeText(context, "Surplus swept to Fortress!", Toast.LENGTH_SHORT).show()
+                                                                    Toast.makeText(context, "Payday allocation executed!", Toast.LENGTH_SHORT).show()
                                                                 },
                                                                 shape = RoundedCornerShape(8.dp),
                                                                 colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
                                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                                                 modifier = Modifier.height(32.dp)
                                                             ) {
-                                                                Text(text = "Sweep Now", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                                                Text(text = "Allocate", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                                                             }
                                                             Spacer(modifier = Modifier.height(2.dp))
                                                             TextButton(
                                                                 onClick = { dismissedWaterfallMonth = uiState.selectedMonth },
+                                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                                                modifier = Modifier.height(22.dp)
+                                                            ) {
+                                                                Text(text = "Dismiss", fontSize = 10.sp, color = TextMuted)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // MONTH-END WEALTH SWEEP BANNER
+                                            if (showMonthEndSweepPrompt && monthEndSweepPlan != null) {
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .shadow(2.dp, RoundedCornerShape(16.dp)),
+                                                    shape = RoundedCornerShape(16.dp),
+                                                    color = CardWhite,
+                                                    border = BorderStroke(1.dp, SoftGreen.copy(alpha = 0.35f))
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(14.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(40.dp)
+                                                                .clip(CircleShape)
+                                                                .background(SoftGreen.copy(alpha = 0.12f)),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Savings,
+                                                                contentDescription = null,
+                                                                tint = SoftGreen,
+                                                                modifier = Modifier.size(20.dp)
+                                                            )
+                                                        }
+
+                                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Text(
+                                                                text = "Month-End Wealth Sweep",
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 13.sp,
+                                                                color = TextDark
+                                                            )
+                                                            Spacer(modifier = Modifier.height(2.dp))
+                                                            Text(
+                                                                text = "Sweep ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthEndSweepPlan.sweepAmount)} unspent surplus into Fortress Extra.",
+                                                                fontSize = 11.sp,
+                                                                color = TextMuted,
+                                                                lineHeight = 15.sp,
+                                                                maxLines = 2
+                                                            )
+                                                        }
+
+                                                        Spacer(modifier = Modifier.width(10.dp))
+
+                                                        Column(
+                                                            horizontalAlignment = Alignment.End,
+                                                            verticalArrangement = Arrangement.Center
+                                                        ) {
+                                                            Button(
+                                                                onClick = {
+                                                                    viewModel.applyMonthEndSweep(
+                                                                        plan = monthEndSweepPlan,
+                                                                        operatingAccount = operatingAccountName,
+                                                                        fortressAccount = fortressAccountName
+                                                                    )
+                                                                    dismissedSweepMonth = uiState.selectedMonth
+                                                                    Toast.makeText(context, "Surplus swept to Fortress Extra!", Toast.LENGTH_SHORT).show()
+                                                                },
+                                                                shape = RoundedCornerShape(8.dp),
+                                                                colors = ButtonDefaults.buttonColors(containerColor = SoftGreen),
+                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                                                modifier = Modifier.height(32.dp)
+                                                            ) {
+                                                                Text(text = "Sweep", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                                            }
+                                                            Spacer(modifier = Modifier.height(2.dp))
+                                                            TextButton(
+                                                                onClick = { dismissedSweepMonth = uiState.selectedMonth },
                                                                 contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
                                                                 modifier = Modifier.height(22.dp)
                                                             ) {
@@ -535,7 +631,7 @@ fun MonthlyScreen(
                                     }
                                 }
 
-                                // 3. HORIZONTAL CAROUSEL: SAFE TO SPEND & 3-PILLAR TARGET CARDS (320dp Width)
+                                // 3. HORIZONTAL CAROUSEL: SAFE TO SPEND & 3-PILLAR TARGET CARDS
                                 item {
                                     LazyRow(
                                         horizontalArrangement = Arrangement.spacedBy(14.dp),
