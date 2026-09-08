@@ -15,6 +15,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SyncAlt
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,7 +56,9 @@ fun AccountTransferDialog(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var fromAccount by remember(accounts) { mutableStateOf(accounts.firstOrNull().orEmpty()) }
-    var toAccount by remember(accounts) { mutableStateOf(accounts.getOrNull(1) ?: accounts.firstOrNull().orEmpty()) }
+    var toAccount by remember(accounts) {
+        mutableStateOf(accounts.getOrNull(1) ?: accounts.firstOrNull().orEmpty())
+    }
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
     var selectedSubtype by remember { mutableStateOf(TransferSubtype.WEALTH_ALLOCATION) }
@@ -89,8 +93,9 @@ fun AccountTransferDialog(
         }
     }
 
+    val isSelfTransfer = fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount.equals(toAccount, ignoreCase = true)
     val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
-    val isTransferValid = parsedAmount > 0.0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount != toAccount
+    val isTransferValid = parsedAmount > 0.0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && !isSelfTransfer
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -153,11 +158,16 @@ fun AccountTransferDialog(
             Spacer(modifier = Modifier.height(4.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(accounts) { acc ->
-                    val isSel = fromAccount == acc
+                    val isSel = fromAccount.equals(acc, ignoreCase = true)
                     Surface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { fromAccount = acc },
+                            .clickable {
+                                fromAccount = acc
+                                if (toAccount.equals(acc, ignoreCase = true)) {
+                                    toAccount = accounts.firstOrNull { !it.equals(acc, ignoreCase = true) }.orEmpty()
+                                }
+                            },
                         shape = RoundedCornerShape(8.dp),
                         color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
                         border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
@@ -180,11 +190,16 @@ fun AccountTransferDialog(
             Spacer(modifier = Modifier.height(4.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(accounts) { acc ->
-                    val isSel = toAccount == acc
+                    val isSel = toAccount.equals(acc, ignoreCase = true)
                     Surface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { toAccount = acc },
+                            .clickable {
+                                toAccount = acc
+                                if (fromAccount.equals(acc, ignoreCase = true)) {
+                                    fromAccount = accounts.firstOrNull { !it.equals(acc, ignoreCase = true) }.orEmpty()
+                                }
+                            },
                         shape = RoundedCornerShape(8.dp),
                         color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
                         border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
@@ -197,6 +212,15 @@ fun AccountTransferDialog(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                         )
                     }
+                }
+            }
+
+            if (isSelfTransfer) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = SoftRed, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Source and destination vaults must be distinct.", fontSize = 10.5.sp, color = SoftRed, fontWeight = FontWeight.SemiBold)
                 }
             }
 
@@ -465,7 +489,8 @@ fun AccountTransferDialog(
                             )
                             onDismiss()
                         } else {
-                            Toast.makeText(context, "Select distinct vaults and enter an amount > 0", Toast.LENGTH_SHORT).show()
+                            val msg = if (isSelfTransfer) "Source and destination vaults must be distinct." else "Enter an amount > 0"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                         }
                     },
                     enabled = isTransferValid,
