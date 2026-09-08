@@ -641,7 +641,7 @@ fun MonthlyScreen(
                                         contentPadding = PaddingValues(horizontal = 6.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        // Card 1: Liquid Safe to Spend (With Interactive Explainer Dialog Trigger)
+                                        // Card 1: Liquid Safe to Spend
                                         item {
                                             val isHealthy = uiState.metrics.safeToSpend > 0
                                             val statusColor = if (isHealthy) SoftGreen else SoftRed
@@ -1193,7 +1193,7 @@ fun MonthlyScreen(
                                     Spacer(modifier = Modifier.height(18.dp))
                                 }
 
-                                // 5. Category Matrix Section Header & Segment Switcher
+                                // 5. Category Matrix Section Header & 4-Way Segment Switcher
                                 item {
                                     Text(text = "Category Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                     Spacer(modifier = Modifier.height(10.dp))
@@ -1208,7 +1208,8 @@ fun MonthlyScreen(
                                         listOf(
                                             Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
                                             Triple(TransactionType.INCOME, "Income", SoftGreen),
-                                            Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal)
+                                            Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal),
+                                            Triple(TransactionType.CORPORATE, "Corporate", Color(0xFFE57A28))
                                         ).forEach { (type, label, color) ->
                                             val isSelected = selectedMatrixType == type
                                             Box(
@@ -1223,8 +1224,10 @@ fun MonthlyScreen(
                                                 Text(
                                                     text = label,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                    fontSize = 11.5.sp,
-                                                    color = if (isSelected) color else TextMuted
+                                                    fontSize = 11.sp,
+                                                    color = if (isSelected) color else TextMuted,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                         }
@@ -1378,6 +1381,7 @@ fun MonthlyScreen(
                                         TransactionType.EXPENSE to "Expenses",
                                         TransactionType.INCOME to "Income",
                                         TransactionType.ASSET to "Assets",
+                                        TransactionType.CORPORATE to "Corporate",
                                         TransactionType.TRANSFER to "Transfers"
                                     ).forEach { (type, label) ->
                                         val isSelected = selectedTxFilterType == type
@@ -1396,16 +1400,19 @@ fun MonthlyScreen(
                                             Text(
                                                 text = label,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                fontSize = 11.sp,
+                                                fontSize = 10.sp,
                                                 color = if (isSelected) {
                                                     when (type) {
                                                         TransactionType.EXPENSE -> SoftRed
                                                         TransactionType.INCOME -> SoftGreen
                                                         TransactionType.ASSET -> SoftTeal
+                                                        TransactionType.CORPORATE -> Color(0xFFE57A28)
                                                         TransactionType.TRANSFER -> AccentPurple
                                                         else -> TextDark
                                                     }
-                                                } else TextMuted
+                                                } else TextMuted,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
@@ -1674,6 +1681,7 @@ fun MonthlyScreen(
                                         TransactionType.EXPENSE to "Bills",
                                         TransactionType.INCOME to "Receivables",
                                         TransactionType.ASSET to "SIPs",
+                                        TransactionType.CORPORATE to "Corporate",
                                         TransactionType.TRANSFER to "Sweeps"
                                     ).forEach { (type, label) ->
                                         val isSelected = selectedCommitmentFilter == type
@@ -1689,16 +1697,19 @@ fun MonthlyScreen(
                                             Text(
                                                 text = label,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                fontSize = 11.sp,
+                                                fontSize = 10.sp,
                                                 color = if (isSelected) {
                                                     when (type) {
                                                         TransactionType.EXPENSE -> SoftRed
                                                         TransactionType.INCOME -> SoftGreen
                                                         TransactionType.ASSET -> SoftTeal
+                                                        TransactionType.CORPORATE -> Color(0xFFE57A28)
                                                         TransactionType.TRANSFER -> AccentPurple
                                                         else -> TextDark
                                                     }
-                                                } else TextMuted
+                                                } else TextMuted,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
@@ -2022,6 +2033,7 @@ fun MonthlyScreen(
                 TransactionType.INCOME -> "Credits ${bill.accountName} vault and logs inflow entry."
                 TransactionType.ASSET -> "Deducts from ${bill.accountName} and records under Asset Wealth."
                 TransactionType.TRANSFER -> "Sweeps funds from ${bill.accountName} ➤ ${bill.toAccountName ?: "Destination"}."
+                TransactionType.CORPORATE -> "Settles corporate outlay/claim for ${bill.accountName}."
                 TransactionType.EXPENSE -> "Deducts from ${bill.accountName} and records expense entry."
             }
 
@@ -2174,6 +2186,7 @@ fun MonthlyScreen(
                                     containerColor = when (bill.type) {
                                         TransactionType.INCOME -> SoftGreen
                                         TransactionType.ASSET -> SoftTeal
+                                        TransactionType.CORPORATE -> Color(0xFFE57A28)
                                         TransactionType.TRANSFER -> AccentPurple
                                         else -> SoftGreen
                                     }
@@ -2478,7 +2491,6 @@ fun MonthlyScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Why it's not total bank balance
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
@@ -2507,7 +2519,6 @@ fun MonthlyScreen(
                     Text("Live Monthly Cashflow Math", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Live Mathematical Breakdown
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
@@ -2555,7 +2566,6 @@ fun MonthlyScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Liquidity floor guard
                     Row(verticalAlignment = Alignment.Top) {
                         Icon(Icons.Default.Security, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -2712,6 +2722,7 @@ private fun CategoryMatrixRow(
         cat.isOverBudget -> SoftRed
         cat.type == TransactionType.INCOME -> SoftGreen
         cat.type == TransactionType.ASSET -> SoftTeal
+        cat.type == TransactionType.CORPORATE -> Color(0xFFE57A28)
         utilizationPercentage >= 85 -> SoftAmber
         else -> AccentPurple
     }
@@ -2793,7 +2804,11 @@ private fun CategoryMatrixRow(
                             "Exceeded by $currencySymbol${String.format(Locale.US, "%,.0f", abs(remaining))}"
                         }
                     } else {
-                        "No target limit configured"
+                        if (cat.type == TransactionType.CORPORATE) {
+                            "Logged actual: $currencySymbol${String.format(Locale.US, "%,.0f", cat.actualAmount)}"
+                        } else {
+                            "No target limit configured"
+                        }
                     }
 
                     Text(
