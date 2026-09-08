@@ -106,6 +106,15 @@ data class UserProfile(
     val reminderEnabled: Boolean = false,
     val reminderHour: Int = 20,
     val reminderMinute: Int = 30,
-    val fortressThreshold: Double = 25000.0,
-    val vaultMode: String = "3-VAULT"
+    val vaultMode: String = "3-VAULT",
+
+    // Fortress Auto-Sweep & Safety Net Engine
+    val fortressSweepThreshold: Double = 0.0,   // Liquid balance kept in savings before auto-booking FDs
+    val fortressEmergencyMonths: Int = 6,      // Runway target multiplier (e.g. 3, 6, 9, 12 months)
+    val fortressManualTarget: Double = 0.0,     // 0.0 = dynamic (monthly burn * months); > 0.0 = manual target override
+
+    // Master Taxonomy Lifecycle Window
+    val taxonomyGraceMonth: Int = -1,          // -1 = uninitialized; stamped on first run after update
+    val taxonomyGraceYear: Int = -1,           // -1 = uninitialized; stamped on first run after update
+    val isTaxonomyBannerDismissed: Boolean = false
 )
