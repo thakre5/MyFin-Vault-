@@ -1,6 +1,7 @@
 package com.example.myfin.ui.components
 
 import android.widget.Toast
+import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -131,32 +133,58 @@ fun AddTransactionBottomSheet(
         }
     }
 
-    val availableCategories = remember(masterCategories, selectedType) {
-        masterCategories.filter { it.type == selectedType }.map { it.name }
+    // Historical Preservation: Keep historical category even if retired outside grace period
+    val availableCategoryEntities = remember(masterCategories, selectedType, editingTransaction) {
+        val cats = masterCategories.filter { it.type == selectedType }.toMutableList()
+        if (editingTransaction != null && editingTransaction.type == selectedType && editingTransaction.category.isNotBlank()) {
+            if (cats.none { it.name.equals(editingTransaction.category, ignoreCase = true) }) {
+                cats.add(CategoryEntity(name = editingTransaction.category, type = selectedType, isLegacy = true))
+            }
+        }
+        cats
     }
-    var selectedCategory by remember(availableCategories) {
-        mutableStateOf(editingTransaction?.category ?: availableCategories.firstOrNull() ?: "General")
+
+    var selectedCategory by remember(availableCategoryEntities) {
+        mutableStateOf(editingTransaction?.category ?: availableCategoryEntities.firstOrNull()?.name ?: "General")
     }
 
     LaunchedEffect(selectedType) {
         if (selectedType != TransactionType.TRANSFER) {
-            if (availableCategories.isNotEmpty() && selectedCategory !in availableCategories) {
-                selectedCategory = availableCategories.firstOrNull() ?: "General"
+            val names = availableCategoryEntities.map { it.name }
+            if (names.isNotEmpty() && selectedCategory !in names) {
+                selectedCategory = names.firstOrNull() ?: "General"
             }
         }
     }
 
-    val availableSubcategories = remember(masterSubcategories, selectedCategory, selectedType) {
-        masterSubcategories.filter { it.parentCategory == selectedCategory && it.type == selectedType }.map { it.name }
-    }
-    var selectedSubcategory by remember(availableSubcategories) {
-        mutableStateOf(editingTransaction?.subcategory ?: availableSubcategories.firstOrNull() ?: "General")
+    val availableSubcategoryEntities = remember(masterSubcategories, selectedCategory, selectedType, editingTransaction) {
+        val subs = masterSubcategories.filter {
+            it.parentCategory.equals(selectedCategory, ignoreCase = true) && it.type == selectedType
+        }.toMutableList()
+
+        if (editingTransaction != null && editingTransaction.type == selectedType &&
+            editingTransaction.category.equals(selectedCategory, ignoreCase = true) && editingTransaction.subcategory.isNotBlank()
+        ) {
+            if (subs.none { it.name.equals(editingTransaction.subcategory, ignoreCase = true) }) {
+                subs.add(SubcategoryEntity(parentCategory = selectedCategory, name = editingTransaction.subcategory, type = selectedType, isLegacy = true))
+            }
+        }
+        subs
     }
 
-    LaunchedEffect(availableSubcategories) {
-        if (availableSubcategories.isNotEmpty() && selectedSubcategory !in availableSubcategories) {
-            selectedSubcategory = availableSubcategories.firstOrNull() ?: "General"
+    var selectedSubcategory by remember(availableSubcategoryEntities) {
+        mutableStateOf(editingTransaction?.subcategory ?: availableSubcategoryEntities.firstOrNull()?.name ?: "General")
+    }
+
+    LaunchedEffect(availableSubcategoryEntities) {
+        val names = availableSubcategoryEntities.map { it.name }
+        if (names.isNotEmpty() && selectedSubcategory !in names) {
+            selectedSubcategory = names.firstOrNull() ?: "General"
         }
+    }
+
+    val isSelectedCategoryLegacy = remember(availableCategoryEntities, selectedCategory) {
+        availableCategoryEntities.find { it.name.equals(selectedCategory, ignoreCase = true) }?.isLegacy == true
     }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -231,10 +259,10 @@ fun AddTransactionBottomSheet(
                             .clickable {
                                 selectedType = type
                                 if (type != TransactionType.TRANSFER) {
-                                    val cats = masterCategories.filter { it.type == type }.map { it.name }
-                                    selectedCategory = cats.firstOrNull() ?: "General"
-                                    val subs = masterSubcategories.filter { it.parentCategory == selectedCategory && it.type == type }.map { it.name }
-                                    selectedSubcategory = subs.firstOrNull() ?: "General"
+                                    val cats = masterCategories.filter { it.type == type }
+                                    selectedCategory = cats.firstOrNull()?.name ?: "General"
+                                    val subs = masterSubcategories.filter { it.parentCategory.equals(selectedCategory, ignoreCase = true) && it.type == type }
+                                    selectedSubcategory = subs.firstOrNull()?.name ?: "General"
                                 }
                             }
                             .padding(vertical = 8.dp),
@@ -405,10 +433,7 @@ fun AddTransactionBottomSheet(
                                 .clickable { selectedTransferSubtype = subtype },
                             shape = RoundedCornerShape(10.dp),
                             color = if (isSelected) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                            border = BorderStroke(
-                                0.8.dp,
-                                if (isSelected) AccentPurple else BorderLight
-                            )
+                            border = BorderStroke(0.8.dp, if (isSelected) AccentPurple else BorderLight)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
@@ -426,29 +451,86 @@ fun AddTransactionBottomSheet(
 
                 Text("Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                 Spacer(modifier = Modifier.height(6.dp))
+
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(availableCategories.ifEmpty { listOf("General") }) { cat ->
-                        val isSelected = selectedCategory == cat
+                    items(
+                        items = if (availableCategoryEntities.isEmpty()) listOf(CategoryEntity("General", selectedType)) else availableCategoryEntities,
+                        key = { "${it.name}_${it.isLegacy}" }
+                    ) { catEntity ->
+                        val isSelected = selectedCategory.equals(catEntity.name, ignoreCase = true)
                         FilterChip(
                             selected = isSelected,
                             onClick = {
-                                selectedCategory = cat
-                                val subs = masterSubcategories.filter { it.parentCategory == cat && it.type == selectedType }.map { it.name }
-                                selectedSubcategory = subs.firstOrNull() ?: "General"
+                                selectedCategory = catEntity.name
+                                val subs = masterSubcategories.filter {
+                                    it.parentCategory.equals(catEntity.name, ignoreCase = true) && it.type == selectedType
+                                }
+                                selectedSubcategory = subs.firstOrNull()?.name ?: "General"
                             },
-                            label = { Text(cat, fontSize = 11.5.sp) },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(catEntity.name, fontSize = 11.5.sp)
+                                    if (catEntity.isLegacy) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Legacy",
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFE65100),
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(Color(0xFFFFF3E0))
+                                                .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                                        )
+                                    } else if (catEntity.isNew) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(5.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF4CAF50))
+                                        )
+                                    }
+                                }
+                            },
                             shape = RoundedCornerShape(8.dp),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentPurpleLight,
-                                selectedLabelColor = AccentPurple
-                            )
+                                selectedContainerColor = if (catEntity.isLegacy) Color(0xFFFFF3E0) else AccentPurpleLight,
+                                selectedLabelColor = if (catEntity.isLegacy) Color(0xFFE65100) else AccentPurple
+                            ),
+                            border = if (catEntity.isLegacy) BorderStroke(0.8.dp, Color(0xFFFFB74D)) else null
                         )
+                    }
+                }
+
+                // Informational Notice if user selects a legacy item
+                AnimatedVisibility(visible = isSelectedCategoryLegacy) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFFFF9E6),
+                        border = BorderStroke(0.6.dp, Color(0xFFFFCC00).copy(alpha = 0.6f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFD48800), modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "'$selectedCategory' is a legacy category and will be retired next month.",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFF873800)
+                            )
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                if (availableSubcategories.isNotEmpty()) {
+                if (availableSubcategoryEntities.isNotEmpty()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                         Spacer(modifier = Modifier.width(4.dp))
@@ -456,17 +538,43 @@ fun AddTransactionBottomSheet(
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(availableSubcategories) { sub ->
-                            val isSelected = selectedSubcategory == sub
+                        items(availableSubcategoryEntities, key = { "${it.name}_${it.isLegacy}" }) { subEntity ->
+                            val isSelected = selectedSubcategory.equals(subEntity.name, ignoreCase = true)
                             FilterChip(
                                 selected = isSelected,
-                                onClick = { selectedSubcategory = sub },
-                                label = { Text(sub, fontSize = 11.5.sp) },
+                                onClick = { selectedSubcategory = subEntity.name },
+                                label = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(subEntity.name, fontSize = 11.5.sp)
+                                        if (subEntity.isLegacy) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "Legacy",
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFE65100),
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(3.dp))
+                                                    .background(Color(0xFFFFF3E0))
+                                                    .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                                            )
+                                        } else if (subEntity.isNew) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(5.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xFF4CAF50))
+                                            )
+                                        }
+                                    }
+                                },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = AccentPurpleLight,
-                                    selectedLabelColor = AccentPurple
-                                )
+                                    selectedContainerColor = if (subEntity.isLegacy) Color(0xFFFFF3E0) else AccentPurpleLight,
+                                    selectedLabelColor = if (subEntity.isLegacy) Color(0xFFE65100) else AccentPurple
+                                ),
+                                border = if (subEntity.isLegacy) BorderStroke(0.8.dp, Color(0xFFFFB74D)) else null
                             )
                         }
                     }
