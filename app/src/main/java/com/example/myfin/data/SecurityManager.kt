@@ -14,6 +14,8 @@ import java.security.GeneralSecurityException
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.text.SimpleDateFormat
+import java.util.Locale
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
@@ -38,7 +40,8 @@ class SecurityManager(private val context: Context) {
             // Handle Keystore corruption, master key revocation, or OS upgrades
             if (e is GeneralSecurityException || e is java.io.IOException) {
                 try {
-                    val prefsFile = File(appContext.filesDir.parent, "shared_prefs/$PREFS_FILE_NAME.xml")
+                    val parentDir = appContext.filesDir.parentFile
+                    val prefsFile = File(parentDir, "shared_prefs/$PREFS_FILE_NAME.xml")
                     if (prefsFile.exists()) {
                         prefsFile.delete()
                     }
@@ -70,7 +73,9 @@ class SecurityManager(private val context: Context) {
         }
     }
 
-    // --- PBKDF2 PIN HASHING & AUTHENTICATION ---
+    // ========================================================================
+    // 1. PBKDF2 PIN HASHING & AUTHENTICATION
+    // ========================================================================
 
     fun isPinSet(): Boolean {
         val hasHash = sharedPreferences.getString(KEY_PIN_HASH, null) != null
@@ -101,13 +106,18 @@ class SecurityManager(private val context: Context) {
             val salt = Base64.decode(storedSaltBase64, Base64.NO_WRAP)
             val computedHash = hashPinWithSalt(trimmedEntered, salt)
             val computedHashBase64 = Base64.encodeToString(computedHash, Base64.NO_WRAP)
-            return constantTimeEquals(storedHashBase64, computedHashBase64)
+            val isValid = constantTimeEquals(storedHashBase64, computedHashBase64)
+            if (isValid) {
+                clearSessionLock()
+            }
+            return isValid
         }
 
         // Migration for unhashed legacy PINs
         val legacyPin = sharedPreferences.getString(KEY_PIN_LEGACY, null)
         if (legacyPin != null && legacyPin == trimmedEntered) {
             setPin(trimmedEntered)
+            clearSessionLock()
             return true
         }
 
@@ -122,19 +132,27 @@ class SecurityManager(private val context: Context) {
     }
 
     private fun hashPinWithSalt(pin: String, salt: ByteArray): ByteArray {
-        val spec = PBEKeySpec(pin.toCharArray(), salt, HASH_ITERATIONS, HASH_KEY_LENGTH)
-        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-        return factory.generateSecret(spec).encoded
+        val chars = pin.toCharArray()
+        val spec = PBEKeySpec(chars, salt, HASH_ITERATIONS, HASH_KEY_LENGTH)
+        return try {
+            val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            factory.generateSecret(spec).encoded
+        } finally {
+            spec.clearPassword()
+            chars.fill('0')
+        }
     }
 
     private fun constantTimeEquals(a: String, b: String): Boolean {
         return MessageDigest.isEqual(a.toByteArray(Charsets.UTF_8), b.toByteArray(Charsets.UTF_8))
     }
 
-    // --- RECOVERY DOB KEYS & NORMALIZATION ---
+    // ========================================================================
+    // 2. RECOVERY DOB KEYS & NORMALIZATION
+    // ========================================================================
 
     fun setRecoveryDob(dob: String): Boolean {
-        val normalized = normalizeDobToDmy(dob.replace("[^0-9]".toRegex(), "")) ?: dob.trim()
+        val normalized = normalizeDobToDmy(dob) ?: dob.trim()
         return sharedPreferences.edit().putString(KEY_RECOVERY_DOB, normalized).commit()
     }
 
@@ -144,29 +162,42 @@ class SecurityManager(private val context: Context) {
 
     fun verifyRecoveryDob(enteredDob: String): Boolean {
         val storedDob = getRecoveryDob() ?: return false
-        val cleanStored = storedDob.replace("[^0-9]".toRegex(), "")
-        val cleanEntered = enteredDob.replace("[^0-9]".toRegex(), "")
+        val normalizedStored = normalizeDobToDmy(storedDob) ?: storedDob.replace("[^0-9]".toRegex(), "")
+        val normalizedEntered = normalizeDobToDmy(enteredDob) ?: enteredDob.replace("[^0-9]".toRegex(), "")
 
-        if (cleanStored.length != 8 || cleanEntered.length != 8) {
-            return cleanStored.isNotEmpty() && cleanStored == cleanEntered
-        }
-
-        val normalizedStored = normalizeDobToDmy(cleanStored) ?: cleanStored
-        val normalizedEntered = normalizeDobToDmy(cleanEntered) ?: cleanEntered
-
-        return normalizedStored == normalizedEntered
+        return normalizedStored.isNotBlank() && normalizedStored == normalizedEntered
     }
 
-    private fun normalizeDobToDmy(digits: String): String? {
+    private fun normalizeDobToDmy(rawDob: String): String? {
+        val trimmed = rawDob.trim()
+        if (trimmed.isBlank()) return null
+
+        // Try standard date pattern formats first
+        val dateFormats = listOf(
+            "dd-MM-yyyy", "dd/MM/yyyy", "d/M/yyyy", "d-M-yyyy",
+            "yyyy-MM-dd", "yyyy/MM/dd", "yyyyMMdd", "ddMMyyyy"
+        )
+
+        for (pattern in dateFormats) {
+            try {
+                val sdf = SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }
+                val parsedDate = sdf.parse(trimmed)
+                if (parsedDate != null) {
+                    val outSdf = SimpleDateFormat("ddMMyyyy", Locale.US)
+                    return outSdf.format(parsedDate)
+                }
+            } catch (_: Exception) {}
+        }
+
+        // Fallback for raw digits
+        val digits = trimmed.replace("[^0-9]".toRegex(), "")
         if (digits.length != 8) return null
 
-        // Check if already DDMMYYYY (Day: 1..31, Month: 1..12, Year: 1900..2100)
         val dmyDay = digits.substring(0, 2).toIntOrNull() ?: 0
         val dmyMonth = digits.substring(2, 4).toIntOrNull() ?: 0
         val dmyYear = digits.substring(4, 8).toIntOrNull() ?: 0
         val isDmy = dmyDay in 1..31 && dmyMonth in 1..12 && dmyYear in 1900..2100
 
-        // Check if YYYYMMDD
         val ymdYear = digits.substring(0, 4).toIntOrNull() ?: 0
         val ymdMonth = digits.substring(4, 6).toIntOrNull() ?: 0
         val ymdDay = digits.substring(6, 8).toIntOrNull() ?: 0
@@ -186,7 +217,9 @@ class SecurityManager(private val context: Context) {
         return false
     }
 
-    // --- BIOMETRIC AUTHENTICATION ---
+    // ========================================================================
+    // 3. BIOMETRIC AUTHENTICATION
+    // ========================================================================
 
     fun isBiometricEnabled(): Boolean {
         return sharedPreferences.getBoolean(KEY_BIOMETRIC_ENABLED, false)
@@ -234,7 +267,9 @@ class SecurityManager(private val context: Context) {
         prompt.authenticate(promptInfo)
     }
 
-    // --- SESSION AUTO-LOCK TIMEOUT ENGINE (60s) ---
+    // ========================================================================
+    // 4. SESSION AUTO-LOCK TIMEOUT ENGINE (60s)
+    // ========================================================================
 
     fun recordAppBackgrounded() {
         sharedPreferences.edit()
