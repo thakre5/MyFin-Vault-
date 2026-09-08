@@ -32,7 +32,6 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -387,7 +386,7 @@ fun YearlyScreen(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(16.dp),
                                         color = CardWhite,
-                                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                                        border = BorderStroke(0.8.dp, Color(0xFFE57A28).copy(alpha = 0.35f))
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(16.dp),
@@ -397,13 +396,13 @@ fun YearlyScreen(
                                                 modifier = Modifier
                                                     .size(40.dp)
                                                     .clip(CircleShape)
-                                                    .background(AccentPurple.copy(alpha = 0.12f)),
+                                                    .background(Color(0xFFE57A28).copy(alpha = 0.12f)),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(
                                                     Icons.Default.WorkOutline,
                                                     contentDescription = null,
-                                                    tint = AccentPurple,
+                                                    tint = Color(0xFFE57A28),
                                                     modifier = Modifier.size(20.dp)
                                                 )
                                             }
@@ -421,18 +420,32 @@ fun YearlyScreen(
                                                         else -> "All corporate outlays fully settled."
                                                     },
                                                     fontSize = 11.sp,
-                                                    color = if (reimbursementStatus.isSettled) SoftGreen else SoftRed
+                                                    color = if (reimbursementStatus.isSettled) SoftGreen else Color(0xFFE57A28)
                                                 )
                                             }
 
                                             Column(horizontalAlignment = Alignment.End) {
+                                                val floatAmount = if (reimbursementStatus.excessAdvanceHeld > 0.0) {
+                                                    reimbursementStatus.excessAdvanceHeld
+                                                } else {
+                                                    reimbursementStatus.pendingReimbursement
+                                                }
+
                                                 Text(
-                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", annualLifestyleExpenses)}",
+                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", if (floatAmount > 0.0) floatAmount else reimbursementStatus.totalWorkExpenses)}",
                                                     fontWeight = FontWeight.Black,
                                                     fontSize = 14.sp,
-                                                    color = TextDark
+                                                    color = if (reimbursementStatus.isSettled) SoftGreen else Color(0xFFE57A28)
                                                 )
-                                                Text("True Lifestyle", fontSize = 9.5.sp, color = TextMuted)
+                                                Text(
+                                                    text = when {
+                                                        reimbursementStatus.excessAdvanceHeld > 0.0 -> "Advance Held"
+                                                        reimbursementStatus.pendingReimbursement > 0.0 -> "Claim Due"
+                                                        else -> "Settled"
+                                                    },
+                                                    fontSize = 9.5.sp,
+                                                    color = TextMuted
+                                                )
                                             }
                                         }
                                     }
@@ -997,6 +1010,34 @@ fun YearlyScreen(
                         )
                     }
 
+                    if (mData.workExpenses > 0.0 || mData.corporateReimbursements > 0.0) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFFE57A28).copy(alpha = 0.08f),
+                            border = BorderStroke(0.6.dp, Color(0xFFE57A28).copy(alpha = 0.25f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.WorkOutline, contentDescription = null, tint = Color(0xFFE57A28), modifier = Modifier.size(15.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Corporate Float Active", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFE57A28))
+                                }
+                                Text(
+                                    text = if (isDiscreetMode) "••••" else "Outlay: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", mData.workExpenses)} | Claims: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", mData.corporateReimbursements)}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE57A28)
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Text("Top Expenses in ${mData.monthName}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextDark)
@@ -1198,7 +1239,6 @@ private fun DualWaveCanvas(
         val count = 12
         val stepX = w / (count - 1).toFloat()
 
-        // Pure personal numbers isolated from company floats
         val personalInflows = yearlyMonths.map { it.netSavings + it.lifestyleExpenses + it.assets }
         val personalBurns = yearlyMonths.map { it.lifestyleExpenses }
 
@@ -1384,7 +1424,6 @@ private fun LayeredMountainCanvas(
         val count = 12
         val stepX = w / (count - 1).toFloat()
 
-        // Evaluates pure personal outflow stack (Fixed + Lifestyle + SIP)
         val maxStack = yearlyMonths.maxOfOrNull { it.lifestyleExpenses + it.assets }?.coerceAtLeast(100.0) ?: 100.0
 
         val ptsFixed = mutableListOf<Offset>()
@@ -1807,7 +1846,6 @@ private fun MultiYearSegmentedCanvas(
             val isCurrent = item.year == selectedYear
             val baseY = h - 22.dp.toPx()
 
-            // Unified gradient pillars reflecting cumulative portfolio stock
             drawRoundRect(
                 brush = if (isCurrent) {
                     Brush.verticalGradient(
@@ -2040,7 +2078,6 @@ private fun BudgetVsActualDualPillarsCard(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.Bottom
                         ) {
-                            // Grey bar: Real annualized planned ceiling
                             Box(
                                 modifier = Modifier
                                     .width(14.dp)
@@ -2048,7 +2085,6 @@ private fun BudgetVsActualDualPillarsCard(
                                     .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
                                     .background(if (plannedAmt > 0) Color(0xFFCBD5E1) else Color(0xFFE2E8F0))
                             )
-                            // Realized spending bar
                             Box(
                                 modifier = Modifier
                                     .width(14.dp)
@@ -2248,7 +2284,7 @@ private fun MonthGridTimelineCard(
                     Text(
                         text = "+${(data.workExpenses / 1000).toInt()}k float",
                         fontSize = 9.sp,
-                        color = AccentPurple,
+                        color = Color(0xFFE57A28),
                         fontWeight = FontWeight.Bold
                     )
                 }
