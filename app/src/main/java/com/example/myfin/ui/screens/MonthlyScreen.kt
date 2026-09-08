@@ -14,10 +14,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -84,6 +86,7 @@ fun MonthlyScreen(
     var selectedTxFilterType by remember { mutableStateOf<TransactionType?>(null) }
 
     var isDiscreetMode by remember { mutableStateOf(false) }
+    var showStsInfoSheet by remember { mutableStateOf(false) }
     var dismissedWaterfallMonth by remember { mutableIntStateOf(0) }
     var dismissedSweepMonth by remember { mutableIntStateOf(0) }
 
@@ -638,7 +641,7 @@ fun MonthlyScreen(
                                         contentPadding = PaddingValues(horizontal = 6.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        // Card 1: Liquid Safe to Spend
+                                        // Card 1: Liquid Safe to Spend (With Interactive Explainer Dialog Trigger)
                                         item {
                                             val isHealthy = uiState.metrics.safeToSpend > 0
                                             val statusColor = if (isHealthy) SoftGreen else SoftRed
@@ -673,7 +676,13 @@ fun MonthlyScreen(
                                                             horizontalArrangement = Arrangement.SpaceBetween,
                                                             verticalAlignment = Alignment.CenterVertically
                                                         ) {
-                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                modifier = Modifier
+                                                                    .clip(RoundedCornerShape(8.dp))
+                                                                    .clickable { showStsInfoSheet = true }
+                                                                    .padding(vertical = 2.dp, horizontal = 2.dp)
+                                                            ) {
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .size(7.dp)
@@ -687,6 +696,13 @@ fun MonthlyScreen(
                                                                     fontSize = 10.5.sp,
                                                                     fontWeight = FontWeight.Black,
                                                                     letterSpacing = 0.7.sp
+                                                                )
+                                                                Spacer(modifier = Modifier.width(4.dp))
+                                                                Icon(
+                                                                    imageVector = Icons.Default.HelpOutline,
+                                                                    contentDescription = "Explain Safe to Spend",
+                                                                    tint = AccentPurple,
+                                                                    modifier = Modifier.size(15.dp)
                                                                 )
                                                             }
 
@@ -2413,6 +2429,158 @@ fun MonthlyScreen(
                     }
                 }
             )
+        }
+
+        // 7. SAFE TO SPEND EXPLANATION SHEET
+        if (showStsInfoSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showStsInfoSheet = false },
+                containerColor = CardWhite,
+                shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 22.dp)
+                        .padding(bottom = 32.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Liquid Safe-to-Spend (STS)",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 19.sp,
+                                color = TextDark
+                            )
+                            Text(
+                                text = "Burn-rate speedometer vs. Accumulated savings",
+                                fontSize = 11.5.sp,
+                                color = TextMuted
+                            )
+                        }
+
+                        Surface(
+                            shape = CircleShape,
+                            color = AccentPurple.copy(alpha = 0.12f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Speed, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(19.dp))
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Why it's not total bank balance
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = CanvasLight,
+                        border = BorderStroke(0.8.dp, BorderLight)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "Why is STS not equal to my bank balance?",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.5.sp,
+                                color = TextDark
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Your bank accounts hold your accumulated net worth and savings buffers from previous months. STS protects that money from being spent. It calculates how much of this month's salary you can burn without wiping out your past savings.",
+                                fontSize = 11.sp,
+                                color = TextMuted,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text("Live Monthly Cashflow Math", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Live Mathematical Breakdown
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Monthly Inflow Baseline", fontSize = 11.5.sp, color = TextDark)
+                                Text("+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedIncome)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftGreen)
+                            }
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Fixed Commitments Total", fontSize = 11.5.sp, color = TextDark)
+                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftRed)
+                            }
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("SIP / Wealth Assets Target", fontSize = 11.5.sp, color = TextDark)
+                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedAssets)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftTeal)
+                            }
+
+                            val discretionarySpent = (uiState.metrics.actualExpenses - uiState.fixedBills.filter { it.isPaid && it.type == TransactionType.EXPENSE }.sumOf { it.amount }).coerceAtLeast(0.0)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Discretionary Spent so far", fontSize = 11.5.sp, color = TextDark)
+                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", discretionarySpent)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextMuted)
+                            }
+
+                            HorizontalDivider(color = BorderLight, thickness = 0.6.dp)
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column {
+                                    Text("Safe-to-Spend Remaining", fontWeight = FontWeight.Black, fontSize = 12.5.sp, color = TextDark)
+                                    Text("Allowance across remaining days", fontSize = 10.sp, color = TextMuted)
+                                }
+                                Text(
+                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 15.sp,
+                                    color = if (uiState.metrics.safeToSpend > 0) AccentPurple else SoftRed
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Liquidity floor guard
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(Icons.Default.Security, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Physical Cash Floor: STS automatically enforces a ceiling against your actual liquid bank balance, ensuring you never spend money needed to protect minimum balance (MAB) or pending bills.",
+                            fontSize = 11.sp,
+                            color = TextMuted,
+                            lineHeight = 15.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = { showStsInfoSheet = false },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                    ) {
+                        Text("Got it", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            }
         }
     }
 }
