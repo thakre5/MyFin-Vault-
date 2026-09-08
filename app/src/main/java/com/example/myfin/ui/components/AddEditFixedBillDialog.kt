@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.CategoryEntity
@@ -137,8 +138,8 @@ fun AddEditFixedBillDialog(
         }
     }
 
-    val availableSubcategories = remember(masterSubcategories, selectedCategory) {
-        masterSubcategories.filter { it.parentCategory == selectedCategory }.map { it.name }
+    val availableSubcategories = remember(masterSubcategories, selectedCategory, selectedType) {
+        masterSubcategories.filter { it.parentCategory == selectedCategory && it.type == selectedType }.map { it.name }
     }
 
     var selectedSubcategory by remember {
@@ -213,6 +214,7 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // 5-Way Segment Switcher
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -223,7 +225,8 @@ fun AddEditFixedBillDialog(
                 listOf(
                     TransactionType.EXPENSE to "Expense",
                     TransactionType.INCOME to "Income",
-                    TransactionType.ASSET to "Asset / SIP",
+                    TransactionType.ASSET to "Asset",
+                    TransactionType.CORPORATE to "Corporate",
                     TransactionType.TRANSFER to "Transfer"
                 ).forEach { (type, label) ->
                     val isSelected = selectedType == type
@@ -239,15 +242,18 @@ fun AddEditFixedBillDialog(
                         Text(
                             text = label,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 11.5.sp,
+                            fontSize = 10.5.sp,
                             color = if (isSelected) {
                                 when (type) {
                                     TransactionType.EXPENSE -> SoftRed
                                     TransactionType.INCOME -> SoftGreen
                                     TransactionType.ASSET -> SoftTeal
+                                    TransactionType.CORPORATE -> Color(0xFFE57A28)
                                     TransactionType.TRANSFER -> AccentPurple
                                 }
-                            } else TextMuted
+                            } else TextMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -299,7 +305,7 @@ fun AddEditFixedBillDialog(
                 value = noteText,
                 onValueChange = { noteText = it },
                 label = { Text("Note / Title (Optional)", fontSize = 12.sp) },
-                placeholder = { Text("e.g. Netflix, Electricity, Rent", fontSize = 12.sp) },
+                placeholder = { Text("e.g. Netflix, Client Lunch, Train Ticket", fontSize = 12.sp) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
