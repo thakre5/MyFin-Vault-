@@ -100,8 +100,11 @@ fun ReportsAnalyticsScreen(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
+
     val uiState by viewModel.monthlyUiState.collectAsState()
+    val yearlyState by viewModel.yearlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
+    val avgMonthlySpend by viewModel.averageMonthlySpend.collectAsState()
 
     val pagerState = rememberPagerState(pageCount = { 3 })
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
@@ -146,12 +149,39 @@ fun ReportsAnalyticsScreen(
         }
     }
 
-    val allTransactions = remember(uiState.groupedTransactions) {
-        uiState.groupedTransactions.values.flatten()
+    // Comprehensive transaction history across current and prior cycles
+    val allTransactions = remember(yearlyState.allYearTransactions, uiState.groupedTransactions) {
+        val currentMonthTxs = uiState.groupedTransactions.values.flatten()
+        (yearlyState.allYearTransactions + currentMonthTxs).distinctBy { it.id }
     }
 
     val activeAccounts = remember(uiState.activeAccounts, uiState.accounts) {
         uiState.activeAccounts.ifEmpty { uiState.accounts.filter { !it.isArchived } }
+    }
+
+    // Taxonomy Lambdas matching BudgetViewModel
+    val isWorkExpense = remember {
+        { tx: TransactionEntity ->
+            tx.type == TransactionType.EXPENSE &&
+            (tx.category.equals("Work & Professional", ignoreCase = true) ||
+             tx.subcategory.contains("Work Travel", ignoreCase = true) ||
+             tx.subcategory.contains("Courier", ignoreCase = true) ||
+             tx.subcategory.contains("Tools & Subscriptions", ignoreCase = true) ||
+             tx.title.contains("Reimbursable", ignoreCase = true))
+        }
+    }
+
+    val isNonPersonalInflow = remember {
+        { tx: TransactionEntity ->
+            tx.type == TransactionType.INCOME &&
+            (tx.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true) ||
+             tx.category.equals("Passive & Capital Drawdowns", ignoreCase = true) ||
+             tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
+             tx.subcategory.contains("Tax & Purchase Refunds", ignoreCase = true) ||
+             tx.subcategory.contains("Capital Gains", ignoreCase = true) ||
+             tx.subcategory.contains("Emergency Fund Drawdown", ignoreCase = true) ||
+             tx.subcategory.contains("FD / Deposit Maturity", ignoreCase = true))
+        }
     }
 
     val filteredTransactions = remember(allTransactions, selectedTimeRange) {
@@ -172,45 +202,52 @@ fun ReportsAnalyticsScreen(
                 allTransactions.filter { it.date in startOfWeek until endOfWeek }
             }
             TimeRangeFilter.THIS_MONTH -> {
-                val currentMonth = calendar.get(Calendar.MONTH)
+                val currentMonth = calendar.get(Calendar.MONTH) + 1
                 val currentYear = calendar.get(Calendar.YEAR)
                 allTransactions.filter { tx ->
                     val txCal = Calendar.getInstance().apply { timeInMillis = tx.date }
-                    txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+                    (txCal.get(Calendar.MONTH) + 1) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
                 }
             }
             TimeRangeFilter.LAST_MONTH -> {
                 val targetCal = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
-                val lastMonth = targetCal.get(Calendar.MONTH)
+                val lastMonth = targetCal.get(Calendar.MONTH) + 1
                 val targetYear = targetCal.get(Calendar.YEAR)
                 allTransactions.filter { tx ->
                     val txCal = Calendar.getInstance().apply { timeInMillis = tx.date }
-                    txCal.get(Calendar.MONTH) == lastMonth && txCal.get(Calendar.YEAR) == targetYear
+                    (txCal.get(Calendar.MONTH) + 1) == lastMonth && txCal.get(Calendar.YEAR) == targetYear
                 }
             }
         }
     }
 
-    val totalIncome = remember(filteredTransactions) {
-        filteredTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+    // Pure Personal Income (Corporate claims, loan paybacks, capital drawdowns excluded)
+    val personalIncome = remember(filteredTransactions) {
+        filteredTransactions.filter { it.type == TransactionType.INCOME && !isNonPersonalInflow(it) }.sumOf { it.amount }
     }
+
+    // Personal Lifestyle Burn (Reimbursable corporate outlays excluded)
+    val personalExpenses = remember(filteredTransactions) {
+        filteredTransactions.filter { it.type == TransactionType.EXPENSE && !isWorkExpense(it) }.sumOf { it.amount }
+    }
+
+    val totalAssets = remember(filteredTransactions) {
+        filteredTransactions.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
+    }
+
+    val netSurplus = personalIncome - personalExpenses - totalAssets
+
     val fixedOutflow = remember(uiState.fixedBills, selectedTimeRange) {
-        val totalFixed = uiState.fixedBills.filter { it.type == TransactionType.EXPENSE || it.type == TransactionType.ASSET }.sumOf { it.amount }
+        val totalFixed = uiState.fixedBills.filter { it.type == TransactionType.EXPENSE || it.type == TransactionType.TRANSFER }.sumOf { it.amount }
         when (selectedTimeRange) {
             TimeRangeFilter.THIS_WEEK -> totalFixed * (7.0 / 30.0)
             TimeRangeFilter.THIS_MONTH, TimeRangeFilter.LAST_MONTH -> totalFixed
         }
     }
+
     val variableOutflow = remember(filteredTransactions) {
-        filteredTransactions.filter { it.type == TransactionType.EXPENSE && it.linkedFixedBillId == null }.sumOf { it.amount }
+        filteredTransactions.filter { it.type == TransactionType.EXPENSE && it.linkedFixedBillId == null && !isWorkExpense(it) }.sumOf { it.amount }
     }
-    val totalExpenses = remember(filteredTransactions) {
-        filteredTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-    }
-    val totalAssets = remember(filteredTransactions) {
-        filteredTransactions.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
-    }
-    val netSurplus = totalIncome - totalExpenses - totalAssets
 
     val dynamicSpendBuckets = remember(filteredTransactions, selectedTimeRange) {
         val calendar = Calendar.getInstance()
@@ -229,7 +266,7 @@ fun ReportsAnalyticsScreen(
                 val startOfWeek = startCal.timeInMillis
                 val endOfWeek = startOfWeek + (7L * 24 * 60 * 60 * 1000)
 
-                val weekTxs = filteredTransactions.filter { it.date in startOfWeek until endOfWeek && it.type == TransactionType.EXPENSE }
+                val weekTxs = filteredTransactions.filter { it.date in startOfWeek until endOfWeek && it.type == TransactionType.EXPENSE && !isWorkExpense(it) }
                 val essentialSums = DoubleArray(7) { 0.0 }
                 val discretionarySums = DoubleArray(7) { 0.0 }
                 val dayCal = Calendar.getInstance()
@@ -260,7 +297,7 @@ fun ReportsAnalyticsScreen(
                 val discretionarySums = DoubleArray(4) { 0.0 }
                 val dayCal = Calendar.getInstance()
 
-                for (tx in filteredTransactions.filter { it.type == TransactionType.EXPENSE }) {
+                for (tx in filteredTransactions.filter { it.type == TransactionType.EXPENSE && !isWorkExpense(it) }) {
                     dayCal.timeInMillis = tx.date
                     val day = dayCal.get(Calendar.DAY_OF_MONTH)
                     val weekIdx = ((day - 1) / 7).coerceIn(0, 3)
@@ -319,7 +356,7 @@ fun ReportsAnalyticsScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. PINNED TOP BAR (WITH DOWNWARD DISSOLVE SHELF)
+            // 1. PINNED TOP BAR
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -423,7 +460,6 @@ fun ReportsAnalyticsScreen(
                     }
                 }
 
-                // Smooth Dissolve Shelf Placed Below Top Header
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -439,7 +475,7 @@ fun ReportsAnalyticsScreen(
                 )
             }
 
-            // 2. FULL-SCREEN HORIZONTAL PAGER (SWIPEABLE ANALYTICS TABS)
+            // 2. FULL-SCREEN HORIZONTAL PAGER
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
@@ -450,7 +486,7 @@ fun ReportsAnalyticsScreen(
                     0 -> {
                         SummaryAnalyticsTabContent(
                             userProfileCurrency = userProfile.currencySymbol,
-                            totalIncome = totalIncome,
+                            totalIncome = personalIncome,
                             netSurplus = netSurplus,
                             fixedOutflow = fixedOutflow,
                             variableOutflow = variableOutflow,
@@ -469,7 +505,7 @@ fun ReportsAnalyticsScreen(
                     1 -> {
                         CategoriesAnalyticsTabContent(
                             userProfileCurrency = userProfile.currencySymbol,
-                            totalExpenses = totalExpenses,
+                            totalExpenses = personalExpenses,
                             totalAssets = totalAssets,
                             transactions = filteredTransactions,
                             allTransactions = allTransactions,
@@ -482,10 +518,10 @@ fun ReportsAnalyticsScreen(
                             userProfileCurrency = userProfile.currencySymbol,
                             vaultMode = userProfile.vaultMode,
                             onOpenStrategyInfo = { showStrategyInfoSheet = true },
-                            totalAssets = totalAssets,
-                            totalExpenses = totalExpenses,
+                            totalInvestments = yearlyState.assetWealthMetrics.totalInvestments,
+                            realizableNetWorth = yearlyState.assetWealthMetrics.realizableNetWorth,
+                            monthlyBurnRate = avgMonthlySpend,
                             accounts = activeAccounts,
-                            transactions = allTransactions,
                             isDiscreet = isDiscreetMode,
                             onOpenMetricInfo = { activeChartMetricInfo = it }
                         )
@@ -494,7 +530,7 @@ fun ReportsAnalyticsScreen(
             }
         }
 
-        // 3. FLOATING PAGER INDICATOR PILL (ANCHORED LEFT ABOVE DOCK)
+        // 3. FLOATING PAGER INDICATOR PILL
         FloatingPagerIndicator(
             pagerState = pagerState,
             pageTitles = pageTitles,
@@ -506,7 +542,7 @@ fun ReportsAnalyticsScreen(
                 .zIndex(3.5f)
         )
 
-        // 4. STANDARDIZED FLOATING BOTTOM NAVIGATION DOCK WITH FAB (includes integrated animated gradient scrim)
+        // 4. STANDARDIZED FLOATING BOTTOM NAVIGATION DOCK WITH FAB
         AppBottomDock(
             currentSelection = NavigationTarget.REPORTS_ANALYTICS,
             onSelectTarget = { target ->
@@ -804,7 +840,15 @@ private fun SummaryAnalyticsTabContent(
     val totalOutflow = fixedOutflow + variableOutflow
     val totalPeriodExpenses = spendData.sumOf { it.totalAmount }
     val dailyBurn = if (selectedTimeRange == TimeRangeFilter.THIS_WEEK) (totalPeriodExpenses / 7.0) else (totalPeriodExpenses / 30.0)
-    val totalBudget = if (plannedBudget > 0) plannedBudget else (totalIncome.takeIf { it > 0 } ?: (totalOutflow * 1.25).coerceAtLeast(1.0))
+
+    val scaledPeriodBudget = remember(plannedBudget, selectedTimeRange) {
+        when (selectedTimeRange) {
+            TimeRangeFilter.THIS_WEEK -> plannedBudget * (7.0 / 30.0)
+            TimeRangeFilter.THIS_MONTH, TimeRangeFilter.LAST_MONTH -> plannedBudget
+        }
+    }
+
+    val totalBudget = if (scaledPeriodBudget > 0) scaledPeriodBudget else (totalIncome.takeIf { it > 0 } ?: (totalOutflow * 1.25).coerceAtLeast(1.0))
     val retentionRate = if (totalIncome > 0) ((netSurplus / totalIncome) * 100).coerceIn(0.0, 100.0) else 0.0
     val commitmentLoad = if (totalBudget > 0) ((fixedOutflow / totalBudget) * 100).coerceIn(0.0, 100.0) else 0.0
 
@@ -825,8 +869,8 @@ private fun SummaryAnalyticsTabContent(
                         ChartMetricInfo(
                             title = "Capital Retention",
                             subtitle = "Net Saved vs Inflow Rate",
-                            formula = "Retention_% = ((I_actual - E_actual - A_actual) / I_actual) * 100",
-                            breakdown = "Current realized Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome)} | Net Retained: $userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} (${String.format(Locale.US, "%,.1f", retentionRate)}%).",
+                            formula = "Retention_% = ((I_personal - E_lifestyle - A_assets) / I_personal) * 100",
+                            breakdown = "Personal earned Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome)} | Net Retained: $userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} (${String.format(Locale.US, "%,.1f", retentionRate)}%).",
                             advice = "Higher retention builds your emergency buffer and compounds investment capacity faster."
                         )
                     )
@@ -841,7 +885,6 @@ private fun SummaryAnalyticsTabContent(
                     .padding(horizontal = 20.dp, vertical = 20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Metric Column
                 Column(modifier = Modifier.weight(0.95f)) {
                     Text(
                         text = if (isDiscreet) "••••" else String.format(Locale.US, "%.1f", retentionRate),
@@ -873,7 +916,6 @@ private fun SummaryAnalyticsTabContent(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Right Interactive Dual Glow Wave Graph
                 Column(
                     modifier = Modifier.weight(1.55f),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -917,7 +959,7 @@ private fun SummaryAnalyticsTabContent(
                         ChartMetricInfo(
                             title = "Allocation Breakdown",
                             subtitle = "Fixed Obligations vs Discretionary Pacing",
-                            formula = "Commitment_Load_% = (C_fixed / Planned_Budget) * 100",
+                            formula = "Commitment_Load_% = (C_fixed / Scaled_Budget) * 100",
                             breakdown = "Fixed AutoPay commitments: $userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)} | Variable spent: $userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}.",
                             advice = "Keeping Fixed AutoPay commitments under 50% guarantees ample safe-to-spend buffer for unpredicted costs."
                         )
@@ -1175,7 +1217,7 @@ private fun SummaryAnalyticsTabContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = if (isDiscreet) "Budget Target: ••••" else "Budget Target $userProfileCurrency${String.format(Locale.US, "%,.0f", plannedBudget)}",
+            text = if (isDiscreet) "Period Target: ••••" else "Period Target $userProfileCurrency${String.format(Locale.US, "%,.0f", scaledPeriodBudget)}",
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             color = TextMuted,
@@ -1186,7 +1228,7 @@ private fun SummaryAnalyticsTabContent(
 
         DualTrajectoryLineCanvas(
             spendData = spendData,
-            plannedBudget = plannedBudget,
+            plannedBudget = scaledPeriodBudget,
             currencySymbol = userProfileCurrency,
             isDiscreet = isDiscreet
         )
@@ -1370,7 +1412,6 @@ private fun InteractiveDualGlowWaveCanvas(
                 style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
             )
 
-            // Touch Marker
             touchIndex?.let { idx ->
                 val pt = ptsWave1.getOrNull(idx)
                 if (pt != null) {
@@ -1385,7 +1426,6 @@ private fun InteractiveDualGlowWaveCanvas(
             }
         }
 
-        // Live Tooltip Overlay
         touchIndex?.let { idx ->
             val data = spendData.getOrNull(idx)
             if (data != null) {
@@ -1421,33 +1461,43 @@ private fun CategoriesAnalyticsTabContent(
     isDiscreet: Boolean,
     onOpenMetricInfo: (ChartMetricInfo) -> Unit
 ) {
+    val isWorkExpense = remember {
+        { tx: TransactionEntity ->
+            tx.type == TransactionType.EXPENSE &&
+            (tx.category.equals("Work & Professional", ignoreCase = true) ||
+             tx.subcategory.contains("Work Travel", ignoreCase = true) ||
+             tx.subcategory.contains("Courier", ignoreCase = true) ||
+             tx.subcategory.contains("Tools & Subscriptions", ignoreCase = true) ||
+             tx.title.contains("Reimbursable", ignoreCase = true))
+        }
+    }
+
     val categoryExpenses = remember(transactions) {
         transactions
-            .filter { it.type == TransactionType.EXPENSE }
+            .filter { it.type == TransactionType.EXPENSE && !isWorkExpense(it) }
             .groupBy { it.category }
             .mapValues { entry -> entry.value.sumOf { it.amount } }
             .toList()
             .sortedByDescending { it.second }
     }
 
-    // Month-over-Month Velocity Surge Drift Detection
     val categorySurges = remember(allTransactions) {
         val now = Calendar.getInstance()
-        val curM = now.get(Calendar.MONTH)
+        val curM = now.get(Calendar.MONTH) + 1
         val curY = now.get(Calendar.YEAR)
         now.add(Calendar.MONTH, -1)
-        val prevM = now.get(Calendar.MONTH)
+        val prevM = now.get(Calendar.MONTH) + 1
         val prevY = now.get(Calendar.YEAR)
 
         val txCal = Calendar.getInstance()
         val curMap = allTransactions.filter {
             txCal.timeInMillis = it.date
-            txCal.get(Calendar.MONTH) == curM && txCal.get(Calendar.YEAR) == curY && it.type == TransactionType.EXPENSE
+            (txCal.get(Calendar.MONTH) + 1) == curM && txCal.get(Calendar.YEAR) == curY && it.type == TransactionType.EXPENSE && !isWorkExpense(it)
         }.groupBy { it.category }.mapValues { it.value.sumOf { tx -> tx.amount } }
 
         val prevMap = allTransactions.filter {
             txCal.timeInMillis = it.date
-            txCal.get(Calendar.MONTH) == prevM && txCal.get(Calendar.YEAR) == prevY && it.type == TransactionType.EXPENSE
+            (txCal.get(Calendar.MONTH) + 1) == prevM && txCal.get(Calendar.YEAR) == prevY && it.type == TransactionType.EXPENSE && !isWorkExpense(it)
         }.groupBy { it.category }.mapValues { it.value.sumOf { tx -> tx.amount } }
 
         curMap.mapNotNull { (cat, curAmt) ->
@@ -1461,7 +1511,7 @@ private fun CategoriesAnalyticsTabContent(
 
     val needsCategories = setOf("Utilities & Living Bills", "Everyday Living", "Health & Medical", "Debt & Financial Obligations", "Living", "Rent", "Bills")
     val needsSum = remember(transactions) {
-        transactions.filter { it.type == TransactionType.EXPENSE && (it.category in needsCategories || it.linkedFixedBillId != null) }.sumOf { it.amount }
+        transactions.filter { it.type == TransactionType.EXPENSE && !isWorkExpense(it) && (it.category in needsCategories || it.linkedFixedBillId != null) }.sumOf { it.amount }
     }
     val wantsSum = remember(transactions, needsSum, totalExpenses) {
         max(0.0, totalExpenses - needsSum)
@@ -1485,7 +1535,7 @@ private fun CategoriesAnalyticsTabContent(
                             title = "Spending Matrix Radar",
                             subtitle = "Multi-Axis Category Allocation",
                             formula = "Axis_Ratio = (Category_Total / Max_Category_Sum) * 100",
-                            breakdown = "Evaluates expense density spread across top categories in the active timeframe.",
+                            breakdown = "Evaluates personal expense density spread across top categories in the active timeframe.",
                             advice = "A balanced hexagonal shape prevents over-reliance or unmanaged spikes in any single category."
                         )
                     )
@@ -1505,7 +1555,7 @@ private fun CategoriesAnalyticsTabContent(
                     Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
                 }
                 Text(
-                    text = "Target Benchmark vs. Actual Outflow",
+                    text = "Personal Lifestyle Outflow Distribution",
                     fontSize = 11.5.sp,
                     color = TextMuted
                 )
@@ -1658,7 +1708,7 @@ private fun CategoriesAnalyticsTabContent(
 
         categoryExpenses.forEach { (cat, amount) ->
             val ratio = if (totalExpenses > 0) (amount / totalExpenses) * 100 else 0.0
-            val catTxs = transactions.filter { it.category.equals(cat, ignoreCase = true) && it.type == TransactionType.EXPENSE }
+            val catTxs = transactions.filter { it.category.equals(cat, ignoreCase = true) && it.type == TransactionType.EXPENSE && !isWorkExpense(it) }
 
             Row(
                 modifier = Modifier
@@ -1714,26 +1764,17 @@ private fun WealthAnalyticsTabContent(
     userProfileCurrency: String,
     vaultMode: String,
     onOpenStrategyInfo: () -> Unit,
-    totalAssets: Double,
-    totalExpenses: Double,
+    totalInvestments: Double,
+    realizableNetWorth: Double,
+    monthlyBurnRate: Double,
     accounts: List<AccountBalanceResult>,
-    transactions: List<TransactionEntity>,
     isDiscreet: Boolean,
     onOpenMetricInfo: (ChartMetricInfo) -> Unit
 ) {
     val totalLiquid = remember(accounts) { accounts.sumOf { it.currentBalance } }
-    val currentMonthExpenses = remember(transactions) {
-        val cal = Calendar.getInstance()
-        val curM = cal.get(Calendar.MONTH)
-        val curY = cal.get(Calendar.YEAR)
-        val txCal = Calendar.getInstance()
-        transactions.filter {
-            txCal.timeInMillis = it.date
-            txCal.get(Calendar.MONTH) == curM && txCal.get(Calendar.YEAR) == curY && it.type == TransactionType.EXPENSE
-        }.sumOf { it.amount }
+    val runwayMonths = remember(totalLiquid, monthlyBurnRate) {
+        if (monthlyBurnRate > 0) (totalLiquid / monthlyBurnRate) else 12.0
     }
-    val monthlyBurnRate = if (currentMonthExpenses > 0) currentMonthExpenses else totalExpenses.coerceAtLeast(1.0)
-    val runwayMonths = (totalLiquid / monthlyBurnRate)
     val is3Vault = !vaultMode.equals("SIMPLE", ignoreCase = true)
 
     Column(
@@ -1753,8 +1794,8 @@ private fun WealthAnalyticsTabContent(
                         ChartMetricInfo(
                             title = "Net Capital Trajectory",
                             subtitle = "Liquid Reserves vs. Wealth Assets",
-                            formula = "Net_Worth = Total_Liquid_Vaults + Total_SIP_Assets",
-                            breakdown = "Liquid Vaults: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)} | Invested Assets: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalAssets)}.",
+                            formula = "Realizable_Net_Worth = Liquid_Reserves + Active_Investments + Receivables",
+                            breakdown = "Liquid Vaults: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)} | Invested Portfolio: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)} | Realizable Net Worth: $userProfileCurrency${String.format(Locale.US, "%,.0f", realizableNetWorth)}.",
                             advice = "Visualizes your liquid defensive buffer alongside appreciating capital."
                         )
                     )
@@ -1774,7 +1815,7 @@ private fun WealthAnalyticsTabContent(
                     Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
                 }
                 Text(
-                    text = "Liquid Reserves + SIP Assets Accumulation",
+                    text = "Liquid Reserves + Invested Portfolio",
                     fontSize = 11.5.sp,
                     color = TextMuted
                 )
@@ -1813,7 +1854,7 @@ private fun WealthAnalyticsTabContent(
 
         LayeredMountainAreaChartCanvas(
             liquidTotal = totalLiquid,
-            assetTotal = totalAssets
+            assetTotal = totalInvestments
         )
 
         Spacer(modifier = Modifier.height(28.dp))
@@ -1828,7 +1869,7 @@ private fun WealthAnalyticsTabContent(
         ThreeBubbleAllocationCanvas(
             bankAmount = accounts.filter { !it.accountType.equals("Cash", true) }.sumOf { it.currentBalance },
             cashAmount = accounts.filter { it.accountType.equals("Cash", true) }.sumOf { it.currentBalance },
-            assetAmount = totalAssets,
+            assetAmount = totalInvestments,
             currency = userProfileCurrency
         )
 
@@ -1842,9 +1883,9 @@ private fun WealthAnalyticsTabContent(
                         ChartMetricInfo(
                             title = "Emergency Buffer Runway",
                             subtitle = "Financial Survival Duration",
-                            formula = "Runway_Months = Liquid_Vaults / max(1.0, Monthly_Burn_Rate)",
-                            breakdown = "Liquid Reserves: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)} | Monthly Burn: $userProfileCurrency${String.format(Locale.US, "%,.0f", monthlyBurnRate)}.",
-                            advice = "Maintaining a 6-month buffer covers unexpected emergencies without forcing liquidations."
+                            formula = "Runway_Months = Liquid_Vaults / max(1.0, Average_Monthly_Spend)",
+                            breakdown = "Liquid Reserves: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)} | Baseline Burn: $userProfileCurrency${String.format(Locale.US, "%,.0f", monthlyBurnRate)}/mo.",
+                            advice = "Maintaining a 6-month buffer covers unexpected emergencies without forcing investment liquidations."
                         )
                     )
                 },
@@ -2518,7 +2559,7 @@ private fun ThreeBubbleAllocationCanvas(
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Assets", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
+                Text("Portfolio", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
                 val label = if (assetAmount >= 1000) "$currency${(assetAmount / 1000).toInt()}k" else "$currency${assetAmount.toInt()}"
                 Text(label, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
             }
