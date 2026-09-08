@@ -18,6 +18,9 @@ interface BudgetDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveUserProfile(profile: UserProfile)
 
+    @Query("UPDATE user_profile SET isTaxonomyBannerDismissed = 1 WHERE id = 1")
+    suspend fun dismissTaxonomyBanner()
+
     @Query("DELETE FROM user_profile")
     suspend fun clearUserProfile()
 
@@ -121,13 +124,27 @@ interface BudgetDao {
     fun getActiveAccountBalances(): Flow<List<AccountBalanceResult>>
 
     // ========================================================================
-    // 3. Categories & Subcategories
+    // 3. Categories & Subcategories (With Grace-Period Filtering)
     // ========================================================================
     @Query("SELECT * FROM categories ORDER BY type ASC, name ASC")
     fun getAllCategories(): Flow<List<CategoryEntity>>
 
     @Query("SELECT * FROM categories ORDER BY type ASC, name ASC")
     suspend fun getAllCategoriesDirect(): List<CategoryEntity>
+
+    @Query("""
+        SELECT * FROM categories 
+        WHERE (:includeLegacy = 1 OR isLegacy = 0) 
+        ORDER BY type ASC, name ASC
+    """)
+    fun getCategoriesForSelection(includeLegacy: Boolean): Flow<List<CategoryEntity>>
+
+    @Query("""
+        SELECT * FROM categories 
+        WHERE type = :type AND (:includeLegacy = 1 OR isLegacy = 0) 
+        ORDER BY name ASC
+    """)
+    fun getCategoriesByType(type: TransactionType, includeLegacy: Boolean): Flow<List<CategoryEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategory(category: CategoryEntity)
@@ -152,6 +169,20 @@ interface BudgetDao {
 
     @Query("SELECT * FROM subcategories ORDER BY parentCategory ASC, name ASC")
     suspend fun getAllSubcategoriesDirect(): List<SubcategoryEntity>
+
+    @Query("""
+        SELECT * FROM subcategories 
+        WHERE (:includeLegacy = 1 OR isLegacy = 0) 
+        ORDER BY parentCategory ASC, name ASC
+    """)
+    fun getSubcategoriesForSelection(includeLegacy: Boolean): Flow<List<SubcategoryEntity>>
+
+    @Query("""
+        SELECT * FROM subcategories 
+        WHERE parentCategory = :parentCat AND type = :type AND (:includeLegacy = 1 OR isLegacy = 0) 
+        ORDER BY name ASC
+    """)
+    fun getSubcategoriesForCategory(parentCat: String, type: TransactionType, includeLegacy: Boolean): Flow<List<SubcategoryEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSubcategory(subcategory: SubcategoryEntity)
@@ -294,7 +325,7 @@ interface BudgetDao {
     suspend fun clearAllTransactions()
 
     // ========================================================================
-    // 7. Cascading Rename & Cleanup Operations
+    // 7. Cascading Rename & Non-Destructive Cleanup
     // ========================================================================
     @Query("UPDATE transactions SET accountName = :newName WHERE accountName = :oldName COLLATE NOCASE")
     suspend fun cascadeRenameAccountInTransactions(oldName: String, newName: String)
@@ -326,14 +357,8 @@ interface BudgetDao {
     @Query("UPDATE fixed_bills SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName")
     suspend fun cascadeRenameSubcategoryInFixedBills(parentCat: String, oldName: String, newName: String)
 
-    @Query("UPDATE transactions SET category = 'General', subcategory = 'General' WHERE category = :oldCategory")
-    suspend fun reassignOrphanedTransactionsToGeneral(oldCategory: String)
-
-    @Query("UPDATE fixed_bills SET category = 'General', subcategory = 'General' WHERE category = :oldCategory")
-    suspend fun reassignOrphanedFixedBillsToGeneral(oldCategory: String)
-
     // ========================================================================
-    // 8. Atomic Transactions for Safe Migrations & Reordering
+    // 8. Atomic Operations (Safe Preservation of Historical Ledger Data)
     // ========================================================================
     @Transaction
     suspend fun updateAccountAndCascade(
@@ -375,9 +400,14 @@ interface BudgetDao {
         newName: String
     ) {
         val trimmedNew = newName.trim()
-        if (oldCategory.name == trimmedNew) return
+        if (oldCategory.name == trimmedNew) {
+            // Unset legacy flag if user re-saves/adopts the category
+            updateCategory(oldCategory.copy(isLegacy = false, isNew = false))
+            return
+        }
 
-        insertCategory(CategoryEntity(name = trimmedNew, type = oldCategory.type))
+        // Converted to an active custom category
+        insertCategory(CategoryEntity(name = trimmedNew, type = oldCategory.type, isLegacy = false, isNew = false))
         cascadeRenameCategoryInTransactions(oldCategory.name, trimmedNew)
         cascadeRenameCategoryInBudgetPlans(oldCategory.name, trimmedNew)
         cascadeRenameCategoryInFixedBills(oldCategory.name, trimmedNew)
@@ -387,8 +417,7 @@ interface BudgetDao {
 
     @Transaction
     suspend fun deleteCategoryAndCascade(category: CategoryEntity) {
-        reassignOrphanedTransactionsToGeneral(category.name)
-        reassignOrphanedFixedBillsToGeneral(category.name)
+        // Historical transactions retain category name so past monthly/yearly reports remain untouched
         deleteSubcategoriesForParent(category.name)
         deleteBudgetPlansForCategory(category.name)
         deleteCategory(category)
@@ -400,13 +429,18 @@ interface BudgetDao {
         newName: String
     ) {
         val trimmedNew = newName.trim()
-        if (oldSubcategory.name == trimmedNew) return
+        if (oldSubcategory.name == trimmedNew) {
+            updateSubcategory(oldSubcategory.copy(isLegacy = false, isNew = false))
+            return
+        }
 
         insertSubcategory(
             SubcategoryEntity(
                 parentCategory = oldSubcategory.parentCategory,
                 name = trimmedNew,
-                type = oldSubcategory.type
+                type = oldSubcategory.type,
+                isLegacy = false,
+                isNew = false
             )
         )
         cascadeRenameSubcategoryInTransactions(oldSubcategory.parentCategory, oldSubcategory.name, trimmedNew)
