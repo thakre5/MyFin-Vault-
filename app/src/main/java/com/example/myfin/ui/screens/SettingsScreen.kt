@@ -98,11 +98,9 @@ fun SettingsScreen(
     var expandedSection by rememberSaveable { mutableStateOf(SettingsAccordionSection.NONE) }
     var avatarRefreshKey by remember { mutableStateOf(0L) }
 
-    // Staging variables for permission requests
     var pendingReminderHour by remember { mutableIntStateOf(userProfile.reminderHour) }
     var pendingReminderMinute by remember { mutableIntStateOf(userProfile.reminderMinute) }
 
-    // Sync external navigation requests from DrawerMenuContent
     LaunchedEffect(initialActiveSheet) {
         if (initialActiveSheet != SettingsActiveSheet.NONE) {
             activeSheet = initialActiveSheet
@@ -310,7 +308,7 @@ fun SettingsScreen(
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Text(
-                                                        text = userProfile.displayName.take(1).uppercase().ifBlank { "A" },
+                                                        text = userProfile.displayName.take(1).uppercase().ifBlank { "V" },
                                                         fontSize = 30.sp,
                                                         fontWeight = FontWeight.Black,
                                                         color = AccentPurple
@@ -320,7 +318,7 @@ fun SettingsScreen(
                                         )
                                     } else {
                                         Text(
-                                            text = userProfile.displayName.take(1).uppercase().ifBlank { "A" },
+                                            text = userProfile.displayName.take(1).uppercase().ifBlank { "V" },
                                             fontSize = 30.sp,
                                             fontWeight = FontWeight.Black,
                                             color = AccentPurple
@@ -368,14 +366,14 @@ fun SettingsScreen(
                                 }
                         ) {
                             Text(
-                                text = userProfile.displayName.ifBlank { "Alex Doe" },
+                                text = userProfile.displayName.ifBlank { "Vault User" },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 20.sp,
                                 color = TextDark
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = userProfile.email.ifBlank { "alex.doe@example.com" },
+                                text = userProfile.email.ifBlank { "No email set" },
                                 fontSize = 13.sp,
                                 color = TextMuted
                             )
@@ -440,7 +438,7 @@ fun SettingsScreen(
                 }
 
                 // Strategy & Architecture
-                val autoSweepLimit = if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
+                val autoSweepLimit = userProfile.fortressThreshold
                 ExpandableSettingsCard(
                     icon = Icons.Default.Layers,
                     title = "Strategy & Architecture",
@@ -756,11 +754,11 @@ fun SettingsScreen(
 
     // Sheets & Modals
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
-        var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName.ifBlank { "Alex Doe" }) }
-        var emailInput by remember(userProfile) { mutableStateOf(userProfile.email.ifBlank { "alex.doe@example.com" }) }
-        var dobInput by remember(userProfile) { mutableStateOf(userProfile.dateOfBirth.ifBlank { "1995-01-01" }) }
+        var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
+        var emailInput by remember(userProfile) { mutableStateOf(userProfile.email) }
+        var dobInput by remember(userProfile) { mutableStateOf(userProfile.dateOfBirth) }
         var incomeInput by remember(userProfile) {
-            mutableStateOf(String.format(Locale.US, "%.0f", userProfile.baseMonthlyIncome))
+            mutableStateOf(if (userProfile.baseMonthlyIncome > 0.0) String.format(Locale.US, "%.0f", userProfile.baseMonthlyIncome) else "")
         }
 
         ModalBottomSheet(
@@ -784,6 +782,7 @@ fun SettingsScreen(
                     value = nameInput,
                     onValueChange = { nameInput = it },
                     label = { Text("Display Name") },
+                    placeholder = { Text("e.g. Alex Doe") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -795,6 +794,7 @@ fun SettingsScreen(
                     value = emailInput,
                     onValueChange = { emailInput = it },
                     label = { Text("Email Address") },
+                    placeholder = { Text("e.g. alex@example.com") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -807,6 +807,7 @@ fun SettingsScreen(
                     value = dobInput,
                     onValueChange = { dobInput = it },
                     label = { Text("Date of Birth (YYYY-MM-DD or DD/MM/YYYY)") },
+                    placeholder = { Text("DD/MM/YYYY") },
                     supportingText = { Text("Your DOB serves as the immutable security key for PIN resets", fontSize = 10.5.sp) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -835,10 +836,12 @@ fun SettingsScreen(
                     onClick = {
                         val parsedIncome = incomeInput.toDoubleOrNull() ?: userProfile.baseMonthlyIncome
                         val cleanDob = dobInput.trim()
-                        viewModel.updateDateOfBirth(cleanDob)
+                        if (cleanDob.isNotBlank()) {
+                            viewModel.updateDateOfBirth(cleanDob)
+                        }
                         val updated = userProfile.copy(
                             id = 1,
-                            displayName = nameInput.trim(),
+                            displayName = nameInput.trim().ifBlank { userProfile.displayName },
                             email = emailInput.trim(),
                             dateOfBirth = cleanDob,
                             baseMonthlyIncome = parsedIncome
@@ -968,10 +971,10 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        val targetMode = if (is3VaultActive) "SIMPLE" else "3_VAULT"
+                        val targetMode = if (is3VaultActive) "SIMPLE" else "3-VAULT"
                         viewModel.updateVaultMode(targetMode)
                         activeSheet = SettingsActiveSheet.NONE
-                        Toast.makeText(context, if (targetMode == "3_VAULT") "Switched to 3-Vault Strategy" else "Switched to Simple Mode", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, if (targetMode == "3-VAULT") "Switched to 3-Vault Strategy" else "Switched to Simple Mode", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -995,8 +998,7 @@ fun SettingsScreen(
     // Auto-Sweep Threshold Sheet
     if (activeSheet == SettingsActiveSheet.AUTO_SWEEP_THRESHOLD) {
         var thresholdInput by remember(userProfile) {
-            val currentVal = if (userProfile.fortressThreshold > 0.0) userProfile.fortressThreshold else 25000.0
-            mutableStateOf(String.format(Locale.US, "%.0f", currentVal))
+            mutableStateOf(String.format(Locale.US, "%.0f", userProfile.fortressThreshold))
         }
 
         ModalBottomSheet(
@@ -1034,7 +1036,7 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        val parsed = thresholdInput.toDoubleOrNull() ?: 25000.0
+                        val parsed = thresholdInput.toDoubleOrNull() ?: userProfile.fortressThreshold
                         viewModel.updateFortressThreshold(parsed)
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, "Auto-sweep threshold set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", parsed)}", Toast.LENGTH_SHORT).show()
@@ -1322,8 +1324,8 @@ fun SettingsScreen(
     }
 
     if (activeSheet == SettingsActiveSheet.DAILY_REMINDER || activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
-        var hourInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderHour) }
-        var minInput by remember(userProfile) { mutableIntStateOf(userProfile.reminderMinute) }
+        var hourText by remember(userProfile) { mutableStateOf(userProfile.reminderHour.toString()) }
+        var minText by remember(userProfile) { mutableStateOf(userProfile.reminderMinute.toString()) }
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -1364,8 +1366,12 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     OutlinedTextField(
-                        value = hourInput.toString(),
-                        onValueChange = { hourInput = (it.toIntOrNull() ?: 20).coerceIn(0, 23) },
+                        value = hourText,
+                        onValueChange = { input ->
+                            if (input.length <= 2) {
+                                hourText = input.filter { it.isDigit() }
+                            }
+                        },
                         label = { Text("Hour (0-23)") },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
@@ -1373,8 +1379,12 @@ fun SettingsScreen(
                     )
 
                     OutlinedTextField(
-                        value = minInput.toString(),
-                        onValueChange = { minInput = (it.toIntOrNull() ?: 0).coerceIn(0, 59) },
+                        value = minText,
+                        onValueChange = { input ->
+                            if (input.length <= 2) {
+                                minText = input.filter { it.isDigit() }
+                            }
+                        },
                         label = { Text("Minute (0-59)") },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
@@ -1386,15 +1396,17 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        pendingReminderHour = hourInput
-                        pendingReminderMinute = minInput
+                        val parsedHour = (hourText.toIntOrNull() ?: userProfile.reminderHour).coerceIn(0, 23)
+                        val parsedMin = (minText.toIntOrNull() ?: userProfile.reminderMinute).coerceIn(0, 59)
+                        pendingReminderHour = parsedHour
+                        pendingReminderMinute = parsedMin
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                         ) {
                             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         } else {
-                            viewModel.updateReminderSettings(context, true, hourInput, minInput)
-                            Toast.makeText(context, "Reminder set for ${String.format(Locale.US, "%02d:%02d", hourInput, minInput)}", Toast.LENGTH_SHORT).show()
+                            viewModel.updateReminderSettings(context, true, parsedHour, parsedMin)
+                            Toast.makeText(context, "Reminder set for ${String.format(Locale.US, "%02d:%02d", parsedHour, parsedMin)}", Toast.LENGTH_SHORT).show()
                         }
                         activeSheet = SettingsActiveSheet.NONE
                     },
