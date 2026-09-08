@@ -73,11 +73,6 @@ abstract class AppDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration()
                     .addCallback(object : RoomDatabase.Callback() {
-                        override fun onConfigure(db: SupportSQLiteDatabase) {
-                            super.onConfigure(db)
-                            db.setForeignKeyConstraintsEnabled(true)
-                        }
-
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
                             seedMasterTaxonomy(db)
@@ -85,6 +80,11 @@ abstract class AppDatabase : RoomDatabase() {
 
                         override fun onOpen(db: SupportSQLiteDatabase) {
                             super.onOpen(db)
+                            try {
+                                db.setForeignKeyConstraintsEnabled(true)
+                            } catch (_: Exception) {
+                                db.execSQL("PRAGMA foreign_keys = ON;")
+                            }
                             seedMasterTaxonomy(db)
                         }
 
@@ -137,6 +137,7 @@ abstract class AppDatabase : RoomDatabase() {
 
                                 db.setTransactionSuccessful()
                             } finally {
+                    
                                 db.endTransaction()
                             }
                         }
