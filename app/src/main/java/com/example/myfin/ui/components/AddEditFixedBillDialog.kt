@@ -1,6 +1,7 @@
 package com.example.myfin.ui.components
 
 import android.widget.Toast
+import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,6 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -122,36 +125,62 @@ fun AddEditFixedBillDialog(
         }
     }
 
-    val filteredCategories = remember(masterCategories, selectedType) {
-        masterCategories.filter { it.type == selectedType }
+    // Preserve historical bill's category even if it is legacy
+    val filteredCategoryEntities = remember(masterCategories, selectedType, initialBill) {
+        val cats = masterCategories.filter { it.type == selectedType }.toMutableList()
+        if (initialBill != null && initialBill.type == selectedType && initialBill.category.isNotBlank()) {
+            if (cats.none { it.name.equals(initialBill.category, ignoreCase = true) }) {
+                cats.add(CategoryEntity(name = initialBill.category, type = selectedType, isLegacy = true))
+            }
+        }
+        cats
     }
 
-    var selectedCategory by remember {
+    var selectedCategory by remember(filteredCategoryEntities) {
         mutableStateOf(
-            initialBill?.category ?: filteredCategories.firstOrNull()?.name ?: "General"
+            initialBill?.category ?: filteredCategoryEntities.firstOrNull()?.name ?: "General"
         )
     }
 
     LaunchedEffect(selectedType) {
-        if (filteredCategories.isNotEmpty() && filteredCategories.none { it.name == selectedCategory }) {
-            selectedCategory = filteredCategories.firstOrNull()?.name ?: "General"
+        if (selectedType != TransactionType.TRANSFER) {
+            val names = filteredCategoryEntities.map { it.name }
+            if (names.isNotEmpty() && selectedCategory !in names) {
+                selectedCategory = names.firstOrNull() ?: "General"
+            }
         }
     }
 
-    val availableSubcategories = remember(masterSubcategories, selectedCategory, selectedType) {
-        masterSubcategories.filter { it.parentCategory == selectedCategory && it.type == selectedType }.map { it.name }
+    val availableSubcategoryEntities = remember(masterSubcategories, selectedCategory, selectedType, initialBill) {
+        val subs = masterSubcategories.filter {
+            it.parentCategory.equals(selectedCategory, ignoreCase = true) && it.type == selectedType
+        }.toMutableList()
+
+        if (initialBill != null && initialBill.type == selectedType &&
+            initialBill.category.equals(selectedCategory, ignoreCase = true) && initialBill.subcategory.isNotBlank()
+        ) {
+            if (subs.none { it.name.equals(initialBill.subcategory, ignoreCase = true) }) {
+                subs.add(SubcategoryEntity(parentCategory = selectedCategory, name = initialBill.subcategory, type = selectedType, isLegacy = true))
+            }
+        }
+        subs
     }
 
-    var selectedSubcategory by remember {
+    var selectedSubcategory by remember(availableSubcategoryEntities) {
         mutableStateOf(
-            initialBill?.subcategory ?: availableSubcategories.firstOrNull() ?: "General"
+            initialBill?.subcategory ?: availableSubcategoryEntities.firstOrNull()?.name ?: "General"
         )
     }
 
-    LaunchedEffect(availableSubcategories) {
-        if (availableSubcategories.isNotEmpty() && selectedSubcategory !in availableSubcategories) {
-            selectedSubcategory = availableSubcategories.firstOrNull() ?: "General"
+    LaunchedEffect(availableSubcategoryEntities) {
+        val names = availableSubcategoryEntities.map { it.name }
+        if (names.isNotEmpty() && selectedSubcategory !in names) {
+            selectedSubcategory = names.firstOrNull() ?: "General"
         }
+    }
+
+    val isSelectedCategoryLegacy = remember(filteredCategoryEntities, selectedCategory) {
+        filteredCategoryEntities.find { it.name.equals(selectedCategory, ignoreCase = true) }?.isLegacy == true
     }
 
     var selectedAccount by remember {
@@ -165,6 +194,8 @@ fun AddEditFixedBillDialog(
     var newCategoryName by remember { mutableStateOf("") }
     var showNewSubcategoryDialog by remember { mutableStateOf(false) }
     var newSubcategoryName by remember { mutableStateOf("") }
+
+    val isSelfTransfer = selectedType == TransactionType.TRANSFER && selectedAccount.isNotBlank() && selectedToAccount.isNotBlank() && selectedAccount.equals(selectedToAccount, ignoreCase = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -305,7 +336,7 @@ fun AddEditFixedBillDialog(
                 value = noteText,
                 onValueChange = { noteText = it },
                 label = { Text("Note / Title (Optional)", fontSize = 12.sp) },
-                placeholder = { Text("e.g. Netflix, Client Lunch, Train Ticket", fontSize = 12.sp) },
+                placeholder = { Text("e.g. Netflix, Rent, Investment SIP", fontSize = 12.sp) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -344,10 +375,7 @@ fun AddEditFixedBillDialog(
                                 .clickable { selectedTransferSubtype = subtype },
                             shape = RoundedCornerShape(10.dp),
                             color = if (isSelected) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                            border = BorderStroke(
-                                0.8.dp,
-                                if (isSelected) AccentPurple else BorderLight
-                            )
+                            border = BorderStroke(0.8.dp, if (isSelected) AccentPurple else BorderLight)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
@@ -378,18 +406,71 @@ fun AddEditFixedBillDialog(
                 }
 
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(filteredCategories) { cat ->
-                        val isSelected = selectedCategory == cat.name
+                    items(
+                        items = if (filteredCategoryEntities.isEmpty()) listOf(CategoryEntity("General", selectedType)) else filteredCategoryEntities,
+                        key = { "${it.name}_${it.isLegacy}" }
+                    ) { catEntity ->
+                        val isSelected = selectedCategory.equals(catEntity.name, ignoreCase = true)
                         FilterChip(
                             selected = isSelected,
-                            onClick = { selectedCategory = cat.name },
-                            label = { Text(cat.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            onClick = { selectedCategory = catEntity.name },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(catEntity.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                    if (catEntity.isLegacy) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Legacy",
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFE65100),
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(Color(0xFFFFF3E0))
+                                                .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                                        )
+                                    } else if (catEntity.isNew) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(5.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF4CAF50))
+                                        )
+                                    }
+                                }
+                            },
                             shape = RoundedCornerShape(8.dp),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentPurpleLight,
-                                selectedLabelColor = AccentPurple
-                            )
+                                selectedContainerColor = if (catEntity.isLegacy) Color(0xFFFFF3E0) else AccentPurpleLight,
+                                selectedLabelColor = if (catEntity.isLegacy) Color(0xFFE65100) else AccentPurple
+                            ),
+                            border = if (catEntity.isLegacy) BorderStroke(0.8.dp, Color(0xFFFFB74D)) else null
                         )
+                    }
+                }
+
+                AnimatedVisibility(visible = isSelectedCategoryLegacy) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFFFF9E6),
+                        border = BorderStroke(0.6.dp, Color(0xFFFFCC00).copy(alpha = 0.6f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFD48800), modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "'$selectedCategory' is a legacy category and will be retired next month.",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFF873800)
+                            )
+                        }
                     }
                 }
 
@@ -416,17 +497,43 @@ fun AddEditFixedBillDialog(
                 }
 
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(availableSubcategories.ifEmpty { listOf("General") }) { sub ->
-                        val isSelected = selectedSubcategory == sub
+                    items(availableSubcategoryEntities, key = { "${it.name}_${it.isLegacy}" }) { subEntity ->
+                        val isSelected = selectedSubcategory.equals(subEntity.name, ignoreCase = true)
                         FilterChip(
                             selected = isSelected,
-                            onClick = { selectedSubcategory = sub },
-                            label = { Text(sub, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            onClick = { selectedSubcategory = subEntity.name },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(subEntity.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                    if (subEntity.isLegacy) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Legacy",
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFE65100),
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(Color(0xFFFFF3E0))
+                                                .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                                        )
+                                    } else if (subEntity.isNew) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(5.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF4CAF50))
+                                        )
+                                    }
+                                }
+                            },
                             shape = RoundedCornerShape(8.dp),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentPurpleLight,
-                                selectedLabelColor = AccentPurple
-                            )
+                                selectedContainerColor = if (subEntity.isLegacy) Color(0xFFFFF3E0) else AccentPurpleLight,
+                                selectedLabelColor = if (subEntity.isLegacy) Color(0xFFE65100) else AccentPurple
+                            ),
+                            border = if (subEntity.isLegacy) BorderStroke(0.8.dp, Color(0xFFFFB74D)) else null
                         )
                     }
                 }
@@ -446,7 +553,12 @@ fun AddEditFixedBillDialog(
                     val isSelected = selectedAccount == acc
                     FilterChip(
                         selected = isSelected,
-                        onClick = { selectedAccount = acc },
+                        onClick = {
+                            selectedAccount = acc
+                            if (selectedToAccount.equals(acc, ignoreCase = true)) {
+                                selectedToAccount = accountList.firstOrNull { !it.equals(acc, ignoreCase = true) }.orEmpty()
+                            }
+                        },
                         label = { Text(acc, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
@@ -474,6 +586,15 @@ fun AddEditFixedBillDialog(
                                 selectedLabelColor = SoftTeal
                             )
                         )
+                    }
+                }
+
+                if (isSelfTransfer) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = SoftRed, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Source and destination vaults must be distinct.", fontSize = 10.5.sp, color = SoftRed, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -614,6 +735,10 @@ fun AddEditFixedBillDialog(
                         val amt = amountText.toDoubleOrNull() ?: 0.0
                         if (amt <= 0.0) {
                             Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (isSelfTransfer) {
+                            Toast.makeText(context, "Source and destination vaults must be distinct.", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
 
