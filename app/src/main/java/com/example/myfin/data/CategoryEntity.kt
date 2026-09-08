@@ -8,7 +8,9 @@ import androidx.room.Entity
 )
 data class CategoryEntity(
     val name: String,
-    val type: TransactionType
+    val type: TransactionType,
+    val isLegacy: Boolean = false,
+    val isNew: Boolean = false
 ) {
     companion object {
         val defaultCategories = listOf(
@@ -30,9 +32,9 @@ data class CategoryEntity(
             CategoryEntity("Investments & Wealth", TransactionType.ASSET),
             CategoryEntity("Liquid Reserves & Receivables", TransactionType.ASSET),
 
-            // 4. CORPORATE CATEGORIES (Isolated Employer Float)
-            CategoryEntity("Work & Professional", TransactionType.CORPORATE),
-            CategoryEntity("Reimbursements & Claims", TransactionType.CORPORATE)
+            // 4. CORPORATE CATEGORIES (Isolated Employer Float - New Defaults)
+            CategoryEntity("Work & Professional", TransactionType.CORPORATE, isNew = true),
+            CategoryEntity("Reimbursements & Claims", TransactionType.CORPORATE, isNew = true)
         )
     }
 }
