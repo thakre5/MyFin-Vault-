@@ -198,6 +198,7 @@ fun SwipeableFixedBillItem(
             TransactionType.EXPENSE -> SoftRed
             TransactionType.INCOME -> SoftGreen
             TransactionType.ASSET -> SoftTeal
+            TransactionType.CORPORATE -> Color(0xFFE57A28)
             TransactionType.TRANSFER -> AccentPurple
         }
 
@@ -205,6 +206,7 @@ fun SwipeableFixedBillItem(
             TransactionType.EXPENSE -> "DUE"
             TransactionType.INCOME -> "RECEIVABLE"
             TransactionType.ASSET -> "SIP"
+            TransactionType.CORPORATE -> "CORP"
             TransactionType.TRANSFER -> "SWEEP"
         }
 
@@ -273,7 +275,7 @@ fun SwipeableFixedBillItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Status Checkmark Box - Uses SoftGreen to match the UI
+                // Left Status Checkmark Box
                 Box(
                     modifier = Modifier
                         .size(28.dp)
