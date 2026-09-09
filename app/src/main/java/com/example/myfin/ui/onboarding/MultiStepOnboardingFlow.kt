@@ -116,7 +116,7 @@ fun MultiStepOnboardingFlow(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let {
-            viewModel.restoreVaultFromUri(context, it) { success, msg ->
+            viewModel.restoreVaultFromUri(context, it) { success: Boolean, msg: String ->
                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                 if (success) {
                     onComplete()
@@ -136,6 +136,9 @@ fun MultiStepOnboardingFlow(
             "${rawDobDigits.substring(0, 2)}/${rawDobDigits.substring(2, 4)}/${rawDobDigits.substring(4, 8)}"
         } else ""
 
+        val salaryCommitment = initialCommitments.find { it.type == TransactionType.INCOME && it.isSelected }
+        val parsedSalary = salaryCommitment?.amountText?.toDoubleOrNull() ?: 0.0
+
         // 1. Atomic Profile & Security Persistence
         viewModel.finalizeOnboardingProfile(
             displayName = displayName,
@@ -147,12 +150,21 @@ fun MultiStepOnboardingFlow(
             isBiometricEnabled = isBiometricEnabled
         )
 
-        // Sync Monthly Base Salary to profile
-        val salaryCommitment = initialCommitments.find { it.type == TransactionType.INCOME && it.isSelected }
-        val parsedSalary = salaryCommitment?.amountText?.toDoubleOrNull() ?: 0.0
+        // Sync Monthly Base Salary to profile without state wipe
         if (parsedSalary > 0.0) {
-            val currentProfile = viewModel.userProfile.value
-            viewModel.saveUserProfile(currentProfile.copy(baseMonthlyIncome = parsedSalary))
+            viewModel.saveUserProfile(
+                viewModel.userProfile.value.copy(
+                    id = 1,
+                    displayName = displayName.trim().ifEmpty { "Vault User" },
+                    email = emailAddress.trim(),
+                    dateOfBirth = formattedDob,
+                    currencySymbol = selectedCountry.currencySymbol,
+                    vaultMode = selectedStrategy,
+                    isBiometricEnabled = isBiometricEnabled,
+                    baseMonthlyIncome = parsedSalary,
+                    isOnboardingCompleted = true
+                )
+            )
         }
 
         // 2. Set Up Accounts with User-Defined MAB Floored Values
@@ -163,6 +175,7 @@ fun MultiStepOnboardingFlow(
                 startingBalance = acc.initialBalanceText.toDoubleOrNull() ?: 0.0,
                 accountType = acc.defaultType,
                 minBalance = parsedMin,
+                isArchived = false,
                 sortOrder = index
             )
         }
