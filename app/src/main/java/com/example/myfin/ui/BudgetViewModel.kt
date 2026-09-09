@@ -137,7 +137,10 @@ data class DashboardMetrics(
     val theoreticalSafeToSpend: Double = 0.0,
     val liquidOperatingCash: Double = 0.0,
     val safeToSpendPercentage: Int = 100,
+    val netSavedBeforeInvest: Double = 0.0,
     val netSavedAfterInvest: Double = 0.0,
+    val startLiquidBalance: Double = 0.0,
+    val endLiquidBalance: Double = 0.0,
     val totalVaultBalance: Double = 0.0,
     val isOverBudget: Boolean = false,
     val dailyExpensePoints: List<Float> = emptyList(),
@@ -152,6 +155,7 @@ data class DashboardMetrics(
 ) {
     val totalAssetAllocated: Double get() = actualAssets
     val personalBurn: Double get() = lifestyleExpenses
+    val netSaved: Double get() = netSavedBeforeInvest
 }
 
 data class MonthlyUiState(
@@ -497,7 +501,6 @@ class BudgetViewModel(
                 it.type == TransactionType.INCOME &&
                 it.category.equals("Salary & Professional Inflow", ignoreCase = true)
             }
-            // Pick largest salary transaction to avoid bonuses/freelance splits hijacking the date
             val currentMonthSalaryTx = salaryTxsInCurrentMonth.maxByOrNull { it.amount }
 
             val historicalSalaryTxs = allTimeTxs.filter {
@@ -527,11 +530,9 @@ class BudgetViewModel(
             if (isPastMonth) {
                 daysUntilUpcomingSalary = 0
             } else if (!isCurrentSystemMonth) {
-                // Future planned months: assume standard 30-day runway
                 daysUntilUpcomingSalary = 30
             } else {
                 if (currentMonthSalaryTx != null) {
-                    // Salary for current month has already arrived! Target NEXT month's payday.
                     val nextPaydayCal = Calendar.getInstance().apply {
                         timeInMillis = todayMidnight.timeInMillis
                         add(Calendar.MONTH, 1)
@@ -541,17 +542,12 @@ class BudgetViewModel(
                     val diffMillis = nextPaydayCal.timeInMillis - todayMidnight.timeInMillis
                     daysUntilUpcomingSalary = max(1L, diffMillis / (24 * 60 * 60 * 1000L)).toInt()
                 } else {
-                    // Salary for current month has NOT arrived yet.
                     if (currentDayOfMonth <= dynamicSalaryDay) {
-                        // Payday is upcoming this month
                         daysUntilUpcomingSalary = max(1, dynamicSalaryDay - currentDayOfMonth)
                     } else if (currentDayOfMonth <= dynamicSalaryDay + 4) {
-                        // 4-Day Grace Period: Weekend / Holiday payroll delay detected!
-                        // Do not lock a 30-day buffer; hold only 1-day burn cushion
                         daysUntilUpcomingSalary = 1
                         isSalaryDelayed = true
                     } else {
-                        // More than 4 days overdue without logged salary: target next cycle
                         val nextPaydayCal = Calendar.getInstance().apply {
                             timeInMillis = todayMidnight.timeInMillis
                             add(Calendar.MONTH, 1)
@@ -585,7 +581,7 @@ class BudgetViewModel(
             val runwayProtectionUntilSalary = dailyBurnVelocity * daysUntilUpcomingSalary
 
             // =========================================================================
-            // 8. OPTION 2: PURE GUILT-FREE SAFE-TO-SPEND (LIQUID CAPITAL MINUS BUFFER)
+            // 8. OPTION 2: PURE GUILT-FREE SAFE-TO-SPEND
             // =========================================================================
             val isFortressAccount = { acc: AccountBalanceResult ->
                 acc.accountType.equals("Fortress", ignoreCase = true) ||
@@ -593,7 +589,7 @@ class BudgetViewModel(
                 acc.accountName.contains("TERTIARY", ignoreCase = true)
             }
 
-            // Accessible liquid pool (Operating + Commitments above MAB + Cash)
+            // Strictly Operating + Commitments + Cash (Fortress EXCLUDED)
             val liquidPoolAccounts = activeAccounts.filter { !isFortressAccount(it) }
 
             val totalLiquidAboveMab = liquidPoolAccounts.sumOf {
@@ -620,13 +616,25 @@ class BudgetViewModel(
                 ((option2SafeToSpend / totalLiquidAboveMab) * 100).toInt().coerceIn(0, 100)
             } else 0
 
+            // =========================================================================
+            // 9. BALANCE FLOW & DUAL SAVINGS CALCULATIONS (RULES 1, 2, 3, 4)
+            // =========================================================================
+            val currentLiquidEndBalance = liquidPoolAccounts.sumOf { it.currentBalance }
+
+            val monthLiquidCashMovement = (personalIncome + corporateReimbursements) - 
+                    (lifestyleExpenses + actualSavingsAndInvestments + workExpenses)
+
+            val currentLiquidStartBalance = currentLiquidEndBalance - monthLiquidCashMovement
+
+            val netSavedBeforeAssets = personalIncome - lifestyleExpenses
+            val netSavedAfterAssets = netSavedBeforeAssets - actualSavingsAndInvestments
+
             val isOverBudget = rawTheoreticalSafeToSpend < 0.0 || (plannedExpenses > 0 && lifestyleExpenses > plannedExpenses)
-            val netSaved = (personalIncome - lifestyleExpenses) - actualSavingsAndInvestments
             val totalVault = allAccounts.sumOf { it.currentBalance }
             val dailyPoints = calculateDailySparklinePoints(regularTxs, month, year)
 
             // =========================================================================
-            // 9. COMMITMENTS SHORTFALL ENGINE
+            // 10. COMMITMENTS SHORTFALL ENGINE
             // =========================================================================
             val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
             val commitmentAccounts = activeAccounts.filter {
@@ -683,7 +691,7 @@ class BudgetViewModel(
             )
 
             // =========================================================================
-            // 10. PAYDAY ALLOCATION & MONTH-END SWEEP ENGINES
+            // 11. PAYDAY ALLOCATION & MONTH-END SWEEP ENGINES
             // =========================================================================
             val totalDaysInCurrentMonth = todayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
             val salaryTx = currentMonthSalaryTx
@@ -782,7 +790,7 @@ class BudgetViewModel(
             } else null
 
             // =========================================================================
-            // 11. FORTRESS DUAL-TARGET ENGINE
+            // 12. FORTRESS DUAL-TARGET ENGINE
             // =========================================================================
             val fortressVaultAccount = allAccounts.find { isFortressAccount(it) }
             val fortressTotalBalance = fortressVaultAccount?.currentBalance ?: 0.0
@@ -829,7 +837,10 @@ class BudgetViewModel(
                     theoreticalSafeToSpend = theoreticalSafeToSpend,
                     liquidOperatingCash = (totalLiquidAboveMab - pendingFixedBills - excessAdvanceHeld).coerceAtLeast(0.0),
                     safeToSpendPercentage = safeToSpendPercentage,
-                    netSavedAfterInvest = netSaved,
+                    netSavedBeforeInvest = netSavedBeforeAssets,
+                    netSavedAfterInvest = netSavedAfterAssets,
+                    startLiquidBalance = currentLiquidStartBalance,
+                    endLiquidBalance = currentLiquidEndBalance,
                     totalVaultBalance = totalVault,
                     isOverBudget = isOverBudget,
                     dailyExpensePoints = dailyPoints,
