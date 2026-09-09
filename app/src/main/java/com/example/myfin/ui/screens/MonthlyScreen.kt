@@ -713,13 +713,14 @@ fun MonthlyScreen(
                                                         Text(
                                                             text = when {
                                                                 isPastMonth -> "Month closed: final remaining balance"
+                                                                uiState.metrics.isSalaryDelayed -> "Salary expected (${uiState.metrics.nextPaydayDay}th) • 1-day runway reserved"
                                                                 isCurrentMonth && isHealthy -> if (isDiscreetMode) "Guilt-free surplus protected" else "Pure surplus • Runway reserved for ${uiState.metrics.daysUntilPayday}d (until ${uiState.metrics.nextPaydayDay}th)"
                                                                 isCurrentMonth -> "Runway deficit: spending exceeds safe allowance"
                                                                 else -> "Projected surplus for ${uiState.metrics.daysUntilPayday} days until payday"
                                                             },
                                                             fontSize = 11.sp,
                                                             fontWeight = FontWeight.Medium,
-                                                            color = if (isHealthy) TextMuted else SoftRed,
+                                                            color = if (uiState.metrics.isSalaryDelayed) Color(0xFFE57A28) else if (isHealthy) TextMuted else SoftRed,
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
                                                         )
@@ -2703,8 +2704,14 @@ fun MonthlyScreen(
                             }
 
                             val reservedRunway = (uiState.metrics.liquidOperatingCash - uiState.metrics.safeToSpend).coerceAtLeast(0.0)
+                            val runwayLabel = if (uiState.metrics.isSalaryDelayed) {
+                                "Living Runway (Salary expected, 1d reserved)"
+                            } else {
+                                "Living Runway (${uiState.metrics.daysUntilPayday}d until ${uiState.metrics.nextPaydayDay}th)"
+                            }
+
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Living Runway (${uiState.metrics.daysUntilPayday}d until ${uiState.metrics.nextPaydayDay}th)", fontSize = 11.5.sp, color = TextDark)
+                                Text(runwayLabel, fontSize = 11.5.sp, color = TextDark)
                                 Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", reservedRunway)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftAmber)
                             }
 
