@@ -67,6 +67,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.max
 
 enum class SettingsAccordionSection {
     NONE,
@@ -138,8 +139,8 @@ fun SettingsScreen(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         uri?.let {
-            viewModel.backupVaultToEncryptedJson(context, it) { success, _ ->
-                Toast.makeText(context, if (success) "Full encrypted backup saved!" else "Backup failed", Toast.LENGTH_SHORT).show()
+            viewModel.backupVaultToEncryptedJson(context, it) { success: Boolean, msg: String ->
+                Toast.makeText(context, if (success) "Full encrypted backup saved!" else msg.ifBlank { "Backup failed" }, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -148,7 +149,7 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let {
-            viewModel.restoreVaultFromEncryptedJson(context, it) { success, msg ->
+            viewModel.restoreVaultFromEncryptedJson(context, it) { success: Boolean, msg: String ->
                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
             }
         }
@@ -1083,7 +1084,8 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                val computedTarget = avgMonthlySpend * selectedMonths
+                val baselineBurn = if (avgMonthlySpend > 0.0) avgMonthlySpend else max(userProfile.baseMonthlyIncome, 1000.0)
+                val computedTarget = baselineBurn * selectedMonths
 
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -1105,7 +1107,7 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "$selectedMonths Months × ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgMonthlySpend)}/mo (Avg spend)",
+                            text = "$selectedMonths Months × ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", baselineBurn)}/mo (Baseline spend)",
                             fontSize = 11.sp,
                             color = TextMuted
                         )
