@@ -368,16 +368,20 @@ class BudgetViewModel(
             val allTimeWorkExpenses = allTimeCorporateTxs.filter { !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
             val allTimeClaimsReceived = allTimeCorporateTxs.filter { it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
 
-            val cumulativePending = (allTimeWorkExpenses - allTimeClaimsReceived).coerceAtLeast(0.0)
-            val excessAdvanceHeld = (allTimeClaimsReceived - allTimeWorkExpenses).coerceAtLeast(0.0)
+            // Corporate float incorporates initial historical state from profile
+            val effectiveAllTimeWorkExpenses = allTimeWorkExpenses + profile.initialReimbursementClaim
+            val effectiveAllTimeClaimsReceived = allTimeClaimsReceived + profile.initialCompanyAdvance
+
+            val cumulativePending = (effectiveAllTimeWorkExpenses - effectiveAllTimeClaimsReceived).coerceAtLeast(0.0)
+            val excessAdvanceHeld = (effectiveAllTimeClaimsReceived - effectiveAllTimeWorkExpenses).coerceAtLeast(0.0)
 
             val monthReimbursementStatus = ReimbursementStatus(
                 totalWorkExpenses = workExpenses,
                 totalClaimsReceived = corporateReimbursements,
                 pendingReimbursement = cumulativePending,
                 isSettled = cumulativePending <= 0.0 && excessAdvanceHeld <= 0.0,
-                cumulativeWorkExpenses = allTimeWorkExpenses,
-                cumulativeClaimsReceived = allTimeClaimsReceived,
+                cumulativeWorkExpenses = effectiveAllTimeWorkExpenses,
+                cumulativeClaimsReceived = effectiveAllTimeClaimsReceived,
                 excessAdvanceHeld = excessAdvanceHeld
             )
 
@@ -789,225 +793,230 @@ class BudgetViewModel(
 
     val yearlyUiState: StateFlow<YearlyUiState> = combine(
         currentYear,
-        dao.getAccountBalances()
-    ) { year, accounts -> year to accounts }
-        .flatMapLatest { (year, allAccounts) ->
-            combine(
-                dao.getYearlySummary(year),
-                dao.getYearlyCategoryBreakdown(year)
-            ) { rollups, categoryRollups ->
-                val allTransactions = withContext(Dispatchers.IO) {
-                    try { dao.getAllTransactions() } catch (_: Exception) { emptyList() }
-                }
+        dao.getAccountBalances(),
+        userProfile
+    ) { year, accounts, profile ->
+        Triple(year, accounts, profile)
+    }.flatMapLatest { (year, allAccounts, profile) ->
+        combine(
+            dao.getYearlySummary(year),
+            dao.getYearlyCategoryBreakdown(year)
+        ) { rollups, categoryRollups ->
+            val allTransactions = withContext(Dispatchers.IO) {
+                try { dao.getAllTransactions() } catch (_: Exception) { emptyList() }
+            }
 
-                val txCal = Calendar.getInstance()
-                val nowCal = Calendar.getInstance()
-                val thisYear = nowCal.get(Calendar.YEAR)
-                val thisMonth = nowCal.get(Calendar.MONTH) + 1
+            val txCal = Calendar.getInstance()
+            val nowCal = Calendar.getInstance()
+            val thisYear = nowCal.get(Calendar.YEAR)
+            val thisMonth = nowCal.get(Calendar.MONTH) + 1
 
-                val isLoanRepayment = { tx: TransactionEntity ->
-                    tx.type == TransactionType.INCOME &&
-                    (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
-                     tx.title.contains("Loan Payback", ignoreCase = true))
-                }
+            val isLoanRepayment = { tx: TransactionEntity ->
+                tx.type == TransactionType.INCOME &&
+                (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
+                 tx.title.contains("Loan Payback", ignoreCase = true))
+            }
 
-                val isTaxOrPurchaseRefund = { tx: TransactionEntity ->
-                    tx.type == TransactionType.INCOME &&
-                    (tx.subcategory.contains("Tax & Purchase Refunds", ignoreCase = true) ||
-                     tx.title.contains("Refund", ignoreCase = true))
-                }
+            val isTaxOrPurchaseRefund = { tx: TransactionEntity ->
+                tx.type == TransactionType.INCOME &&
+                (tx.subcategory.contains("Tax & Purchase Refunds", ignoreCase = true) ||
+                 tx.title.contains("Refund", ignoreCase = true))
+            }
 
-                val isCapitalDrawdown = { tx: TransactionEntity ->
-                    tx.type == TransactionType.INCOME &&
-                    (tx.category.equals("Passive & Capital Drawdowns", ignoreCase = true) ||
-                     tx.subcategory.contains("Capital Gains", ignoreCase = true) ||
-                     tx.subcategory.contains("Realization", ignoreCase = true) ||
-                     tx.subcategory.contains("Emergency Fund Drawdown", ignoreCase = true) ||
-                     tx.subcategory.contains("FD / Deposit Maturity", ignoreCase = true))
-                }
+            val isCapitalDrawdown = { tx: TransactionEntity ->
+                tx.type == TransactionType.INCOME &&
+                (tx.category.equals("Passive & Capital Drawdowns", ignoreCase = true) ||
+                 tx.subcategory.contains("Capital Gains", ignoreCase = true) ||
+                 tx.subcategory.contains("Realization", ignoreCase = true) ||
+                 tx.subcategory.contains("Emergency Fund Drawdown", ignoreCase = true) ||
+                 tx.subcategory.contains("FD / Deposit Maturity", ignoreCase = true))
+            }
 
-                val isLoanGiven = { tx: TransactionEntity ->
-                    tx.type == TransactionType.ASSET &&
-                    (tx.subcategory.contains("Personal Loans", ignoreCase = true) ||
-                     tx.subcategory.contains("Loaned", ignoreCase = true))
-                }
+            val isLoanGiven = { tx: TransactionEntity ->
+                tx.type == TransactionType.ASSET &&
+                (tx.subcategory.contains("Personal Loans", ignoreCase = true) ||
+                 tx.subcategory.contains("Loaned", ignoreCase = true))
+            }
 
-                val isNpaWriteOff = { tx: TransactionEntity ->
-                    tx.type == TransactionType.ASSET &&
-                    (tx.subcategory.contains("NPA", ignoreCase = true) ||
-                     tx.subcategory.contains("Bad Debt", ignoreCase = true) ||
-                     tx.category.equals("NPA", ignoreCase = true))
-                }
+            val isNpaWriteOff = { tx: TransactionEntity ->
+                tx.type == TransactionType.ASSET &&
+                (tx.subcategory.contains("NPA", ignoreCase = true) ||
+                 tx.subcategory.contains("Bad Debt", ignoreCase = true) ||
+                 tx.category.equals("NPA", ignoreCase = true))
+            }
 
-                val isGenuineSavingsOrAsset = { tx: TransactionEntity ->
-                    tx.type == TransactionType.ASSET && !isLoanGiven(tx) && !isNpaWriteOff(tx)
-                }
+            val isGenuineSavingsOrAsset = { tx: TransactionEntity ->
+                tx.type == TransactionType.ASSET && !isLoanGiven(tx) && !isNpaWriteOff(tx)
+            }
 
-                val allYearTransactions = allTransactions.filter { tx ->
+            val allYearTransactions = allTransactions.filter { tx ->
+                txCal.timeInMillis = tx.date
+                txCal.get(Calendar.YEAR) == year && tx.type != TransactionType.TRANSFER
+            }
+
+            val yearlyMonths = (1..12).map { m ->
+                val isFutureMonth = (year == thisYear && m > thisMonth) || (year > thisYear)
+                val monthTxs = allYearTransactions.filter { tx ->
                     txCal.timeInMillis = tx.date
-                    txCal.get(Calendar.YEAR) == year && tx.type != TransactionType.TRANSFER
+                    (txCal.get(Calendar.MONTH) + 1) == m
                 }
 
-                val yearlyMonths = (1..12).map { m ->
-                    val isFutureMonth = (year == thisYear && m > thisMonth) || (year > thisYear)
-                    val monthTxs = allYearTransactions.filter { tx ->
-                        txCal.timeInMillis = tx.date
-                        (txCal.get(Calendar.MONTH) + 1) == m
-                    }
+                val inc = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+                val exp = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+                val ast = monthTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
 
-                    val inc = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-                    val exp = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-                    val ast = monthTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
+                val fixedExp = monthTxs.filter { it.type == TransactionType.EXPENSE && it.linkedFixedBillId != null }.sumOf { it.amount }
+                val varExp = exp - fixedExp
+                val workExp = monthTxs.filter { it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
+                val corpReimb = monthTxs.filter { it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
+                val lifestyleExp = exp
 
-                    val fixedExp = monthTxs.filter { it.type == TransactionType.EXPENSE && it.linkedFixedBillId != null }.sumOf { it.amount }
-                    val varExp = exp - fixedExp
-                    val workExp = monthTxs.filter { it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
-                    val corpReimb = monthTxs.filter { it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
-                    val lifestyleExp = exp
-
-                    val monthNonPersonalInflows = monthTxs.filter {
-                        isLoanRepayment(it) || isTaxOrPurchaseRefund(it) || isCapitalDrawdown(it)
-                    }.sumOf { it.amount }
-                    val monthPersonalIncome = (inc - monthNonPersonalInflows).coerceAtLeast(0.0)
-                    val monthGenuineAssets = monthTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
-
-                    val truePersonalNetSavings = monthPersonalIncome - lifestyleExp - monthGenuineAssets
-
-                    YearlyMonthData(
-                        monthIndex = m,
-                        monthName = MONTH_NAMES[m - 1],
-                        income = inc,
-                        expenses = exp,
-                        assets = ast,
-                        lifestyleExpenses = lifestyleExp,
-                        workExpenses = workExp,
-                        corporateReimbursements = corpReimb,
-                        netSavings = truePersonalNetSavings,
-                        fixedExpenses = fixedExp,
-                        variableExpenses = varExp,
-                        isFuture = isFutureMonth,
-                        transactions = monthTxs
-                    )
-                }
-
-                val totalIncome = rollups.sumOf { it.totalActualIncome }
-                val totalExpense = rollups.sumOf { it.totalActualExpense }
-                val totalAssets = rollups.sumOf { it.totalAsset }
-
-                val allTxYears = allTransactions.mapNotNull { tx ->
-                    txCal.timeInMillis = tx.date
-                    txCal.get(Calendar.YEAR)
-                }.distinct()
-
-                val minYearInHistory = allTxYears.minOrNull() ?: (year - 2)
-                val startYear = min(minYearInHistory, year - 2)
-
-                val annualNetAssetMap = mutableMapOf<Int, Double>()
-                for (y in startYear..year) {
-                    annualNetAssetMap[y] = 0.0
-                }
-
-                allTransactions.forEach { tx ->
-                    txCal.timeInMillis = tx.date
-                    val txYear = txCal.get(Calendar.YEAR)
-                    if (txYear in startYear..year) {
-                        if (isGenuineSavingsOrAsset(tx)) {
-                            annualNetAssetMap[txYear] = (annualNetAssetMap[txYear] ?: 0.0) + tx.amount
-                        } else if (isCapitalDrawdown(tx)) {
-                            annualNetAssetMap[txYear] = (annualNetAssetMap[txYear] ?: 0.0) - tx.amount
-                        }
-                    }
-                }
-
-                var runningCumulativeAssets = 0.0
-                val cumulativeAssetMap = sortedMapOf<Int, Double>()
-                annualNetAssetMap.toSortedMap().forEach { (y, netAmt) ->
-                    runningCumulativeAssets = (runningCumulativeAssets + netAmt).coerceAtLeast(0.0)
-                    cumulativeAssetMap[y] = runningCumulativeAssets
-                }
-
-                val displayYears = ((year - 2)..year).toList()
-                val multiYearAssetList = displayYears.map { y ->
-                    val currentCum = cumulativeAssetMap[y] ?: 0.0
-                    val prevCum = cumulativeAssetMap[y - 1] ?: 0.0
-                    val growth = if (prevCum > 0.0) {
-                        ((currentCum - prevCum) / prevCum) * 100.0
-                    } else 0.0
-                    MultiYearAssetMetric(year = y, totalAssets = currentCum, growthPercent = growth)
-                }
-
-                val allTimeInvestmentsInflow = allTransactions.filter {
-                    it.type == TransactionType.ASSET &&
-                    it.category.equals("Investments & Wealth", ignoreCase = true)
-                }.sumOf { it.amount }
-
-                val allTimeCapitalDrawdowns = allTransactions.filter(isCapitalDrawdown).sumOf { it.amount }
-                val totalActiveInvestments = (allTimeInvestmentsInflow - allTimeCapitalDrawdowns).coerceAtLeast(0.0)
-
-                val activeLoanedReceivables = allTransactions.filter(isLoanGiven).sumOf { it.amount }
-                val npaWrittenOff = allTransactions.filter(isNpaWriteOff).sumOf { it.amount }
-                val repaymentsReceived = allTransactions.filter(isLoanRepayment).sumOf { it.amount }
-
-                val effectiveReceivables = (activeLoanedReceivables - repaymentsReceived - npaWrittenOff).coerceAtLeast(0.0)
-                val liquidReserves = allAccounts.filter { !it.isArchived }.sumOf { it.currentBalance }
-
-                val grossWealth = liquidReserves + totalActiveInvestments + effectiveReceivables + npaWrittenOff
-                val realizableNetWorth = liquidReserves + totalActiveInvestments + effectiveReceivables
-
-                val wealthMetrics = AssetWealthMetrics(
-                    grossWealth = grossWealth,
-                    totalInvestments = totalActiveInvestments,
-                    liquidReserves = liquidReserves,
-                    activeReceivables = effectiveReceivables,
-                    npaWrittenOff = npaWrittenOff,
-                    realizableNetWorth = realizableNetWorth
-                )
-
-                val annualWorkExpenses = allYearTransactions.filter { it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
-                val annualReimbursements = allYearTransactions.filter { it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
-                val annualLifestyleExpenses = totalExpense
-
-                val annualNonPersonalInflows = allYearTransactions.filter {
+                val monthNonPersonalInflows = monthTxs.filter {
                     isLoanRepayment(it) || isTaxOrPurchaseRefund(it) || isCapitalDrawdown(it)
                 }.sumOf { it.amount }
-                val annualPersonalIncome = (totalIncome - annualNonPersonalInflows).coerceAtLeast(0.0)
-                val annualGenuineAssets = allYearTransactions.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
+                val monthPersonalIncome = (inc - monthNonPersonalInflows).coerceAtLeast(0.0)
+                val monthGenuineAssets = monthTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
 
-                val annualNetSurplus = annualPersonalIncome - annualLifestyleExpenses - annualGenuineAssets
+                val truePersonalNetSavings = monthPersonalIncome - lifestyleExp - monthGenuineAssets
 
-                val allTimeWork = allTransactions.filter { it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
-                val allTimeReimb = allTransactions.filter { it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
-                val allTimePending = (allTimeWork - allTimeReimb).coerceAtLeast(0.0)
-                val allTimeExcessAdvance = (allTimeReimb - allTimeWork).coerceAtLeast(0.0)
-
-                val annualReimbursementStatus = ReimbursementStatus(
-                    totalWorkExpenses = annualWorkExpenses,
-                    totalClaimsReceived = annualReimbursements,
-                    pendingReimbursement = allTimePending,
-                    isSettled = allTimePending <= 0.0 && allTimeExcessAdvance <= 0.0,
-                    cumulativeWorkExpenses = allTimeWork,
-                    cumulativeClaimsReceived = allTimeReimb,
-                    excessAdvanceHeld = allTimeExcessAdvance
-                )
-
-                YearlyUiState(
-                    selectedYear = year,
-                    monthlyRollups = rollups,
-                    categoryRollups = categoryRollups,
-                    totalYearlyIncome = totalIncome,
-                    totalYearlyExpense = totalExpense,
-                    totalYearlyAssets = totalAssets,
-                    annualNetSurplus = annualNetSurplus,
-                    yearlyMonths = yearlyMonths,
-                    multiYearAssets = multiYearAssetList,
-                    assetWealthMetrics = wealthMetrics,
-                    reimbursementStatus = annualReimbursementStatus,
-                    annualLifestyleExpenses = annualLifestyleExpenses,
-                    annualPersonalIncome = annualPersonalIncome,
-                    allYearTransactions = allYearTransactions
+                YearlyMonthData(
+                    monthIndex = m,
+                    monthName = MONTH_NAMES[m - 1],
+                    income = inc,
+                    expenses = exp,
+                    assets = ast,
+                    lifestyleExpenses = lifestyleExp,
+                    workExpenses = workExp,
+                    corporateReimbursements = corpReimb,
+                    netSavings = truePersonalNetSavings,
+                    fixedExpenses = fixedExp,
+                    variableExpenses = varExp,
+                    isFuture = isFutureMonth,
+                    transactions = monthTxs
                 )
             }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), YearlyUiState())
+
+            val totalIncome = rollups.sumOf { it.totalActualIncome }
+            val totalExpense = rollups.sumOf { it.totalActualExpense }
+            val totalAssets = rollups.sumOf { it.totalAsset }
+
+            val allTxYears = allTransactions.mapNotNull { tx ->
+                txCal.timeInMillis = tx.date
+                txCal.get(Calendar.YEAR)
+            }.distinct()
+
+            val minYearInHistory = allTxYears.minOrNull() ?: (year - 2)
+            val startYear = min(minYearInHistory, year - 2)
+
+            val annualNetAssetMap = mutableMapOf<Int, Double>()
+            for (y in startYear..year) {
+                annualNetAssetMap[y] = 0.0
+            }
+
+            allTransactions.forEach { tx ->
+                txCal.timeInMillis = tx.date
+                val txYear = txCal.get(Calendar.YEAR)
+                if (txYear in startYear..year) {
+                    if (isGenuineSavingsOrAsset(tx)) {
+                        annualNetAssetMap[txYear] = (annualNetAssetMap[txYear] ?: 0.0) + tx.amount
+                    } else if (isCapitalDrawdown(tx)) {
+                        annualNetAssetMap[txYear] = (annualNetAssetMap[txYear] ?: 0.0) - tx.amount
+                    }
+                }
+            }
+
+            var runningCumulativeAssets = 0.0
+            val cumulativeAssetMap = sortedMapOf<Int, Double>()
+            annualNetAssetMap.toSortedMap().forEach { (y, netAmt) ->
+                runningCumulativeAssets = (runningCumulativeAssets + netAmt).coerceAtLeast(0.0)
+                cumulativeAssetMap[y] = runningCumulativeAssets
+            }
+
+            val displayYears = ((year - 2)..year).toList()
+            val multiYearAssetList = displayYears.map { y ->
+                val currentCum = cumulativeAssetMap[y] ?: 0.0
+                val prevCum = cumulativeAssetMap[y - 1] ?: 0.0
+                val growth = if (prevCum > 0.0) {
+                    ((currentCum - prevCum) / prevCum) * 100.0
+                } else 0.0
+                MultiYearAssetMetric(year = y, totalAssets = currentCum, growthPercent = growth)
+            }
+
+            val allTimeInvestmentsInflow = allTransactions.filter {
+                it.type == TransactionType.ASSET &&
+                it.category.equals("Investments & Wealth", ignoreCase = true)
+            }.sumOf { it.amount }
+
+            val allTimeCapitalDrawdowns = allTransactions.filter(isCapitalDrawdown).sumOf { it.amount }
+            val totalActiveInvestments = (allTimeInvestmentsInflow - allTimeCapitalDrawdowns).coerceAtLeast(0.0)
+
+            val activeLoanedReceivables = allTransactions.filter(isLoanGiven).sumOf { it.amount }
+            val npaWrittenOff = allTransactions.filter(isNpaWriteOff).sumOf { it.amount }
+            val repaymentsReceived = allTransactions.filter(isLoanRepayment).sumOf { it.amount }
+
+            val effectiveReceivables = (activeLoanedReceivables - repaymentsReceived - npaWrittenOff).coerceAtLeast(0.0)
+            val liquidReserves = allAccounts.filter { !it.isArchived }.sumOf { it.currentBalance }
+
+            val grossWealth = liquidReserves + totalActiveInvestments + effectiveReceivables + npaWrittenOff
+            val realizableNetWorth = liquidReserves + totalActiveInvestments + effectiveReceivables
+
+            val wealthMetrics = AssetWealthMetrics(
+                grossWealth = grossWealth,
+                totalInvestments = totalActiveInvestments,
+                liquidReserves = liquidReserves,
+                activeReceivables = effectiveReceivables,
+                npaWrittenOff = npaWrittenOff,
+                realizableNetWorth = realizableNetWorth
+            )
+
+            val annualWorkExpenses = allYearTransactions.filter { it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
+            val annualReimbursements = allYearTransactions.filter { it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
+            val annualLifestyleExpenses = totalExpense
+
+            val annualNonPersonalInflows = allYearTransactions.filter {
+                isLoanRepayment(it) || isTaxOrPurchaseRefund(it) || isCapitalDrawdown(it)
+            }.sumOf { it.amount }
+            val annualPersonalIncome = (totalIncome - annualNonPersonalInflows).coerceAtLeast(0.0)
+            val annualGenuineAssets = allYearTransactions.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
+
+            val annualNetSurplus = annualPersonalIncome - annualLifestyleExpenses - annualGenuineAssets
+
+            val allTimeWork = allTransactions.filter { it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
+            val allTimeReimb = allTransactions.filter { it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
+
+            val effectiveAllTimeWork = allTimeWork + profile.initialReimbursementClaim
+            val effectiveAllTimeReimb = allTimeReimb + profile.initialCompanyAdvance
+            val allTimePending = (effectiveAllTimeWork - effectiveAllTimeReimb).coerceAtLeast(0.0)
+            val allTimeExcessAdvance = (effectiveAllTimeReimb - effectiveAllTimeWork).coerceAtLeast(0.0)
+
+            val annualReimbursementStatus = ReimbursementStatus(
+                totalWorkExpenses = annualWorkExpenses,
+                totalClaimsReceived = annualReimbursements,
+                pendingReimbursement = allTimePending,
+                isSettled = allTimePending <= 0.0 && allTimeExcessAdvance <= 0.0,
+                cumulativeWorkExpenses = effectiveAllTimeWork,
+                cumulativeClaimsReceived = effectiveAllTimeReimb,
+                excessAdvanceHeld = allTimeExcessAdvance
+            )
+
+            YearlyUiState(
+                selectedYear = year,
+                monthlyRollups = rollups,
+                categoryRollups = categoryRollups,
+                totalYearlyIncome = totalIncome,
+                totalYearlyExpense = totalExpense,
+                totalYearlyAssets = totalAssets,
+                annualNetSurplus = annualNetSurplus,
+                yearlyMonths = yearlyMonths,
+                multiYearAssets = multiYearAssetList,
+                assetWealthMetrics = wealthMetrics,
+                reimbursementStatus = annualReimbursementStatus,
+                annualLifestyleExpenses = annualLifestyleExpenses,
+                annualPersonalIncome = annualPersonalIncome,
+                allYearTransactions = allYearTransactions
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), YearlyUiState())
 
     val averageMonthlySpend: StateFlow<Double> = combine(yearlyUiState, monthlyUiState) { yearly, monthly ->
         val completedHistoricalMonths = yearly.yearlyMonthsData.filter { !it.isFuture && it.lifestyleExpenses > 0 }
@@ -1212,6 +1221,19 @@ class BudgetViewModel(
 
     fun updateFortressThreshold(newThreshold: Double) {
         updateFortressSweepThreshold(newThreshold)
+    }
+
+    fun updateOpeningCorporateFloat(initialClaim: Double, initialAdvance: Double) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = userProfile.value
+            dao.saveUserProfile(
+                current.copy(
+                    id = 1,
+                    initialReimbursementClaim = initialClaim.coerceAtLeast(0.0),
+                    initialCompanyAdvance = initialAdvance.coerceAtLeast(0.0)
+                )
+            )
+        }
     }
 
     fun updateBiometricEnabled(enabled: Boolean) {
@@ -2073,6 +2095,8 @@ class BudgetViewModel(
                 put("reminderHour", currentProfile.reminderHour)
                 put("reminderMinute", currentProfile.reminderMinute)
                 put("vaultMode", currentProfile.vaultMode)
+                put("initialReimbursementClaim", currentProfile.initialReimbursementClaim)
+                put("initialCompanyAdvance", currentProfile.initialCompanyAdvance)
             }
             root.put("userProfile", profileObj)
 
@@ -2352,7 +2376,9 @@ class BudgetViewModel(
                     reminderEnabled = p.optBoolean("reminderEnabled", updatedProfile.reminderEnabled),
                     reminderHour = p.optInt("reminderHour", updatedProfile.reminderHour),
                     reminderMinute = p.optInt("reminderMinute", updatedProfile.reminderMinute),
-                    vaultMode = p.optString("vaultMode", updatedProfile.vaultMode)
+                    vaultMode = p.optString("vaultMode", updatedProfile.vaultMode),
+                    initialReimbursementClaim = p.optDouble("initialReimbursementClaim", 0.0),
+                    initialCompanyAdvance = p.optDouble("initialCompanyAdvance", 0.0)
                 )
             }
             dao.saveUserProfile(updatedProfile)
