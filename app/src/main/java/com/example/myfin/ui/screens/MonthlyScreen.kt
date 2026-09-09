@@ -129,25 +129,13 @@ fun MonthlyScreen(
             ?: activeAccounts.getOrNull(2)?.accountName ?: "TERTIARY BANK"
     }
 
-    val daysInMonth = remember(uiState.selectedMonth, uiState.selectedYear) {
-        Calendar.getInstance().apply {
-            set(uiState.selectedYear, uiState.selectedMonth - 1, 1)
-        }.getActualMaximum(Calendar.DAY_OF_MONTH)
-    }
     val todayCal = remember { Calendar.getInstance() }
     val isCurrentMonth = uiState.selectedYear == todayCal.get(Calendar.YEAR) &&
             uiState.selectedMonth == (todayCal.get(Calendar.MONTH) + 1)
     val isPastMonth = (uiState.selectedYear < todayCal.get(Calendar.YEAR)) ||
             (uiState.selectedYear == todayCal.get(Calendar.YEAR) && uiState.selectedMonth < (todayCal.get(Calendar.MONTH) + 1))
 
-    val daysRemaining = when {
-        isCurrentMonth -> (daysInMonth - todayCal.get(Calendar.DAY_OF_MONTH) + 1).coerceAtLeast(1)
-        isPastMonth -> 0
-        else -> daysInMonth
-    }
-    val dailySpendAllowance = if (daysRemaining > 0) {
-        (uiState.metrics.safeToSpend / daysRemaining).coerceAtLeast(0.0)
-    } else 0.0
+    val isHealthy = uiState.metrics.safeToSpend > 0
 
     val paydayPlan = uiState.paydaySuggestion
     val showWaterfallPrompt = remember(paydayPlan, uiState.selectedMonth, dismissedWaterfallMonth) {
@@ -631,9 +619,8 @@ fun MonthlyScreen(
                                         contentPadding = PaddingValues(horizontal = 6.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        // Card 1: Liquid Safe to Spend
+                                        // Card 1: Liquid Safe to Spend (Option 2 Pure Surplus)
                                         item {
-                                            val isHealthy = uiState.metrics.safeToSpend > 0
                                             val statusColor = if (isHealthy) SoftGreen else SoftRed
 
                                             Surface(
@@ -726,9 +713,9 @@ fun MonthlyScreen(
                                                         Text(
                                                             text = when {
                                                                 isPastMonth -> "Month closed: final remaining balance"
-                                                                isCurrentMonth && isHealthy -> if (isDiscreetMode) "Daily allowance protected" else "Avg ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailySpendAllowance)}/day safe allowance for $daysRemaining days left"
-                                                                isCurrentMonth -> "Overrun warning: spending exceeds liquid buffer"
-                                                                else -> "Projected safe allowance across $daysRemaining days"
+                                                                isCurrentMonth && isHealthy -> if (isDiscreetMode) "Guilt-free surplus protected" else "Pure surplus • Runway reserved for ${uiState.metrics.daysUntilPayday}d (until ${uiState.metrics.nextPaydayDay}th)"
+                                                                isCurrentMonth -> "Runway deficit: spending exceeds safe allowance"
+                                                                else -> "Projected surplus for ${uiState.metrics.daysUntilPayday} days until payday"
                                                             },
                                                             fontSize = 11.sp,
                                                             fontWeight = FontWeight.Medium,
@@ -1751,7 +1738,6 @@ fun MonthlyScreen(
                                 }
                             }
 
-                            // Commitments total must strictly represent payable outflows (exclude Income and Employer Claims)
                             val isPayableBill = { bill: FixedBillEntity ->
                                 bill.type != TransactionType.INCOME &&
                                 !(bill.type == TransactionType.CORPORATE && bill.category.equals("Reimbursements & Claims", ignoreCase = true))
@@ -2608,7 +2594,7 @@ fun MonthlyScreen(
             )
         }
 
-        // 7. SAFE TO SPEND EXPLANATION SHEET
+        // 7. SAFE TO SPEND EXPLANATION SHEET (OPTION 2: PURE SURPLUS BREAKDOWN)
         if (showStsInfoSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showStsInfoSheet = false },
@@ -2630,13 +2616,13 @@ fun MonthlyScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Liquid Safe-to-Spend (STS)",
+                                text = "Pure Safe-to-Spend (STS)",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 19.sp,
                                 color = TextDark
                             )
                             Text(
-                                text = "Burn-rate speedometer vs. Accumulated savings",
+                                text = "Lump-sum guilt-free headroom above living runway",
                                 fontSize = 11.5.sp,
                                 color = TextMuted
                             )
@@ -2663,14 +2649,14 @@ fun MonthlyScreen(
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
-                                text = "Why is STS not equal to my bank balance?",
+                                text = "What is Pure Safe-to-Spend?",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.5.sp,
                                 color = TextDark
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Your bank accounts hold your accumulated net worth and savings buffers from previous months. STS protects that money from being spent. It calculates how much of this month's salary you can burn without wiping out your past savings or causing pending bills to bounce.",
+                                text = "Unlike daily pacing allowances, Pure Safe-to-Spend ring-fences your upcoming AutoPay commitments and reserves your daily baseline living expenses through your next paycheck on the ${uiState.metrics.nextPaydayDay}th. The amount shown is 100% guilt-free to spend today as a lump sum without running out of money before salary arrives.",
                                 fontSize = 11.sp,
                                 color = TextMuted,
                                 lineHeight = 16.sp
@@ -2680,7 +2666,7 @@ fun MonthlyScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    Text("Live Monthly Cashflow Math", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Text("Live Pure Surplus Math", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Surface(
@@ -2690,51 +2676,44 @@ fun MonthlyScreen(
                         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            val effectiveInflow = if (uiState.metrics.plannedIncome > 0) uiState.metrics.plannedIncome else uiState.metrics.personalIncome
+                            val pendingBillsAmt = uiState.fixedBills.filter {
+                                !it.isPaid &&
+                                it.type != TransactionType.INCOME &&
+                                !(it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true))
+                            }.sumOf { it.amount }
+
+                            val excessAdvance = uiState.reimbursementStatus.excessAdvanceHeld
+                            val totalLiquidPool = uiState.metrics.liquidOperatingCash + pendingBillsAmt + excessAdvance
+
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Monthly Inflow Baseline", fontSize = 11.5.sp, color = TextDark)
-                                Text("+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", effectiveInflow)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftGreen)
+                                Text("Liquid Capital in Vaults (above MAB)", fontSize = 11.5.sp, color = TextDark)
+                                Text("+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalLiquidPool)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftGreen)
                             }
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Fixed Commitments Total", fontSize = 11.5.sp, color = TextDark)
-                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftRed)
+                                Text("Pending Fixed Commitments (Rent, SIP)", fontSize = 11.5.sp, color = TextDark)
+                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingBillsAmt)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftRed)
                             }
 
-                            val effectiveAssets = if (uiState.metrics.plannedAssets > 0) uiState.metrics.plannedAssets else uiState.metrics.actualAssets
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("SIP / Wealth Assets Target", fontSize = 11.5.sp, color = TextDark)
-                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", effectiveAssets)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftTeal)
-                            }
-
-                            val discretionarySpent = (uiState.metrics.actualExpenses - uiState.fixedBills.filter { it.isPaid && it.type == TransactionType.EXPENSE }.sumOf { it.amount }).coerceAtLeast(0.0)
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Discretionary Spent so far", fontSize = 11.5.sp, color = TextDark)
-                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", discretionarySpent)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextMuted)
-                            }
-
-                            if (uiState.metrics.theoreticalSafeToSpend > uiState.metrics.safeToSpend) {
-                                HorizontalDivider(color = BorderLight, thickness = 0.6.dp)
+                            if (excessAdvance > 0.0) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Theoretical Budget Surplus", fontSize = 11.sp, color = TextMuted)
-                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.theoreticalSafeToSpend)}", fontWeight = FontWeight.Medium, fontSize = 11.5.sp, color = TextMuted)
+                                    Text("Ring-Fenced Company Advance", fontSize = 11.5.sp, color = TextDark)
+                                    Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", excessAdvance)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFE57A28))
                                 }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Protected Operating Cash Floor", fontSize = 11.sp, color = Color(0xFFE57A28))
-                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.liquidOperatingCash)}", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = Color(0xFFE57A28))
-                                }
+                            }
+
+                            val reservedRunway = (uiState.metrics.liquidOperatingCash - uiState.metrics.safeToSpend).coerceAtLeast(0.0)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Living Runway (${uiState.metrics.daysUntilPayday}d until ${uiState.metrics.nextPaydayDay}th)", fontSize = 11.5.sp, color = TextDark)
+                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", reservedRunway)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftAmber)
                             }
 
                             HorizontalDivider(color = BorderLight, thickness = 0.6.dp)
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Column {
-                                    Text("Safe-to-Spend Remaining", fontWeight = FontWeight.Black, fontSize = 12.5.sp, color = TextDark)
-                                    Text(
-                                        text = if (uiState.metrics.theoreticalSafeToSpend > uiState.metrics.safeToSpend) "Capped by protected Operating cash" else "Allowance across remaining days",
-                                        fontSize = 10.sp,
-                                        color = if (uiState.metrics.theoreticalSafeToSpend > uiState.metrics.safeToSpend) Color(0xFFE57A28) else TextMuted
-                                    )
+                                    Text("Pure Guilt-Free Safe-to-Spend", fontWeight = FontWeight.Black, fontSize = 12.5.sp, color = TextDark)
+                                    Text("Immediate safe lump-sum headroom", fontSize = 10.sp, color = TextMuted)
                                 }
                                 Text(
                                     text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
@@ -2752,7 +2731,7 @@ fun MonthlyScreen(
                         Icon(Icons.Default.Security, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Physical Cash Floor Protection: STS dynamically verifies your Operating bank balance, strictly deducting MAB minimums, company advances held, and any pending bills assigned to your Operating vault.",
+                            text = "Dynamic Payday Protection: The app tracks your salary transaction log day (${uiState.metrics.nextPaydayDay}th) and reserves a full daily runway buffer for the ${uiState.metrics.daysUntilPayday} days remaining. Even if you spend all of your STS today, your fixed bills and daily necessities remain 100% funded.",
                             fontSize = 11.sp,
                             color = TextMuted,
                             lineHeight = 15.sp
