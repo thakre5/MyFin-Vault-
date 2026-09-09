@@ -674,7 +674,7 @@ fun MonthlyScreen(
                                                                     .padding(vertical = 2.dp, horizontal = 2.dp)
                                                             ) {
                                                                 Box(
-                                                                  modifier = Modifier
+                                                                    modifier = Modifier
                                                                         .size(7.dp)
                                                                         .clip(CircleShape)
                                                                         .background(statusColor)
@@ -751,9 +751,12 @@ fun MonthlyScreen(
                                                         modifier = Modifier.fillMaxWidth(),
                                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                     ) {
+                                                        val displayInflow = if (uiState.metrics.plannedIncome > 0) uiState.metrics.plannedIncome else uiState.metrics.personalIncome
+                                                        val displayAssets = if (uiState.metrics.plannedAssets > 0) uiState.metrics.plannedAssets else uiState.metrics.actualAssets
+
                                                         PillarMetricCard(
                                                             title = "Inflow",
-                                                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedIncome)}",
+                                                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayInflow)}",
                                                             tintColor = SoftGreen,
                                                             modifier = Modifier.weight(1f),
                                                             onClick = {
@@ -777,7 +780,7 @@ fun MonthlyScreen(
                                                         )
                                                         PillarMetricCard(
                                                             title = "SIP Assets",
-                                                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualAssets)}",
+                                                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayAssets)}",
                                                             tintColor = SoftTeal,
                                                             modifier = Modifier.weight(1f),
                                                             onClick = {
@@ -1394,9 +1397,9 @@ fun MonthlyScreen(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .shadow(3.dp, RoundedCornerShape(22.dp)),
-                                                shape = RoundedCornerShape(22.dp),
-                                                color = CardWhite,
-                                                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+                                            shape = RoundedCornerShape(22.dp),
+                                            color = CardWhite,
+                                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
                                         ) {
                                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
                                                 activeMatrix.forEachIndexed { index, cat ->
@@ -1748,14 +1751,18 @@ fun MonthlyScreen(
                                 }
                             }
 
-                            // Commitments total must only include outflows and transfers, never incoming paychecks
-                            val pendingCommitmentsTotal = remember(filteredBills) {
-                                filteredBills.filter { !it.isPaid && it.type != TransactionType.INCOME }.sumOf { it.amount }
+                            // Commitments total must strictly represent payable outflows (exclude Income and Employer Claims)
+                            val isPayableBill = { bill: FixedBillEntity ->
+                                bill.type != TransactionType.INCOME &&
+                                !(bill.type == TransactionType.CORPORATE && bill.category.equals("Reimbursements & Claims", ignoreCase = true))
                             }
 
-                            // Overdue alerts must only count payable commitments, never expected receivables
+                            val pendingCommitmentsTotal = remember(filteredBills) {
+                                filteredBills.filter { !it.isPaid && isPayableBill(it) }.sumOf { it.amount }
+                            }
+
                             val overdueCount = remember(filteredBills, currentDayOfMonth) {
-                                filteredBills.count { !it.isPaid && it.type != TransactionType.INCOME && it.dueDay != null && it.dueDay!! < currentDayOfMonth }
+                                filteredBills.count { !it.isPaid && isPayableBill(it) && it.dueDay != null && it.dueDay!! < currentDayOfMonth }
                             }
                             val hasOverdue = overdueCount > 0
 
@@ -2187,7 +2194,10 @@ fun MonthlyScreen(
                 TransactionType.INCOME -> "Credits ${bill.accountName} vault and logs inflow entry."
                 TransactionType.ASSET -> "Deducts from ${bill.accountName} and records under Asset Wealth."
                 TransactionType.TRANSFER -> "Sweeps funds from ${bill.accountName} ➤ ${bill.toAccountName ?: "Destination"}."
-                TransactionType.CORPORATE -> "Settles corporate outlay/claim for ${bill.accountName}."
+                TransactionType.CORPORATE -> if (bill.category.equals("Reimbursements & Claims", ignoreCase = true))
+                    "Credits ${bill.accountName} vault as employer claim reimbursement."
+                else
+                    "Deducts from ${bill.accountName} and records corporate float outlay."
                 TransactionType.EXPENSE -> "Deducts from ${bill.accountName} and records expense entry."
             }
 
@@ -2660,7 +2670,7 @@ fun MonthlyScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Your bank accounts hold your accumulated net worth and savings buffers from previous months. STS protects that money from being spent. It calculates how much of this month's salary you can burn without wiping out your past savings.",
+                                text = "Your bank accounts hold your accumulated net worth and savings buffers from previous months. STS protects that money from being spent. It calculates how much of this month's salary you can burn without wiping out your past savings or causing pending bills to bounce.",
                                 fontSize = 11.sp,
                                 color = TextMuted,
                                 lineHeight = 16.sp
@@ -2680,9 +2690,10 @@ fun MonthlyScreen(
                         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val effectiveInflow = if (uiState.metrics.plannedIncome > 0) uiState.metrics.plannedIncome else uiState.metrics.personalIncome
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Monthly Inflow Baseline", fontSize = 11.5.sp, color = TextDark)
-                                Text("+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedIncome)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftGreen)
+                                Text("+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", effectiveInflow)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftGreen)
                             }
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -2690,9 +2701,10 @@ fun MonthlyScreen(
                                 Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftRed)
                             }
 
+                            val effectiveAssets = if (uiState.metrics.plannedAssets > 0) uiState.metrics.plannedAssets else uiState.metrics.actualAssets
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("SIP / Wealth Assets Target", fontSize = 11.5.sp, color = TextDark)
-                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.plannedAssets)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftTeal)
+                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", effectiveAssets)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftTeal)
                             }
 
                             val discretionarySpent = (uiState.metrics.actualExpenses - uiState.fixedBills.filter { it.isPaid && it.type == TransactionType.EXPENSE }.sumOf { it.amount }).coerceAtLeast(0.0)
@@ -2701,12 +2713,28 @@ fun MonthlyScreen(
                                 Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", discretionarySpent)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextMuted)
                             }
 
+                            if (uiState.metrics.theoreticalSafeToSpend > uiState.metrics.safeToSpend) {
+                                HorizontalDivider(color = BorderLight, thickness = 0.6.dp)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Theoretical Budget Surplus", fontSize = 11.sp, color = TextMuted)
+                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.theoreticalSafeToSpend)}", fontWeight = FontWeight.Medium, fontSize = 11.5.sp, color = TextMuted)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Protected Operating Cash Floor", fontSize = 11.sp, color = Color(0xFFE57A28))
+                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.liquidOperatingCash)}", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = Color(0xFFE57A28))
+                                }
+                            }
+
                             HorizontalDivider(color = BorderLight, thickness = 0.6.dp)
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Column {
                                     Text("Safe-to-Spend Remaining", fontWeight = FontWeight.Black, fontSize = 12.5.sp, color = TextDark)
-                                    Text("Allowance across remaining days", fontSize = 10.sp, color = TextMuted)
+                                    Text(
+                                        text = if (uiState.metrics.theoreticalSafeToSpend > uiState.metrics.safeToSpend) "Capped by protected Operating cash" else "Allowance across remaining days",
+                                        fontSize = 10.sp,
+                                        color = if (uiState.metrics.theoreticalSafeToSpend > uiState.metrics.safeToSpend) Color(0xFFE57A28) else TextMuted
+                                    )
                                 }
                                 Text(
                                     text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
@@ -2724,7 +2752,7 @@ fun MonthlyScreen(
                         Icon(Icons.Default.Security, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Physical Cash Floor: STS automatically enforces a ceiling against your actual liquid bank balance, ensuring you never spend money needed to protect minimum balance (MAB) or pending bills.",
+                            text = "Physical Cash Floor Protection: STS dynamically verifies your Operating bank balance, strictly deducting MAB minimums, company advances held, and any pending bills assigned to your Operating vault.",
                             fontSize = 11.sp,
                             color = TextMuted,
                             lineHeight = 15.sp
