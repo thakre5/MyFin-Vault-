@@ -2732,7 +2732,7 @@ fun MonthlyScreen(
                             }
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Pending Fixed Commitments (Rent, SIP)", fontSize = 11.5.sp, color = TextDark)
+                                Text("Pending Fixed Commitments", fontSize = 11.5.sp, color = TextDark)
                                 Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingBillsAmt)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftRed)
                             }
 
