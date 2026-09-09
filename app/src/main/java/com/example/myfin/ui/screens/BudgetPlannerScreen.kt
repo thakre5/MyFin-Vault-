@@ -42,6 +42,7 @@ import com.example.myfin.ui.theme.*
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.max
 
 private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -122,7 +123,7 @@ fun BudgetPlannerScreen(
     val isOverAllocated = effectiveIncomeBaseline > 0 && unallocatedBuffer < 0
     val isBalancedBudget = effectiveIncomeBaseline > 0 && abs(unallocatedBuffer) < 1.0
 
-    // Prioritized Category Resolution with Type Isolation
+    // Prioritized Category Resolution with Type Isolation & Orphan Safety
     val displayedCategories = remember(uiState.masterCategories, uiState.categories, selectedSegment) {
         val masterList = uiState.masterCategories.filter { it.type == selectedSegment }
         val performanceMap = uiState.categories
@@ -137,17 +138,16 @@ fun BudgetPlannerScreen(
             TransactionType.TRANSFER -> emptyList()
         }
 
-        val allResolved = if (masterList.isNotEmpty()) {
-            masterList.map { masterCat ->
-                performanceMap[masterCat.name] ?: CategoryPerformance(
-                    category = masterCat.name,
-                    type = selectedSegment,
-                    plannedAmount = 0.0,
-                    actualAmount = 0.0
-                )
-            }
-        } else {
-            uiState.categories.filter { it.type == selectedSegment }
+        val masterNames = masterList.map { it.name.trim().lowercase() }.toSet()
+        val allResolved = masterList.map { masterCat ->
+            performanceMap[masterCat.name] ?: CategoryPerformance(
+                category = masterCat.name,
+                type = selectedSegment,
+                plannedAmount = 0.0,
+                actualAmount = 0.0
+            )
+        } + uiState.categories.filter {
+            it.type == selectedSegment && it.category.trim().lowercase() !in masterNames
         }
 
         allResolved.sortedWith(
@@ -431,8 +431,9 @@ fun BudgetPlannerScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            val expenseFraction = if (effectiveIncomeBaseline > 0) (totalPlannedExpenses / effectiveIncomeBaseline).toFloat().coerceIn(0f, 1f) else 0f
-                            val assetFraction = if (effectiveIncomeBaseline > 0) (totalPlannedAssets / effectiveIncomeBaseline).toFloat().coerceIn(0f, 1f) else 0f
+                            val maxDenominator = max(effectiveIncomeBaseline, totalAllocated)
+                            val expenseFraction = if (maxDenominator > 0) (totalPlannedExpenses / maxDenominator).toFloat().coerceIn(0f, 1f) else 0f
+                            val assetFraction = if (maxDenominator > 0) (totalPlannedAssets / maxDenominator).toFloat().coerceIn(0f, 1f) else 0f
 
                             Row(
                                 modifier = Modifier
@@ -563,7 +564,9 @@ fun BudgetPlannerScreen(
                 } else {
                     items(displayedCategories, key = { "${it.type.name}_${it.category}" }) { cat ->
                         val committedAmount = remember(uiState.fixedBills, cat) {
-                            uiState.fixedBills.filter { it.category == cat.category && it.type == cat.type }.sumOf { it.amount }
+                            uiState.fixedBills.filter {
+                                it.category.equals(cat.category, ignoreCase = true) && it.type == cat.type
+                            }.sumOf { it.amount }
                         }
                         val isLocked = isPastMonth || (isCurrentMonth && isPastFifth && cat.plannedAmount > 0.0)
 
@@ -827,7 +830,9 @@ fun BudgetPlannerScreen(
         // Sheet: Set Category Target Budget
         editingCategory?.let { cat ->
             val committedAutoPay = remember(uiState.fixedBills, cat) {
-                uiState.fixedBills.filter { it.category == cat.category && it.type == cat.type }.sumOf { it.amount }
+                uiState.fixedBills.filter {
+                    it.category.equals(cat.category, ignoreCase = true) && it.type == cat.type
+                }.sumOf { it.amount }
             }
             var customAmountText by remember(cat) {
                 mutableStateOf(
@@ -883,7 +888,9 @@ fun BudgetPlannerScreen(
 
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (committedAutoPay > 0) "Committed AutoPay Floor: ${userProfile.currencySymbol}${committedAutoPay.toInt()}" else "Configure monthly baseline limit for this category",
+                        text = if (committedAutoPay > 0 && (cat.type == TransactionType.EXPENSE || cat.type == TransactionType.ASSET))
+                            "Committed AutoPay Floor: ${userProfile.currencySymbol}${committedAutoPay.toInt()}"
+                        else "Configure monthly baseline limit for this category",
                         fontSize = 11.5.sp,
                         color = if (committedAutoPay > 0) AccentPurple else TextMuted,
                         fontWeight = if (committedAutoPay > 0) FontWeight.SemiBold else FontWeight.Normal
@@ -948,7 +955,7 @@ fun BudgetPlannerScreen(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                val resetTarget = if (committedAutoPay > 0) committedAutoPay else 0.0
+                                val resetTarget = if (committedAutoPay > 0 && (cat.type == TransactionType.EXPENSE || cat.type == TransactionType.ASSET)) committedAutoPay else 0.0
                                 viewModel.updateCategoryBudget(cat.category, resetTarget, cat.type)
                                 editingCategory = null
                             },
@@ -958,7 +965,7 @@ fun BudgetPlannerScreen(
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftRed)
                         ) {
                             Text(
-                                text = if (committedAutoPay > 0) "Reset to Floor" else "Reset",
+                                text = if (committedAutoPay > 0 && (cat.type == TransactionType.EXPENSE || cat.type == TransactionType.ASSET)) "Reset to Floor" else "Reset",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
                             )
@@ -967,7 +974,7 @@ fun BudgetPlannerScreen(
                         Button(
                             onClick = {
                                 val amt = customAmountText.toDoubleOrNull() ?: 0.0
-                                if (committedAutoPay > 0 && amt < committedAutoPay) {
+                                if (committedAutoPay > 0 && (cat.type == TransactionType.EXPENSE || cat.type == TransactionType.ASSET) && amt < committedAutoPay) {
                                     Toast.makeText(context, "Budget cannot be lower than committed AutoPay (${userProfile.currencySymbol}${committedAutoPay.toInt()})", Toast.LENGTH_LONG).show()
                                 } else {
                                     viewModel.updateCategoryBudget(cat.category, amt, cat.type)
@@ -1039,9 +1046,7 @@ private fun BudgetCategoryCleanCard(
         (category.actualAmount / category.plannedAmount).toFloat().coerceIn(0f, 1f)
     } else 0f
 
-    val isOverBudget = category.type == TransactionType.EXPENSE &&
-            category.plannedAmount > 0.0 &&
-            category.actualAmount > category.plannedAmount
+    val isOverBudget = category.isOverBudget
 
     Surface(
         modifier = Modifier
