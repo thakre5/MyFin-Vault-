@@ -300,7 +300,6 @@ class BudgetViewModel(
             val isGracePeriodActive = (profile.taxonomyGraceYear == sysYear && profile.taxonomyGraceMonth == sysMonth)
             val isTaxonomyBannerVisible = isGracePeriodActive && !profile.isTaxonomyBannerDismissed
 
-            // Filter out retired legacy categories if grace period has expired
             val activeTaxonomyCats = if (isGracePeriodActive) {
                 masterCats
             } else {
@@ -368,7 +367,6 @@ class BudgetViewModel(
             val allTimeWorkExpenses = allTimeCorporateTxs.filter { !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
             val allTimeClaimsReceived = allTimeCorporateTxs.filter { it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
 
-            // Corporate float incorporates initial historical state from profile
             val effectiveAllTimeWorkExpenses = allTimeWorkExpenses + profile.initialReimbursementClaim
             val effectiveAllTimeClaimsReceived = allTimeClaimsReceived + profile.initialCompanyAdvance
 
@@ -495,45 +493,7 @@ class BudgetViewModel(
                 else -> 0.0
             }
 
-            // 6. SAFE-TO-SPEND ENGINE
-            val personalDiscretionaryExpenses = regularTxs.filter { tx ->
-                tx.type == TransactionType.EXPENSE && tx.linkedFixedBillId == null
-            }.sumOf { it.amount }
-
-            val rawTheoreticalSafeToSpend = baseIncome - totalPendingCommitments - personalDiscretionaryExpenses
-            val theoreticalSafeToSpend = if (baseIncome > 0) rawTheoreticalSafeToSpend.coerceAtLeast(0.0) else 0.0
-
-            val isFortressAccount = { acc: AccountBalanceResult ->
-                acc.accountType.equals("Fortress", ignoreCase = true) ||
-                acc.accountName.contains("FORTRESS", ignoreCase = true) ||
-                acc.accountName.contains("TERTIARY", ignoreCase = true)
-            }
-
-            val liquidPoolAccounts = activeAccounts.filter { !isFortressAccount(it) }
-
-            val liquidOperatingCash = liquidPoolAccounts.sumOf {
-                it.currentBalance - it.minBalance
-            }.coerceAtLeast(0.0)
-
-            val availableCashFloor = (liquidOperatingCash - pendingFixedCommitments - excessAdvanceHeld).coerceAtLeast(0.0)
-
-            val realSafeToSpend = if (baseIncome > 0.0) {
-                min(theoreticalSafeToSpend, availableCashFloor)
-            } else {
-                availableCashFloor
-            }
-
-            val safeToSpendPercentage = if (baseIncome > 0.0) {
-                ((realSafeToSpend / baseIncome) * 100).toInt().coerceIn(0, 100)
-            } else 0
-
-            val isOverBudget = rawTheoreticalSafeToSpend < 0.0 || (plannedExpenses > 0 && lifestyleExpenses > plannedExpenses)
-            val netSaved = (personalIncome - lifestyleExpenses) - actualSavingsAndInvestments
-            val totalVault = allAccounts.sumOf { it.currentBalance }
-
-            val dailyPoints = calculateDailySparklinePoints(regularTxs, month, year)
-
-            // 7. COMMITMENTS SHORTFALL ENGINE
+            // 6. COMMITMENTS SHORTFALL ENGINE
             val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
             val commitmentAccounts = activeAccounts.filter {
                 it.accountType.equals("Commitments", ignoreCase = true)
@@ -587,6 +547,74 @@ class BudgetViewModel(
                 affectedAccountName = affectedAccountLabel,
                 affectedAccountsCount = affectedAccountNames.size
             )
+
+            // 7. SAFE-TO-SPEND ENGINE (VAULT-ROLE SEGREGATED)
+            val personalDiscretionaryExpenses = regularTxs.filter { tx ->
+                tx.type == TransactionType.EXPENSE && tx.linkedFixedBillId == null
+            }.sumOf { it.amount }
+
+            val rawTheoreticalSafeToSpend = baseIncome - totalPendingCommitments - personalDiscretionaryExpenses
+            val theoreticalSafeToSpend = if (baseIncome > 0) rawTheoreticalSafeToSpend.coerceAtLeast(0.0) else 0.0
+
+            val isFortressAccount = { acc: AccountBalanceResult ->
+                acc.accountType.equals("Fortress", ignoreCase = true) ||
+                acc.accountName.contains("FORTRESS", ignoreCase = true) ||
+                acc.accountName.contains("TERTIARY", ignoreCase = true)
+            }
+
+            val isOperatingOrCashAccount = { acc: AccountBalanceResult ->
+                acc.accountType.equals("Operating", ignoreCase = true) ||
+                acc.accountType.equals("Cash", ignoreCase = true) ||
+                acc.accountName.contains("OPERATING", ignoreCase = true) ||
+                acc.accountName.contains("PRIMARY", ignoreCase = true) ||
+                acc.accountName.contains("CASH", ignoreCase = true)
+            }
+
+            val availableCashFloor: Double
+
+            if (is3VaultMode) {
+                // In 3-Vault mode, daily lifestyle spending comes strictly from Operating & Cash vaults
+                val operatingAccounts = activeAccounts.filter(isOperatingOrCashAccount)
+                val operatingCashAboveMab = operatingAccounts.sumOf {
+                    (it.currentBalance - it.minBalance).coerceAtLeast(0.0)
+                }.coerceAtLeast(0.0)
+
+                // Bills scheduled to be debited directly from Operating / Cash accounts
+                val pendingBillsOnOperating = allFixedCommitments.filter { bill ->
+                    !bill.isPaid && (
+                        bill.accountName.isBlank() ||
+                        operatingAccounts.any { it.accountName.equals(bill.accountName, ignoreCase = true) }
+                    )
+                }.sumOf { it.amount }
+
+                // Ring-fence Operating bills + any Shortfall in Commitments + excess company advance held
+                val totalOperatingRingFence = pendingBillsOnOperating + totalCommitmentsShortfall + excessAdvanceHeld
+                availableCashFloor = (operatingCashAboveMab - totalOperatingRingFence).coerceAtLeast(0.0)
+            } else {
+                // In Simple mode, all liquid accounts (except Fortress) are pooled together
+                val liquidPoolAccounts = activeAccounts.filter { !isFortressAccount(it) }
+                val totalLiquidCash = liquidPoolAccounts.sumOf {
+                    (it.currentBalance - it.minBalance).coerceAtLeast(0.0)
+                }.coerceAtLeast(0.0)
+
+                availableCashFloor = (totalLiquidCash - pendingFixedCommitments - excessAdvanceHeld).coerceAtLeast(0.0)
+            }
+
+            val realSafeToSpend = if (baseIncome > 0.0) {
+                min(theoreticalSafeToSpend, availableCashFloor)
+            } else {
+                availableCashFloor
+            }
+
+            val safeToSpendPercentage = if (baseIncome > 0.0) {
+                ((realSafeToSpend / baseIncome) * 100).toInt().coerceIn(0, 100)
+            } else 0
+
+            val isOverBudget = rawTheoreticalSafeToSpend < 0.0 || (plannedExpenses > 0 && lifestyleExpenses > plannedExpenses)
+            val netSaved = (personalIncome - lifestyleExpenses) - actualSavingsAndInvestments
+            val totalVault = allAccounts.sumOf { it.currentBalance }
+
+            val dailyPoints = calculateDailySparklinePoints(regularTxs, month, year)
 
             // 8. PAYDAY ALLOCATION & MONTH-END SWEEP ENGINES (NEUTRAL DYNAMIC BASELINE)
             val currentDay = todayCal.get(Calendar.DAY_OF_MONTH)
@@ -663,13 +691,7 @@ class BudgetViewModel(
 
             val isMonthEndWindow = currentDay >= 28 && isCurrentSystemMonth
 
-            val operatingAccountsList = activeAccounts.filter {
-                it.accountType.equals("Operating", ignoreCase = true) ||
-                it.accountType.equals("Cash", ignoreCase = true) ||
-                it.accountName.contains("OPERATING", ignoreCase = true) ||
-                it.accountName.contains("PRIMARY", ignoreCase = true) ||
-                it.accountName.contains("CASH", ignoreCase = true)
-            }
+            val operatingAccountsList = activeAccounts.filter(isOperatingOrCashAccount)
 
             val operatingLiquidCash = operatingAccountsList.sumOf {
                 it.currentBalance - it.minBalance
