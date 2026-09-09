@@ -145,7 +145,9 @@ data class DashboardMetrics(
     val corporateReimbursements: Double = 0.0,
     val pendingReimbursement: Double = 0.0,
     val lifestyleExpenses: Double = 0.0,
-    val personalIncome: Double = 0.0
+    val personalIncome: Double = 0.0,
+    val daysUntilPayday: Int = 0,
+    val nextPaydayDay: Int = 1
 ) {
     val totalAssetAllocated: Double get() = actualAssets
     val personalBurn: Double get() = lifestyleExpenses
@@ -493,7 +495,102 @@ class BudgetViewModel(
                 else -> 0.0
             }
 
-            // 6. COMMITMENTS SHORTFALL ENGINE
+            // 6. DYNAMIC SALARY DAY & DAYS UNTIL UPCOMING PAYDAY
+            val currentMonthSalaryTx = regularTxs.find {
+                it.type == TransactionType.INCOME &&
+                it.category.equals("Salary & Professional Inflow", ignoreCase = true)
+            }
+
+            val lastKnownSalaryTx = currentMonthSalaryTx ?: allTimeTxs.filter {
+                it.type == TransactionType.INCOME &&
+                it.category.equals("Salary & Professional Inflow", ignoreCase = true)
+            }.maxByOrNull { it.date }
+
+            val dynamicSalaryDay = lastKnownSalaryTx?.let {
+                val c = Calendar.getInstance().apply { timeInMillis = it.date }
+                c.get(Calendar.DAY_OF_MONTH)
+            } ?: 1
+
+            val todayMidnight = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val currentDayOfMonth = todayMidnight.get(Calendar.DAY_OF_MONTH)
+
+            val nextPaydayCal = Calendar.getInstance().apply {
+                timeInMillis = todayMidnight.timeInMillis
+            }
+
+            if (currentDayOfMonth < dynamicSalaryDay) {
+                val maxDayThisMonth = nextPaydayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+                nextPaydayCal.set(Calendar.DAY_OF_MONTH, min(dynamicSalaryDay, maxDayThisMonth))
+            } else {
+                nextPaydayCal.add(Calendar.MONTH, 1)
+                val maxDayNextMonth = nextPaydayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+                nextPaydayCal.set(Calendar.DAY_OF_MONTH, min(dynamicSalaryDay, maxDayNextMonth))
+            }
+
+            val diffPaydayMillis = nextPaydayCal.timeInMillis - todayMidnight.timeInMillis
+            val daysUntilUpcomingSalary = max(1L, diffPaydayMillis / (24 * 60 * 60 * 1000L)).toInt()
+
+            // 7. HISTORICAL BASELINE VELOCITY
+            val historicalMonthsSpend = allTimeTxs.filter { it.type == TransactionType.EXPENSE }
+                .groupBy { "${it.year}-${it.month}" }
+                .values
+                .map { it.sumOf { tx -> tx.amount } }
+                .filter { it > 0.0 }
+
+            val historicalAvgSpend = if (historicalMonthsSpend.isNotEmpty()) {
+                historicalMonthsSpend.average()
+            } else {
+                if (plannedExpenses > 0.0) plannedExpenses else profile.baseMonthlyIncome.coerceAtLeast(0.0)
+            }
+
+            val livingBufferTarget = max(historicalAvgSpend, plannedExpenses.takeIf { it > 0.0 } ?: profile.baseMonthlyIncome.coerceAtLeast(0.0))
+            val dailyBurnVelocity = livingBufferTarget / 30.0
+            val runwayProtectionUntilSalary = dailyBurnVelocity * daysUntilUpcomingSalary
+
+            // 8. OPTION 2: PURE GUILT-FREE SAFE-TO-SPEND (ANCHORED TO LIQUID POOL)
+            val isFortressAccount = { acc: AccountBalanceResult ->
+                acc.accountType.equals("Fortress", ignoreCase = true) ||
+                acc.accountName.contains("FORTRESS", ignoreCase = true) ||
+                acc.accountName.contains("TERTIARY", ignoreCase = true)
+            }
+
+            val liquidPoolAccounts = activeAccounts.filter { !isFortressAccount(it) }
+
+            val totalLiquidAboveMab = liquidPoolAccounts.sumOf {
+                (it.currentBalance - it.minBalance).coerceAtLeast(0.0)
+            }.coerceAtLeast(0.0)
+
+            val pendingFixedBills = allFixedCommitments.filter { bill ->
+                !bill.isPaid &&
+                bill.type != TransactionType.INCOME &&
+                !(bill.type == TransactionType.CORPORATE && bill.category.equals("Reimbursements & Claims", ignoreCase = true))
+            }.sumOf { it.amount }
+
+            val option2SafeToSpend = (totalLiquidAboveMab - pendingFixedBills - excessAdvanceHeld - runwayProtectionUntilSalary)
+                .coerceAtLeast(0.0)
+
+            val personalDiscretionaryExpenses = regularTxs.filter { tx ->
+                tx.type == TransactionType.EXPENSE && tx.linkedFixedBillId == null
+            }.sumOf { it.amount }
+
+            val rawTheoreticalSafeToSpend = baseIncome - totalPendingCommitments - personalDiscretionaryExpenses
+            val theoreticalSafeToSpend = if (baseIncome > 0) rawTheoreticalSafeToSpend.coerceAtLeast(0.0) else 0.0
+
+            val safeToSpendPercentage = if (totalLiquidAboveMab > 0.0) {
+                ((option2SafeToSpend / totalLiquidAboveMab) * 100).toInt().coerceIn(0, 100)
+            } else 0
+
+            val isOverBudget = rawTheoreticalSafeToSpend < 0.0 || (plannedExpenses > 0 && lifestyleExpenses > plannedExpenses)
+            val netSaved = (personalIncome - lifestyleExpenses) - actualSavingsAndInvestments
+            val totalVault = allAccounts.sumOf { it.currentBalance }
+            val dailyPoints = calculateDailySparklinePoints(regularTxs, month, year)
+
+            // 9. COMMITMENTS SHORTFALL ENGINE
             val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
             val commitmentAccounts = activeAccounts.filter {
                 it.accountType.equals("Commitments", ignoreCase = true)
@@ -504,7 +601,7 @@ class BudgetViewModel(
             var totalCommitmentsBalance = 0.0
             var totalCommitmentsRequiredBuffer = 0.0
             var earliestDueDay: Int? = null
-            var affectedAccountNames = mutableListOf<String>()
+            val affectedAccountNames = mutableListOf<String>()
 
             commitmentAccounts.forEach { acc ->
                 val accBills = fixedBills.filter { bill ->
@@ -548,102 +645,11 @@ class BudgetViewModel(
                 affectedAccountsCount = affectedAccountNames.size
             )
 
-            // 7. SAFE-TO-SPEND ENGINE (VAULT-ROLE SEGREGATED)
-            val personalDiscretionaryExpenses = regularTxs.filter { tx ->
-                tx.type == TransactionType.EXPENSE && tx.linkedFixedBillId == null
-            }.sumOf { it.amount }
-
-            val rawTheoreticalSafeToSpend = baseIncome - totalPendingCommitments - personalDiscretionaryExpenses
-            val theoreticalSafeToSpend = if (baseIncome > 0) rawTheoreticalSafeToSpend.coerceAtLeast(0.0) else 0.0
-
-            val isFortressAccount = { acc: AccountBalanceResult ->
-                acc.accountType.equals("Fortress", ignoreCase = true) ||
-                acc.accountName.contains("FORTRESS", ignoreCase = true) ||
-                acc.accountName.contains("TERTIARY", ignoreCase = true)
-            }
-
-            val isOperatingOrCashAccount = { acc: AccountBalanceResult ->
-                acc.accountType.equals("Operating", ignoreCase = true) ||
-                acc.accountType.equals("Cash", ignoreCase = true) ||
-                acc.accountName.contains("OPERATING", ignoreCase = true) ||
-                acc.accountName.contains("PRIMARY", ignoreCase = true) ||
-                acc.accountName.contains("CASH", ignoreCase = true)
-            }
-
-            val availableCashFloor: Double
-
-            if (is3VaultMode) {
-                // In 3-Vault mode, daily lifestyle spending comes strictly from Operating & Cash vaults
-                val operatingAccounts = activeAccounts.filter(isOperatingOrCashAccount)
-                val operatingCashAboveMab = operatingAccounts.sumOf {
-                    (it.currentBalance - it.minBalance).coerceAtLeast(0.0)
-                }.coerceAtLeast(0.0)
-
-                // Bills scheduled to be debited directly from Operating / Cash accounts
-                val pendingBillsOnOperating = allFixedCommitments.filter { bill ->
-                    !bill.isPaid && (
-                        bill.accountName.isBlank() ||
-                        operatingAccounts.any { it.accountName.equals(bill.accountName, ignoreCase = true) }
-                    )
-                }.sumOf { it.amount }
-
-                // Ring-fence Operating bills + any Shortfall in Commitments + excess company advance held
-                val totalOperatingRingFence = pendingBillsOnOperating + totalCommitmentsShortfall + excessAdvanceHeld
-                availableCashFloor = (operatingCashAboveMab - totalOperatingRingFence).coerceAtLeast(0.0)
-            } else {
-                // In Simple mode, all liquid accounts (except Fortress) are pooled together
-                val liquidPoolAccounts = activeAccounts.filter { !isFortressAccount(it) }
-                val totalLiquidCash = liquidPoolAccounts.sumOf {
-                    (it.currentBalance - it.minBalance).coerceAtLeast(0.0)
-                }.coerceAtLeast(0.0)
-
-                availableCashFloor = (totalLiquidCash - pendingFixedCommitments - excessAdvanceHeld).coerceAtLeast(0.0)
-            }
-
-            val realSafeToSpend = if (baseIncome > 0.0) {
-                min(theoreticalSafeToSpend, availableCashFloor)
-            } else {
-                availableCashFloor
-            }
-
-            val safeToSpendPercentage = if (baseIncome > 0.0) {
-                ((realSafeToSpend / baseIncome) * 100).toInt().coerceIn(0, 100)
-            } else 0
-
-            val isOverBudget = rawTheoreticalSafeToSpend < 0.0 || (plannedExpenses > 0 && lifestyleExpenses > plannedExpenses)
-            val netSaved = (personalIncome - lifestyleExpenses) - actualSavingsAndInvestments
-            val totalVault = allAccounts.sumOf { it.currentBalance }
-
-            val dailyPoints = calculateDailySparklinePoints(regularTxs, month, year)
-
-            // 8. PAYDAY ALLOCATION & MONTH-END SWEEP ENGINES (NEUTRAL DYNAMIC BASELINE)
-            val currentDay = todayCal.get(Calendar.DAY_OF_MONTH)
+            // 10. PAYDAY ALLOCATION & MONTH-END SWEEP ENGINES
             val totalDaysInCurrentMonth = todayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
             val isCurrentSystemMonth = (month == sysMonth) && (year == sysYear)
 
-            val historicalMonthsSpend = allTimeTxs.filter { it.type == TransactionType.EXPENSE }
-                .groupBy { "${it.year}-${it.month}" }
-                .values
-                .map { it.sumOf { tx -> tx.amount } }
-                .filter { it > 0.0 }
-
-            val historicalAvgSpend = if (historicalMonthsSpend.isNotEmpty()) {
-                historicalMonthsSpend.average()
-            } else {
-                if (plannedExpenses > 0.0) plannedExpenses else profile.baseMonthlyIncome.coerceAtLeast(0.0)
-            }
-
-            val livingBufferTarget = max(historicalAvgSpend, plannedExpenses.takeIf { it > 0.0 } ?: profile.baseMonthlyIncome.coerceAtLeast(0.0))
-
-            val salaryTx = regularTxs.find {
-                it.type == TransactionType.INCOME &&
-                it.category.equals("Salary & Professional Inflow", ignoreCase = true)
-            }
-
-            val dynamicSalaryDay = salaryTx?.let {
-                val c = Calendar.getInstance().apply { timeInMillis = it.date }
-                c.get(Calendar.DAY_OF_MONTH)
-            } ?: 1
+            val salaryTx = currentMonthSalaryTx
 
             val isPaydayAllocated = transactions.any { tx ->
                 tx.type == TransactionType.TRANSFER &&
@@ -689,7 +695,15 @@ class BudgetViewModel(
                 )
             } else null
 
-            val isMonthEndWindow = currentDay >= 28 && isCurrentSystemMonth
+            val isMonthEndWindow = currentDayOfMonth >= 28 && isCurrentSystemMonth
+
+            val isOperatingOrCashAccount = { acc: AccountBalanceResult ->
+                acc.accountType.equals("Operating", ignoreCase = true) ||
+                acc.accountType.equals("Cash", ignoreCase = true) ||
+                acc.accountName.contains("OPERATING", ignoreCase = true) ||
+                acc.accountName.contains("PRIMARY", ignoreCase = true) ||
+                acc.accountName.contains("CASH", ignoreCase = true)
+            }
 
             val operatingAccountsList = activeAccounts.filter(isOperatingOrCashAccount)
 
@@ -706,7 +720,7 @@ class BudgetViewModel(
             val maxDaysInNextMonth = nextMonthCal.getActualMaximum(Calendar.DAY_OF_MONTH)
             val targetNextPayday = min(dynamicSalaryDay, maxDaysInNextMonth)
 
-            val daysLeftInCurrentMonth = max(0, totalDaysInCurrentMonth - currentDay)
+            val daysLeftInCurrentMonth = max(0, totalDaysInCurrentMonth - currentDayOfMonth)
             val runwayDays = daysLeftInCurrentMonth + targetNextPayday
             val dailyBurn = livingBufferTarget / 30.0
             val runwayBuffer = runwayDays * dailyBurn
@@ -730,7 +744,7 @@ class BudgetViewModel(
                 )
             } else null
 
-            // 9. FORTRESS DUAL-TARGET ENGINE
+            // 11. FORTRESS DUAL-TARGET ENGINE
             val fortressVaultAccount = allAccounts.find { isFortressAccount(it) }
             val fortressTotalBalance = fortressVaultAccount?.currentBalance ?: 0.0
             val currentFdReserve = max(0.0, fortressTotalBalance - profile.fortressSweepThreshold)
@@ -772,9 +786,9 @@ class BudgetViewModel(
                     plannedAssets = plannedAssets,
                     actualAssets = actualAssets,
                     fixedCommitmentsTotal = fixedExpenseTotal,
-                    safeToSpend = realSafeToSpend,
+                    safeToSpend = option2SafeToSpend,
                     theoreticalSafeToSpend = theoreticalSafeToSpend,
-                    liquidOperatingCash = availableCashFloor,
+                    liquidOperatingCash = (totalLiquidAboveMab - pendingFixedBills - excessAdvanceHeld).coerceAtLeast(0.0),
                     safeToSpendPercentage = safeToSpendPercentage,
                     netSavedAfterInvest = netSaved,
                     totalVaultBalance = totalVault,
@@ -784,7 +798,9 @@ class BudgetViewModel(
                     corporateReimbursements = corporateReimbursements,
                     pendingReimbursement = cumulativePending,
                     lifestyleExpenses = lifestyleExpenses,
-                    personalIncome = personalIncome
+                    personalIncome = personalIncome,
+                    daysUntilPayday = daysUntilUpcomingSalary,
+                    nextPaydayDay = dynamicSalaryDay
                 ),
                 accounts = allAccounts,
                 activeAccounts = activeAccounts,
