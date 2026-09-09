@@ -19,7 +19,7 @@ import java.util.Calendar
         BudgetPlanEntity::class,
         UserProfile::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -63,6 +63,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Corporate float reconciliation fields
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN initialReimbursementClaim REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN initialCompanyAdvance REAL NOT NULL DEFAULT 0.0")
+
+                // 2. Index on FixedBillEntity.isPaid
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_fixed_bills_isPaid ON fixed_bills(isPaid)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -70,7 +81,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "myfin_vault.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigration()
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
@@ -124,10 +135,16 @@ abstract class AppDatabase : RoomDatabase() {
                                     )
                                 }
 
-                                // 4. Stamp active transition window if uninitialized
+                                // 4. Initialize default user profile if absent and stamp transition window
                                 val cal = Calendar.getInstance()
                                 val curMonth = cal.get(Calendar.MONTH) + 1
                                 val curYear = cal.get(Calendar.YEAR)
+
+                                db.execSQL("""
+                                    INSERT OR IGNORE INTO user_profile (id, displayName, taxonomyGraceMonth, taxonomyGraceYear)
+                                    VALUES (1, 'Admin Vault', $curMonth, $curYear)
+                                """)
+
                                 db.execSQL("""
                                     UPDATE user_profile 
                                     SET taxonomyGraceMonth = $curMonth, 
@@ -137,7 +154,6 @@ abstract class AppDatabase : RoomDatabase() {
 
                                 db.setTransactionSuccessful()
                             } finally {
-                    
                                 db.endTransaction()
                             }
                         }
