@@ -32,7 +32,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -675,7 +674,7 @@ fun MonthlyScreen(
                                                                     .padding(vertical = 2.dp, horizontal = 2.dp)
                                                             ) {
                                                                 Box(
-                                                                    modifier = Modifier
+                                                                  modifier = Modifier
                                                                         .size(7.dp)
                                                                         .clip(CircleShape)
                                                                         .background(statusColor)
@@ -799,17 +798,17 @@ fun MonthlyScreen(
                                             val plannedExpenses = uiState.metrics.plannedExpenses
                                             val actualExpenses = uiState.metrics.actualExpenses
                                             val expDiff = actualExpenses - plannedExpenses
-                                            val expFraction = if (plannedExpenses > 0) (actualExpenses / plannedExpenses).toFloat().coerceIn(0f, 1f) else 1f
+                                            val expFraction = if (plannedExpenses > 0) (actualExpenses / plannedExpenses).toFloat().coerceIn(0f, 1f) else if (actualExpenses > 0) 1f else 0f
 
                                             val plannedIncome = uiState.metrics.plannedIncome
                                             val actualIncome = uiState.metrics.actualIncome
                                             val incDiff = actualIncome - plannedIncome
-                                            val incFraction = if (plannedIncome > 0) (actualIncome / plannedIncome).toFloat().coerceIn(0f, 1f) else 1f
+                                            val incFraction = if (plannedIncome > 0) (actualIncome / plannedIncome).toFloat().coerceIn(0f, 1f) else if (actualIncome > 0) 1f else 0f
 
                                             val plannedAssets = uiState.metrics.plannedAssets
                                             val actualAssets = uiState.metrics.actualAssets
                                             val astDiff = actualAssets - plannedAssets
-                                            val astFraction = if (plannedAssets > 0) (actualAssets / plannedAssets).toFloat().coerceIn(0f, 1f) else 1f
+                                            val astFraction = if (plannedAssets > 0) (actualAssets / plannedAssets).toFloat().coerceIn(0f, 1f) else if (actualAssets > 0) 1f else 0f
 
                                             Surface(
                                                 modifier = Modifier
@@ -1245,9 +1244,12 @@ fun MonthlyScreen(
                                     val actualAssets = uiState.metrics.actualAssets
                                     val netSavings = uiState.metrics.netSavedAfterInvest
                                     val currentEndBalance = uiState.metrics.totalVaultBalance
-                                    val monthMovement = actualIncome - actualExpenses - actualAssets
+                                    val monthMovement = (actualIncome + uiState.metrics.corporateReimbursements) -
+                                            (actualExpenses + actualAssets + uiState.metrics.workExpenses)
                                     val startBalance = currentEndBalance - monthMovement
-                                    val savingsRatePct = if (actualIncome > 0) ((netSavings / actualIncome) * 100).toInt() else 0
+                                    val savingsRatePct = if (actualIncome > 0) {
+                                        ((netSavings / actualIncome) * 100).toInt().coerceIn(-100, 100)
+                                    } else 0
 
                                     Surface(
                                         modifier = Modifier
@@ -1392,9 +1394,9 @@ fun MonthlyScreen(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .shadow(3.dp, RoundedCornerShape(22.dp)),
-                                            shape = RoundedCornerShape(22.dp),
-                                            color = CardWhite,
-                                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+                                                shape = RoundedCornerShape(22.dp),
+                                                color = CardWhite,
+                                                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
                                         ) {
                                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
                                                 activeMatrix.forEachIndexed { index, cat ->
@@ -1746,12 +1748,14 @@ fun MonthlyScreen(
                                 }
                             }
 
+                            // Commitments total must only include outflows and transfers, never incoming paychecks
                             val pendingCommitmentsTotal = remember(filteredBills) {
-                                filteredBills.filter { !it.isPaid }.sumOf { it.amount }
+                                filteredBills.filter { !it.isPaid && it.type != TransactionType.INCOME }.sumOf { it.amount }
                             }
 
+                            // Overdue alerts must only count payable commitments, never expected receivables
                             val overdueCount = remember(filteredBills, currentDayOfMonth) {
-                                filteredBills.count { !it.isPaid && it.dueDay != null && it.dueDay!! < currentDayOfMonth }
+                                filteredBills.count { !it.isPaid && it.type != TransactionType.INCOME && it.dueDay != null && it.dueDay!! < currentDayOfMonth }
                             }
                             val hasOverdue = overdueCount > 0
 
@@ -2174,7 +2178,9 @@ fun MonthlyScreen(
                 activeAccounts.find { it.accountName.equals(bill.accountName, ignoreCase = true) }
             }
             val amt = finalAmountText.toDoubleOrNull() ?: bill.amount
-            val willBreachMab = fundingAccount != null && fundingAccount.minBalance > 0.0 &&
+            val willBreachMab = bill.type != TransactionType.INCOME &&
+                    !bill.category.equals("Reimbursements & Claims", ignoreCase = true) &&
+                    fundingAccount != null && fundingAccount.minBalance > 0.0 &&
                     (fundingAccount.currentBalance - amt) < fundingAccount.minBalance
 
             val descPrompt = when (bill.type) {
