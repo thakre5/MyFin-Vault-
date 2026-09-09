@@ -93,8 +93,8 @@ private fun getVaultTier(accountType: String, accountName: String): VaultTier {
             val name = accountName.uppercase()
             when {
                 name.contains("CASH") || name.contains("WALLET") -> VaultTier.CASH
-                name.contains("COMMITMENT") || name.contains("BILL") || name.contains("BOM") || name.contains("EMI") -> VaultTier.COMMITMENTS
-                name.contains("FORTRESS") || name.contains("EMERGENCY") || name.contains("FD") || name.contains("RESERVE") || name.contains("INDUSIND") -> VaultTier.FORTRESS
+                name.contains("COMMITMENT") || name.contains("BILL") || name.contains("EMI") -> VaultTier.COMMITMENTS
+                name.contains("FORTRESS") || name.contains("EMERGENCY") || name.contains("FD") || name.contains("RESERVE") -> VaultTier.FORTRESS
                 else -> VaultTier.OPERATING
             }
         }
@@ -114,7 +114,6 @@ fun VaultStrategyScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.monthlyUiState.collectAsState()
-    val yearlyState by viewModel.yearlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val avgMonthlySpend by viewModel.averageMonthlySpend.collectAsState()
 
@@ -185,12 +184,11 @@ fun VaultStrategyScreen(
         (emergencyTarget - fortressFd).coerceAtLeast(0.0)
     }
 
-    // Unfiltered transaction stream for the active month
-    val activeAccountTxs = remember(yearlyState.allYearTransactions, uiState.selectedMonth, uiState.selectedYear, activeAccount?.accountName) {
+    // Complete transaction stream for the active month (including transfers & corporate float)
+    val activeAccountTxs = remember(uiState.groupedTransactions, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
-        yearlyState.allYearTransactions.filter { tx ->
-            tx.month == uiState.selectedMonth && tx.year == uiState.selectedYear &&
-            (tx.accountName.equals(name, ignoreCase = true) || tx.toAccountName.equals(name, ignoreCase = true))
+        uiState.groupedTransactions.values.flatten().filter { tx ->
+            tx.accountName.equals(name, ignoreCase = true) || tx.toAccountName?.equals(name, ignoreCase = true) == true
         }
     }
 
@@ -969,6 +967,7 @@ fun VaultStrategyScreen(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
+                                val hasAnyOutflow = (activeExpenses + activeAssets + totalPendingBillsAmount + activeTransfersOut + activeCorporateOutlays) > 0.0
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -976,12 +975,22 @@ fun VaultStrategyScreen(
                                         .clip(CircleShape)
                                         .background(CanvasLight)
                                 ) {
-                                    val totalOut = (activeExpenses + activeAssets + totalPendingBillsAmount + activeTransfersOut + activeCorporateOutlays).coerceAtLeast(1.0)
-                                    Box(modifier = Modifier.weight(((activeExpenses + activeAssets) / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(Color(0xFFE57A28)))
-                                    Box(modifier = Modifier.weight((totalPendingBillsAmount / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(AccentPurple))
-                                    Box(modifier = Modifier.weight(((activeTransfersOut + 1.0) / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(SoftTeal))
-                                    if (activeCorporateOutlays > 0.0) {
-                                        Box(modifier = Modifier.weight((activeCorporateOutlays / totalOut).toFloat().coerceIn(0.05f, 0.95f)).fillMaxHeight().background(Color(0xFFD97706)))
+                                    if (!hasAnyOutflow) {
+                                        Box(modifier = Modifier.fillMaxSize().background(BorderLight.copy(alpha = 0.5f)))
+                                    } else {
+                                        val totalOut = (activeExpenses + activeAssets + totalPendingBillsAmount + activeTransfersOut + activeCorporateOutlays).coerceAtLeast(1.0)
+                                        if (activeExpenses + activeAssets > 0.0) {
+                                            Box(modifier = Modifier.weight(((activeExpenses + activeAssets) / totalOut).toFloat().coerceAtLeast(0.05f)).fillMaxHeight().background(Color(0xFFE57A28)))
+                                        }
+                                        if (totalPendingBillsAmount > 0.0) {
+                                            Box(modifier = Modifier.weight((totalPendingBillsAmount / totalOut).toFloat().coerceAtLeast(0.05f)).fillMaxHeight().background(AccentPurple))
+                                        }
+                                        if (activeTransfersOut > 0.0) {
+                                            Box(modifier = Modifier.weight((activeTransfersOut / totalOut).toFloat().coerceAtLeast(0.05f)).fillMaxHeight().background(SoftTeal))
+                                        }
+                                        if (activeCorporateOutlays > 0.0) {
+                                            Box(modifier = Modifier.weight((activeCorporateOutlays / totalOut).toFloat().coerceAtLeast(0.05f)).fillMaxHeight().background(Color(0xFFD97706)))
+                                        }
                                     }
                                 }
 
