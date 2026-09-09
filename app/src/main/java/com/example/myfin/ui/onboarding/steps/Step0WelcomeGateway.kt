@@ -241,21 +241,29 @@ fun OnboardingStep0WelcomeGateway(
         label = "restoreHeight"
     )
 
-    val totalLiquidBalance = remember(accounts.map { it.initialBalanceText }) {
-        accounts.sumOf { it.initialBalanceText.toDoubleOrNull() ?: 0.0 }
+    val totalLiquidBalance by remember {
+        derivedStateOf {
+            accounts.sumOf { it.initialBalanceText.toDoubleOrNull() ?: 0.0 }
+        }
     }
 
-    val totalIncome = remember(commitments.map { it.isSelected to it.amountText }) {
-        commitments.filter { it.isSelected && it.type == TransactionType.INCOME }
-            .sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
+    val totalIncome by remember {
+        derivedStateOf {
+            commitments.filter { it.isSelected && it.type == TransactionType.INCOME }
+                .sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
+        }
     }
-    val totalExpenses = remember(commitments.map { it.isSelected to it.amountText }) {
-        commitments.filter { it.isSelected && it.type == TransactionType.EXPENSE }
-            .sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
+    val totalExpenses by remember {
+        derivedStateOf {
+            commitments.filter { it.isSelected && it.type == TransactionType.EXPENSE }
+                .sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
+        }
     }
-    val totalAssets = remember(commitments.map { it.isSelected to it.amountText }) {
-        commitments.filter { it.isSelected && it.type == TransactionType.ASSET }
-            .sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
+    val totalAssets by remember {
+        derivedStateOf {
+            commitments.filter { it.isSelected && it.type == TransactionType.ASSET }
+                .sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
+        }
     }
 
     Box(
@@ -873,7 +881,7 @@ fun OnboardingStep0WelcomeGateway(
                                             color = TextDark
                                         )
                                         Text(
-                                            text = "${selectedCountry.currencySymbol} %,.2f".format(totalLiquidBalance),
+                                            text = "${selectedCountry.currencySymbol} ${String.format(Locale.US, "%,.2f", totalLiquidBalance)}",
                                             fontSize = 14.5.sp,
                                             fontWeight = FontWeight.Black,
                                             color = AccentPurple
@@ -1044,7 +1052,7 @@ fun OnboardingStep0WelcomeGateway(
                                                                     color = TextDark,
                                                                     textAlign = TextAlign.End
                                                                 ),
-                                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                                                 cursorBrush = SolidColor(AccentPurple),
                                                                 modifier = Modifier.fillMaxWidth()
                                                             )
@@ -1178,7 +1186,7 @@ fun OnboardingStep0WelcomeGateway(
                                             Column(verticalArrangement = Arrangement.Center) {
                                                 Text("Inflow", fontSize = 8.5.sp, fontWeight = FontWeight.Medium, color = TextMuted, lineHeight = 9.sp)
                                                 Text(
-                                                    text = "${selectedCountry.currencySymbol} %,.0f".format(totalIncome),
+                                                    text = "${selectedCountry.currencySymbol} ${String.format(Locale.US, "%,.0f", totalIncome)}",
                                                     fontSize = 11.5.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color(0xFF10B981),
@@ -1204,7 +1212,7 @@ fun OnboardingStep0WelcomeGateway(
                                             Column(verticalArrangement = Arrangement.Center) {
                                                 Text("Outflow", fontSize = 8.5.sp, fontWeight = FontWeight.Medium, color = TextMuted, lineHeight = 9.sp)
                                                 Text(
-                                                    text = "${selectedCountry.currencySymbol} %,.0f".format(totalExpenses),
+                                                    text = "${selectedCountry.currencySymbol} ${String.format(Locale.US, "%,.0f", totalExpenses)}",
                                                     fontSize = 11.5.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color(0xFFF43F5E),
@@ -1230,7 +1238,7 @@ fun OnboardingStep0WelcomeGateway(
                                             Column(verticalArrangement = Arrangement.Center) {
                                                 Text("Assets", fontSize = 8.5.sp, fontWeight = FontWeight.Medium, color = TextMuted, lineHeight = 9.sp)
                                                 Text(
-                                                    text = "${selectedCountry.currencySymbol} %,.0f".format(totalAssets),
+                                                    text = "${selectedCountry.currencySymbol} ${String.format(Locale.US, "%,.0f", totalAssets)}",
                                                     fontSize = 11.5.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = AccentPurple,
@@ -1393,7 +1401,7 @@ fun OnboardingStep0WelcomeGateway(
                                                                     color = TextDark,
                                                                     textAlign = TextAlign.End
                                                                 ),
-                                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                                                 cursorBrush = SolidColor(AccentPurple),
                                                                 modifier = Modifier.fillMaxWidth()
                                                             )
@@ -1668,13 +1676,13 @@ fun OnboardingStep0WelcomeGateway(
 
                         OutlinedTextField(
                             value = customMabText,
-                            onValueChange = { customMabText = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                            onValueChange = { customMabText = sanitizeDecimalInput(it) },
                             label = { Text("Custom MAB (${selectedCountry.currencySymbol})", fontSize = 12.sp) },
                             singleLine = true,
                             textStyle = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = AccentPurple,
                                 unfocusedBorderColor = BorderLight
