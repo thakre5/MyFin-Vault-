@@ -54,7 +54,8 @@ data class AccountEntity(
         Index(value = ["title", "month", "year"]),
         Index(value = ["month", "year"]),
         Index(value = ["accountName"]),
-        Index(value = ["category"])
+        Index(value = ["category"]),
+        Index(value = ["isPaid"])
     ]
 )
 data class FixedBillEntity(
@@ -116,5 +117,9 @@ data class UserProfile(
     // Master Taxonomy Lifecycle Window
     val taxonomyGraceMonth: Int = -1,          // -1 = uninitialized; stamped on first run after update
     val taxonomyGraceYear: Int = -1,           // -1 = uninitialized; stamped on first run after update
-    val isTaxonomyBannerDismissed: Boolean = false
+    val isTaxonomyBannerDismissed: Boolean = false,
+
+    // Opening Corporate Float Reconciliation
+    val initialReimbursementClaim: Double = 0.0, // Historical out-of-pocket claims owed by company before onboarding
+    val initialCompanyAdvance: Double = 0.0       // Unspent corporate advance cash held by user before onboarding
 )
