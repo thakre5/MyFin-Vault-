@@ -147,7 +147,8 @@ data class DashboardMetrics(
     val lifestyleExpenses: Double = 0.0,
     val personalIncome: Double = 0.0,
     val daysUntilPayday: Int = 0,
-    val nextPaydayDay: Int = 1
+    val nextPaydayDay: Int = 1,
+    val isSalaryDelayed: Boolean = false
 ) {
     val totalAssetAllocated: Double get() = actualAssets
     val personalBurn: Double get() = lifestyleExpenses
@@ -298,7 +299,6 @@ class BudgetViewModel(
             val sysMonth = todayCal.get(Calendar.MONTH) + 1
             val sysYear = todayCal.get(Calendar.YEAR)
 
-            // MASTER TAXONOMY GRACE ENGINE
             val isGracePeriodActive = (profile.taxonomyGraceYear == sysYear && profile.taxonomyGraceMonth == sysMonth)
             val isTaxonomyBannerVisible = isGracePeriodActive && !profile.isTaxonomyBannerDismissed
 
@@ -314,7 +314,6 @@ class BudgetViewModel(
                 masterSubcats.filter { !it.isLegacy }
             }
 
-            // 1. RECENT-HABITS FREQUENCY ENGINE (LAST 90 DAYS WEIGHTED)
             val ninetyDaysAgo = System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000L
 
             val categoryScores = mutableMapOf<String, Int>()
@@ -345,7 +344,6 @@ class BudgetViewModel(
                 }.thenBy { it.name }
             )
 
-            // 2. DASHBOARD ACCOUNTS PRESERVE DRAG-AND-DROP ORDER
             val activeAccounts = allAccounts.filter { !it.isArchived }.sortedBy { it.sortOrder }
             val archivedAccounts = allAccounts.filter { it.isArchived }.sortedBy { it.sortOrder }
 
@@ -356,7 +354,6 @@ class BudgetViewModel(
 
             val regularTxs = transactions.filter { it.type != TransactionType.TRANSFER }
 
-            // 3. FLOW METRICS (SEGREGATED BY ENUM)
             val actualIncome = regularTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
             val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
             val actualAssets = regularTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
@@ -432,7 +429,6 @@ class BudgetViewModel(
 
             val actualSavingsAndInvestments = regularTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
 
-            // 4. CATEGORY MATRIX ENGINE
             val allCategoryNames = (sortedMasterCats.map { it.name to it.type } +
                     plans.map { it.category to it.type } +
                     fixedBills.map { it.category to it.type } +
@@ -479,7 +475,6 @@ class BudgetViewModel(
             val plannedExpenses = matrixList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.plannedAmount }
             val plannedAssets = matrixList.filter { it.type == TransactionType.ASSET }.sumOf { it.plannedAmount }
 
-            // 5. RECURRING COMMITMENTS ENGINE
             val allFixedCommitments = fixedBills.filter {
                 it.type == TransactionType.EXPENSE || it.type == TransactionType.TRANSFER
             }
@@ -495,16 +490,21 @@ class BudgetViewModel(
                 else -> 0.0
             }
 
-            // 6. DYNAMIC SALARY DAY & DAYS UNTIL UPCOMING PAYDAY
-            val currentMonthSalaryTx = regularTxs.find {
+            // =========================================================================
+            // 6. DYNAMIC PRIMARY SALARY DETECTION & PAYDAY GRACE PERIOD ENGINE
+            // =========================================================================
+            val salaryTxsInCurrentMonth = regularTxs.filter {
                 it.type == TransactionType.INCOME &&
                 it.category.equals("Salary & Professional Inflow", ignoreCase = true)
             }
+            // Pick largest salary transaction to avoid bonuses/freelance splits hijacking the date
+            val currentMonthSalaryTx = salaryTxsInCurrentMonth.maxByOrNull { it.amount }
 
-            val lastKnownSalaryTx = currentMonthSalaryTx ?: allTimeTxs.filter {
+            val historicalSalaryTxs = allTimeTxs.filter {
                 it.type == TransactionType.INCOME &&
                 it.category.equals("Salary & Professional Inflow", ignoreCase = true)
-            }.maxByOrNull { it.date }
+            }
+            val lastKnownSalaryTx = currentMonthSalaryTx ?: historicalSalaryTxs.maxByOrNull { it.date }
 
             val dynamicSalaryDay = lastKnownSalaryTx?.let {
                 val c = Calendar.getInstance().apply { timeInMillis = it.date }
@@ -518,24 +518,56 @@ class BudgetViewModel(
                 set(Calendar.MILLISECOND, 0)
             }
             val currentDayOfMonth = todayMidnight.get(Calendar.DAY_OF_MONTH)
+            val isCurrentSystemMonth = (month == sysMonth) && (year == sysYear)
+            val isPastMonth = (year < sysYear) || (year == sysYear && month < sysMonth)
 
-            val nextPaydayCal = Calendar.getInstance().apply {
-                timeInMillis = todayMidnight.timeInMillis
-            }
+            var isSalaryDelayed = false
+            val daysUntilUpcomingSalary: Int
 
-            if (currentDayOfMonth < dynamicSalaryDay) {
-                val maxDayThisMonth = nextPaydayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
-                nextPaydayCal.set(Calendar.DAY_OF_MONTH, min(dynamicSalaryDay, maxDayThisMonth))
+            if (isPastMonth) {
+                daysUntilUpcomingSalary = 0
+            } else if (!isCurrentSystemMonth) {
+                // Future planned months: assume standard 30-day runway
+                daysUntilUpcomingSalary = 30
             } else {
-                nextPaydayCal.add(Calendar.MONTH, 1)
-                val maxDayNextMonth = nextPaydayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
-                nextPaydayCal.set(Calendar.DAY_OF_MONTH, min(dynamicSalaryDay, maxDayNextMonth))
+                if (currentMonthSalaryTx != null) {
+                    // Salary for current month has already arrived! Target NEXT month's payday.
+                    val nextPaydayCal = Calendar.getInstance().apply {
+                        timeInMillis = todayMidnight.timeInMillis
+                        add(Calendar.MONTH, 1)
+                        val maxDayNextMonth = getActualMaximum(Calendar.DAY_OF_MONTH)
+                        set(Calendar.DAY_OF_MONTH, min(dynamicSalaryDay, maxDayNextMonth))
+                    }
+                    val diffMillis = nextPaydayCal.timeInMillis - todayMidnight.timeInMillis
+                    daysUntilUpcomingSalary = max(1L, diffMillis / (24 * 60 * 60 * 1000L)).toInt()
+                } else {
+                    // Salary for current month has NOT arrived yet.
+                    if (currentDayOfMonth <= dynamicSalaryDay) {
+                        // Payday is upcoming this month
+                        daysUntilUpcomingSalary = max(1, dynamicSalaryDay - currentDayOfMonth)
+                    } else if (currentDayOfMonth <= dynamicSalaryDay + 4) {
+                        // 4-Day Grace Period: Weekend / Holiday payroll delay detected!
+                        // Do not lock a 30-day buffer; hold only 1-day burn cushion
+                        daysUntilUpcomingSalary = 1
+                        isSalaryDelayed = true
+                    } else {
+                        // More than 4 days overdue without logged salary: target next cycle
+                        val nextPaydayCal = Calendar.getInstance().apply {
+                            timeInMillis = todayMidnight.timeInMillis
+                            add(Calendar.MONTH, 1)
+                            val maxDayNextMonth = getActualMaximum(Calendar.DAY_OF_MONTH)
+                            set(Calendar.DAY_OF_MONTH, min(dynamicSalaryDay, maxDayNextMonth))
+                        }
+                        val diffMillis = nextPaydayCal.timeInMillis - todayMidnight.timeInMillis
+                        daysUntilUpcomingSalary = max(1L, diffMillis / (24 * 60 * 60 * 1000L)).toInt()
+                        isSalaryDelayed = true
+                    }
+                }
             }
 
-            val diffPaydayMillis = nextPaydayCal.timeInMillis - todayMidnight.timeInMillis
-            val daysUntilUpcomingSalary = max(1L, diffPaydayMillis / (24 * 60 * 60 * 1000L)).toInt()
-
-            // 7. HISTORICAL BASELINE VELOCITY
+            // =========================================================================
+            // 7. HISTORICAL BASELINE BURN VELOCITY
+            // =========================================================================
             val historicalMonthsSpend = allTimeTxs.filter { it.type == TransactionType.EXPENSE }
                 .groupBy { "${it.year}-${it.month}" }
                 .values
@@ -552,13 +584,16 @@ class BudgetViewModel(
             val dailyBurnVelocity = livingBufferTarget / 30.0
             val runwayProtectionUntilSalary = dailyBurnVelocity * daysUntilUpcomingSalary
 
-            // 8. OPTION 2: PURE GUILT-FREE SAFE-TO-SPEND (ANCHORED TO LIQUID POOL)
+            // =========================================================================
+            // 8. OPTION 2: PURE GUILT-FREE SAFE-TO-SPEND (LIQUID CAPITAL MINUS BUFFER)
+            // =========================================================================
             val isFortressAccount = { acc: AccountBalanceResult ->
                 acc.accountType.equals("Fortress", ignoreCase = true) ||
                 acc.accountName.contains("FORTRESS", ignoreCase = true) ||
                 acc.accountName.contains("TERTIARY", ignoreCase = true)
             }
 
+            // Accessible liquid pool (Operating + Commitments above MAB + Cash)
             val liquidPoolAccounts = activeAccounts.filter { !isFortressAccount(it) }
 
             val totalLiquidAboveMab = liquidPoolAccounts.sumOf {
@@ -590,7 +625,9 @@ class BudgetViewModel(
             val totalVault = allAccounts.sumOf { it.currentBalance }
             val dailyPoints = calculateDailySparklinePoints(regularTxs, month, year)
 
+            // =========================================================================
             // 9. COMMITMENTS SHORTFALL ENGINE
+            // =========================================================================
             val is3VaultMode = profile.vaultMode.contains("3", ignoreCase = true)
             val commitmentAccounts = activeAccounts.filter {
                 it.accountType.equals("Commitments", ignoreCase = true)
@@ -645,10 +682,10 @@ class BudgetViewModel(
                 affectedAccountsCount = affectedAccountNames.size
             )
 
+            // =========================================================================
             // 10. PAYDAY ALLOCATION & MONTH-END SWEEP ENGINES
+            // =========================================================================
             val totalDaysInCurrentMonth = todayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
-            val isCurrentSystemMonth = (month == sysMonth) && (year == sysYear)
-
             val salaryTx = currentMonthSalaryTx
 
             val isPaydayAllocated = transactions.any { tx ->
@@ -744,7 +781,9 @@ class BudgetViewModel(
                 )
             } else null
 
+            // =========================================================================
             // 11. FORTRESS DUAL-TARGET ENGINE
+            // =========================================================================
             val fortressVaultAccount = allAccounts.find { isFortressAccount(it) }
             val fortressTotalBalance = fortressVaultAccount?.currentBalance ?: 0.0
             val currentFdReserve = max(0.0, fortressTotalBalance - profile.fortressSweepThreshold)
@@ -800,7 +839,8 @@ class BudgetViewModel(
                     lifestyleExpenses = lifestyleExpenses,
                     personalIncome = personalIncome,
                     daysUntilPayday = daysUntilUpcomingSalary,
-                    nextPaydayDay = dynamicSalaryDay
+                    nextPaydayDay = dynamicSalaryDay,
+                    isSalaryDelayed = isSalaryDelayed
                 ),
                 accounts = allAccounts,
                 activeAccounts = activeAccounts,
