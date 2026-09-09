@@ -82,7 +82,6 @@ fun MonthlyScreen(
     val pageTitles = remember { listOf("Summary", "Ledger", "AutoPay") }
 
     var selectedMatrixType by remember { mutableStateOf(TransactionType.EXPENSE) }
-    var selectedTxFilterType by remember { mutableStateOf<TransactionType?>(null) }
 
     var isDiscreetMode by remember { mutableStateOf(false) }
     var showStsInfoSheet by remember { mutableStateOf(false) }
@@ -763,7 +762,6 @@ fun MonthlyScreen(
                                                             modifier = Modifier.weight(1f),
                                                             onClick = {
                                                                 coroutineScope.launch {
-                                                                    selectedTxFilterType = TransactionType.INCOME
                                                                     viewModel.updateFilter(TransactionType.INCOME, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
                                                                     pagerState.animateScrollToPage(1)
                                                                 }
@@ -787,7 +785,6 @@ fun MonthlyScreen(
                                                             modifier = Modifier.weight(1f),
                                                             onClick = {
                                                                 coroutineScope.launch {
-                                                                    selectedTxFilterType = TransactionType.ASSET
                                                                     viewModel.updateFilter(TransactionType.ASSET, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
                                                                     pagerState.animateScrollToPage(1)
                                                                 }
@@ -1565,14 +1562,13 @@ fun MonthlyScreen(
                                         TransactionType.CORPORATE to "Corporate",
                                         TransactionType.TRANSFER to "Transfers"
                                     ).forEach { (type, label) ->
-                                        val isSelected = selectedTxFilterType == type
+                                        val isSelected = filterCriteria.type == type
                                         Box(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(9.dp))
                                                 .background(if (isSelected) CardWhite else Color.Transparent)
                                                 .clickable {
-                                                    selectedTxFilterType = type
                                                     viewModel.updateFilter(type, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
                                                 }
                                                 .padding(vertical = 7.dp),
@@ -1665,7 +1661,6 @@ fun MonthlyScreen(
                                                         Spacer(modifier = Modifier.height(10.dp))
                                                         TextButton(
                                                             onClick = {
-                                                                selectedTxFilterType = null
                                                                 viewModel.resetFilters()
                                                             }
                                                         ) {
@@ -2527,11 +2522,9 @@ fun MonthlyScreen(
                 accountList = accountsList,
                 onDismiss = { showFilterSheet = false },
                 onApply = { type, acc, start, end ->
-                    selectedTxFilterType = type
                     viewModel.updateFilter(type, acc, start, end)
                 },
                 onReset = {
-                    selectedTxFilterType = null
                     viewModel.resetFilters()
                 }
             )
