@@ -97,6 +97,7 @@ fun SettingsScreen(
     val avgMonthlySpend by viewModel.averageMonthlySpend.collectAsState()
 
     var activeSheet by rememberSaveable { mutableStateOf(initialActiveSheet) }
+    var showCorporateFloatSheet by remember { mutableStateOf(false) }
     var expandedSection by rememberSaveable { mutableStateOf(SettingsAccordionSection.NONE) }
     var avatarRefreshKey by remember { mutableStateOf(0L) }
 
@@ -442,6 +443,14 @@ fun SettingsScreen(
                 // Strategy & Architecture
                 val autoSweepLimit = userProfile.fortressSweepThreshold
                 val fortressTarget = monthlyUiState.fortressTarget
+                val floatSummary = when {
+                    userProfile.initialCompanyAdvance > 0.0 ->
+                        "Advance: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.initialCompanyAdvance)}"
+                    userProfile.initialReimbursementClaim > 0.0 ->
+                        "Claim Due: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.initialReimbursementClaim)}"
+                    else -> "Fully Settled"
+                }
+
                 ExpandableSettingsCard(
                     icon = Icons.Default.Layers,
                     title = "Strategy & Architecture",
@@ -469,6 +478,11 @@ fun SettingsScreen(
                         title = "Fortress Safety Net Target",
                         value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressTarget)} (${userProfile.fortressEmergencyMonths}M)",
                         onClick = { activeSheet = SettingsActiveSheet.FORTRESS_SAFETY_NET }
+                    )
+                    SettingsChildNavRow(
+                        title = "Opening Corporate Float",
+                        value = floatSummary,
+                        onClick = { showCorporateFloatSheet = true }
                     )
                     SettingsChildNavRow(
                         title = "Connected Vault Accounts",
@@ -1156,6 +1170,168 @@ fun SettingsScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
                     Text("Apply Target Runway", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    }
+
+    // Opening Corporate Float Modal Sheet
+    if (showCorporateFloatSheet) {
+        var selectedFloatMode by remember(userProfile) {
+            mutableStateOf(
+                when {
+                    userProfile.initialCompanyAdvance > 0.0 -> "ADVANCE_HELD"
+                    userProfile.initialReimbursementClaim > 0.0 -> "CLAIM_DUE"
+                    else -> "SETTLED"
+                }
+            )
+        }
+        var amountInput by remember(userProfile) {
+            val initialAmt = when {
+                userProfile.initialCompanyAdvance > 0.0 -> userProfile.initialCompanyAdvance
+                userProfile.initialReimbursementClaim > 0.0 -> userProfile.initialReimbursementClaim
+                else -> 0.0
+            }
+            mutableStateOf(if (initialAmt > 0.0) String.format(Locale.US, "%.0f", initialAmt) else "")
+        }
+
+        ModalBottomSheet(
+            onDismissRequest = { showCorporateFloatSheet = false },
+            containerColor = CardWhite,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(38.dp),
+                        shape = CircleShape,
+                        color = Color(0xFFE57A28).copy(alpha = 0.12f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Work,
+                                contentDescription = null,
+                                tint = Color(0xFFE57A28),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Opening Corporate Float", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                        Text("Pre-existing balances before using MyFin", fontSize = 12.sp, color = TextMuted)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = CanvasLight,
+                    border = BorderStroke(0.6.dp, BorderLight)
+                ) {
+                    Text(
+                        text = "If your employer already gave you advance float (sitting in your bank) or owes you money for past business trips, set it here so it doesn't skew your personal living budget.",
+                        fontSize = 11.5.sp,
+                        color = TextMuted,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("Select Current Float Status:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        Triple("SETTLED", "All Settled", "No prior claims or advance money held"),
+                        Triple("CLAIM_DUE", "Company Owes Me", "I paid out-of-pocket and expect reimbursement"),
+                        Triple("ADVANCE_HELD", "Holding Company Advance", "Company gave me float that is in my account")
+                    ).forEach { (mode, title, subtitle) ->
+                        val isSelected = selectedFloatMode == mode
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                            .clickable { selectedFloatMode = mode },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) Color(0xFFE57A28).copy(alpha = 0.08f) else CanvasLight,
+                            border = BorderStroke(1.dp, if (isSelected) Color(0xFFE57A28) else BorderLight)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
+                                    Text(subtitle, fontSize = 11.sp, color = TextMuted)
+                                }
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = { selectedFloatMode = mode },
+                                    colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFE57A28))
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (selectedFloatMode != "SETTLED") {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = amountInput,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            amountInput = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
+                        label = {
+                            Text(
+                                if (selectedFloatMode == "CLAIM_DUE") "Pending Claim Amount (${userProfile.currencySymbol})"
+                                else "Advance Float Held (${userProfile.currencySymbol})"
+                            )
+                        },
+                        placeholder = { Text("e.g. 15000") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        val parsedAmt = amountInput.toDoubleOrNull() ?: 0.0
+                        val initialClaim = if (selectedFloatMode == "CLAIM_DUE") parsedAmt else 0.0
+                        val initialAdvance = if (selectedFloatMode == "ADVANCE_HELD") parsedAmt else 0.0
+
+                        viewModel.updateOpeningCorporateFloat(initialClaim, initialAdvance)
+                        showCorporateFloatSheet = false
+                        Toast.makeText(context, "Opening float status updated", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                ) {
+                    Text("Save Opening Float", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
