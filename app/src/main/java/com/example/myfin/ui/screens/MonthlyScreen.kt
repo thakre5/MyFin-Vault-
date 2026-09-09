@@ -129,11 +129,25 @@ fun MonthlyScreen(
             ?: activeAccounts.getOrNull(2)?.accountName ?: "TERTIARY BANK"
     }
 
+    val daysInMonth = remember(uiState.selectedMonth, uiState.selectedYear) {
+        Calendar.getInstance().apply {
+            set(uiState.selectedYear, uiState.selectedMonth - 1, 1)
+        }.getActualMaximum(Calendar.DAY_OF_MONTH)
+    }
     val todayCal = remember { Calendar.getInstance() }
     val isCurrentMonth = uiState.selectedYear == todayCal.get(Calendar.YEAR) &&
             uiState.selectedMonth == (todayCal.get(Calendar.MONTH) + 1)
     val isPastMonth = (uiState.selectedYear < todayCal.get(Calendar.YEAR)) ||
             (uiState.selectedYear == todayCal.get(Calendar.YEAR) && uiState.selectedMonth < (todayCal.get(Calendar.MONTH) + 1))
+
+    val daysRemaining = when {
+        isCurrentMonth -> (daysInMonth - todayCal.get(Calendar.DAY_OF_MONTH) + 1).coerceAtLeast(1)
+        isPastMonth -> 0
+        else -> daysInMonth
+    }
+    val dailySpendAllowance = if (daysRemaining > 0) {
+        (uiState.metrics.safeToSpend / daysRemaining).coerceAtLeast(0.0)
+    } else 0.0
 
     val isHealthy = uiState.metrics.safeToSpend > 0
 
@@ -1228,18 +1242,16 @@ fun MonthlyScreen(
                                     Spacer(modifier = Modifier.height(14.dp))
                                 }
 
-                                // 4. Balance Flow & Net Savings Delta Card
+                                // 4. Balance Flow & Net Savings Delta Card (Dual Savings Layout)
                                 item {
-                                    val actualIncome = uiState.metrics.actualIncome
-                                    val actualExpenses = uiState.metrics.actualExpenses
-                                    val actualAssets = uiState.metrics.actualAssets
-                                    val netSavings = uiState.metrics.netSavedAfterInvest
-                                    val currentEndBalance = uiState.metrics.totalVaultBalance
-                                    val monthMovement = (actualIncome + uiState.metrics.corporateReimbursements) -
-                                            (actualExpenses + actualAssets + uiState.metrics.workExpenses)
-                                    val startBalance = currentEndBalance - monthMovement
-                                    val savingsRatePct = if (actualIncome > 0) {
-                                        ((netSavings / actualIncome) * 100).toInt().coerceIn(-100, 100)
+                                    val startBalance = uiState.metrics.startLiquidBalance
+                                    val endBalance = uiState.metrics.endLiquidBalance
+                                    val savedBeforeInvest = uiState.metrics.netSavedBeforeInvest
+                                    val savedAfterInvest = uiState.metrics.netSavedAfterInvest
+
+                                    val incomeBase = uiState.metrics.personalIncome.takeIf { it > 0.0 } ?: uiState.metrics.actualIncome
+                                    val wealthRetentionRatePct = if (incomeBase > 0) {
+                                        ((savedBeforeInvest / incomeBase) * 100).toInt().coerceIn(-100, 100)
                                     } else 0
 
                                     Surface(
@@ -1250,74 +1262,102 @@ fun MonthlyScreen(
                                         color = CardWhite,
                                         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                                     ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp, vertical = 16.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(text = "START BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
-                                                Spacer(modifier = Modifier.height(3.dp))
-                                                Text(
-                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBalance)}",
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 15.sp,
-                                                    color = TextDark
+                                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(text = "START BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
+                                                    Spacer(modifier = Modifier.height(3.dp))
+                                                    Text(
+                                                        text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBalance)}",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 15.sp,
+                                                        color = TextDark
+                                                    )
+                                                    Text(text = "Opening Liquid", fontSize = 10.sp, color = TextMuted)
+                                                }
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .height(34.dp)
+                                                        .width(1.dp)
+                                                        .background(BorderLight.copy(alpha = 0.6f))
                                                 )
-                                                Text(text = "Opening Vault", fontSize = 10.sp, color = TextMuted)
+
+                                                Column(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .padding(start = 12.dp)
+                                                ) {
+                                                    Text(text = "END BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
+                                                    Spacer(modifier = Modifier.height(3.dp))
+                                                    Text(
+                                                        text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", endBalance)}",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 15.sp,
+                                                        color = if (endBalance >= 0) TextDark else SoftRed
+                                                    )
+                                                    Text(text = "Active Liquid", fontSize = 10.sp, color = TextMuted)
+                                                }
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .height(34.dp)
+                                                        .width(1.dp)
+                                                        .background(BorderLight.copy(alpha = 0.6f))
+                                                )
+
+                                                Column(
+                                                    modifier = Modifier
+                                                        .weight(1.2f)
+                                                        .padding(start = 12.dp),
+                                                    horizontalAlignment = Alignment.End
+                                                ) {
+                                                    Text(text = "SAVINGS (PRE-SIP)", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
+                                                    Spacer(modifier = Modifier.height(3.dp))
+                                                    Text(
+                                                        text = if (isDiscreetMode) "••••" else "${if (savedBeforeInvest >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", savedBeforeInvest)}",
+                                                        fontWeight = FontWeight.Black,
+                                                        fontSize = 15.sp,
+                                                        color = if (savedBeforeInvest >= 0) SoftTeal else SoftRed
+                                                    )
+                                                    Text(
+                                                        text = "${if (savedBeforeInvest >= 0) "+" else ""}$wealthRetentionRatePct% Retained",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = if (savedBeforeInvest >= 0) SoftTeal else SoftRed
+                                                    )
+                                                }
                                             }
 
-                                            Box(
-                                                modifier = Modifier
-                                                    .height(34.dp)
-                                                    .width(1.dp)
-                                                    .background(BorderLight.copy(alpha = 0.6f))
-                                            )
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                                            Spacer(modifier = Modifier.height(10.dp))
 
-                                            Column(
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .padding(start = 12.dp)
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text(text = "END BALANCE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
-                                                Spacer(modifier = Modifier.height(3.dp))
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(AccentPurple))
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = "Net Cash Added (Post-SIP / Assets):",
+                                                        fontSize = 11.sp,
+                                                        color = TextMuted,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                }
+
                                                 Text(
-                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentEndBalance)}",
+                                                    text = if (isDiscreetMode) "••••" else "${if (savedAfterInvest >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", savedAfterInvest)}",
+                                                    fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 15.sp,
-                                                    color = if (currentEndBalance >= 0) TextDark else SoftRed
-                                                )
-                                                Text(text = "Active Liquid", fontSize = 10.sp, color = TextMuted)
-                                            }
-
-                                            Box(
-                                                modifier = Modifier
-                                                    .height(34.dp)
-                                                    .width(1.dp)
-                                                    .background(BorderLight.copy(alpha = 0.6f))
-                                            )
-
-                                            Column(
-                                                modifier = Modifier
-                                                    .weight(1.1f)
-                                                    .padding(start = 12.dp),
-                                                horizontalAlignment = Alignment.End
-                                            ) {
-                                                Text(text = "NET SAVINGS", fontSize = 10.sp, fontWeight = FontWeight.Black, color = TextMuted, letterSpacing = 0.4.sp)
-                                                Spacer(modifier = Modifier.height(3.dp))
-                                                Text(
-                                                    text = if (isDiscreetMode) "••••" else "${if (netSavings >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", netSavings)}",
-                                                    fontWeight = FontWeight.Black,
-                                                    fontSize = 15.sp,
-                                                    color = if (netSavings >= 0) SoftTeal else SoftRed
-                                                )
-                                                Text(
-                                                    text = "${if (netSavings >= 0) "+" else ""}$savingsRatePct% Net Rate",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = if (netSavings >= 0) SoftTeal else SoftRed
+                                                    color = if (savedAfterInvest >= 0) SoftGreen else SoftRed
                                                 )
                                             }
                                         }
