@@ -58,6 +58,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import kotlin.math.abs
+import kotlin.math.round
 
 private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -150,14 +151,15 @@ fun MonthlyScreen(
 
     val isHealthy = uiState.metrics.safeToSpend > 0
 
+    // Payday & Sweep action banners are strictly restricted to the current active month
     val paydayPlan = uiState.paydaySuggestion
-    val showWaterfallPrompt = remember(paydayPlan, uiState.selectedMonth, dismissedWaterfallMonth) {
-        paydayPlan != null && (paydayPlan.toCommitments > 0.0 || paydayPlan.totalToFortress > 0.0) && dismissedWaterfallMonth != uiState.selectedMonth
+    val showWaterfallPrompt = remember(paydayPlan, uiState.selectedMonth, dismissedWaterfallMonth, isCurrentMonth) {
+        isCurrentMonth && paydayPlan != null && (paydayPlan.toCommitments > 0.0 || paydayPlan.totalToFortress > 0.0) && dismissedWaterfallMonth != uiState.selectedMonth
     }
 
     val monthEndSweepPlan = uiState.monthEndSweepSuggestion
-    val showMonthEndSweepPrompt = remember(monthEndSweepPlan, uiState.selectedMonth, dismissedSweepMonth) {
-        monthEndSweepPlan != null && monthEndSweepPlan.sweepAmount > 0.0 && dismissedSweepMonth != uiState.selectedMonth
+    val showMonthEndSweepPrompt = remember(monthEndSweepPlan, uiState.selectedMonth, dismissedSweepMonth, isCurrentMonth) {
+        isCurrentMonth && monthEndSweepPlan != null && monthEndSweepPlan.sweepAmount > 0.0 && dismissedSweepMonth != uiState.selectedMonth
     }
 
     val fabActions = remember {
@@ -812,6 +814,19 @@ fun MonthlyScreen(
                                             val astDiff = actualAssets - plannedAssets
                                             val astFraction = if (plannedAssets > 0) (actualAssets / plannedAssets).toFloat().coerceIn(0f, 1f) else if (actualAssets > 0) 1f else 0f
 
+                                            // Real-World Fix: Check plannedExpenses > 0 so tracking without a cap doesn't display "Over Budget"
+                                            val isExpenseOverBudget = plannedExpenses > 0 && actualExpenses > plannedExpenses
+                                            val budgetStatusLabel = when {
+                                                plannedExpenses <= 0 -> "Tracking"
+                                                isExpenseOverBudget -> "Over Budget"
+                                                else -> "On Track"
+                                            }
+                                            val budgetStatusColor = when {
+                                                plannedExpenses <= 0 -> TextMuted
+                                                isExpenseOverBudget -> SoftRed
+                                                else -> SoftGreen
+                                            }
+
                                             Surface(
                                                 modifier = Modifier
                                                     .width(320.dp)
@@ -860,11 +875,11 @@ fun MonthlyScreen(
 
                                                         Surface(
                                                             shape = RoundedCornerShape(6.dp),
-                                                            color = (if (expDiff > 0) SoftRed else SoftGreen).copy(alpha = 0.12f)
+                                                            color = budgetStatusColor.copy(alpha = 0.12f)
                                                         ) {
                                                             Text(
-                                                                text = if (expDiff > 0) "Over Budget" else "On Track",
-                                                                color = if (expDiff > 0) SoftRed else SoftGreen,
+                                                                text = budgetStatusLabel,
+                                                                color = budgetStatusColor,
                                                                 fontSize = 9.5.sp,
                                                                 fontWeight = FontWeight.Bold,
                                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -899,7 +914,7 @@ fun MonthlyScreen(
                                                                     Spacer(modifier = Modifier.width(5.dp))
                                                                     Surface(
                                                                         shape = RoundedCornerShape(4.dp),
-                                                                        color = if (expDiff > 0 && plannedExpenses > 0) SoftRed.copy(alpha = 0.12f) else CardWhite
+                                                                        color = if (isExpenseOverBudget) SoftRed.copy(alpha = 0.12f) else CardWhite
                                                                     ) {
                                                                         Text(
                                                                             text = if (plannedExpenses > 0) {
@@ -909,7 +924,7 @@ fun MonthlyScreen(
                                                                             } else "No Cap",
                                                                             fontSize = 8.5.sp,
                                                                             fontWeight = FontWeight.Bold,
-                                                                            color = if (expDiff > 0 && plannedExpenses > 0) SoftRed else TextMuted,
+                                                                            color = if (isExpenseOverBudget) SoftRed else TextMuted,
                                                                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                                                         )
                                                                     }
@@ -920,7 +935,7 @@ fun MonthlyScreen(
                                                                         text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualExpenses)}",
                                                                         fontWeight = FontWeight.Black,
                                                                         fontSize = 12.5.sp,
-                                                                        color = if (expDiff > 0 && plannedExpenses > 0) SoftRed else TextDark
+                                                                        color = if (isExpenseOverBudget) SoftRed else TextDark
                                                                     )
                                                                     Text(
                                                                         text = if (isDiscreetMode) "Target: ••••" else "Target: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedExpenses)}",
@@ -1247,8 +1262,9 @@ fun MonthlyScreen(
                                     val savedAfterInvest = uiState.metrics.netSavedAfterInvest
 
                                     val incomeBase = uiState.metrics.personalIncome.takeIf { it > 0.0 } ?: uiState.metrics.actualIncome
+                                    // Real-World Fix: Use round() for proper decimal rounding, and remove artificial bottom clamp
                                     val wealthRetentionRatePct = if (incomeBase > 0) {
-                                        ((savedBeforeInvest / incomeBase) * 100).toInt().coerceIn(-100, 100)
+                                        round((savedBeforeInvest / incomeBase) * 100.0).toInt()
                                     } else 0
 
                                     Surface(
@@ -1774,17 +1790,21 @@ fun MonthlyScreen(
                                 }
                             }
 
-                            val isPayableBill = { bill: FixedBillEntity ->
-                                bill.type != TransactionType.INCOME &&
-                                !(bill.type == TransactionType.CORPORATE && bill.category.equals("Reimbursements & Claims", ignoreCase = true))
-                            }
-
+                            // Real-World Fix: Sum up all pending commitments currently shown in this filter segment
                             val pendingCommitmentsTotal = remember(filteredBills) {
-                                filteredBills.filter { !it.isPaid && isPayableBill(it) }.sumOf { it.amount }
+                                filteredBills.filter { !it.isPaid }.sumOf { it.amount }
                             }
 
-                            val overdueCount = remember(filteredBills, currentDayOfMonth) {
-                                filteredBills.count { !it.isPaid && isPayableBill(it) && it.dueDay != null && it.dueDay!! < currentDayOfMonth }
+                            // Real-World Fix: In past months, all unpaid are overdue. In current month, compare to day. In future months, overdue is 0.
+                            val overdueCount = remember(filteredBills, currentDayOfMonth, isCurrentMonth, isPastMonth) {
+                                filteredBills.count { bill ->
+                                    if (bill.isPaid || bill.dueDay == null) false
+                                    else when {
+                                        isPastMonth -> true
+                                        isCurrentMonth -> bill.dueDay!! < currentDayOfMonth
+                                        else -> false
+                                    }
+                                }
                             }
                             val hasOverdue = overdueCount > 0
 
@@ -2812,6 +2832,9 @@ private fun CategoryMatrixRow(
         label = "arrowRotation"
     )
 
+    // Real-World Fix: Income and Asset types are targets to achieve, not expense ceilings
+    val isTargetOriented = cat.type == TransactionType.INCOME || cat.type == TransactionType.ASSET
+
     val progressFraction = if (cat.plannedAmount > 0) {
         (cat.actualAmount / cat.plannedAmount).toFloat().coerceIn(0f, 1f)
     } else 1f
@@ -2821,7 +2844,7 @@ private fun CategoryMatrixRow(
     } else 100
 
     val progressColor = when {
-        cat.isOverBudget -> SoftRed
+        cat.isOverBudget && !isTargetOriented -> SoftRed
         cat.type == TransactionType.INCOME -> SoftGreen
         cat.type == TransactionType.ASSET -> SoftTeal
         cat.type == TransactionType.CORPORATE -> Color(0xFFE57A28)
@@ -2902,7 +2925,8 @@ private fun CategoryMatrixRow(
                             )
                         }
 
-                        if (cat.isOverBudget) {
+                        // Real-World Fix: Only flag "Over" for expenses, never income or asset goals
+                        if (cat.isOverBudget && !isTargetOriented) {
                             Spacer(modifier = Modifier.width(5.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
@@ -2924,12 +2948,22 @@ private fun CategoryMatrixRow(
                     Spacer(modifier = Modifier.height(2.dp))
 
                     val statusText = if (cat.plannedAmount > 0) {
-                        val remaining = cat.plannedAmount - cat.actualAmount
-                        if (isDiscreetMode) "Target configured"
-                        else if (remaining >= 0) {
-                            "$currencySymbol${String.format(Locale.US, "%,.0f", remaining)} left of $currencySymbol${String.format(Locale.US, "%,.0f", cat.plannedAmount)}"
+                        val diff = cat.actualAmount - cat.plannedAmount
+                        if (isDiscreetMode) {
+                            "Target configured"
+                        } else if (isTargetOriented) {
+                            if (diff >= 0) {
+                                "Target achieved (+${currencySymbol}${String.format(Locale.US, "%,.0f", diff)})"
+                            } else {
+                                "${currencySymbol}${String.format(Locale.US, "%,.0f", abs(diff))} needed to reach target"
+                            }
                         } else {
-                            "Exceeded by $currencySymbol${String.format(Locale.US, "%,.0f", abs(remaining))}"
+                            val remaining = cat.plannedAmount - cat.actualAmount
+                            if (remaining >= 0) {
+                                "$currencySymbol${String.format(Locale.US, "%,.0f", remaining)} left of $currencySymbol${String.format(Locale.US, "%,.0f", cat.plannedAmount)}"
+                            } else {
+                                "Exceeded by $currencySymbol${String.format(Locale.US, "%,.0f", abs(remaining))}"
+                            }
                         }
                     } else {
                         if (isLegacy) {
@@ -2941,11 +2975,17 @@ private fun CategoryMatrixRow(
                         }
                     }
 
+                    val statusColor = when {
+                        cat.isOverBudget && !isTargetOriented -> SoftRed
+                        isTargetOriented && cat.plannedAmount > 0 && cat.actualAmount >= cat.plannedAmount -> SoftGreen
+                        else -> TextMuted
+                    }
+
                     Text(
                         text = statusText,
                         fontSize = 11.sp,
-                        fontWeight = if (cat.isOverBudget) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (cat.isOverBudget) SoftRed else TextMuted,
+                        fontWeight = if (cat.isOverBudget && !isTargetOriented) FontWeight.SemiBold else FontWeight.Normal,
+                        color = statusColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -2960,7 +3000,7 @@ private fun CategoryMatrixRow(
                         text = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", cat.actualAmount)}",
                         fontWeight = FontWeight.Black,
                         fontSize = 14.sp,
-                        color = if (cat.isOverBudget) SoftRed else TextDark
+                        color = if (cat.isOverBudget && !isTargetOriented) SoftRed else TextDark
                     )
                     if (cat.plannedAmount > 0) {
                         Text(
