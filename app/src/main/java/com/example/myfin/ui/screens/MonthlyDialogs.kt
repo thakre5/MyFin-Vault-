@@ -690,8 +690,11 @@ fun RevertFixedBillConfirmDialog(
 fun BalanceFlowInfoBottomSheet(
     uiState: MonthlyUiState,
     userProfile: UserProfile,
+    initialMode: Int = 0,
     onDismiss: () -> Unit
 ) {
+    var selectedMode by remember(initialMode) { mutableIntStateOf(initialMode.coerceIn(0, 3)) }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = CardWhite,
@@ -701,10 +704,31 @@ fun BalanceFlowInfoBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 22.dp)
-                .padding(bottom = 32.dp)
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            val incomeBase = uiState.metrics.personalIncome.takeIf { it > 0.0 } ?: uiState.metrics.actualIncome
+            val lifestyleExp = uiState.metrics.lifestyleExpenses
+            val preSipSaved = uiState.metrics.netSavedBeforeInvest
+            val assetsInvested = uiState.metrics.actualAssets
+            val postSipSurplus = preSipSaved - assetsInvested
+
+            val startBal = uiState.metrics.startLiquidBalance
+            val endBal = uiState.metrics.endLiquidBalance
+            val expectedCash = startBal + postSipSurplus
+            val bankCashMovement = endBal - startBal
+            val capitalRelocation = endBal - expectedCash
+            val retentionPct = if (incomeBase > 0) round((preSipSaved / incomeBase) * 100.0).toInt() else 0
+
+            val isFortressAccount = { acc: AccountBalanceResult ->
+                acc.accountType.equals("Fortress", ignoreCase = true) ||
+                acc.accountName.contains("FORTRESS", ignoreCase = true) ||
+                acc.accountName.contains("TERTIARY", ignoreCase = true)
+            }
+            val liquidAccounts = uiState.activeAccounts.filter { !isFortressAccount(it) }
+
+            // 1. Dynamic Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -712,13 +736,23 @@ fun BalanceFlowInfoBottomSheet(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Balance Flow & Reconciliation",
+                        text = when (selectedMode) {
+                            0 -> "Physical Bank Flow"
+                            1 -> "Wealth Retention (Pre-SIP)"
+                            2 -> "Unallocated Surplus"
+                            else -> "Reserves & Float Relocation"
+                        },
                         fontWeight = FontWeight.Black,
-                        fontSize = 19.sp,
+                        fontSize = 18.sp,
                         color = TextDark
                     )
                     Text(
-                        text = "Complete journey from monthly income to actual bank cash",
+                        text = when (selectedMode) {
+                            0 -> "Rupee movement across physical liquid accounts"
+                            1 -> "Salary preserved before wealth investments"
+                            2 -> "Guilt-free cash remaining after SIPs"
+                            else -> "Why bank balance differs from theoretical surplus"
+                        },
                         fontSize = 11.5.sp,
                         color = TextMuted
                     )
@@ -726,273 +760,198 @@ fun BalanceFlowInfoBottomSheet(
 
                 Surface(
                     shape = CircleShape,
-                    color = SoftTeal.copy(alpha = 0.12f),
+                    color = when (selectedMode) {
+                        0 -> SoftGreen.copy(alpha = 0.12f)
+                        1 -> SoftTeal.copy(alpha = 0.12f)
+                        2 -> AccentPurple.copy(alpha = 0.12f)
+                        else -> Color(0xFFE57A28).copy(alpha = 0.12f)
+                    },
                     modifier = Modifier.size(36.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.AccountBalance, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(19.dp))
+                        Icon(
+                            imageVector = when (selectedMode) {
+                                0 -> Icons.Default.AccountBalance
+                                1 -> Icons.Default.TrendingUp
+                                2 -> Icons.Default.Savings
+                                else -> Icons.Default.SyncAlt
+                            },
+                            contentDescription = null,
+                            tint = when (selectedMode) {
+                                0 -> SoftGreen
+                                1 -> SoftTeal
+                                2 -> AccentPurple
+                                else -> Color(0xFFE57A28)
+                            },
+                            modifier = Modifier.size(19.dp)
+                        )
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                color = CanvasLight,
-                border = BorderStroke(0.8.dp, BorderLight)
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = "The Dual-Savings Principle",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp,
-                        color = TextDark
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Pre-SIP Savings measures how much salary you retained after lifestyle expenses. Post-SIP Surplus shows unallocated cash left after investing into wealth assets. Vault Reconciliation explains the exact movements that shaped your physical bank balance.",
-                        fontSize = 11.sp,
-                        color = TextMuted,
-                        lineHeight = 16.sp
-                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Text("Live Reconciliation Breakdown", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-            Spacer(modifier = Modifier.height(6.dp))
+            // 2. Mode Selector Pills
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(BorderLight.copy(alpha = 0.5f))
+                    .padding(3.dp)
+            ) {
+                listOf("Bank Flow", "Retention", "Surplus", "Relocation").forEachIndexed { idx, label ->
+                    val isSelected = selectedMode == idx
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(if (isSelected) CardWhite else Color.Transparent)
+                            .clickable { selectedMode = idx }
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 10.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) TextDark else TextMuted
+                        )
+                    }
+                }
+            }
 
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 3. Dynamic Card Content per Mode
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = CardWhite,
                 border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
             ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val incomeBase = uiState.metrics.personalIncome.takeIf { it > 0.0 } ?: uiState.metrics.actualIncome
-                    val lifestyleExp = uiState.metrics.lifestyleExpenses
-                    val preSipSaved = uiState.metrics.netSavedBeforeInvest
-                    val assetsInvested = uiState.metrics.actualAssets
-                    val postSipSurplus = preSipSaved - assetsInvested
-
-                    val startBal = uiState.metrics.startLiquidBalance
-                    val endBal = uiState.metrics.endLiquidBalance
-                    val expectedCash = startBal + postSipSurplus
-                    val capitalRelocation = endBal - expectedCash
-                    val retentionPct = if (incomeBase > 0) round((preSipSaved / incomeBase) * 100.0).toInt() else 0
-
-                    val isFortressAccount = { acc: AccountBalanceResult ->
-                        acc.accountType.equals("Fortress", ignoreCase = true) ||
-                        acc.accountName.contains("FORTRESS", ignoreCase = true) ||
-                        acc.accountName.contains("TERTIARY", ignoreCase = true)
-                    }
-                    val liquidAccounts = uiState.activeAccounts.filter { !isFortressAccount(it) }
-
-                    // SECTION 1: INCOME RETENTION & SURPLUS
-                    Text(
-                        text = "1. INCOME RETENTION & SURPLUS",
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextMuted,
-                        letterSpacing = 0.6.sp
-                    )
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Personal Income Inflow", fontSize = 11.5.sp, color = TextDark)
-                        Text("+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", incomeBase)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftGreen)
-                    }
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Lifestyle Living Expenses", fontSize = 11.5.sp, color = TextDark)
-                        Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", lifestyleExp)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftRed)
-                    }
-
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.6.dp)
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column {
-                            Text("Savings (Pre-SIP)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
-                            Text("Wealth retention ($retentionPct% of income)", fontSize = 10.sp, color = TextMuted)
-                        }
-                        Text(
-                            text = "${if (preSipSaved >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", preSipSaved)}",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 13.sp,
-                            color = if (preSipSaved >= 0) SoftTeal else SoftRed
-                        )
-                    }
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Transferred to Assets / SIP", fontSize = 11.5.sp, color = TextDark)
-                        Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", assetsInvested)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftTeal)
-                    }
-
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.6.dp)
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column {
-                            Text("Net Surplus (Post-SIP)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
-                            Text("Unallocated monthly surplus", fontSize = 10.sp, color = TextMuted)
-                        }
-                        Text(
-                            text = "${if (postSipSurplus >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", postSipSurplus)}",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 13.5.sp,
-                            color = if (postSipSurplus >= 0) SoftGreen else SoftRed
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    HorizontalDivider(color = BorderLight, thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    // SECTION 2: PHYSICAL BANK BALANCE RECONCILIATION
-                    Text(
-                        text = "2. PHYSICAL BANK BALANCE RECONCILIATION",
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextMuted,
-                        letterSpacing = 0.6.sp
-                    )
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Opening Liquid Vault Balance", fontSize = 11.5.sp, color = TextDark)
-                        Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBal)}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = TextDark)
-                    }
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("+ Post-SIP Retained Surplus", fontSize = 11.5.sp, color = TextDark)
-                        Text(
-                            text = "${if (postSipSurplus >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", postSipSurplus)}",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            color = if (postSipSurplus >= 0) SoftGreen else SoftRed
-                        )
-                    }
-
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.6.dp)
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column {
-                            Text("Expected Cash (Before Other Outflows)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
-                            Text("Balance if no capital was relocated", fontSize = 10.sp, color = TextMuted)
-                        }
-                        Text(
-                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expectedCash)}",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 13.sp,
-                            color = TextDark
-                        )
-                    }
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Capital Relocation & Work Float", fontSize = 11.5.sp, color = TextDark)
-                            Text("Fortress sweeps, pending work claims, loans", fontSize = 10.sp, color = TextMuted)
-                        }
-                        Text(
-                            text = "${if (capitalRelocation >= 0) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(capitalRelocation))}",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            color = if (capitalRelocation >= 0) SoftGreen else Color(0xFFE57A28)
-                        )
-                    }
-
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.6.dp)
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column {
-                            Text("Current Active Liquid Balance", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
-                            Text("Actual cash in vaults right now", fontSize = 10.sp, color = TextMuted)
-                        }
-                        Text(
-                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", endBal)}",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 13.5.sp,
-                            color = if (endBal >= 0) TextDark else SoftRed
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    HorizontalDivider(color = BorderLight, thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    // SECTION 3: ACTIVE LIQUID VAULT BREAKDOWN
-                    Text(
-                        text = "3. ACTIVE LIQUID VAULT BREAKDOWN",
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextMuted,
-                        letterSpacing = 0.6.sp
-                    )
-
-                    if (liquidAccounts.isEmpty()) {
-                        Text(
-                            text = "No active liquid accounts found",
-                            fontSize = 11.sp,
-                            color = TextMuted
-                        )
-                    } else {
-                        liquidAccounts.forEach { acc ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(5.dp)
-                                            .clip(CircleShape)
-                                            .background(AccentPurple)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = acc.accountName,
-                                        fontSize = 11.5.sp,
-                                        color = TextDark,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(9.dp)
+                ) {
+                    when (selectedMode) {
+                        // MODE 0: BANK FLOW
+                        0 -> {
+                            Text("LIQUID CASH DELTA", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Opening Liquid Vault Balance", fontSize = 11.5.sp, color = TextMuted)
+                                Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBal)}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = TextDark)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Net Physical Cash Movement", fontSize = 11.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
+                                Text("${if (bankCashMovement >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", bankCashMovement)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = if (bankCashMovement >= 0) SoftGreen else SoftRed)
+                            }
+                            HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column {
+                                    Text("Current Active Balance", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                                    Text("Total physical checking pool", fontSize = 10.sp, color = TextMuted)
                                 }
-                                Text(
-                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", acc.currentBalance)}",
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 12.sp,
-                                    color = TextDark
-                                )
+                                Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", endBal)}", fontWeight = FontWeight.Black, fontSize = 14.sp, color = SoftGreen)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("VAULT COMPOSITION", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                            liquidAccounts.forEach { acc ->
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("• ${acc.accountName}", fontSize = 11.sp, color = TextMuted)
+                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", acc.currentBalance)}", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextDark)
+                                }
+                            }
+                        }
+
+                        // MODE 1: WEALTH RETENTION (PRE-SIP)
+                        1 -> {
+                            Text("INCOME RETENTION MATH", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Personal Income Inflow", fontSize = 11.5.sp, color = TextDark)
+                                Text("+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", incomeBase)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftGreen)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Lifestyle Living Expenses", fontSize = 11.5.sp, color = TextDark)
+                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", lifestyleExp)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftRed)
+                            }
+                            HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column {
+                                    Text("Savings (Pre-SIP)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                                    Text("$retentionPct% of salary retained", fontSize = 10.sp, color = TextMuted)
+                                }
+                                Text("${if (preSipSaved >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", preSipSaved)}", fontWeight = FontWeight.Black, fontSize = 14.sp, color = SoftTeal)
+                            }
+                        }
+
+                        // MODE 2: POST-SIP SURPLUS
+                        2 -> {
+                            Text("SURPLUS AFTER WEALTH INVESTING", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Savings (Pre-SIP)", fontSize = 11.5.sp, color = TextDark)
+                                Text("+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", preSipSaved)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftTeal)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Transferred to Assets & SIP", fontSize = 11.5.sp, color = TextDark)
+                                Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", assetsInvested)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftTeal)
+                            }
+                            HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column {
+                                    Text("Net Monthly Surplus", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                                    Text("Unallocated salary remaining", fontSize = 10.sp, color = TextMuted)
+                                }
+                                Text("${if (postSipSurplus >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", postSipSurplus)}", fontWeight = FontWeight.Black, fontSize = 14.sp, color = AccentPurple)
+                            }
+                        }
+
+                        // MODE 3: CAPITAL RELOCATIONS & GAP
+                        3 -> {
+                            Text("WHY BANK BALANCE DIFFERS FROM SURPLUS", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Opening Liquid Balance", fontSize = 11.5.sp, color = TextMuted)
+                                Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBal)}", fontSize = 11.5.sp, color = TextDark)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("+ Net Monthly Surplus", fontSize = 11.5.sp, color = TextDark)
+                                Text("+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", postSipSurplus)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = AccentPurple)
+                            }
+                            HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Expected Bank Cash", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
+                                Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expectedCash)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column {
+                                    Text("Capital Relocation & Work Float", fontSize = 11.5.sp, color = TextDark)
+                                    Text("Fortress sweeps, claims & loans", fontSize = 9.5.sp, color = TextMuted)
+                                }
+                                Text("${if (capitalRelocation >= 0) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(capitalRelocation))}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFE57A28))
+                            }
+                            HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column {
+                                    Text("Actual Active Liquid Balance", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                                    Text("Real bank money present", fontSize = 10.sp, color = TextMuted)
+                                }
+                                Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", endBal)}", fontWeight = FontWeight.Black, fontSize = 14.sp, color = TextDark)
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(verticalAlignment = Alignment.Top) {
-                Icon(Icons.Default.Info, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Vault Protection: The liquid balance only includes your Operating, Commitments, and Cash vaults. Emergency corpus deposits locked inside Fortress Sweep FDs are strictly ring-fenced and excluded.",
-                    fontSize = 11.sp,
-                    color = TextMuted,
-                    lineHeight = 15.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             Button(
                 onClick = onDismiss,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(46.dp),
+                    .height(44.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = TextDark)
             ) {
-                Text("Got it", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Close", fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
         }
     }
