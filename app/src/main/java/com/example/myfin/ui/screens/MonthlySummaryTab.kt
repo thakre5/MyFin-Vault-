@@ -1021,7 +1021,7 @@ fun MonthlySummaryTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 4. Balance Flow & Net Savings Delta Card
+        // 4. Balance Flow & Net Savings Delta Card (Clickable to inspect calculation)
         item {
             val startBalance = uiState.metrics.startLiquidBalance
             val endBalance = uiState.metrics.endLiquidBalance
@@ -1036,12 +1036,56 @@ fun MonthlySummaryTab(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(3.dp, RoundedCornerShape(20.dp)),
+                    .shadow(3.dp, RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable(onClick = onOpenBalanceFlowInfo),
                 shape = RoundedCornerShape(20.dp),
                 color = CardWhite,
                 border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
             ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                    // Header with inspection affordance
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(SoftTeal)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "LIQUID CASH FLOW",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextMuted,
+                                letterSpacing = 0.7.sp
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Inspect Math",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AccentPurple
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "Inspect calculation",
+                                tint = AccentPurple,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1143,7 +1187,7 @@ fun MonthlySummaryTab(
             }
             Spacer(modifier = Modifier.height(18.dp))
         }
-
+        
         // 5. Category Matrix Header & Switcher
         item {
             Text(text = "Category Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
