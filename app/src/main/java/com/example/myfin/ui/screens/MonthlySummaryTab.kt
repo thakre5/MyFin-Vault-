@@ -55,6 +55,7 @@ fun MonthlySummaryTab(
     commitmentsAccountName: String,
     fortressAccountName: String,
     onOpenStsInfo: () -> Unit,
+    onOpenBalanceFlowInfo: () -> Unit,
     onOpenTransferSheet: () -> Unit,
     onDismissWaterfall: () -> Unit,
     onDismissSweep: () -> Unit,
@@ -1187,7 +1188,7 @@ fun MonthlySummaryTab(
             }
             Spacer(modifier = Modifier.height(18.dp))
         }
-        
+
         // 5. Category Matrix Header & Switcher
         item {
             Text(text = "Category Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
