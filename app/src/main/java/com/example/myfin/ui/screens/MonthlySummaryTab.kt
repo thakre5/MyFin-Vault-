@@ -1040,7 +1040,7 @@ fun MonthlySummaryTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 4. AUTO-SCROLLING BALANCE FLOW & LIQUID INSIGHT CAROUSEL
+        // 4. AUTO-SCROLLING BALANCE FLOW CAROUSEL
         item {
             val startBalance = uiState.metrics.startLiquidBalance
             val endBalance = uiState.metrics.endLiquidBalance
@@ -1250,7 +1250,7 @@ fun MonthlySummaryTab(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text("Inspect Math", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = AccentPurple)
                                             Spacer(modifier = Modifier.width(2.dp))
-                                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(13.dp))
+                                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(14.dp))
                                         }
                                     }
 
