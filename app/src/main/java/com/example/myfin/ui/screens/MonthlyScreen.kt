@@ -34,6 +34,7 @@ import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import java.util.Locale
 
 private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -434,7 +435,7 @@ fun MonthlyScreen(
                             isPaid = true,
                             paidDateMillis = date
                         )
-                        Toast.makeText(context, "Saved as recurring sweep & transferred ${userProfile.currencySymbol}${String.format(java.util.Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Saved as recurring sweep & transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
                     } else {
                         viewModel.executeInstantTransfer(
                             fromAccount = from,
@@ -444,7 +445,7 @@ fun MonthlyScreen(
                             subtype = subtype,
                             date = date
                         )
-                        Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(java.util.Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
                     }
                 }
             )
