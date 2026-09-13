@@ -60,7 +60,7 @@ fun MonthlyScreen(
 
     var isDiscreetMode by remember { mutableStateOf(false) }
     var showStsInfoSheet by remember { mutableStateOf(false) }
-    var showBalanceFlowSheet by remember { mutableStateOf(false) }
+    var balanceFlowMode by remember { mutableStateOf<Int?>(null) }
     var dismissedWaterfallMonth by remember { mutableIntStateOf(0) }
     var dismissedSweepMonth by remember { mutableIntStateOf(0) }
 
@@ -257,7 +257,7 @@ fun MonthlyScreen(
                             commitmentsAccountName = commitmentsAccountName,
                             fortressAccountName = fortressAccountName,
                             onOpenStsInfo = { showStsInfoSheet = true },
-                            onOpenBalanceFlowInfo = { showBalanceFlowSheet = true },
+                            onOpenBalanceFlowInfo = { mode -> balanceFlowMode = mode },
                             onOpenTransferSheet = { showTransferSheet = true },
                             onDismissWaterfall = { dismissedWaterfallMonth = uiState.selectedMonth },
                             onDismissSweep = { dismissedSweepMonth = uiState.selectedMonth },
@@ -584,11 +584,12 @@ fun MonthlyScreen(
             )
         }
 
-        if (showBalanceFlowSheet) {
+        balanceFlowMode?.let { mode ->
             BalanceFlowInfoBottomSheet(
                 uiState = uiState,
                 userProfile = userProfile,
-                onDismiss = { showBalanceFlowSheet = false }
+                initialMode = mode,
+                onDismiss = { balanceFlowMode = null }
             )
         }
     }
