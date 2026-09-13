@@ -717,7 +717,7 @@ fun BalanceFlowInfoBottomSheet(
                         color = TextDark
                     )
                     Text(
-                        text = "How opening balance, burn, and retention are calculated",
+                        text = "How income retention and cash movement are reconciled",
                         fontSize = 11.5.sp,
                         color = TextMuted
                     )
@@ -751,7 +751,7 @@ fun BalanceFlowInfoBottomSheet(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Standard budget apps confuse 'Cash Saved' with 'Cash Invested'. MyFin tracks both: Pre-SIP Savings measures how much income you retained without burning on lifestyle, while Post-SIP Cash Movement measures physical bank balance growth after paying yourself first into assets.",
+                        text = "Traditional apps confuse 'Money Saved' with 'Bank Cash Remaining'. MyFin breaks this into two clear steps: Pre-SIP Savings measures how much income you retained after lifestyle expenses, and Post-SIP Surplus shows unallocated capital left after paying yourself first into wealth assets.",
                         fontSize = 11.sp,
                         color = TextMuted,
                         lineHeight = 16.sp
@@ -761,7 +761,7 @@ fun BalanceFlowInfoBottomSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Text("Live Reconciliation Math", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Text("Live Reconciliation Breakdown", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
             Spacer(modifier = Modifier.height(6.dp))
 
             Surface(
@@ -770,15 +770,26 @@ fun BalanceFlowInfoBottomSheet(
                 color = CardWhite,
                 border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
             ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     val incomeBase = uiState.metrics.personalIncome.takeIf { it > 0.0 } ?: uiState.metrics.actualIncome
                     val lifestyleExp = uiState.metrics.lifestyleExpenses
                     val preSipSaved = uiState.metrics.netSavedBeforeInvest
                     val assetsInvested = uiState.metrics.actualAssets
-                    val postSipNetCash = uiState.metrics.netSavedAfterInvest
+                    // Exact cascade math: Pre-SIP minus all actual asset transfers
+                    val postSipSurplus = preSipSaved - assetsInvested
                     val startBal = uiState.metrics.startLiquidBalance
                     val endBal = uiState.metrics.endLiquidBalance
+                    val bankCashMovement = endBal - startBal
                     val retentionPct = if (incomeBase > 0) round((preSipSaved / incomeBase) * 100.0).toInt() else 0
+
+                    // SECTION 1: INCOME RETENTION & SURPLUS
+                    Text(
+                        text = "1. INCOME RETENTION & SURPLUS",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextMuted,
+                        letterSpacing = 0.6.sp
+                    )
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Personal Income Inflow", fontSize = 11.5.sp, color = TextDark)
@@ -794,7 +805,7 @@ fun BalanceFlowInfoBottomSheet(
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column {
-                            Text("1. Savings (Pre-SIP)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                            Text("Savings (Pre-SIP)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
                             Text("Wealth retention ($retentionPct% of income)", fontSize = 10.sp, color = TextMuted)
                         }
                         Text(
@@ -806,7 +817,7 @@ fun BalanceFlowInfoBottomSheet(
                     }
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Transferred to SIP / Mutual Funds", fontSize = 11.5.sp, color = TextDark)
+                        Text("Transferred to Assets / SIP", fontSize = 11.5.sp, color = TextDark)
                         Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", assetsInvested)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SoftTeal)
                     }
 
@@ -814,18 +825,29 @@ fun BalanceFlowInfoBottomSheet(
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column {
-                            Text("2. Net Cash Added (Post-SIP)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
-                            Text("Physical bank cash delta", fontSize = 10.sp, color = TextMuted)
+                            Text("Net Surplus (Post-SIP)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                            Text("Unallocated monthly surplus", fontSize = 10.sp, color = TextMuted)
                         }
                         Text(
-                            text = "${if (postSipNetCash >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", postSipNetCash)}",
+                            text = "${if (postSipSurplus >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", postSipSurplus)}",
                             fontWeight = FontWeight.Black,
-                            fontSize = 13.sp,
-                            color = if (postSipNetCash >= 0) SoftGreen else SoftRed
+                            fontSize = 13.5.sp,
+                            color = if (postSipSurplus >= 0) SoftGreen else SoftRed
                         )
                     }
 
-                    HorizontalDivider(color = BorderLight, thickness = 0.8.dp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    HorizontalDivider(color = BorderLight, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // SECTION 2: LIQUID VAULT RECONCILIATION
+                    Text(
+                        text = "2. LIQUID VAULT RECONCILIATION",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextMuted,
+                        letterSpacing = 0.6.sp
+                    )
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Opening Liquid Vault Balance", fontSize = 11.sp, color = TextMuted)
@@ -833,8 +855,28 @@ fun BalanceFlowInfoBottomSheet(
                     }
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Current Active Liquid Balance", fontSize = 11.sp, color = TextMuted)
-                        Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", endBal)}", fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = TextDark)
+                        Text("Net Physical Cash Movement", fontSize = 11.sp, color = TextMuted)
+                        Text(
+                            text = "${if (bankCashMovement >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", bankCashMovement)}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.5.sp,
+                            color = if (bankCashMovement >= 0) SoftGreen else SoftRed
+                        )
+                    }
+
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.6.dp)
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column {
+                            Text("Current Active Liquid Balance", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                            Text("Operating, Commitments & Cash vaults", fontSize = 10.sp, color = TextMuted)
+                        }
+                        Text(
+                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", endBal)}",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 13.5.sp,
+                            color = if (endBal >= 0) TextDark else SoftRed
+                        )
                     }
                 }
             }
@@ -845,7 +887,7 @@ fun BalanceFlowInfoBottomSheet(
                 Icon(Icons.Default.Info, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Note: Opening balance reconciles your Operating, Commitments, and Cash vaults. It automatically accounts for non-regular inflows (loan returns, refunds) and excludes emergency deposits locked inside Fortress Sweep FDs.",
+                    text = "Reconciliation Clarity: Net Surplus (Post-SIP) shows unspent income from your salary cycle. Net Physical Cash Movement reflects actual cash delta in your vaults, which also factors in loan paybacks, tax refunds, corporate claim floats, and emergency funds swept into Fortress FDs.",
                     fontSize = 11.sp,
                     color = TextMuted,
                     lineHeight = 15.sp
