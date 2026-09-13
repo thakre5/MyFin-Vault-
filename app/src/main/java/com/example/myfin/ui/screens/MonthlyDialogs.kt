@@ -34,6 +34,8 @@ import com.example.myfin.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
+private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettleFixedBillDialog(
