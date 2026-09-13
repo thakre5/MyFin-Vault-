@@ -88,7 +88,6 @@ fun MonthlySummaryTab(
         uiState.categories.filter { it.type == selectedMatrixType && it.category.isNotBlank() }
     }
 
-    // Auto-scroll pager state for the 4 balance flow cards
     val flowPagerState = rememberPagerState(pageCount = { 4 })
 
     LaunchedEffect(flowPagerState) {
@@ -1048,7 +1047,7 @@ fun MonthlySummaryTab(
             val preSipSaved = uiState.metrics.netSavedBeforeInvest
             val actualAssets = uiState.metrics.actualAssets
             val postSipSurplus = preSipSaved - actualAssets
-            val bankCashMovement = endBal - startBal
+            val bankCashMovement = endBalance - startBalance
             val relocatedGap = bankCashMovement - postSipSurplus
 
             val incomeBase = uiState.metrics.personalIncome.takeIf { it > 0.0 } ?: uiState.metrics.actualIncome
