@@ -438,18 +438,14 @@ class BudgetViewModel(
                     fixedBills.map { it.category to it.type } +
                     regularTxs.map { it.category to it.type }).distinct()
 
+            // Build matrix items for ledger breakdown: keep full accounting for all logged categories
             val matrixList = allCategoryNames.mapNotNull { (catName, catType) ->
                 if (catType == TransactionType.TRANSFER) return@mapNotNull null
 
                 val isCorporateCat = catType == TransactionType.CORPORATE
 
-                val isNonPersonalIncomeCat = catType == TransactionType.INCOME &&
-                        (catName.equals("Passive & Capital Drawdowns", ignoreCase = true) ||
-                         catName.contains("Capital Drawdown", ignoreCase = true))
-
                 val catTxs = regularTxs.filter { tx ->
-                    tx.category.equals(catName, ignoreCase = true) && tx.type == catType &&
-                    !(catType == TransactionType.INCOME && (isLoanRepayment(tx) || isTaxOrPurchaseRefund(tx) || isCapitalDrawdown(tx)))
+                    tx.category.equals(catName, ignoreCase = true) && tx.type == catType
                 }
 
                 val actualTotal = catTxs.sumOf { it.amount }
@@ -458,7 +454,6 @@ class BudgetViewModel(
                 val fixedForCat = fixedBills.filter { it.category.equals(catName, ignoreCase = true) && it.type == catType }.sumOf { it.amount }
                 val effectivePlanned = if (manualPlan > 0.0) max(manualPlan, fixedForCat) else fixedForCat
 
-                if (isNonPersonalIncomeCat && actualTotal == 0.0 && effectivePlanned == 0.0) return@mapNotNull null
                 if (actualTotal == 0.0 && effectivePlanned == 0.0) return@mapNotNull null
 
                 val activeSubs = catTxs.groupBy { it.subcategory }
