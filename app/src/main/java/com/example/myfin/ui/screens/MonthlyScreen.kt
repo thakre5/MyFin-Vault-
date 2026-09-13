@@ -59,6 +59,7 @@ fun MonthlyScreen(
 
     var isDiscreetMode by remember { mutableStateOf(false) }
     var showStsInfoSheet by remember { mutableStateOf(false) }
+    var showBalanceFlowSheet by remember { mutableStateOf(false) }
     var dismissedWaterfallMonth by remember { mutableIntStateOf(0) }
     var dismissedSweepMonth by remember { mutableIntStateOf(0) }
 
@@ -255,6 +256,7 @@ fun MonthlyScreen(
                             commitmentsAccountName = commitmentsAccountName,
                             fortressAccountName = fortressAccountName,
                             onOpenStsInfo = { showStsInfoSheet = true },
+                            onOpenBalanceFlowInfo = { showBalanceFlowSheet = true },
                             onOpenTransferSheet = { showTransferSheet = true },
                             onDismissWaterfall = { dismissedWaterfallMonth = uiState.selectedMonth },
                             onDismissSweep = { dismissedSweepMonth = uiState.selectedMonth },
@@ -432,7 +434,7 @@ fun MonthlyScreen(
                             isPaid = true,
                             paidDateMillis = date
                         )
-                        Toast.makeText(context, "Saved as recurring sweep & transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Saved as recurring sweep & transferred ${userProfile.currencySymbol}${String.format(java.util.Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
                     } else {
                         viewModel.executeInstantTransfer(
                             fromAccount = from,
@@ -442,7 +444,7 @@ fun MonthlyScreen(
                             subtype = subtype,
                             date = date
                         )
-                        Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(java.util.Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
                     }
                 }
             )
@@ -578,6 +580,14 @@ fun MonthlyScreen(
                 uiState = uiState,
                 userProfile = userProfile,
                 onDismiss = { showStsInfoSheet = false }
+            )
+        }
+
+        if (showBalanceFlowSheet) {
+            BalanceFlowInfoBottomSheet(
+                uiState = uiState,
+                userProfile = userProfile,
+                onDismiss = { showBalanceFlowSheet = false }
             )
         }
     }
