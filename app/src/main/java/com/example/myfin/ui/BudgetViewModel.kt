@@ -479,8 +479,9 @@ class BudgetViewModel(
             val plannedExpenses = matrixList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.plannedAmount }
             val plannedAssets = matrixList.filter { it.type == TransactionType.ASSET }.sumOf { it.plannedAmount }
 
+            // Fix 3: Include ASSET (SIPs) in allFixedCommitments so AutoPay investments ring-fence STS
             val allFixedCommitments = fixedBills.filter {
-                it.type == TransactionType.EXPENSE || it.type == TransactionType.TRANSFER
+                it.type == TransactionType.EXPENSE || it.type == TransactionType.TRANSFER || it.type == TransactionType.ASSET
             }
             val fixedExpenseTotal = allFixedCommitments.sumOf { it.amount }
             val pendingFixedCommitments = allFixedCommitments.filter { !it.isPaid }.sumOf { it.amount }
@@ -495,7 +496,7 @@ class BudgetViewModel(
             }
 
             // =========================================================================
-            // 6. DYNAMIC PRIMARY SALARY DETECTION & PAYDAY GRACE PERIOD ENGINE
+            // 6. DYNAMIC PRIMARY SALARY DETECTION & PAYDAY ENGINE (FIXES 1 & 2)
             // =========================================================================
             val salaryTxsInCurrentMonth = regularTxs.filter {
                 it.type == TransactionType.INCOME &&
@@ -533,8 +534,10 @@ class BudgetViewModel(
                 daysUntilUpcomingSalary = 30
             } else {
                 if (currentMonthSalaryTx != null) {
+                    // Salary already received this cycle; target next month's salary date safely (Fix 1: Guard against 31st overflow)
                     val nextPaydayCal = Calendar.getInstance().apply {
                         timeInMillis = todayMidnight.timeInMillis
+                        set(Calendar.DAY_OF_MONTH, 1)
                         add(Calendar.MONTH, 1)
                         val maxDayNextMonth = getActualMaximum(Calendar.DAY_OF_MONTH)
                         set(Calendar.DAY_OF_MONTH, min(dynamicSalaryDay, maxDayNextMonth))
@@ -544,18 +547,9 @@ class BudgetViewModel(
                 } else {
                     if (currentDayOfMonth <= dynamicSalaryDay) {
                         daysUntilUpcomingSalary = max(1, dynamicSalaryDay - currentDayOfMonth)
-                    } else if (currentDayOfMonth <= dynamicSalaryDay + 4) {
-                        daysUntilUpcomingSalary = 1
-                        isSalaryDelayed = true
                     } else {
-                        val nextPaydayCal = Calendar.getInstance().apply {
-                            timeInMillis = todayMidnight.timeInMillis
-                            add(Calendar.MONTH, 1)
-                            val maxDayNextMonth = getActualMaximum(Calendar.DAY_OF_MONTH)
-                            set(Calendar.DAY_OF_MONTH, min(dynamicSalaryDay, maxDayNextMonth))
-                        }
-                        val diffMillis = nextPaydayCal.timeInMillis - todayMidnight.timeInMillis
-                        daysUntilUpcomingSalary = max(1L, diffMillis / (24 * 60 * 60 * 1000L)).toInt()
+                        // Fix 2: Delayed past expected day - reserve a rolling 1-day buffer matching UI contract
+                        daysUntilUpcomingSalary = 1
                         isSalaryDelayed = true
                     }
                 }
@@ -576,12 +570,19 @@ class BudgetViewModel(
                 if (plannedExpenses > 0.0) plannedExpenses else profile.baseMonthlyIncome.coerceAtLeast(0.0)
             }
 
-            val livingBufferTarget = max(historicalAvgSpend, plannedExpenses.takeIf { it > 0.0 } ?: profile.baseMonthlyIncome.coerceAtLeast(0.0))
+            val livingBufferTarget = if (plannedExpenses > 0.0) {
+                plannedExpenses
+            } else if (historicalAvgSpend > 0.0) {
+                historicalAvgSpend
+            } else {
+                profile.baseMonthlyIncome.coerceAtLeast(0.0)
+            }
+
             val dailyBurnVelocity = livingBufferTarget / 30.0
             val runwayProtectionUntilSalary = dailyBurnVelocity * daysUntilUpcomingSalary
 
             // =========================================================================
-            // 8. OPTION 2: PURE GUILT-FREE SAFE-TO-SPEND
+            // 8. OPTION 2: PURE GUILT-FREE SAFE-TO-SPEND (FIX 3)
             // =========================================================================
             val isFortressAccount = { acc: AccountBalanceResult ->
                 acc.accountType.equals("Fortress", ignoreCase = true) ||
@@ -617,13 +618,34 @@ class BudgetViewModel(
             } else 0
 
             // =========================================================================
-            // 9. BALANCE FLOW & DUAL SAVINGS CALCULATIONS (RULES 1, 2, 3, 4)
+            // 9. BALANCE FLOW & CASH MOVEMENT (FIX 4)
             // =========================================================================
             val currentLiquidEndBalance = liquidPoolAccounts.sumOf { it.currentBalance }
 
-            val monthLiquidCashMovement = (personalIncome + corporateReimbursements) - 
-                    (lifestyleExpenses + actualSavingsAndInvestments + workExpenses)
+            val liquidAccountNames = liquidPoolAccounts.map { it.accountName.lowercase() }.toSet()
+            val isLiquidAcc = { name: String? -> name != null && liquidAccountNames.contains(name.lowercase()) }
 
+            // Actual cash added to liquid vaults (including refunds, capital realizations, and sweeps from Fortress)
+            val totalLiquidInflows = transactions.filter { tx ->
+                when (tx.type) {
+                    TransactionType.INCOME -> isLiquidAcc(tx.accountName)
+                    TransactionType.CORPORATE -> tx.category.equals("Reimbursements & Claims", ignoreCase = true) && isLiquidAcc(tx.accountName)
+                    TransactionType.TRANSFER -> !isLiquidAcc(tx.accountName) && isLiquidAcc(tx.toAccountName)
+                    else -> false
+                }
+            }.sumOf { it.amount }
+
+            // Actual cash leaving liquid vaults (expenses, investments, and sweeps out to Fortress)
+            val totalLiquidOutflows = transactions.filter { tx ->
+                when (tx.type) {
+                    TransactionType.EXPENSE, TransactionType.ASSET -> isLiquidAcc(tx.accountName)
+                    TransactionType.CORPORATE -> !tx.category.equals("Reimbursements & Claims", ignoreCase = true) && isLiquidAcc(tx.accountName)
+                    TransactionType.TRANSFER -> isLiquidAcc(tx.accountName) && !isLiquidAcc(tx.toAccountName)
+                    else -> false
+                }
+            }.sumOf { it.amount }
+
+            val monthLiquidCashMovement = totalLiquidInflows - totalLiquidOutflows
             val currentLiquidStartBalance = currentLiquidEndBalance - monthLiquidCashMovement
 
             val netSavedBeforeAssets = personalIncome - lifestyleExpenses
@@ -652,6 +674,7 @@ class BudgetViewModel(
                 val accBills = fixedBills.filter { bill ->
                     !bill.isPaid &&
                     bill.type != TransactionType.INCOME &&
+                    !(bill.type == TransactionType.CORPORATE && bill.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
                     bill.accountName.equals(acc.accountName, ignoreCase = true)
                 }
                 val accUnpaidTotal = accBills.sumOf { it.amount }
@@ -691,7 +714,7 @@ class BudgetViewModel(
             )
 
             // =========================================================================
-            // 11. PAYDAY ALLOCATION & MONTH-END SWEEP ENGINES
+            // 11. PAYDAY ALLOCATION & MONTH-END SWEEP ENGINES (FIX 7)
             // =========================================================================
             val totalDaysInCurrentMonth = todayCal.getActualMaximum(Calendar.DAY_OF_MONTH)
             val salaryTx = currentMonthSalaryTx
@@ -756,12 +779,19 @@ class BudgetViewModel(
                 it.currentBalance - it.minBalance
             }.coerceAtLeast(0.0)
 
+            // Fix 7: Exclude receivables from unpaidOperatingBills
             val unpaidOperatingBills = fixedBills.filter { bill ->
                 !bill.isPaid &&
+                bill.type != TransactionType.INCOME &&
+                !(bill.type == TransactionType.CORPORATE && bill.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
                 operatingAccountsList.any { it.accountName.equals(bill.accountName, ignoreCase = true) }
             }.sumOf { it.amount }
 
-            val nextMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, 1) }
+            val nextMonthCal = Calendar.getInstance().apply {
+                timeInMillis = todayMidnight.timeInMillis
+                set(Calendar.DAY_OF_MONTH, 1)
+                add(Calendar.MONTH, 1)
+            }
             val maxDaysInNextMonth = nextMonthCal.getActualMaximum(Calendar.DAY_OF_MONTH)
             val targetNextPayday = min(dynamicSalaryDay, maxDaysInNextMonth)
 
@@ -800,7 +830,7 @@ class BudgetViewModel(
                 profile.fortressManualTarget
             } else {
                 val months = if (profile.fortressEmergencyMonths > 0) profile.fortressEmergencyMonths else 6
-                historicalAvgSpend * months
+                livingBufferTarget * months
             }
 
             val fortressProgress = if (computedFortressTarget > 0.0) {
@@ -1014,7 +1044,16 @@ class BudgetViewModel(
                 }
             }
 
-            var runningCumulativeAssets = 0.0
+            // Fix 8: Seed cumulative assets with historical savings prior to startYear
+            var runningCumulativeAssets = allTransactions.filter { tx ->
+                txCal.timeInMillis = tx.date
+                txCal.get(Calendar.YEAR) < startYear
+            }.sumOf { tx ->
+                if (isGenuineSavingsOrAsset(tx)) tx.amount
+                else if (isCapitalDrawdown(tx)) -tx.amount
+                else 0.0
+            }.coerceAtLeast(0.0)
+
             val cumulativeAssetMap = sortedMapOf<Int, Double>()
             annualNetAssetMap.toSortedMap().forEach { (y, netAmt) ->
                 runningCumulativeAssets = (runningCumulativeAssets + netAmt).coerceAtLeast(0.0)
@@ -1107,8 +1146,17 @@ class BudgetViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), YearlyUiState())
 
+    // Fix 6: Only include strictly completed historical months in average monthly spend
     val averageMonthlySpend: StateFlow<Double> = combine(yearlyUiState, monthlyUiState) { yearly, monthly ->
-        val completedHistoricalMonths = yearly.yearlyMonthsData.filter { !it.isFuture && it.lifestyleExpenses > 0 }
+        val nowCal = Calendar.getInstance()
+        val currentSysYear = nowCal.get(Calendar.YEAR)
+        val currentSysMonth = nowCal.get(Calendar.MONTH) + 1
+
+        val completedHistoricalMonths = yearly.yearlyMonthsData.filter { monthData ->
+            val isPastCompletedMonth = (yearly.selectedYear < currentSysYear) ||
+                    (yearly.selectedYear == currentSysYear && monthData.monthIndex < currentSysMonth)
+            isPastCompletedMonth && monthData.lifestyleExpenses > 0
+        }
 
         if (completedHistoricalMonths.isNotEmpty()) {
             completedHistoricalMonths.map { it.lifestyleExpenses }.average()
@@ -2494,6 +2542,7 @@ class BudgetViewModel(
         }
     }
 
+    // Fix 5: Only rollover bills into empty months; prevents resurrecting deleted bills
     private suspend fun checkAndRolloverRecurringBills(targetMonth: Int, targetYear: Int): Int = withContext(Dispatchers.IO) {
         val historicalBills = dao.getLatestHistoricalFixedBills(targetMonth, targetYear)
         if (historicalBills.isEmpty()) return@withContext 0
@@ -2517,33 +2566,30 @@ class BudgetViewModel(
                 currentIterMonth += 1
             }
 
-            val sourceBills = dao.getFixedBillsForMonthDirect(prevMonth, prevYear).ifEmpty { latestKnownBills }
             val existingInIter = dao.getFixedBillsForMonthDirect(currentIterMonth, currentIterYear)
 
-            val existingSignatures = existingInIter.map { getBillSignature(it) }.toSet()
+            if (existingInIter.isEmpty()) {
+                val sourceBills = dao.getFixedBillsForMonthDirect(prevMonth, prevYear).ifEmpty { latestKnownBills }
+                val missingToClone = sourceBills.distinctBy { getBillSignature(it) }.map {
+                    FixedBillEntity(
+                        title = it.title,
+                        amount = it.amount,
+                        category = it.category,
+                        subcategory = it.subcategory,
+                        accountName = it.accountName,
+                        toAccountName = it.toAccountName,
+                        type = it.type,
+                        isPaid = false,
+                        dueDay = it.dueDay,
+                        month = currentIterMonth,
+                        year = currentIterYear
+                    )
+                }
 
-            val missingToClone = sourceBills.filter { source ->
-                val sig = getBillSignature(source)
-                !existingSignatures.contains(sig)
-            }.distinctBy { getBillSignature(it) }.map {
-                FixedBillEntity(
-                    title = it.title,
-                    amount = it.amount,
-                    category = it.category,
-                    subcategory = it.subcategory,
-                    accountName = it.accountName,
-                    toAccountName = it.toAccountName,
-                    type = it.type,
-                    isPaid = false,
-                    dueDay = it.dueDay,
-                    month = currentIterMonth,
-                    year = currentIterYear
-                )
-            }
-
-            if (missingToClone.isNotEmpty()) {
-                dao.insertFixedBills(missingToClone)
-                totalClonedInRun += missingToClone.size
+                if (missingToClone.isNotEmpty()) {
+                    dao.insertFixedBills(missingToClone)
+                    totalClonedInRun += missingToClone.size
+                }
             }
 
             latestKnownBills = dao.getFixedBillsForMonthDirect(currentIterMonth, currentIterYear)
