@@ -2,6 +2,7 @@ package com.example.myfin.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,7 +24,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myfin.data.MasterCategory
 import com.example.myfin.ui.theme.*
 import java.util.Locale
 import kotlin.math.cos
@@ -34,7 +34,7 @@ import kotlin.math.sin
 fun YearlyAuditTab(
     categoryTrajectories: List<CategoryAnnualTrajectory>,
     plannedCategoryCeilings: Map<String, Double>,
-    masterCategories: List<MasterCategory>,
+    isCategoryLegacy: (String) -> Boolean,
     currencySymbol: String,
     isDiscreetMode: Boolean,
     onOpenGraphGuide: (GraphExplanationGuide) -> Unit
@@ -114,8 +114,8 @@ fun YearlyAuditTab(
             }
         } else {
             items(categoryTrajectories, key = { it.categoryName }) { item ->
-                val isLegacy = remember(masterCategories, item.categoryName) {
-                    masterCategories.any { it.name.equals(item.categoryName, ignoreCase = true) && it.isLegacy }
+                val isLegacy = remember(isCategoryLegacy, item.categoryName) {
+                    isCategoryLegacy(item.categoryName)
                 }
                 CategoryTrajectoryRowCard(
                     item = item,
