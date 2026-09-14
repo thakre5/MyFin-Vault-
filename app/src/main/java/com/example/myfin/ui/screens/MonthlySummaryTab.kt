@@ -430,15 +430,16 @@ fun MonthlySummaryTab(
             }
         }
 
-        // 3. HORIZONTAL PAGER: SAFE TO SPEND, 3-PILLAR TARGET, & FORTRESS CARDS (SNAPPING ASSURED, TRIMMED TO 258.dp)
+        // 3. HORIZONTAL PAGER: SAFE TO SPEND, 3-PILLAR TARGET, & FORTRESS CARDS (SUBTLE PEEK & COMPACT HEIGHT)
         item {
             Column(modifier = Modifier.fillMaxWidth()) {
                 HorizontalPager(
                     state = topCardsPagerState,
-                    pageSpacing = 12.dp,
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    pageSpacing = 10.dp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(258.dp)
+                        .height(220.dp)
                 ) { pageIndex ->
                     when (pageIndex) {
                         // Card 0: Liquid Safe to Spend
@@ -448,8 +449,8 @@ fun MonthlySummaryTab(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .shadow(2.5.dp, RoundedCornerShape(20.dp)),
-                                shape = RoundedCornerShape(20.dp),
+                                    .shadow(2.dp, RoundedCornerShape(18.dp)),
+                                shape = RoundedCornerShape(18.dp),
                                 color = CardWhite,
                                 border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                             ) {
@@ -465,7 +466,7 @@ fun MonthlySummaryTab(
                                                 )
                                             )
                                         )
-                                        .padding(13.dp),
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column {
@@ -491,39 +492,39 @@ fun MonthlySummaryTab(
                                                 Text(
                                                     text = "LIQUID SAFE TO SPEND",
                                                     color = TextMuted,
-                                                    fontSize = 9.5.sp,
+                                                    fontSize = 9.sp,
                                                     fontWeight = FontWeight.Black,
-                                                    letterSpacing = 0.6.sp
+                                                    letterSpacing = 0.5.sp
                                                 )
                                                 Spacer(modifier = Modifier.width(3.dp))
                                                 Icon(
                                                     imageVector = Icons.Default.HelpOutline,
                                                     contentDescription = "Explain Safe to Spend",
                                                     tint = AccentPurple,
-                                                    modifier = Modifier.size(14.dp)
+                                                    modifier = Modifier.size(13.dp)
                                                 )
                                             }
 
                                             Surface(
-                                                shape = RoundedCornerShape(7.dp),
+                                                shape = RoundedCornerShape(6.dp),
                                                 color = if (isHealthy) AccentPurple.copy(alpha = 0.1f) else statusColor.copy(alpha = 0.12f),
                                                 border = BorderStroke(0.5.dp, if (isHealthy) AccentPurple.copy(alpha = 0.25f) else statusColor.copy(alpha = 0.3f))
                                             ) {
                                                 Text(
                                                     text = "${uiState.metrics.safeToSpendPercentage}% Capacity",
                                                     color = if (isHealthy) AccentPurple else statusColor,
-                                                    fontSize = 9.5.sp,
+                                                    fontSize = 8.5.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                                                 )
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Spacer(modifier = Modifier.height(2.dp))
 
                                         Text(
                                             text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
-                                            fontSize = 24.sp,
+                                            fontSize = 21.sp,
                                             fontWeight = FontWeight.Black,
                                             color = if (isHealthy) TextDark else SoftRed,
                                             letterSpacing = (-0.5).sp
@@ -539,14 +540,14 @@ fun MonthlySummaryTab(
                                                 isCurrentMonth -> "Runway deficit: spending exceeds safe allowance"
                                                 else -> "Projected surplus for ${uiState.metrics.daysUntilPayday} days until payday"
                                             },
-                                            fontSize = 10.5.sp,
+                                            fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = if (uiState.metrics.isSalaryDelayed) Color(0xFFE57A28) else if (isHealthy) TextMuted else SoftRed,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
 
-                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Spacer(modifier = Modifier.height(4.dp))
 
                                         SpendingSparkline(
                                             points = uiState.metrics.dailyExpensePoints,
@@ -558,7 +559,7 @@ fun MonthlySummaryTab(
 
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                                     ) {
                                         val displayInflow = if (uiState.metrics.plannedIncome > 0) uiState.metrics.plannedIncome else uiState.metrics.personalIncome
                                         val displayAssets = if (uiState.metrics.plannedAssets > 0) uiState.metrics.plannedAssets else uiState.metrics.actualAssets
@@ -621,8 +622,8 @@ fun MonthlySummaryTab(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .shadow(2.5.dp, RoundedCornerShape(20.dp)),
-                                shape = RoundedCornerShape(20.dp),
+                                    .shadow(2.dp, RoundedCornerShape(18.dp)),
+                                shape = RoundedCornerShape(18.dp),
                                 color = CardWhite,
                                 border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                             ) {
@@ -638,7 +639,7 @@ fun MonthlySummaryTab(
                                                 )
                                             )
                                         )
-                                        .padding(11.dp),
+                                        .padding(horizontal = 11.dp, vertical = 9.dp),
                                     verticalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Row(
@@ -662,42 +663,42 @@ fun MonthlySummaryTab(
                                             Spacer(modifier = Modifier.width(5.dp))
                                             Text(
                                                 text = "3-PILLAR TARGET EXECUTION",
-                                                fontSize = 9.5.sp,
+                                                fontSize = 9.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = TextMuted,
-                                                letterSpacing = 0.6.sp
+                                                letterSpacing = 0.5.sp
                                             )
                                             Spacer(modifier = Modifier.width(3.dp))
                                             Icon(
                                                 imageVector = Icons.Default.HelpOutline,
                                                 contentDescription = "Explain 3-Pillars",
                                                 tint = AccentPurple,
-                                                modifier = Modifier.size(14.dp)
+                                                modifier = Modifier.size(13.dp)
                                             )
                                         }
 
                                         Surface(
-                                            shape = RoundedCornerShape(6.dp),
+                                            shape = RoundedCornerShape(5.dp),
                                             color = budgetStatusColor.copy(alpha = 0.12f)
                                         ) {
                                             Text(
                                                 text = budgetStatusLabel,
                                                 color = budgetStatusColor,
-                                                fontSize = 9.sp,
+                                                fontSize = 8.5.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                                             )
                                         }
                                     }
 
                                     // Expenses pill
                                     Surface(
-                                        shape = RoundedCornerShape(10.dp),
+                                        shape = RoundedCornerShape(9.dp),
                                         color = CanvasLight.copy(alpha = 0.6f),
                                         border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Column(modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) {
+                                        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -706,15 +707,15 @@ fun MonthlySummaryTab(
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Box(
                                                         modifier = Modifier
-                                                            .size(20.dp)
-                                                            .clip(RoundedCornerShape(5.dp))
+                                                            .size(18.dp)
+                                                            .clip(RoundedCornerShape(4.dp))
                                                             .background(SoftRed.copy(alpha = 0.12f)),
                                                         contentAlignment = Alignment.Center
                                                     ) {
-                                                        Icon(Icons.Default.TrendingDown, contentDescription = null, tint = SoftRed, modifier = Modifier.size(11.dp))
+                                                        Icon(Icons.Default.TrendingDown, contentDescription = null, tint = SoftRed, modifier = Modifier.size(10.dp))
                                                     }
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text("Expenses", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = TextDark)
+                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                    Text("Expenses", fontWeight = FontWeight.Bold, fontSize = 10.5.sp, color = TextDark)
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                     Surface(
                                                         shape = RoundedCornerShape(3.dp),
@@ -726,7 +727,7 @@ fun MonthlySummaryTab(
                                                                 else if (expDiff > 0) "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expDiff)} Over"
                                                                 else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(expDiff))} Left"
                                                             } else "No Cap",
-                                                            fontSize = 8.sp,
+                                                            fontSize = 7.5.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = if (isExpenseOverBudget) SoftRed else TextMuted,
                                                             modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
@@ -738,22 +739,22 @@ fun MonthlySummaryTab(
                                                     Text(
                                                         text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualExpenses)}",
                                                         fontWeight = FontWeight.Black,
-                                                        fontSize = 11.5.sp,
+                                                        fontSize = 11.sp,
                                                         color = if (isExpenseOverBudget) SoftRed else TextDark
                                                     )
                                                     Text(
                                                         text = if (isDiscreetMode) "Target: ••••" else "Target: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedExpenses)}",
-                                                        fontSize = 8.5.sp,
+                                                        fontSize = 8.sp,
                                                         color = TextMuted
                                                     )
                                                 }
                                             }
-                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Spacer(modifier = Modifier.height(2.5.dp))
                                             LinearProgressIndicator(
                                                 progress = { expFraction },
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(3.dp)
+                                                    .height(2.5.dp)
                                                     .clip(RoundedCornerShape(1.5.dp)),
                                                 color = SoftRed,
                                                 trackColor = SoftRed.copy(alpha = 0.15f)
@@ -763,12 +764,12 @@ fun MonthlySummaryTab(
 
                                     // Income pill
                                     Surface(
-                                        shape = RoundedCornerShape(10.dp),
+                                        shape = RoundedCornerShape(9.dp),
                                         color = CanvasLight.copy(alpha = 0.6f),
                                         border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Column(modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) {
+                                        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -777,15 +778,15 @@ fun MonthlySummaryTab(
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Box(
                                                         modifier = Modifier
-                                                            .size(20.dp)
-                                                            .clip(RoundedCornerShape(5.dp))
+                                                            .size(18.dp)
+                                                            .clip(RoundedCornerShape(4.dp))
                                                             .background(SoftGreen.copy(alpha = 0.12f)),
                                                         contentAlignment = Alignment.Center
                                                     ) {
-                                                        Icon(Icons.Default.TrendingUp, contentDescription = null, tint = SoftGreen, modifier = Modifier.size(11.dp))
+                                                        Icon(Icons.Default.TrendingUp, contentDescription = null, tint = SoftGreen, modifier = Modifier.size(10.dp))
                                                     }
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text("Income", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = TextDark)
+                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                    Text("Income", fontWeight = FontWeight.Bold, fontSize = 10.5.sp, color = TextDark)
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                     Surface(
                                                         shape = RoundedCornerShape(3.dp),
@@ -797,7 +798,7 @@ fun MonthlySummaryTab(
                                                                 else if (isDiscreetMode) "Short"
                                                                 else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(incDiff))} Short"
                                                             } else "Recorded",
-                                                            fontSize = 8.sp,
+                                                            fontSize = 7.5.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = TextMuted,
                                                             modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
@@ -809,22 +810,22 @@ fun MonthlySummaryTab(
                                                     Text(
                                                         text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualIncome)}",
                                                         fontWeight = FontWeight.Black,
-                                                        fontSize = 11.5.sp,
+                                                        fontSize = 11.sp,
                                                         color = TextDark
                                                     )
                                                     Text(
                                                         text = if (isDiscreetMode) "Target: ••••" else "Target: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedIncome)}",
-                                                        fontSize = 8.5.sp,
+                                                        fontSize = 8.sp,
                                                         color = TextMuted
                                                     )
                                                 }
                                             }
-                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Spacer(modifier = Modifier.height(2.5.dp))
                                             LinearProgressIndicator(
                                                 progress = { incFraction },
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(3.dp)
+                                                    .height(2.5.dp)
                                                     .clip(RoundedCornerShape(1.5.dp)),
                                                 color = SoftGreen,
                                                 trackColor = SoftGreen.copy(alpha = 0.15f)
@@ -834,12 +835,12 @@ fun MonthlySummaryTab(
 
                                     // Assets pill
                                     Surface(
-                                        shape = RoundedCornerShape(10.dp),
+                                        shape = RoundedCornerShape(9.dp),
                                         color = CanvasLight.copy(alpha = 0.6f),
                                         border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Column(modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) {
+                                        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -848,15 +849,15 @@ fun MonthlySummaryTab(
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Box(
                                                         modifier = Modifier
-                                                            .size(20.dp)
-                                                            .clip(RoundedCornerShape(5.dp))
+                                                            .size(18.dp)
+                                                            .clip(RoundedCornerShape(4.dp))
                                                             .background(SoftTeal.copy(alpha = 0.12f)),
                                                         contentAlignment = Alignment.Center
                                                     ) {
-                                                        Icon(Icons.Default.Savings, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(11.dp))
+                                                        Icon(Icons.Default.Savings, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(10.dp))
                                                     }
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text("Assets / SIP", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = TextDark)
+                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                    Text("Assets / SIP", fontWeight = FontWeight.Bold, fontSize = 10.5.sp, color = TextDark)
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                     Surface(
                                                         shape = RoundedCornerShape(3.dp),
@@ -868,7 +869,7 @@ fun MonthlySummaryTab(
                                                                 else if (isDiscreetMode) "Short"
                                                                 else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(astDiff))} Short"
                                                             } else "Recorded",
-                                                            fontSize = 8.sp,
+                                                            fontSize = 7.5.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = TextMuted,
                                                             modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
@@ -880,22 +881,22 @@ fun MonthlySummaryTab(
                                                     Text(
                                                         text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualAssets)}",
                                                         fontWeight = FontWeight.Black,
-                                                        fontSize = 11.5.sp,
+                                                        fontSize = 11.sp,
                                                         color = TextDark
                                                     )
                                                     Text(
                                                         text = if (isDiscreetMode) "Target: ••••" else "Target: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedAssets)}",
-                                                        fontSize = 8.5.sp,
+                                                        fontSize = 8.sp,
                                                         color = TextMuted
                                                     )
                                                 }
                                             }
-                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Spacer(modifier = Modifier.height(2.5.dp))
                                             LinearProgressIndicator(
                                                 progress = { astFraction },
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(3.dp)
+                                                    .height(2.5.dp)
                                                     .clip(RoundedCornerShape(1.5.dp)),
                                                 color = SoftTeal,
                                                 trackColor = SoftTeal.copy(alpha = 0.15f)
@@ -917,8 +918,8 @@ fun MonthlySummaryTab(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .shadow(2.5.dp, RoundedCornerShape(20.dp)),
-                                shape = RoundedCornerShape(20.dp),
+                                    .shadow(2.dp, RoundedCornerShape(18.dp)),
+                                shape = RoundedCornerShape(18.dp),
                                 color = CardWhite,
                                 border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                             ) {
@@ -934,7 +935,7 @@ fun MonthlySummaryTab(
                                                 )
                                             )
                                         )
-                                        .padding(13.dp),
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column {
@@ -960,39 +961,39 @@ fun MonthlySummaryTab(
                                                 Text(
                                                     text = "FORTRESS SAFETY NET & SWEEP",
                                                     color = TextMuted,
-                                                    fontSize = 9.5.sp,
+                                                    fontSize = 9.sp,
                                                     fontWeight = FontWeight.Black,
-                                                    letterSpacing = 0.6.sp
+                                                    letterSpacing = 0.5.sp
                                                 )
                                                 Spacer(modifier = Modifier.width(3.dp))
                                                 Icon(
                                                     imageVector = Icons.Default.HelpOutline,
                                                     contentDescription = "Explain Fortress",
                                                     tint = Color(0xFF0D9488),
-                                                    modifier = Modifier.size(14.dp)
+                                                    modifier = Modifier.size(13.dp)
                                                 )
                                             }
 
                                             Surface(
-                                                shape = RoundedCornerShape(7.dp),
+                                                shape = RoundedCornerShape(6.dp),
                                                 color = Color(0xFF0D9488).copy(alpha = 0.12f),
                                                 border = BorderStroke(0.5.dp, Color(0xFF0D9488).copy(alpha = 0.3f))
                                             ) {
                                                 Text(
                                                     text = "$progressPct% Funded",
                                                     color = Color(0xFF0D9488),
-                                                    fontSize = 9.5.sp,
+                                                    fontSize = 8.5.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                                                 )
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Spacer(modifier = Modifier.height(2.dp))
 
                                         Text(
                                             text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentFds)}",
-                                            fontSize = 24.sp,
+                                            fontSize = 21.sp,
                                             fontWeight = FontWeight.Black,
                                             color = TextDark,
                                             letterSpacing = (-0.5).sp
@@ -1002,20 +1003,20 @@ fun MonthlySummaryTab(
 
                                         Text(
                                             text = if (isDiscreetMode) "Emergency Corpus Protected" else "Corpus in Sweep FDs (Goal: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressGoal)})",
-                                            fontSize = 10.5.sp,
+                                            fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = TextMuted,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
 
-                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Spacer(modifier = Modifier.height(6.dp))
 
                                         LinearProgressIndicator(
                                             progress = { progressFraction },
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(4.dp)
+                                                .height(3.5.dp)
                                                 .clip(RoundedCornerShape(2.dp)),
                                             color = Color(0xFF0D9488),
                                             trackColor = Color(0xFF0D9488).copy(alpha = 0.15f)
@@ -1023,7 +1024,7 @@ fun MonthlySummaryTab(
                                     }
 
                                     Surface(
-                                        shape = RoundedCornerShape(10.dp),
+                                        shape = RoundedCornerShape(9.dp),
                                         color = CanvasLight.copy(alpha = 0.7f),
                                         border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
                                         modifier = Modifier.fillMaxWidth()
@@ -1031,16 +1032,16 @@ fun MonthlySummaryTab(
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                                                .padding(horizontal = 9.dp, vertical = 6.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column {
-                                                Text("Savings Floor", fontSize = 8.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                                                Text("Savings Floor", fontSize = 8.sp, fontWeight = FontWeight.Black, color = TextMuted)
                                                 Spacer(modifier = Modifier.height(1.dp))
                                                 Text(
                                                     text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", sweepFloor)}",
-                                                    fontSize = 11.5.sp,
+                                                    fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = TextDark
                                                 )
@@ -1048,17 +1049,17 @@ fun MonthlySummaryTab(
 
                                             Box(
                                                 modifier = Modifier
-                                                    .height(20.dp)
+                                                    .height(18.dp)
                                                     .width(1.dp)
                                                     .background(BorderLight.copy(alpha = 0.7f))
                                             )
 
                                             Column(horizontalAlignment = Alignment.End) {
-                                                Text("Runway Target", fontSize = 8.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                                                Text("Runway Target", fontSize = 8.sp, fontWeight = FontWeight.Black, color = TextMuted)
                                                 Spacer(modifier = Modifier.height(1.dp))
                                                 Text(
                                                     text = "${userProfile.fortressEmergencyMonths} Months Burn",
-                                                    fontSize = 11.5.sp,
+                                                    fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color(0xFF0D9488)
                                                 )
@@ -1097,7 +1098,7 @@ fun MonthlySummaryTab(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
         // 4. AUTO-SCROLLING BALANCE FLOW CAROUSEL (OPTION 2: ULTRA-COMPACT 2-ROW AT 108.dp)
@@ -1142,7 +1143,6 @@ fun MonthlySummaryTab(
                             when (pageIndex) {
                                 // CARD 0: LIQUID BANK FLOW (PHYSICAL CASH DELTA)
                                 0 -> {
-                                    // Row 1: Header + Pill Badge + Chevron
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1178,7 +1178,6 @@ fun MonthlySummaryTab(
                                         }
                                     }
 
-                                    // Row 2: Hero Value + Split Breakdown
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1212,7 +1211,6 @@ fun MonthlySummaryTab(
 
                                 // CARD 1: WEALTH RETENTION (PRE-SIP SAVINGS)
                                 1 -> {
-                                    // Row 1: Header + Pill Badge + Chevron
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1248,7 +1246,6 @@ fun MonthlySummaryTab(
                                         }
                                     }
 
-                                    // Row 2: Hero Value + Split Breakdown
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1282,7 +1279,6 @@ fun MonthlySummaryTab(
 
                                 // CARD 2: UNALLOCATED SURPLUS (POST-SIP SURPLUS)
                                 2 -> {
-                                    // Row 1: Header + Pill Badge + Chevron
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1318,7 +1314,6 @@ fun MonthlySummaryTab(
                                         }
                                     }
 
-                                    // Row 2: Hero Value + Split Breakdown
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1352,7 +1347,6 @@ fun MonthlySummaryTab(
 
                                 // CARD 3: CAPITAL RELOCATED (RESERVES & WORK FLOAT GAP)
                                 3 -> {
-                                    // Row 1: Header + Pill Badge + Chevron
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1388,7 +1382,6 @@ fun MonthlySummaryTab(
                                         }
                                     }
 
-                                    // Row 2: Hero Value + Split Breakdown
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1852,11 +1845,11 @@ private fun PillarMetricCard(
     Surface(
         modifier = modifier
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(9.dp),
         color = CardWhite,
         border = BorderStroke(0.7.dp, BorderLight.copy(alpha = 0.6f))
     ) {
-        Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 5.dp, vertical = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
@@ -1865,12 +1858,12 @@ private fun PillarMetricCard(
                         .background(tintColor)
                 )
                 Spacer(modifier = Modifier.width(3.dp))
-                Text(text = title, fontSize = 8.5.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                Text(text = title, fontSize = 8.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
             }
             Spacer(modifier = Modifier.height(1.dp))
             Text(
                 text = amount,
-                fontSize = 11.5.sp,
+                fontSize = 10.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = tintColor
             )
