@@ -1,3 +1,4 @@
+package com.example.myfin.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -8,6 +9,7 @@ import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -38,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
+import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AccountTransferDialog
 import com.example.myfin.ui.components.AppBottomDock
@@ -48,6 +51,19 @@ import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.abs
+
+enum class VaultTier(
+    val title: String,
+    val description: String,
+    val color: Color,
+    val bgTint: Color,
+    val icon: ImageVector
+) {
+    OPERATING("Operating", "Daily living & UPI spending", Color(0xFFE57A28), Color(0xFFFFF0D4), Icons.Default.AccountBalance),
+    COMMITMENTS("Commitments", "AutoPay ring-fence & fixed bills", AccentPurple, Color(0xFFF3E5F5), Icons.Default.CreditCard),
+    FORTRESS("Fortress", "Emergency savings & sweep FDs", SoftTeal, Color(0xFFE0F7FA), Icons.Default.Security),
+    CASH("Cash", "Physical wallet & micro-spend", SoftGreen, Color(0xFFE6F8EF), Icons.Default.Payments)
+}
 
 data class SimplePendingEditConfirmation(
     val originalAccount: AccountBalanceResult,
@@ -147,7 +163,7 @@ fun SimpleAccountsScreen(
     val netVaultCapital = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
 
     val monthInflow = uiState.metrics.actualIncome
-    val monthOutflow = uiState.metrics.actualExpenses + uiState.metrics.actualAssets + uiState.metrics.corporateOutlays
+    val monthOutflow = uiState.metrics.actualExpenses + uiState.metrics.actualAssets
 
     val fabActions = remember {
         listOf(
