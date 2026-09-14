@@ -907,13 +907,27 @@ fun MonthlySummaryTab(
                             }
                         }
 
-                        // Card 2: Fortress Emergency Net
+                        // Card 2: Fortress Vault Split (Adopted from Vault Strategy Screen)
                         2 -> {
-                            val fortressGoal = uiState.fortressTarget
-                            val currentFds = uiState.fortressFdBalance
-                            val sweepFloor = userProfile.fortressSweepThreshold
-                            val progressPct = uiState.fortressProgressPercentage
-                            val progressFraction = (progressPct / 100f).coerceIn(0f, 1f)
+                            val fortTotal = remember(uiState.activeAccounts) {
+                                uiState.activeAccounts.filter { acc ->
+                                    acc.accountType.equals("Fortress", ignoreCase = true) ||
+                                    acc.accountName.contains("FORTRESS", ignoreCase = true)
+                                }.sumOf { it.currentBalance }
+                            }
+                            val fortressFd = uiState.fortressFdBalance
+                            val emergencyTarget = uiState.fortressTarget
+                            val sweepThreshold = userProfile.fortressSweepThreshold
+                            val fortressSavings = remember(fortTotal, fortressFd) {
+                                (fortTotal - fortressFd).coerceAtLeast(0.0)
+                            }
+                            val fortressSavingsFraction = if (sweepThreshold > 0.0) (fortressSavings / sweepThreshold).toFloat().coerceIn(0f, 1f) else 1f
+                            val fortressCushionDeficit = remember(fortressSavings, sweepThreshold) {
+                                if (sweepThreshold > 0.0) (sweepThreshold - fortressSavings).coerceAtLeast(0.0) else 0.0
+                            }
+                            val fdDeficit = remember(fortressFd, emergencyTarget) {
+                                if (emergencyTarget > 0.0) (emergencyTarget - fortressFd).coerceAtLeast(0.0) else 0.0
+                            }
 
                             Surface(
                                 modifier = Modifier
@@ -921,150 +935,211 @@ fun MonthlySummaryTab(
                                     .shadow(2.dp, RoundedCornerShape(18.dp)),
                                 shape = RoundedCornerShape(18.dp),
                                 color = CardWhite,
-                                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                                border = BorderStroke(0.8.dp, SoftTeal.copy(alpha = 0.28f))
                             ) {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .background(
                                             Brush.verticalGradient(
-                                                colors = listOf(
+                                                listOf(
                                                     Color(0xFFFFFFFF),
-                                                    Color(0xFFF7FCFB),
-                                                    Color(0xFF0D9488).copy(alpha = 0.05f)
+                                                    SoftTeal.copy(alpha = 0.04f)
                                                 )
                                             )
                                         )
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalArrangement = Arrangement.SpaceBetween
                                 ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .clickable(onClick = onOpenFortressInfo)
+                                                .padding(vertical = 1.dp, horizontal = 2.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .clip(CircleShape)
+                                                    .background(SoftTeal.copy(alpha = 0.14f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Security,
+                                                    contentDescription = null,
+                                                    tint = SoftTeal,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(7.dp))
+                                            Column {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = "Fortress Vault Split",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 12.5.sp,
+                                                        color = TextDark
+                                                    )
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Icon(
+                                                        imageVector = Icons.Default.HelpOutline,
+                                                        contentDescription = "Explain Fortress",
+                                                        tint = SoftTeal,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                }
+                                                Text(
+                                                    text = "Liquid Cushion vs. Emergency FD",
+                                                    fontSize = 9.5.sp,
+                                                    color = TextMuted
+                                                )
+                                            }
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = when {
+                                                fortressCushionDeficit > 0 -> SoftAmber.copy(alpha = 0.12f)
+                                                emergencyTarget > 0 && fdDeficit <= 0 -> SoftTeal.copy(alpha = 0.14f)
+                                                fortressFd > 0 -> SoftTeal.copy(alpha = 0.12f)
+                                                else -> SoftGreen.copy(alpha = 0.12f)
+                                            }
+                                        ) {
+                                            Text(
+                                                text = when {
+                                                    fortressCushionDeficit > 0 -> "Filling Cushion"
+                                                    emergencyTarget > 0 && fdDeficit <= 0 -> "Goal 100%"
+                                                    fortressFd > 0 -> "FD Active"
+                                                    else -> "Cushion Full"
+                                                },
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = when {
+                                                    fortressCushionDeficit > 0 -> SoftAmber
+                                                    emergencyTarget > 0 && fdDeficit <= 0 -> SoftTeal
+                                                    fortressFd > 0 -> SoftTeal
+                                                    else -> SoftGreen
+                                                },
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
                                     Column {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(CanvasLight)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(fortressSavingsFraction.coerceAtLeast(0.02f))
+                                                    .fillMaxHeight()
+                                                    .background(SoftTeal)
+                                            )
+                                            if (fortressFd > 0) {
+                                                val fdFraction = (fortressFd / fortTotal.coerceAtLeast(1.0)).toFloat().coerceIn(0.05f, 0.95f)
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(fdFraction)
+                                                        .fillMaxHeight()
+                                                        .background(Color(0xFF0D9488))
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .clickable(onClick = onOpenFortressInfo)
-                                                    .padding(vertical = 1.dp, horizontal = 2.dp)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(6.dp)
-                                                        .clip(CircleShape)
-                                                        .background(Color(0xFF0D9488))
-                                                )
-                                                Spacer(modifier = Modifier.width(5.dp))
-                                                Text(
-                                                    text = "FORTRESS SAFETY NET & SWEEP",
-                                                    color = TextMuted,
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    letterSpacing = 0.5.sp
-                                                )
-                                                Spacer(modifier = Modifier.width(3.dp))
-                                                Icon(
-                                                    imageVector = Icons.Default.HelpOutline,
-                                                    contentDescription = "Explain Fortress",
-                                                    tint = Color(0xFF0D9488),
-                                                    modifier = Modifier.size(13.dp)
-                                                )
-                                            }
-
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = Color(0xFF0D9488).copy(alpha = 0.12f),
-                                                border = BorderStroke(0.5.dp, Color(0xFF0D9488).copy(alpha = 0.3f))
-                                            ) {
-                                                Text(
-                                                    text = "$progressPct% Funded",
-                                                    color = Color(0xFF0D9488),
-                                                    fontSize = 8.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
-                                                )
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(2.dp))
-
-                                        Text(
-                                            text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentFds)}",
-                                            fontSize = 21.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = TextDark,
-                                            letterSpacing = (-0.5).sp
-                                        )
-
-                                        Spacer(modifier = Modifier.height(1.dp))
-
-                                        Text(
-                                            text = if (isDiscreetMode) "Emergency Corpus Protected" else "Corpus in Sweep FDs (Goal: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressGoal)})",
-                                            fontSize = 9.5.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = TextMuted,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-
-                                        Spacer(modifier = Modifier.height(6.dp))
-
-                                        LinearProgressIndicator(
-                                            progress = { progressFraction },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(3.5.dp)
-                                                .clip(RoundedCornerShape(2.dp)),
-                                            color = Color(0xFF0D9488),
-                                            trackColor = Color(0xFF0D9488).copy(alpha = 0.15f)
-                                        )
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(9.dp),
-                                        color = CanvasLight.copy(alpha = 0.7f),
-                                        border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 9.dp, vertical = 6.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column {
-                                                Text("Savings Floor", fontSize = 8.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftTeal))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Liquid Cushion", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                                                }
                                                 Spacer(modifier = Modifier.height(1.dp))
                                                 Text(
-                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", sweepFloor)}",
-                                                    fontSize = 11.sp,
+                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressSavings)}",
+                                                    fontSize = 13.5.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = TextDark
+                                                )
+                                                Text(
+                                                    text = if (isDiscreetMode) "Cap: ••••" else if (sweepThreshold > 0.0) "Cap: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", sweepThreshold)}" else "No Cap Set",
+                                                    fontSize = 8.5.sp,
+                                                    color = TextMuted
                                                 )
                                             }
 
                                             Box(
                                                 modifier = Modifier
-                                                    .height(18.dp)
+                                                    .height(26.dp)
                                                     .width(1.dp)
                                                     .background(BorderLight.copy(alpha = 0.7f))
                                             )
 
-                                            Column(horizontalAlignment = Alignment.End) {
-                                                Text("Runway Target", fontSize = 8.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                                            Column(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .padding(start = 10.dp)
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(Color(0xFF0D9488)))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Emergency FD", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                                                }
                                                 Spacer(modifier = Modifier.height(1.dp))
                                                 Text(
-                                                    text = "${userProfile.fortressEmergencyMonths} Months Burn",
-                                                    fontSize = 11.sp,
+                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressFd)}",
+                                                    fontSize = 13.5.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF0D9488)
+                                                    color = if (fortressFd > 0) Color(0xFF0D9488) else TextDark
+                                                )
+                                                Text(
+                                                    text = if (isDiscreetMode) "Goal: ••••" else if (emergencyTarget > 0.0) "Goal: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", emergencyTarget)} (${userProfile.fortressEmergencyMonths}M)" else "Target Unset",
+                                                    fontSize = 8.5.sp,
+                                                    color = TextMuted
                                                 )
                                             }
                                         }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (fortressCushionDeficit > 0) SoftAmber.copy(alpha = 0.10f) else SoftTeal.copy(alpha = 0.10f),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        val statusNotice = when {
+                                            fortressCushionDeficit > 0 ->
+                                                "• Needs ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressCushionDeficit)} to fill cushion before auto-booking FDs"
+                                            emergencyTarget > 0.0 && fdDeficit > 0 ->
+                                                "• Cushion full. FDs need ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fdDeficit)} for ${userProfile.fortressEmergencyMonths}M target."
+                                            emergencyTarget > 0.0 && fdDeficit <= 0 ->
+                                                "• Cushion full & ${userProfile.fortressEmergencyMonths}M Emergency FD target 100% funded!"
+                                            else ->
+                                                "• Liquid cushion full. Surplus actively sweeps to Emergency FDs."
+                                        }
+                                        Text(
+                                            text = if (isDiscreetMode) "• Balance privacy enabled" else statusNotice,
+                                            fontSize = 9.sp,
+                                            color = if (fortressCushionDeficit > 0) SoftAmber else SoftTeal,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
                                     }
                                 }
                             }
