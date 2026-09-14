@@ -90,7 +90,7 @@ fun YearlyCashflowTab(
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 240.dp)
     ) {
-        // 1. DUAL-WAVE CASHFLOW DYNAMICS (Compact Height & Touch Scrubber)
+        // 1. COMPACT DUAL-WAVE CASHFLOW DYNAMICS (Height reduced & optimized)
         item(key = "dual_smooth_wave_card") {
             DualSmoothWaveCard(
                 title = "Cashflow Dynamics",
@@ -122,7 +122,7 @@ fun YearlyCashflowTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 2. 12-MONTH NET CASHFLOW PULSE (Clickable for Guide)
+        // 2. 12-MONTH NET CASHFLOW PULSE (Micro Surplus / Deficit Strip)
         item(key = "monthly_cashflow_pulse_card") {
             MonthlyCashflowPulseCard(
                 yearlyMonths = yearlyMonthsData,
@@ -148,7 +148,7 @@ fun YearlyCashflowTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 3. ANNUAL 3-PILLAR CAPITAL DEPLOYMENT MATRIX (Clickable for Guide)
+        // 3. ANNUAL 3-PILLAR CAPITAL DEPLOYMENT MATRIX
         item(key = "annual_three_pillar_matrix_card") {
             AnnualThreePillarMatrixCard(
                 annualIncome = annualPersonalIncome,
@@ -183,7 +183,7 @@ fun YearlyCashflowTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 4. YEAR-END PROJECTED RUN-RATE FORECAST (Clickable for Guide)
+        // 4. YEAR-END PROJECTED RUN-RATE FORECAST
         item(key = "annual_forecast_runrate_card") {
             AnnualForecastRunRateCard(
                 activeMonths = activeMonthsCount,
@@ -436,7 +436,9 @@ private fun DualSmoothWaveCard(
 
                 IconButton(
                     onClick = onInfoClick,
-                    modifier = Modifier.size(28.dp).clip(CircleShape)
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Info,
