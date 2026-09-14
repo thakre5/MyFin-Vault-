@@ -549,6 +549,345 @@ fun SafeToSpendInfoBottomSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ThreePillarInfoBottomSheet(
+    uiState: MonthlyUiState,
+    userProfile: UserProfile,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = CardWhite,
+        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 22.dp)
+                .padding(bottom = 32.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "3-Pillar Target Execution",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 19.sp,
+                        color = TextDark
+                    )
+                    Text(
+                        text = "Planned budget limits vs. actual monthly execution",
+                        fontSize = 11.5.sp,
+                        color = TextMuted
+                    )
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = AccentPurple.copy(alpha = 0.12f),
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.TrendingUp, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(19.dp))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = CanvasLight,
+                border = BorderStroke(0.8.dp, BorderLight)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "The 3-Pillar Budget Framework",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "MyFin organizes every rupee into three foundational pillars: Expenses (lifestyle spending capped to prevent burn), Income (earnings engines), and Assets / SIPs (paying yourself first into wealth before lifestyle spending).",
+                        fontSize = 11.sp,
+                        color = TextMuted,
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text("Live Target Performance", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = CardWhite,
+                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val plannedExp = uiState.metrics.plannedExpenses
+                    val actualExp = uiState.metrics.actualExpenses
+                    val expDiff = plannedExp - actualExp
+
+                    val plannedInc = uiState.metrics.plannedIncome
+                    val actualInc = uiState.metrics.actualIncome
+
+                    val plannedAst = uiState.metrics.plannedAssets
+                    val actualAst = uiState.metrics.actualAssets
+
+                    // Pillar 1: Expenses
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column {
+                            Text("1. Lifestyle Expenses", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                            Text(
+                                text = if (plannedExp > 0) {
+                                    if (expDiff >= 0) "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expDiff)} headroom left"
+                                    else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(expDiff))} over budget"
+                                } else "No spending limit set",
+                                fontSize = 10.sp,
+                                color = if (expDiff < 0 && plannedExp > 0) SoftRed else TextMuted
+                            )
+                        }
+                        Text(
+                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualExp)} / ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedExp)}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = if (expDiff < 0 && plannedExp > 0) SoftRed else TextDark
+                        )
+                    }
+
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
+
+                    // Pillar 2: Income
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column {
+                            Text("2. Inflow / Income", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                            Text(
+                                text = if (actualInc >= plannedInc && plannedInc > 0) "Target achieved" else "Incoming progress",
+                                fontSize = 10.sp,
+                                color = SoftGreen
+                            )
+                        }
+                        Text(
+                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualInc)} / ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedInc)}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = SoftGreen
+                        )
+                    }
+
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
+
+                    // Pillar 3: Assets
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column {
+                            Text("3. Assets / SIP Wealth", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                            Text(
+                                text = if (actualAst >= plannedAst && plannedAst > 0) "Target fully funded" else "Pending SIP transfers",
+                                fontSize = 10.sp,
+                                color = SoftTeal
+                            )
+                        }
+                        Text(
+                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualAst)} / ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedAst)}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = SoftTeal
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Planner Alignment: Targets are configured in the Budget Planner. Any active recurring AutoPay commitment automatically sets a baseline minimum target for that category.",
+                    fontSize = 11.sp,
+                    color = TextMuted,
+                    lineHeight = 15.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+            ) {
+                Text("Got it", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FortressInfoBottomSheet(
+    uiState: MonthlyUiState,
+    userProfile: UserProfile,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = CardWhite,
+        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 22.dp)
+                .padding(bottom = 32.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Fortress Safety Net & Sweeps",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 19.sp,
+                        color = TextDark
+                    )
+                    Text(
+                        text = "Emergency reserve protection and surplus sweeps",
+                        fontSize = 11.5.sp,
+                        color = TextMuted
+                    )
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFF0D9488).copy(alpha = 0.12f),
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFF0D9488), modifier = Modifier.size(19.dp))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = CanvasLight,
+                border = BorderStroke(0.8.dp, BorderLight)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "What is the Fortress Vault?",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "The Fortress Vault is your strictly ring-fenced emergency fund. It is excluded from your daily liquid spending pool so it cannot be spent accidentally. It protects your living security with auto-sweep FDs to survive unexpected income interruptions.",
+                        fontSize = 11.sp,
+                        color = TextMuted,
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text("Live Fortress Status", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = CardWhite,
+                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Current Emergency FDs Reserve", fontSize = 11.5.sp, color = TextDark)
+                        Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.fortressFdBalance)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF0D9488))
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Emergency Goal (${userProfile.fortressEmergencyMonths} Mos Runway)", fontSize = 11.5.sp, color = TextDark)
+                        Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.fortressTarget)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                    }
+
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column {
+                            Text("Goal Progress", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
+                            Text("Funded portion of emergency target", fontSize = 10.sp, color = TextMuted)
+                        }
+                        Text(
+                            text = "${uiState.fortressProgressPercentage}% Funded",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 13.5.sp,
+                            color = Color(0xFF0D9488)
+                        )
+                    }
+
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Liquid Checking Sweep Floor", fontSize = 11.5.sp, color = TextDark)
+                        Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.fortressSweepThreshold)}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = TextMuted)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(Icons.Default.SyncAlt, contentDescription = null, tint = Color(0xFF0D9488), modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Automated Month-End Sweeps: Between the 28th and the last day of the month, any unspent checking cash exceeding your living runway and sweep floor can be swept directly into Fortress with a single tap.",
+                    fontSize = 11.sp,
+                    color = TextMuted,
+                    lineHeight = 15.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+            ) {
+                Text("Got it", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
 @Composable
 fun DeleteTransactionConfirmDialog(
     tx: TransactionEntity,
