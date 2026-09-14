@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -49,6 +50,7 @@ import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
+import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
@@ -112,6 +114,7 @@ fun VaultStrategyScreen(
     onNavigateToVaultSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val avgMonthlySpend by viewModel.averageMonthlySpend.collectAsState()
@@ -137,7 +140,35 @@ fun VaultStrategyScreen(
         uiState.archivedAccounts
     }
 
+    // Bank Cards Carousel Scroll & Snap State
+    val bankCardsListState = rememberLazyListState()
+    val bankCardsSnapBehavior = rememberSnapFlingBehavior(lazyListState = bankCardsListState)
+
+    // Automatically detect which card is centered in focus
+    val focusedCardIndex by remember {
+        derivedStateOf {
+            val layoutInfo = bankCardsListState.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            if (visibleItems.isEmpty()) {
+                0
+            } else {
+                val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                visibleItems.minByOrNull { item ->
+                    val itemCenter = item.offset + item.size / 2
+                    abs(itemCenter - viewportCenter)
+                }?.index ?: 0
+            }
+        }
+    }
+
     var activeSelectedCardIndex by remember { mutableIntStateOf(0) }
+
+    // Synchronize selected card with whichever card is currently scrolled into focus
+    LaunchedEffect(focusedCardIndex) {
+        if (displayAccounts.isNotEmpty()) {
+            activeSelectedCardIndex = focusedCardIndex.coerceIn(0, displayAccounts.size - 1)
+        }
+    }
 
     LaunchedEffect(displayAccounts.size) {
         if (displayAccounts.isNotEmpty() && activeSelectedCardIndex >= displayAccounts.size) {
@@ -151,7 +182,7 @@ fun VaultStrategyScreen(
 
     val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
 
-    // Unified: Net Vault Capital scope (All 4 Tiers)
+    // Net Vault Capital scope (All 4 Tiers)
     val netVaultCapital = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
     val opTotal = remember(displayAccounts) {
         displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.OPERATING }.sumOf { it.currentBalance }
@@ -414,7 +445,7 @@ fun VaultStrategyScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 125.dp)
             ) {
-                // Top Strategy Carousel (Untouched as requested)
+                // Top Strategy Carousel
                 item(key = "top_strategy_carousel") {
                     val strategyCarouselState = rememberLazyListState()
                     val strategySnapBehavior = rememberSnapFlingBehavior(lazyListState = strategyCarouselState)
@@ -788,7 +819,7 @@ fun VaultStrategyScreen(
                         }
 
                         Text(
-                            text = "Tap card to focus",
+                            text = "Scroll or tap to focus",
                             fontSize = 11.sp,
                             color = TextMuted
                         )
@@ -796,7 +827,7 @@ fun VaultStrategyScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // Physical Bank Cards Horizontal Carousel (Snapping Enabled, Look & Size Unaltered)
+                // Physical Bank Cards Horizontal Carousel (Auto-Centering & Snapping)
                 if (displayAccounts.isEmpty()) {
                     item(key = "empty_accounts") {
                         Surface(
@@ -812,9 +843,6 @@ fun VaultStrategyScreen(
                     }
                 } else {
                     item(key = "accounts_carousel") {
-                        val bankCardsListState = rememberLazyListState()
-                        val bankCardsSnapBehavior = rememberSnapFlingBehavior(lazyListState = bankCardsListState)
-
                         LazyRow(
                             state = bankCardsListState,
                             flingBehavior = bankCardsSnapBehavior,
@@ -834,7 +862,18 @@ fun VaultStrategyScreen(
                                     tier = tier,
                                     isSelected = isSelected,
                                     showRole = true,
-                                    onSelect = { activeSelectedCardIndex = idx },
+                                    onSelect = {
+                                        activeSelectedCardIndex = idx
+                                        coroutineScope.launch {
+                                            val layoutInfo = bankCardsListState.layoutInfo
+                                            val itemInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == idx }
+                                            if (itemInfo != null) {
+                                                val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                                                val itemCenter = itemInfo.offset + itemInfo.size / 2
+                                                bankCardsListState.animateScrollBy((itemCenter - viewportCenter).toFloat())
+                                            }
+                                        }
+                                    },
                                     onEdit = { editingAccount = acc },
                                     modifier = Modifier.width(260.dp)
                                 )
