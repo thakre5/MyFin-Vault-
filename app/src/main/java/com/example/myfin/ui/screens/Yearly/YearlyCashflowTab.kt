@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -18,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
@@ -34,7 +34,6 @@ import com.example.myfin.ui.YearlyUiState
 import com.example.myfin.ui.theme.*
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.max
 import kotlin.math.roundToInt
 
 private val MONTH_SHORT_LABELS = listOf("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D")
@@ -53,13 +52,11 @@ fun YearlyCashflowTab(
     val totalYearlyAssets = yearlyState.totalYearlyAssets
     val reimbursementStatus = yearlyState.reimbursementStatus
 
-    // Active/elapsed months tracking to prevent math dilution
     val activeMonthsCount = remember(yearlyMonthsData) {
         val count = yearlyMonthsData.count { !it.isFuture || it.lifestyleExpenses > 0.0 }
         count.coerceAtLeast(1)
     }
 
-    // 1. Annual 3-Pillar Deployment Aggregations
     val totalFixedObligations = remember(yearlyMonthsData) {
         yearlyMonthsData.sumOf { it.fixedExpenses }
     }
@@ -76,7 +73,6 @@ fun YearlyCashflowTab(
     val assetRatio = (totalYearlyAssets / incomeBase).toFloat().coerceIn(0f, 1f)
     val retainedRatio = (netCashRetained / incomeBase).toFloat().coerceIn(0f, 1f)
 
-    // 2. Annualized Run-Rate Projections
     val projectedInflow = remember(annualPersonalIncome, activeMonthsCount) {
         (annualPersonalIncome / activeMonthsCount) * 12.0
     }
@@ -94,7 +90,7 @@ fun YearlyCashflowTab(
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 240.dp)
     ) {
-        // 1. COMPACT DUAL-WAVE CASHFLOW DYNAMICS (Height reduced & optimized)
+        // 1. DUAL-WAVE CASHFLOW DYNAMICS (Compact Height & Touch Scrubber)
         item(key = "dual_smooth_wave_card") {
             DualSmoothWaveCard(
                 title = "Cashflow Dynamics",
@@ -110,14 +106,15 @@ fun YearlyCashflowTab(
                         GraphExplanationGuide(
                             title = "Cashflow Dynamics",
                             subtitle = "Personal Inflow vs. Lifestyle Burn",
-                            whatItShows = "Maps monthly personal earnings against true lifestyle expenses across 12 months. All corporate travel floats and capital liquidations are excluded.",
+                            whatItShows = "Maps monthly personal earnings against true lifestyle expenses across all 12 months. Excludes corporate advances and capital movements.",
                             visualElements = listOf(
-                                "Emerald Line" to "Personal earned income (Salary & Professional earnings).",
-                                "Purple Line" to "Personal lifestyle burn (Living costs, groceries, utilities).",
-                                "Gap Between Lines" to "Operating cash surplus that compounds into your wealth."
+                                "Emerald Line" to "Personal earned income (Salary and verified credits).",
+                                "Purple Line" to "True lifestyle burn (Living costs, groceries, utilities).",
+                                "Shaded Area" to "Unelapsed/future accounting cycles under projection.",
+                                "Touch Guideline" to "Drag across the wave to inspect month-by-month cashflow."
                             ),
-                            whyItMatters = "Directly audits living discipline. When the purple burn line approaches the green line, lifestyle inflation is absorbing your capacity to invest.",
-                            actionableTip = "Keep the spread between the green and purple lines as wide as possible to sustain high savings rates."
+                            whyItMatters = "Maintains visibility on lifestyle inflation. A widening gap between the green and purple lines directly compounds into net wealth.",
+                            actionableTip = "Keep the spread as wide as possible. A single high burn month can absorb months of disciplined surplus."
                         )
                     )
                 }
@@ -125,17 +122,33 @@ fun YearlyCashflowTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 2. 12-MONTH NET CASHFLOW PULSE (Micro Surplus / Deficit Strip)
+        // 2. 12-MONTH NET CASHFLOW PULSE (Clickable for Guide)
         item(key = "monthly_cashflow_pulse_card") {
             MonthlyCashflowPulseCard(
                 yearlyMonths = yearlyMonthsData,
                 currencySymbol = currencySymbol,
-                isDiscreet = isDiscreetMode
+                isDiscreet = isDiscreetMode,
+                onInfoClick = {
+                    onOpenGraphGuide(
+                        GraphExplanationGuide(
+                            title = "12-Month Cashflow Pulse",
+                            subtitle = "Surplus & Deficit Rhythm",
+                            whatItShows = "Displays net cash retention per calendar month centered on a zero baseline.",
+                            visualElements = listOf(
+                                "Green Bars (Rising)" to "Surplus months where monthly income exceeded total outlays.",
+                                "Red Bars (Dipping)" to "Deficit months where personal burn exceeded that month's earnings.",
+                                "Grey Dots" to "Planned/future cycles awaiting ledger transactions."
+                            ),
+                            whyItMatters = "Surplus consistency is more critical than a single massive income month. You want as many green spikes as possible.",
+                            actionableTip = "If more than 2 consecutive months dip into the red, check Commitments Vault for bill spikes."
+                        )
+                    )
+                }
             )
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 3. ANNUAL 3-PILLAR CAPITAL DEPLOYMENT MATRIX
+        // 3. ANNUAL 3-PILLAR CAPITAL DEPLOYMENT MATRIX (Clickable for Guide)
         item(key = "annual_three_pillar_matrix_card") {
             AnnualThreePillarMatrixCard(
                 annualIncome = annualPersonalIncome,
@@ -148,12 +161,29 @@ fun YearlyCashflowTab(
                 assetRatio = assetRatio,
                 retainedRatio = retainedRatio,
                 currencySymbol = currencySymbol,
-                isDiscreet = isDiscreetMode
+                isDiscreet = isDiscreetMode,
+                onInfoClick = {
+                    onOpenGraphGuide(
+                        GraphExplanationGuide(
+                            title = "Annual 3-Pillar Allocation",
+                            subtitle = "Capital Distribution Framework",
+                            whatItShows = "Breaks down how every earned rupee was distributed throughout the year across structural accounts.",
+                            visualElements = listOf(
+                                "Slate Layer" to "Fixed non-negotiable bills (AutoPay, EMIs, Rent, Utilities).",
+                                "Purple Layer" to "Discretionary lifestyle burn (Dining, Shopping, Fuel).",
+                                "Cyan Layer" to "Assets & SIP investments directly compounding your portfolio.",
+                                "Emerald Layer" to "Pure liquid cash surplus retained in operating and fortress vaults."
+                            ),
+                            whyItMatters = "Audits adherence to healthy budgeting guidelines (keeping fixed bills under 50% and assets/savings above 20%).",
+                            actionableTip = "Aim to deploy unspent green retained surplus into Fortress Sweep FDs at month-end."
+                        )
+                    )
+                }
             )
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 4. YEAR-END PROJECTED RUN-RATE FORECAST
+        // 4. YEAR-END PROJECTED RUN-RATE FORECAST (Clickable for Guide)
         item(key = "annual_forecast_runrate_card") {
             AnnualForecastRunRateCard(
                 activeMonths = activeMonthsCount,
@@ -162,7 +192,23 @@ fun YearlyCashflowTab(
                 projectedAssets = projectedAssets,
                 projectedSurplus = projectedNetSurplus,
                 currencySymbol = currencySymbol,
-                isDiscreet = isDiscreetMode
+                isDiscreet = isDiscreetMode,
+                onInfoClick = {
+                    onOpenGraphGuide(
+                        GraphExplanationGuide(
+                            title = "12-Month Run-Rate Forecast",
+                            subtitle = "Paced Annual Velocity",
+                            whatItShows = "Extrapolates your active average burn and inflow across 12 full calendar months to project year-end standing.",
+                            visualElements = listOf(
+                                "Forecasted Inflow" to "Projected total earnings if current pace continues through December.",
+                                "Forecasted Burn" to "Projected full-year expenses based on active-month burn rate.",
+                                "Year-End Surplus" to "Anticipated net liquid capital remaining at year close."
+                            ),
+                            whyItMatters = "Eliminates mid-year dilution. You see your true destination rather than an incomplete partial-year snapshot.",
+                            actionableTip = "Use positive year-end surplus forecasts to plan annual wealth lump sums or tax savings."
+                        )
+                    )
+                }
             )
             Spacer(modifier = Modifier.height(14.dp))
         }
@@ -171,7 +217,25 @@ fun YearlyCashflowTab(
         if (reimbursementStatus.cumulativeWorkExpenses > 0.0 || reimbursementStatus.excessAdvanceHeld > 0.0) {
             item(key = "reimbursement_banner") {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            onOpenGraphGuide(
+                                GraphExplanationGuide(
+                                    title = "Corporate Float & Claims",
+                                    subtitle = "Business Travel & Outlay Isolation",
+                                    whatItShows = "Tracks company expenses paid out of pocket versus company advances held in your accounts.",
+                                    visualElements = listOf(
+                                        "Advance Held" to "Company capital held in your account, strictly ring-fenced from safe-to-spend.",
+                                        "Claim Due" to "Reimbursements owed back to your bank account.",
+                                        "Settled" to "Zero net discrepancy between work expenses and claim deposits."
+                                    ),
+                                    whyItMatters = "Prevents corporate expenses from skewing personal burn metrics or causing accidental budget deficits.",
+                                    actionableTip = "Submit claims immediately on cycle close so personal accounts are replenished."
+                                )
+                            )
+                        },
                     shape = RoundedCornerShape(16.dp),
                     color = CardWhite,
                     border = BorderStroke(0.8.dp, Color(0xFFE57A28).copy(alpha = 0.35f))
@@ -247,7 +311,40 @@ fun YearlyCashflowTab(
 
         // 6. FISCAL QUARTER RETENTION GRID
         item(key = "cashflow_quarterly_grid") {
-            Text("Fiscal Quarter Retention", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                        onOpenGraphGuide(
+                            GraphExplanationGuide(
+                                title = "Fiscal Quarter Retention",
+                                subtitle = "Quarterly Savings Efficiency",
+                                whatItShows = "Aggregates personal income, burn, and net surplus across 3-month fiscal periods (Q1 to Q4).",
+                                visualElements = listOf(
+                                    "Retention %" to "Percentage of quarterly income retained as net surplus.",
+                                    "k Metric" to "Net currency volume saved per quarter in thousands.",
+                                    "Pending" to "Future quarters with zero logged ledger activity."
+                                ),
+                                whyItMatters = "Reveals quarterly seasonality, such as holiday spending in Q4 or bonus infusions in Q1.",
+                                actionableTip = "Target a minimum of 20% retention across every active quarter."
+                            )
+                        }
+                    },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Fiscal Quarter Retention", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Default.HelpOutline,
+                        contentDescription = "Quarterly Guide",
+                        tint = TextMuted,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
@@ -290,7 +387,7 @@ fun YearlyCashflowTab(
 }
 
 // =========================================================
-// COMPACT DUAL SMOOTH WAVE CARD (TOP CARD)
+// 1. DUAL SMOOTH WAVE CARD (COMPACT HEIGHT & CLICKABLE)
 // =========================================================
 
 @Composable
@@ -325,7 +422,10 @@ private fun DualSmoothWaveCard(
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onInfoClick),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -416,7 +516,7 @@ private fun DualSmoothWaveCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Dual Wave Canvas (Trimmed height: 118.dp)
+            // Dual Wave Canvas (118.dp compact height)
             DualWaveCanvas(
                 yearlyMonths = yearlyMonths,
                 selectedMonthIndex = selectedMonthIndex,
@@ -428,7 +528,7 @@ private fun DualSmoothWaveCard(
 
             Spacer(modifier = Modifier.height(3.dp))
 
-            // X-Axis Month Markers (J F M A M J J A S O N D)
+            // X-Axis Month Markers
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -540,21 +640,24 @@ private fun DualSmoothWaveCard(
 }
 
 // =========================================================
-// 12-MONTH NET CASHFLOW PULSE CARD (MINI BAR STRIP)
+// 2. 12-MONTH NET CASHFLOW PULSE CARD (CLICKABLE)
 // =========================================================
 
 @Composable
 private fun MonthlyCashflowPulseCard(
     yearlyMonths: List<YearlyMonthData>,
     currencySymbol: String,
-    isDiscreet: Boolean
+    isDiscreet: Boolean,
+    onInfoClick: () -> Unit
 ) {
     val maxNet = yearlyMonths.maxOfOrNull { abs(it.netSavings) }?.coerceAtLeast(100.0) ?: 100.0
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(16.dp)),
+            .shadow(2.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onInfoClick),
         shape = RoundedCornerShape(16.dp),
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
@@ -574,6 +677,13 @@ private fun MonthlyCashflowPulseCard(
                         fontWeight = FontWeight.Black,
                         color = TextMuted,
                         letterSpacing = 0.6.sp
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Icon(
+                        imageVector = Icons.Default.HelpOutline,
+                        contentDescription = "Pulse Explanation",
+                        tint = AccentPurple,
+                        modifier = Modifier.size(13.dp)
                     )
                 }
 
@@ -618,7 +728,6 @@ private fun MonthlyCashflowPulseCard(
                                 .height(44.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            // Zero baseline
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -671,7 +780,7 @@ private fun MonthlyCashflowPulseCard(
 }
 
 // =========================================================
-// ANNUAL 3-PILLAR CAPITAL DEPLOYMENT MATRIX CARD
+// 3. ANNUAL 3-PILLAR ALLOCATION MATRIX CARD (CLICKABLE)
 // =========================================================
 
 @Composable
@@ -686,12 +795,15 @@ private fun AnnualThreePillarMatrixCard(
     assetRatio: Float,
     retainedRatio: Float,
     currencySymbol: String,
-    isDiscreet: Boolean
+    isDiscreet: Boolean,
+    onInfoClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(16.dp)),
+            .shadow(2.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onInfoClick),
         shape = RoundedCornerShape(16.dp),
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
@@ -712,6 +824,13 @@ private fun AnnualThreePillarMatrixCard(
                         color = TextMuted,
                         letterSpacing = 0.6.sp
                     )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Icon(
+                        imageVector = Icons.Default.HelpOutline,
+                        contentDescription = "Pillar Explanation",
+                        tint = AccentPurple,
+                        modifier = Modifier.size(13.dp)
+                    )
                 }
 
                 Text(
@@ -724,7 +843,6 @@ private fun AnnualThreePillarMatrixCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Multi-segment progress bar
             val totalDeployment = (totalFixed + totalVariable + totalAssets + netRetained).coerceAtLeast(1.0)
             Row(
                 modifier = Modifier
@@ -749,7 +867,6 @@ private fun AnnualThreePillarMatrixCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 4-Column Grid
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -815,7 +932,7 @@ private fun PillarAllocationPill(
 }
 
 // =========================================================
-// YEAR-END PROJECTED RUN-RATE CARD
+// 4. YEAR-END PROJECTED RUN-RATE CARD (CLICKABLE)
 // =========================================================
 
 @Composable
@@ -826,12 +943,15 @@ private fun AnnualForecastRunRateCard(
     projectedAssets: Double,
     projectedSurplus: Double,
     currencySymbol: String,
-    isDiscreet: Boolean
+    isDiscreet: Boolean,
+    onInfoClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(16.dp)),
+            .shadow(2.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onInfoClick),
         shape = RoundedCornerShape(16.dp),
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
@@ -851,6 +971,13 @@ private fun AnnualForecastRunRateCard(
                         fontWeight = FontWeight.Black,
                         color = TextMuted,
                         letterSpacing = 0.6.sp
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Icon(
+                        imageVector = Icons.Default.HelpOutline,
+                        contentDescription = "Forecast Explanation",
+                        tint = AccentPurple,
+                        modifier = Modifier.size(13.dp)
                     )
                 }
 
@@ -926,7 +1053,7 @@ private fun AnnualForecastRunRateCard(
 }
 
 // =========================================================
-// CANVAS DRAWING IMPLEMENTATION (DUAL WAVE)
+// 5. CANVAS DRAWING IMPLEMENTATION (DUAL WAVE)
 // =========================================================
 
 @Composable
@@ -975,7 +1102,6 @@ private fun DualWaveCanvas(
 
         val maxVal = (personalInflows + personalBurns).maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
 
-        // Background horizontal grid lines
         for (i in 1..2) {
             val y = h * (i / 3f)
             drawLine(
@@ -986,7 +1112,6 @@ private fun DualWaveCanvas(
             )
         }
 
-        // Shading for Future / Unelapsed months
         val firstFutureIndex = yearlyMonths.indexOfFirst { it.isFuture }
         if (firstFutureIndex != -1) {
             val futureStartX = firstFutureIndex * stepX
@@ -1056,7 +1181,6 @@ private fun DualWaveCanvas(
         drawSmoothLineAndArea(ptsInflow, Color(0xFF10B981), Color(0xFF10B981))
         drawSmoothLineAndArea(ptsBurn, Color(0xFF8B5CF6), Color(0xFF8B5CF6))
 
-        // Peak point highlights
         val peakBurnIdx = personalBurns.indices.maxByOrNull { personalBurns[it] } ?: 0
         val peakInflowIdx = personalInflows.indices.maxByOrNull { personalInflows[it] } ?: 0
 
@@ -1072,7 +1196,6 @@ private fun DualWaveCanvas(
             drawCircle(color = Color(0xFF10B981), radius = 3.dp.toPx(), center = inPt)
         }
 
-        // Active touch scrubber guideline
         if (selectedMonthIndex != null && selectedMonthIndex in ptsInflow.indices) {
             val scrubX = selectedMonthIndex * stepX
             drawLine(
