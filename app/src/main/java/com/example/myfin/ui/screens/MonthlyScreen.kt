@@ -60,6 +60,8 @@ fun MonthlyScreen(
 
     var isDiscreetMode by remember { mutableStateOf(false) }
     var showStsInfoSheet by remember { mutableStateOf(false) }
+    var showThreePillarInfoSheet by remember { mutableStateOf(false) }
+    var showFortressInfoSheet by remember { mutableStateOf(false) }
     var balanceFlowMode by remember { mutableStateOf<Int?>(null) }
     var dismissedWaterfallMonth by remember { mutableIntStateOf(0) }
     var dismissedSweepMonth by remember { mutableIntStateOf(0) }
@@ -257,6 +259,8 @@ fun MonthlyScreen(
                             commitmentsAccountName = commitmentsAccountName,
                             fortressAccountName = fortressAccountName,
                             onOpenStsInfo = { showStsInfoSheet = true },
+                            onOpenThreePillarInfo = { showThreePillarInfoSheet = true },
+                            onOpenFortressInfo = { showFortressInfoSheet = true },
                             onOpenBalanceFlowInfo = { mode -> balanceFlowMode = mode },
                             onOpenTransferSheet = { showTransferSheet = true },
                             onDismissWaterfall = { dismissedWaterfallMonth = uiState.selectedMonth },
@@ -581,6 +585,22 @@ fun MonthlyScreen(
                 uiState = uiState,
                 userProfile = userProfile,
                 onDismiss = { showStsInfoSheet = false }
+            )
+        }
+
+        if (showThreePillarInfoSheet) {
+            ThreePillarInfoBottomSheet(
+                uiState = uiState,
+                userProfile = userProfile,
+                onDismiss = { showThreePillarInfoSheet = false }
+            )
+        }
+
+        if (showFortressInfoSheet) {
+            FortressInfoBottomSheet(
+                uiState = uiState,
+                userProfile = userProfile,
+                onDismiss = { showFortressInfoSheet = false }
             )
         }
 
