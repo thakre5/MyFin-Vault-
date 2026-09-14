@@ -52,19 +52,6 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.abs
 
-enum class VaultTier(
-    val title: String,
-    val description: String,
-    val color: Color,
-    val bgTint: Color,
-    val icon: ImageVector
-) {
-    OPERATING("Operating", "Daily living & UPI spending", Color(0xFFE57A28), Color(0xFFFFF0D4), Icons.Default.AccountBalance),
-    COMMITMENTS("Commitments", "AutoPay ring-fence & fixed bills", AccentPurple, Color(0xFFF3E5F5), Icons.Default.CreditCard),
-    FORTRESS("Fortress", "Emergency savings & sweep FDs", SoftTeal, Color(0xFFE0F7FA), Icons.Default.Security),
-    CASH("Cash", "Physical wallet & micro-spend", SoftGreen, Color(0xFFE6F8EF), Icons.Default.Payments)
-}
-
 data class SimplePendingEditConfirmation(
     val originalAccount: AccountBalanceResult,
     val updatedName: String,
@@ -126,6 +113,19 @@ fun SimpleAccountsScreen(
         uiState.archivedAccounts
     }
 
+    val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
+    val netVaultCapital = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
+
+    val monthInflow = uiState.metrics.actualIncome
+    val corporateOutlays = remember(uiState.groupedTransactions) {
+        uiState.groupedTransactions.values.flatten().filter {
+            it.type == TransactionType.CORPORATE &&
+            !it.category.equals("Reimbursements & Claims", ignoreCase = true)
+        }.sumOf { it.amount }
+    }
+    val monthOutflow = uiState.metrics.actualExpenses + uiState.metrics.actualAssets + corporateOutlays
+
+    // Snapping Carousel State & Center-Focus Auto-Detection
     val bankCardsListState = rememberLazyListState()
     val bankCardsSnapBehavior = rememberSnapFlingBehavior(lazyListState = bankCardsListState)
 
@@ -159,11 +159,9 @@ fun SimpleAccountsScreen(
         }
     }
 
-    val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
-    val netVaultCapital = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
-
-    val monthInflow = uiState.metrics.actualIncome
-    val monthOutflow = uiState.metrics.actualExpenses + uiState.metrics.actualAssets
+    val activeAccount = remember(displayAccounts, activeSelectedCardIndex) {
+        displayAccounts.getOrNull(activeSelectedCardIndex.coerceIn(0, (displayAccounts.size - 1).coerceAtLeast(0)))
+    }
 
     val fabActions = remember {
         listOf(
@@ -292,7 +290,7 @@ fun SimpleAccountsScreen(
                 contentPadding = PaddingValues(top = 8.dp, bottom = 125.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Overview Net Capital Card
+                // Overview Net Vault Capital Card
                 item(key = "overview_liquidity_card") {
                     Surface(
                         modifier = Modifier
@@ -414,7 +412,7 @@ fun SimpleAccountsScreen(
                     }
                 }
 
-                // Active Accounts Carousel Header
+                // Active Accounts List Header
                 item(key = "active_accounts_header") {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -423,7 +421,7 @@ fun SimpleAccountsScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Active Accounts (${displayAccounts.size})",
+                                text = "Connected Bank Accounts",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.5.sp,
                                 color = TextDark
@@ -451,6 +449,7 @@ fun SimpleAccountsScreen(
                     }
                 }
 
+                // Physical Bank Cards Snapping Carousel
                 if (displayAccounts.isEmpty()) {
                     item(key = "empty_accounts") {
                         Surface(
@@ -485,7 +484,6 @@ fun SimpleAccountsScreen(
                                     tier = tier,
                                     isSelected = isSelected,
                                     showRole = true,
-                                    isDiscreetMode = isDiscreetMode,
                                     onSelect = {
                                         activeSelectedCardIndex = idx
                                         coroutineScope.launch {
@@ -501,6 +499,154 @@ fun SimpleAccountsScreen(
                                     onEdit = { editingAccount = acc },
                                     modifier = Modifier.width(260.dp)
                                 )
+                            }
+                        }
+                    }
+                }
+
+                // Focused Account Snapshot Card
+                activeAccount?.let { acc ->
+                    item(key = "focused_account_${acc.accountName}") {
+                        val tier = getAccountTier(acc.accountType, acc.accountName)
+                        val pendingBills = remember(uiState.fixedBills, acc.accountName) {
+                            uiState.fixedBills.filter {
+                                !it.isPaid &&
+                                it.type != TransactionType.INCOME &&
+                                !(it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
+                                it.accountName.equals(acc.accountName, ignoreCase = true)
+                            }.sumOf { it.amount }
+                        }
+                        val effectiveBal = acc.currentBalance - pendingBills
+                        val isMabBreached = acc.minBalance > 0.0 && effectiveBal < acc.minBalance
+                        val deficit = (acc.minBalance - effectiveBal).coerceAtLeast(0.0)
+
+                        val accountTxs = remember(uiState.groupedTransactions, acc.accountName) {
+                            uiState.groupedTransactions.values.flatten().filter { tx ->
+                                tx.accountName.equals(acc.accountName, ignoreCase = true) || tx.toAccountName?.equals(acc.accountName, ignoreCase = true) == true
+                            }
+                        }
+                        val accInflows = remember(accountTxs, acc.accountName) {
+                            accountTxs.filter {
+                                (it.type == TransactionType.INCOME && it.accountName.equals(acc.accountName, ignoreCase = true)) ||
+                                (it.type == TransactionType.TRANSFER && it.toAccountName?.equals(acc.accountName, ignoreCase = true) == true) ||
+                                (it.type == TransactionType.CORPORATE && it.accountName.equals(acc.accountName, ignoreCase = true) && it.category.equals("Reimbursements & Claims", ignoreCase = true))
+                            }.sumOf { it.amount }
+                        }
+                        val accOutflows = remember(accountTxs, acc.accountName) {
+                            accountTxs.filter {
+                                (it.type == TransactionType.EXPENSE && it.accountName.equals(acc.accountName, ignoreCase = true)) ||
+                                (it.type == TransactionType.ASSET && it.accountName.equals(acc.accountName, ignoreCase = true)) ||
+                                (it.type == TransactionType.TRANSFER && it.accountName.equals(acc.accountName, ignoreCase = true)) ||
+                                (it.type == TransactionType.CORPORATE && it.accountName.equals(acc.accountName, ignoreCase = true) && !it.category.equals("Reimbursements & Claims", ignoreCase = true))
+                            }.sumOf { it.amount }
+                        }
+                        val netDelta = accInflows - accOutflows
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Account Snapshot (${acc.accountName})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.5.sp,
+                                color = TextDark
+                            )
+
+                            if (isMabBreached) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = SoftRed.copy(alpha = 0.12f),
+                                    border = BorderStroke(0.6.dp, SoftRed.copy(alpha = 0.4f))
+                                ) {
+                                    Text(
+                                        text = "! MAB Shortfall (-${userProfile.currencySymbol}${deficit.toInt()})",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SoftRed,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(2.dp, RoundedCornerShape(18.dp)),
+                            shape = RoundedCornerShape(18.dp),
+                            color = CardWhite,
+                            border = BorderStroke(0.8.dp, if (isMabBreached) SoftRed.copy(alpha = 0.4f) else BorderLight.copy(alpha = 0.6f))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    MatrixMetricCell(
+                                        title = "Base (Starting)",
+                                        value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", acc.startingBalance)}",
+                                        icon = Icons.Default.AccountBalanceWallet,
+                                        iconColor = tier.color,
+                                        subtitle = "Initial opening balance",
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    MatrixMetricCell(
+                                        title = "Ring-Fenced AutoPay",
+                                        value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingBills)}",
+                                        icon = Icons.Default.Schedule,
+                                        iconColor = AccentPurple,
+                                        subtitle = "Queued for this account",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                                HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    MatrixMetricCell(
+                                        title = "Cycle Inflow",
+                                        value = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", accInflows)}",
+                                        icon = Icons.AutoMirrored.Filled.TrendingUp,
+                                        iconColor = SoftGreen,
+                                        subtitle = "Credits & incoming transfers",
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    MatrixMetricCell(
+                                        title = "Net Flow",
+                                        value = if (isDiscreetMode) "••••" else "${if (netDelta >= 0) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(netDelta))}",
+                                        icon = if (netDelta >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                        iconColor = if (netDelta >= 0) SoftGreen else SoftRed,
+                                        subtitle = "Retained balance change",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Button(
+                                    onClick = { showTransferSheet = true },
+                                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = tier.color)
+                                ) {
+                                    Icon(Icons.Default.SyncAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Transfer to / from ${acc.accountName}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.5.sp,
+                                        color = Color.White
+                                    )
+                                }
                             }
                         }
                     }
@@ -583,11 +729,11 @@ fun SimpleAccountsScreen(
                 .zIndex(4f)
         )
 
-        // Edit Account Bottom Sheet with 4-Tier Grid Selector
+        // Edit Account Bottom Sheet with 4-Tier Grid
         editingAccount?.let { acc ->
             var nameText by remember(acc) { mutableStateOf(acc.accountName) }
-            var selectedTier by remember(acc) { mutableStateOf(getAccountTier(acc.accountType, acc.accountName)) }
-            var balanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%,.2f", acc.currentBalance)) }
+            var selectedRole by remember(acc) { mutableStateOf(getAccountTier(acc.accountType, acc.accountName)) }
+            var balanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%.2f", acc.currentBalance)) }
             val formattedMab = remember(acc.minBalance) {
                 if (acc.minBalance % 1.0 == 0.0) acc.minBalance.toLong().toString() else acc.minBalance.toString()
             }
@@ -616,7 +762,7 @@ fun SimpleAccountsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Edit Account", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
+                        Text("Edit: ${acc.accountName}", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark)
 
                         IconButton(
                             onClick = {
@@ -653,12 +799,12 @@ fun SimpleAccountsScreen(
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         VaultTier.entries.forEach { tier ->
-                            val isSel = selectedTier == tier
+                            val isSel = selectedRole == tier
                             Surface(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(9.dp))
-                                    .clickable { selectedTier = tier },
+                                    .clickable { selectedRole = tier },
                                 shape = RoundedCornerShape(9.dp),
                                 color = if (isSel) tier.color.copy(alpha = 0.14f) else CanvasLight,
                                 border = BorderStroke(0.7.dp, if (isSel) tier.color else BorderLight)
@@ -692,7 +838,7 @@ fun SimpleAccountsScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedTextField(
                         value = minBalanceText,
@@ -701,7 +847,7 @@ fun SimpleAccountsScreen(
                             val parts = filtered.split('.')
                             minBalanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
                         },
-                        label = { Text("Minimum Balance Threshold / MAB", fontSize = 12.sp) },
+                        label = { Text("Minimum Balance Threshold / MAB (${userProfile.currencySymbol})", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -722,7 +868,7 @@ fun SimpleAccountsScreen(
                     ) {
                         Column {
                             Text("Archive Account", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                            Text("Hide from active accounts and entries", fontSize = 10.5.sp, color = TextMuted)
+                            Text("Hide from active vaults and transactions", fontSize = 10.5.sp, color = TextMuted)
                         }
                         Switch(
                             checked = isArchivedState,
@@ -741,7 +887,7 @@ fun SimpleAccountsScreen(
                                 pendingEditConfirmation = SimplePendingEditConfirmation(
                                     originalAccount = acc,
                                     updatedName = nameText.trim().uppercase(),
-                                    updatedRole = selectedTier,
+                                    updatedRole = selectedRole,
                                     targetBalance = targetBal,
                                     minBalance = minBal,
                                     isArchived = isArchivedState
@@ -777,14 +923,14 @@ fun SimpleAccountsScreen(
                             Text("• Rename: '${conf.originalAccount.accountName}' ➔ '${conf.updatedName}'")
                         }
                         if (isRoleChanged) {
-                            Text("• Strategic Role: '${conf.originalAccount.accountType}' ➔ '${conf.updatedRole.title}'")
+                            Text("• Role: '${conf.originalAccount.accountType}' ➔ '${conf.updatedRole.title}'")
                         }
                         if (isBalChanged) {
                             val diff = conf.targetBalance - conf.originalAccount.currentBalance
                             Text("• Balance Adjustment: ${if (diff > 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", diff)}")
                         }
                         if (isMabChanged) {
-                            Text("• Minimum Balance (MAB): ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", conf.minBalance)}")
+                            Text("• Minimum Balance (MAB): ${userProfile.currencySymbol}${conf.minBalance.toInt()}")
                         }
                         if (isArchiveChanged) {
                             Text("• Archive Status: ${if (conf.isArchived) "Archived" else "Active"}")
@@ -1017,7 +1163,7 @@ fun SimpleAccountsScreen(
             )
         }
 
-        // Add Account Bottom Sheet with 4-Tier Grid Selector
+        // Add Account Bottom Sheet with 4-Tier Grid
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
             var selectedTier by remember { mutableStateOf(VaultTier.OPERATING) }
@@ -1103,7 +1249,7 @@ fun SimpleAccountsScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedTextField(
                         value = minBalanceText,
@@ -1112,7 +1258,7 @@ fun SimpleAccountsScreen(
                             val parts = filtered.split('.')
                             minBalanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
                         },
-                        label = { Text("Minimum Balance Threshold (MAB)", fontSize = 12.sp) },
+                        label = { Text("Minimum Balance (MAB)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1152,13 +1298,34 @@ fun SimpleAccountsScreen(
 }
 
 @Composable
+private fun MatrixMetricCell(
+    title: String,
+    value: String,
+    icon: ImageVector,
+    iconColor: Color,
+    subtitle: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(15.dp))
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(title, fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+        }
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
+        Spacer(modifier = Modifier.height(1.dp))
+        Text(subtitle, fontSize = 9.5.sp, color = TextMuted)
+    }
+}
+
+@Composable
 private fun BankAccountPhysicalCard(
     account: AccountBalanceResult,
     currencySymbol: String,
     tier: VaultTier,
     isSelected: Boolean,
     showRole: Boolean,
-    isDiscreetMode: Boolean,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
@@ -1283,7 +1450,7 @@ private fun BankAccountPhysicalCard(
                 )
                 if (account.minBalance > 0.0) {
                     Text(
-                        text = if (isDiscreetMode) "MAB: ••••" else "MAB: $currencySymbol${account.minBalance.toInt()}",
+                        text = "MAB: $currencySymbol${account.minBalance.toInt()}",
                         fontSize = 10.sp,
                         color = if (isMabBreached) SoftRed else TextMuted,
                         fontWeight = if (isMabBreached) FontWeight.Bold else FontWeight.Normal
@@ -1294,7 +1461,7 @@ private fun BankAccountPhysicalCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = if (isDiscreetMode) "••••••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
+                text = "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
                 color = if (account.currentBalance >= 0) TextDark else SoftRed
