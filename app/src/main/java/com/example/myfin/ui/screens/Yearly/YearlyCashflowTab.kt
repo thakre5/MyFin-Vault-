@@ -22,22 +22,24 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myfin.ui.ReimbursementUiStatus
 import com.example.myfin.ui.YearlyMonthData
+import com.example.myfin.ui.YearlyUiState
 import com.example.myfin.ui.theme.*
 import java.util.Locale
 
 @Composable
 fun YearlyCashflowTab(
-    yearlyMonthsData: List<YearlyMonthData>,
-    annualPersonalIncome: Double,
-    annualLifestyleExpenses: Double,
-    reimbursementStatus: ReimbursementUiStatus,
+    yearlyState: YearlyUiState,
     quarterlyData: List<QuarterlyMetrics>,
     currencySymbol: String,
     isDiscreetMode: Boolean,
     onOpenGraphGuide: (GraphExplanationGuide) -> Unit
 ) {
+    val yearlyMonthsData = yearlyState.yearlyMonths
+    val annualPersonalIncome = yearlyState.annualPersonalIncome
+    val annualLifestyleExpenses = yearlyState.annualLifestyleExpenses
+    val reimbursementStatus = yearlyState.reimbursementStatus
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -124,8 +126,10 @@ fun YearlyCashflowTab(
                                 reimbursementStatus.pendingReimbursement
                             }
 
+                            val displayAmt: Double = if (floatAmount > 0.0) floatAmount else reimbursementStatus.totalWorkExpenses
+
                             Text(
-                                text = if (isDiscreetMode) "••••" else "${currencySymbol}${String.format(Locale.US, "%,.0f", if (floatAmount > 0.0) floatAmount else reimbursementStatus.totalWorkExpenses)}",
+                                text = if (isDiscreetMode) "••••" else "${currencySymbol}${String.format(Locale.US, "%,.0f", displayAmt)}",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 14.sp,
                                 color = if (reimbursementStatus.isSettled) SoftGreen else Color(0xFFE57A28)
