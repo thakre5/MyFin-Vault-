@@ -45,14 +45,13 @@ import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
 import com.example.myfin.data.TransactionType
+import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.*
 import com.example.myfin.ui.theme.*
-import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.min
 
 enum class VaultTier(
     val title: String,
@@ -152,7 +151,8 @@ fun VaultStrategyScreen(
 
     val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
 
-    val totalLiquidBalance = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
+    // Unified: Net Vault Capital scope (All 4 Tiers)
+    val netVaultCapital = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
     val opTotal = remember(displayAccounts) {
         displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.OPERATING }.sumOf { it.currentBalance }
     }
@@ -166,25 +166,22 @@ fun VaultStrategyScreen(
         displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.CASH }.sumOf { it.currentBalance }
     }
 
-    // Fortress decoupled engine values
+    // Unified Fortress split tied directly to ViewModel metrics
+    val fortressFd = uiState.fortressFdBalance
+    val emergencyTarget = uiState.fortressTarget
     val sweepThreshold = userProfile.fortressSweepThreshold
-    val fortressSavings = remember(fortTotal, sweepThreshold) {
-        if (sweepThreshold > 0.0) min(fortTotal, sweepThreshold) else fortTotal
-    }
-    val fortressFd = remember(fortTotal, sweepThreshold) {
-        if (sweepThreshold > 0.0) max(0.0, fortTotal - sweepThreshold) else 0.0
+    val fortressSavings = remember(fortTotal, fortressFd) {
+        (fortTotal - fortressFd).coerceAtLeast(0.0)
     }
     val fortressSavingsFraction = if (sweepThreshold > 0.0) (fortressSavings / sweepThreshold).toFloat().coerceIn(0f, 1f) else 1f
-
-    val fortressCushionDeficit = remember(fortTotal, sweepThreshold) {
-        if (sweepThreshold > 0.0) (sweepThreshold - fortTotal).coerceAtLeast(0.0) else 0.0
+    val fortressCushionDeficit = remember(fortressSavings, sweepThreshold) {
+        if (sweepThreshold > 0.0) (sweepThreshold - fortressSavings).coerceAtLeast(0.0) else 0.0
     }
-    val emergencyTarget = uiState.fortressTarget
     val fdDeficit = remember(fortressFd, emergencyTarget) {
-        (emergencyTarget - fortressFd).coerceAtLeast(0.0)
+        if (emergencyTarget > 0.0) (emergencyTarget - fortressFd).coerceAtLeast(0.0) else 0.0
     }
 
-    // Complete transaction stream for the active month (including transfers & corporate float)
+    // Complete transaction stream for the active account
     val activeAccountTxs = remember(uiState.groupedTransactions, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         uiState.groupedTransactions.values.flatten().filter { tx ->
@@ -207,11 +204,33 @@ fun VaultStrategyScreen(
         activeAccountTxs.filter { it.type == TransactionType.INCOME && it.accountName.equals(name, ignoreCase = true) }
             .sumOf { it.amount }
     }
+
+    // Decoupled transfer subtypes
     val activeTransfersOut = remember(activeAccountTxs, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         activeAccountTxs.filter { it.type == TransactionType.TRANSFER && it.accountName.equals(name, ignoreCase = true) }
             .sumOf { it.amount }
     }
+    val activeFortressSweeps = remember(activeAccountTxs, activeAccount?.accountName) {
+        val name = activeAccount?.accountName.orEmpty()
+        activeAccountTxs.filter {
+            it.type == TransactionType.TRANSFER &&
+            it.accountName.equals(name, ignoreCase = true) &&
+            it.transferSubtype == TransferSubtype.WEALTH_ALLOCATION
+        }.sumOf { it.amount }
+    }
+    val activeBillFundingTransfers = remember(activeAccountTxs, activeAccount?.accountName) {
+        val name = activeAccount?.accountName.orEmpty()
+        activeAccountTxs.filter {
+            it.type == TransactionType.TRANSFER &&
+            it.accountName.equals(name, ignoreCase = true) &&
+            it.transferSubtype == TransferSubtype.BILL_FUNDING
+        }.sumOf { it.amount }
+    }
+    val activeGeneralTransfers = remember(activeTransfersOut, activeFortressSweeps, activeBillFundingTransfers) {
+        (activeTransfersOut - activeFortressSweeps - activeBillFundingTransfers).coerceAtLeast(0.0)
+    }
+
     val activeTransfersIn = remember(activeAccountTxs, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         activeAccountTxs.filter { it.type == TransactionType.TRANSFER && it.toAccountName?.equals(name, ignoreCase = true) == true }
@@ -235,10 +254,10 @@ fun VaultStrategyScreen(
         }.sumOf { it.amount }
     }
 
-    val calendar = remember { Calendar.getInstance() }
-    val daysElapsed = remember { calendar.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1) }
-    val daysInMonth = remember { calendar.getActualMaximum(Calendar.DAY_OF_MONTH) }
-    val daysRemaining = remember(daysElapsed, daysInMonth) { max(1, daysInMonth - daysElapsed) }
+    // Unified Runway Timeline (Using Payday Days Remaining)
+    val daysRemaining = remember(uiState.metrics.daysUntilPayday) {
+        uiState.metrics.daysUntilPayday.coerceAtLeast(1)
+    }
 
     val normalizedDailyBurn = remember(avgMonthlySpend) {
         max(avgMonthlySpend / 30.0, 100.0)
@@ -265,10 +284,24 @@ fun VaultStrategyScreen(
     val mabBuffer = remember(activeAccount) { activeAccount?.minBalance ?: 0.0 }
     val excessCompanyAdvance = uiState.reimbursementStatus.excessAdvanceHeld
 
-    val calculatedSweepSurplus = remember(activeAccount?.currentBalance, totalPendingBillsAmount, normalizedDailyBurn, daysRemaining, mabBuffer, excessCompanyAdvance) {
-        val bal = activeAccount?.currentBalance ?: 0.0
-        val monthlyRemainingSpendProtection = normalizedDailyBurn * daysRemaining
-        (bal - mabBuffer - totalPendingBillsAmount - monthlyRemainingSpendProtection - excessCompanyAdvance).coerceAtLeast(0.0)
+    // Unified Sweep Surplus (Synchronized with ViewModel Month-End Suggestion)
+    val calculatedSweepSurplus = remember(
+        uiState.monthEndSweepSuggestion,
+        activeAccount?.currentBalance,
+        totalPendingBillsAmount,
+        normalizedDailyBurn,
+        daysRemaining,
+        mabBuffer,
+        excessCompanyAdvance
+    ) {
+        val sweepSuggestion = uiState.monthEndSweepSuggestion
+        if (sweepSuggestion != null && sweepSuggestion.sweepAmount > 0.0) {
+            sweepSuggestion.sweepAmount
+        } else {
+            val bal = activeAccount?.currentBalance ?: 0.0
+            val spendProtection = normalizedDailyBurn * daysRemaining
+            (bal - mabBuffer - totalPendingBillsAmount - spendProtection - excessCompanyAdvance).coerceAtLeast(0.0)
+        }
     }
 
     val fabActions = remember {
@@ -381,7 +414,7 @@ fun VaultStrategyScreen(
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 125.dp)
             ) {
-                // Top Strategy Carousel
+                // Top Strategy Carousel (Untouched as requested)
                 item(key = "top_strategy_carousel") {
                     val strategyCarouselState = rememberLazyListState()
                     val strategySnapBehavior = rememberSnapFlingBehavior(lazyListState = strategyCarouselState)
@@ -395,10 +428,10 @@ fun VaultStrategyScreen(
                     ) {
                         // Card 1: Vault Asset Allocation
                         item {
-                            val opFraction = if (totalLiquidBalance > 0) (opTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
-                            val comFraction = if (totalLiquidBalance > 0) (comTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
-                            val fortFraction = if (totalLiquidBalance > 0) (fortTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
-                            val cashFraction = if (totalLiquidBalance > 0) (cashTotal / totalLiquidBalance).toFloat().coerceIn(0f, 1f) else 0f
+                            val opFraction = if (netVaultCapital > 0) (opTotal / netVaultCapital).toFloat().coerceIn(0f, 1f) else 0f
+                            val comFraction = if (netVaultCapital > 0) (comTotal / netVaultCapital).toFloat().coerceIn(0f, 1f) else 0f
+                            val fortFraction = if (netVaultCapital > 0) (fortTotal / netVaultCapital).toFloat().coerceIn(0f, 1f) else 0f
+                            val cashFraction = if (netVaultCapital > 0) (cashTotal / netVaultCapital).toFloat().coerceIn(0f, 1f) else 0f
 
                             Surface(
                                 modifier = Modifier
@@ -437,7 +470,7 @@ fun VaultStrategyScreen(
                                                 color = TextDark
                                             )
                                             Text(
-                                                text = "Liquidity distribution across accounts",
+                                                text = "Capital distribution across 4 vault tiers",
                                                 fontSize = 10.5.sp,
                                                 color = TextMuted
                                             )
@@ -475,10 +508,10 @@ fun VaultStrategyScreen(
                                                 modifier = Modifier.fillMaxSize()
                                             )
                                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Text("Liquid", fontSize = 9.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                                                Text("Net Vault", fontSize = 8.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
                                                 Text(
-                                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalLiquidBalance)}",
-                                                    fontSize = 11.5.sp,
+                                                    text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", netVaultCapital)}",
+                                                    fontSize = 11.sp,
                                                     fontWeight = FontWeight.Black,
                                                     color = TextDark
                                                 )
@@ -493,25 +526,25 @@ fun VaultStrategyScreen(
                                         ) {
                                             AllocationStatPill(
                                                 title = "Operating",
-                                                percentage = if (totalLiquidBalance > 0) ((opTotal / totalLiquidBalance) * 100).toInt() else 0,
+                                                percentage = if (netVaultCapital > 0) ((opTotal / netVaultCapital) * 100).toInt() else 0,
                                                 color = Color(0xFFE57A28),
                                                 amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", opTotal)}"
                                             )
                                             AllocationStatPill(
                                                 title = "Commitments",
-                                                percentage = if (totalLiquidBalance > 0) ((comTotal / totalLiquidBalance) * 100).toInt() else 0,
+                                                percentage = if (netVaultCapital > 0) ((comTotal / netVaultCapital) * 100).toInt() else 0,
                                                 color = AccentPurple,
                                                 amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", comTotal)}"
                                             )
                                             AllocationStatPill(
                                                 title = "Fortress",
-                                                percentage = if (totalLiquidBalance > 0) ((fortTotal / totalLiquidBalance) * 100).toInt() else 0,
+                                                percentage = if (netVaultCapital > 0) ((fortTotal / netVaultCapital) * 100).toInt() else 0,
                                                 color = SoftTeal,
                                                 amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortTotal)}"
                                             )
                                             AllocationStatPill(
                                                 title = "Cash",
-                                                percentage = if (totalLiquidBalance > 0) ((cashTotal / totalLiquidBalance) * 100).toInt() else 0,
+                                                percentage = if (netVaultCapital > 0) ((cashTotal / netVaultCapital) * 100).toInt() else 0,
                                                 color = SoftGreen,
                                                 amount = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cashTotal)}"
                                             )
@@ -763,7 +796,7 @@ fun VaultStrategyScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // Physical Bank Cards Horizontal Carousel
+                // Physical Bank Cards Horizontal Carousel (Snapping Enabled, Look & Size Unaltered)
                 if (displayAccounts.isEmpty()) {
                     item(key = "empty_accounts") {
                         Surface(
@@ -779,7 +812,12 @@ fun VaultStrategyScreen(
                     }
                 } else {
                     item(key = "accounts_carousel") {
+                        val bankCardsListState = rememberLazyListState()
+                        val bankCardsSnapBehavior = rememberSnapFlingBehavior(lazyListState = bankCardsListState)
+
                         LazyRow(
+                            state = bankCardsListState,
+                            flingBehavior = bankCardsSnapBehavior,
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(horizontal = 2.dp)
                         ) {
@@ -985,8 +1023,14 @@ fun VaultStrategyScreen(
                                         if (totalPendingBillsAmount > 0.0) {
                                             Box(modifier = Modifier.weight((totalPendingBillsAmount / totalOut).toFloat().coerceAtLeast(0.05f)).fillMaxHeight().background(AccentPurple))
                                         }
-                                        if (activeTransfersOut > 0.0) {
-                                            Box(modifier = Modifier.weight((activeTransfersOut / totalOut).toFloat().coerceAtLeast(0.05f)).fillMaxHeight().background(SoftTeal))
+                                        if (activeBillFundingTransfers > 0.0) {
+                                            Box(modifier = Modifier.weight((activeBillFundingTransfers / totalOut).toFloat().coerceAtLeast(0.05f)).fillMaxHeight().background(AccentPurple.copy(alpha = 0.65f)))
+                                        }
+                                        if (activeFortressSweeps > 0.0) {
+                                            Box(modifier = Modifier.weight((activeFortressSweeps / totalOut).toFloat().coerceAtLeast(0.05f)).fillMaxHeight().background(SoftTeal))
+                                        }
+                                        if (activeGeneralTransfers > 0.0) {
+                                            Box(modifier = Modifier.weight((activeGeneralTransfers / totalOut).toFloat().coerceAtLeast(0.05f)).fillMaxHeight().background(BorderLight))
                                         }
                                         if (activeCorporateOutlays > 0.0) {
                                             Box(modifier = Modifier.weight((activeCorporateOutlays / totalOut).toFloat().coerceAtLeast(0.05f)).fillMaxHeight().background(Color(0xFFD97706)))
@@ -1605,13 +1649,37 @@ fun VaultStrategyScreen(
                                 Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             }
 
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SoftTeal))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Transfers & Fortress Sweeps", fontSize = 12.sp, color = TextDark)
+                            if (activeBillFundingTransfers > 0.0) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(AccentPurple.copy(alpha = 0.65f)))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Bill Funding Transfers", fontSize = 12.sp, color = TextDark)
+                                    }
+                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeBillFundingTransfers)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                 }
-                                Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeTransfersOut)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                            }
+
+                            if (activeFortressSweeps > 0.0) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SoftTeal))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Fortress Wealth Sweeps", fontSize = 12.sp, color = TextDark)
+                                    }
+                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeFortressSweeps)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                }
+                            }
+
+                            if (activeGeneralTransfers > 0.0) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(TextMuted))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Internal Rebalances", fontSize = 12.sp, color = TextDark)
+                                    }
+                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeGeneralTransfers)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                }
                             }
 
                             if (activeCorporateOutlays > 0.0) {
@@ -1657,7 +1725,7 @@ fun VaultStrategyScreen(
                             }
                             if (activeTier == VaultTier.OPERATING) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Remaining Month Spend Cushion ($daysRemaining d)", fontSize = 11.5.sp, color = TextMuted)
+                                    Text("Runway Cushion (${daysRemaining}d to ${uiState.metrics.nextPaydayDay}th)", fontSize = 11.5.sp, color = TextMuted)
                                     Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", normalizedDailyBurn * daysRemaining)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                                 }
                                 if (excessCompanyAdvance > 0.0) {
