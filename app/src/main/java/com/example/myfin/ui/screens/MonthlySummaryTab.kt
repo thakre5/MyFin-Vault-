@@ -11,7 +11,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -61,6 +60,8 @@ fun MonthlySummaryTab(
     commitmentsAccountName: String,
     fortressAccountName: String,
     onOpenStsInfo: () -> Unit,
+    onOpenThreePillarInfo: () -> Unit,
+    onOpenFortressInfo: () -> Unit,
     onOpenBalanceFlowInfo: (Int) -> Unit,
     onOpenTransferSheet: () -> Unit,
     onDismissWaterfall: () -> Unit,
@@ -88,6 +89,10 @@ fun MonthlySummaryTab(
         uiState.categories.filter { it.type == selectedMatrixType && it.category.isNotBlank() }
     }
 
+    // Upper Carousel Pager State (3 Cards: STS, 3-Pillar, Fortress)
+    val topCardsPagerState = rememberPagerState(pageCount = { 3 })
+
+    // Lower Flow Carousel Pager State (4 Cards: Flow, Retention, Surplus, Relocation)
     val flowPagerState = rememberPagerState(pageCount = { 4 })
 
     LaunchedEffect(flowPagerState) {
@@ -425,622 +430,677 @@ fun MonthlySummaryTab(
             }
         }
 
-        // 3. HORIZONTAL CAROUSEL: SAFE TO SPEND, 3-PILLAR TARGET, & FORTRESS CARDS
+        // 3. HORIZONTAL PAGER: SAFE TO SPEND, 3-PILLAR TARGET, & FORTRESS CARDS (SNAPPING ASSURED, TRIMMED TO 258.dp)
         item {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(horizontal = 6.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Card 1: Liquid Safe to Spend
-                item {
-                    val statusColor = if (isHealthy) SoftGreen else SoftRed
+            Column(modifier = Modifier.fillMaxWidth()) {
+                HorizontalPager(
+                    state = topCardsPagerState,
+                    pageSpacing = 12.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(258.dp)
+                ) { pageIndex ->
+                    when (pageIndex) {
+                        // Card 0: Liquid Safe to Spend
+                        0 -> {
+                            val statusColor = if (isHealthy) SoftGreen else SoftRed
 
-                    Surface(
-                        modifier = Modifier
-                            .width(320.dp)
-                            .height(290.dp)
-                            .shadow(3.dp, RoundedCornerShape(22.dp)),
-                        shape = RoundedCornerShape(22.dp),
-                        color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color(0xFFFFFFFF),
-                                            Color(0xFFFCFAFF),
-                                            AccentPurple.copy(alpha = 0.05f)
-                                        )
-                                    )
-                                )
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable(onClick = onOpenStsInfo)
-                                            .padding(vertical = 2.dp, horizontal = 2.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(7.dp)
-                                                .clip(CircleShape)
-                                                .background(statusColor)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "LIQUID SAFE TO SPEND",
-                                            color = TextMuted,
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.Black,
-                                            letterSpacing = 0.7.sp
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Icon(
-                                            imageVector = Icons.Default.HelpOutline,
-                                            contentDescription = "Explain Safe to Spend",
-                                            tint = AccentPurple,
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = if (isHealthy) AccentPurple.copy(alpha = 0.1f) else statusColor.copy(alpha = 0.12f),
-                                        border = BorderStroke(0.6.dp, if (isHealthy) AccentPurple.copy(alpha = 0.25f) else statusColor.copy(alpha = 0.3f))
-                                    ) {
-                                        Text(
-                                            text = "${uiState.metrics.safeToSpendPercentage}% Capacity",
-                                            color = if (isHealthy) AccentPurple else statusColor,
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                Text(
-                                    text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
-                                    fontSize = 27.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (isHealthy) TextDark else SoftRed,
-                                    letterSpacing = (-0.5).sp
-                                )
-
-                                Spacer(modifier = Modifier.height(2.dp))
-
-                                Text(
-                                    text = when {
-                                        isPastMonth -> "Month closed: final remaining balance"
-                                        uiState.metrics.isSalaryDelayed -> "Salary expected (${uiState.metrics.nextPaydayDay}th) • 1-day runway reserved"
-                                        isCurrentMonth && isHealthy -> if (isDiscreetMode) "Guilt-free surplus protected" else "Pure surplus • Runway reserved for ${uiState.metrics.daysUntilPayday}d (until ${uiState.metrics.nextPaydayDay}th)"
-                                        isCurrentMonth -> "Runway deficit: spending exceeds safe allowance"
-                                        else -> "Projected surplus for ${uiState.metrics.daysUntilPayday} days until payday"
-                                    },
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = if (uiState.metrics.isSalaryDelayed) Color(0xFFE57A28) else if (isHealthy) TextMuted else SoftRed,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                SpendingSparkline(
-                                    points = uiState.metrics.dailyExpensePoints,
-                                    lineColor = if (isHealthy) AccentPurple else SoftRed,
-                                    gradientStartColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.32f),
-                                    gradientEndColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.0f)
-                                )
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                val displayInflow = if (uiState.metrics.plannedIncome > 0) uiState.metrics.plannedIncome else uiState.metrics.personalIncome
-                                val displayAssets = if (uiState.metrics.plannedAssets > 0) uiState.metrics.plannedAssets else uiState.metrics.actualAssets
-
-                                PillarMetricCard(
-                                    title = "Inflow",
-                                    amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayInflow)}",
-                                    tintColor = SoftGreen,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onNavigateToLedgerWithFilter(TransactionType.INCOME) }
-                                )
-                                PillarMetricCard(
-                                    title = "Fixed Bills",
-                                    amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
-                                    tintColor = SoftRed,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = onNavigateToCommitments
-                                )
-                                PillarMetricCard(
-                                    title = "SIP Assets",
-                                    amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayAssets)}",
-                                    tintColor = SoftTeal,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onNavigateToLedgerWithFilter(TransactionType.ASSET) }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Card 2: 3-Pillar Target Execution
-                item {
-                    val plannedExpenses = uiState.metrics.plannedExpenses
-                    val actualExpenses = uiState.metrics.actualExpenses
-                    val expDiff = actualExpenses - plannedExpenses
-                    val expFraction = if (plannedExpenses > 0) (actualExpenses / plannedExpenses).toFloat().coerceIn(0f, 1f) else if (actualExpenses > 0) 1f else 0f
-
-                    val plannedIncome = uiState.metrics.plannedIncome
-                    val actualIncome = uiState.metrics.actualIncome
-                    val incDiff = actualIncome - plannedIncome
-                    val incFraction = if (plannedIncome > 0) (actualIncome / plannedIncome).toFloat().coerceIn(0f, 1f) else if (actualIncome > 0) 1f else 0f
-
-                    val plannedAssets = uiState.metrics.plannedAssets
-                    val actualAssets = uiState.metrics.actualAssets
-                    val astDiff = actualAssets - plannedAssets
-                    val astFraction = if (plannedAssets > 0) (actualAssets / plannedAssets).toFloat().coerceIn(0f, 1f) else if (actualAssets > 0) 1f else 0f
-
-                    val isExpenseOverBudget = plannedExpenses > 0 && actualExpenses > plannedExpenses
-                    val budgetStatusLabel = when {
-                        plannedExpenses <= 0 -> "Tracking"
-                        isExpenseOverBudget -> "Over Budget"
-                        else -> "On Track"
-                    }
-                    val budgetStatusColor = when {
-                        plannedExpenses <= 0 -> TextMuted
-                        isExpenseOverBudget -> SoftRed
-                        else -> SoftGreen
-                    }
-
-                    Surface(
-                        modifier = Modifier
-                            .width(320.dp)
-                            .height(290.dp)
-                            .shadow(3.dp, RoundedCornerShape(22.dp)),
-                        shape = RoundedCornerShape(22.dp),
-                        color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color(0xFFFFFFFF),
-                                            Color(0xFFFCFAFF),
-                                            AccentPurple.copy(alpha = 0.04f)
-                                        )
-                                    )
-                                )
-                                .padding(14.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(7.dp)
-                                            .clip(CircleShape)
-                                            .background(AccentPurple)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "3-PILLAR TARGET EXECUTION",
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = TextMuted,
-                                        letterSpacing = 0.7.sp
-                                    )
-                                }
-
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = budgetStatusColor.copy(alpha = 0.12f)
-                                ) {
-                                    Text(
-                                        text = budgetStatusLabel,
-                                        color = budgetStatusColor,
-                                        fontSize = 9.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-
-                            // Expenses pill
                             Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = CanvasLight.copy(alpha = 0.6f),
-                                border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .shadow(2.5.dp, RoundedCornerShape(20.dp)),
+                                shape = RoundedCornerShape(20.dp),
+                                color = CardWhite,
+                                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                             ) {
-                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(24.dp)
-                                                    .clip(RoundedCornerShape(6.dp))
-                                                    .background(SoftRed.copy(alpha = 0.12f)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(Icons.Default.TrendingDown, contentDescription = null, tint = SoftRed, modifier = Modifier.size(13.dp))
-                                            }
-                                            Spacer(modifier = Modifier.width(7.dp))
-                                            Text("Expenses", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
-                                            Spacer(modifier = Modifier.width(5.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = if (isExpenseOverBudget) SoftRed.copy(alpha = 0.12f) else CardWhite
-                                            ) {
-                                                Text(
-                                                    text = if (plannedExpenses > 0) {
-                                                        if (isDiscreetMode) "Tracked"
-                                                        else if (expDiff > 0) "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expDiff)} Over"
-                                                        else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(expDiff))} Left"
-                                                    } else "No Cap",
-                                                    fontSize = 8.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isExpenseOverBudget) SoftRed else TextMuted,
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                )
-                                            }
-                                        }
-
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualExpenses)}",
-                                                fontWeight = FontWeight.Black,
-                                                fontSize = 12.5.sp,
-                                                color = if (isExpenseOverBudget) SoftRed else TextDark
-                                            )
-                                            Text(
-                                                text = if (isDiscreetMode) "Target: ••••" else "Target: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedExpenses)}",
-                                                fontSize = 9.sp,
-                                                color = TextMuted
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    LinearProgressIndicator(
-                                        progress = { expFraction },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(4.dp)
-                                            .clip(RoundedCornerShape(2.dp)),
-                                        color = SoftRed,
-                                        trackColor = SoftRed.copy(alpha = 0.15f)
-                                    )
-                                }
-                            }
-
-                            // Income pill
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = CanvasLight.copy(alpha = 0.6f),
-                                border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(24.dp)
-                                                    .clip(RoundedCornerShape(6.dp))
-                                                    .background(SoftGreen.copy(alpha = 0.12f)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(Icons.Default.TrendingUp, contentDescription = null, tint = SoftGreen, modifier = Modifier.size(13.dp))
-                                            }
-                                            Spacer(modifier = Modifier.width(7.dp))
-                                            Text("Income", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
-                                            Spacer(modifier = Modifier.width(5.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = CardWhite
-                                            ) {
-                                                Text(
-                                                    text = if (plannedIncome > 0) {
-                                                        if (incDiff >= 0) "Target Met"
-                                                        else if (isDiscreetMode) "Short"
-                                                        else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(incDiff))} Short"
-                                                    } else "Recorded",
-                                                    fontSize = 8.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = TextMuted,
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                )
-                                            }
-                                        }
-
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualIncome)}",
-                                                fontWeight = FontWeight.Black,
-                                                fontSize = 12.5.sp,
-                                                color = TextDark
-                                            )
-                                            Text(
-                                                text = if (isDiscreetMode) "Target: ••••" else "Target: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedIncome)}",
-                                                fontSize = 9.sp,
-                                                color = TextMuted
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    LinearProgressIndicator(
-                                        progress = { incFraction },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(4.dp)
-                                            .clip(RoundedCornerShape(2.dp)),
-                                        color = SoftGreen,
-                                        trackColor = SoftGreen.copy(alpha = 0.15f)
-                                    )
-                                }
-                            }
-
-                            // Assets pill
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = CanvasLight.copy(alpha = 0.6f),
-                                border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(24.dp)
-                                                    .clip(RoundedCornerShape(6.dp))
-                                                    .background(SoftTeal.copy(alpha = 0.12f)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(Icons.Default.Savings, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(13.dp))
-                                            }
-                                            Spacer(modifier = Modifier.width(7.dp))
-                                            Text("Assets / SIP", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
-                                            Spacer(modifier = Modifier.width(5.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = CardWhite
-                                            ) {
-                                                Text(
-                                                    text = if (plannedAssets > 0) {
-                                                        if (astDiff >= 0) "Target Met"
-                                                        else if (isDiscreetMode) "Short"
-                                                        else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(astDiff))} Short"
-                                                    } else "Recorded",
-                                                    fontSize = 8.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = TextMuted,
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                )
-                                            }
-                                        }
-
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualAssets)}",
-                                                fontWeight = FontWeight.Black,
-                                                fontSize = 12.5.sp,
-                                                color = TextDark
-                                            )
-                                            Text(
-                                                text = if (isDiscreetMode) "Target: ••••" else "Target: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedAssets)}",
-                                                fontSize = 9.sp,
-                                                color = TextMuted
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    LinearProgressIndicator(
-                                        progress = { astFraction },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(4.dp)
-                                            .clip(RoundedCornerShape(2.dp)),
-                                        color = SoftTeal,
-                                        trackColor = SoftTeal.copy(alpha = 0.15f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Card 3: Fortress Emergency Net
-                item {
-                    val fortressGoal = uiState.fortressTarget
-                    val currentFds = uiState.fortressFdBalance
-                    val sweepFloor = userProfile.fortressSweepThreshold
-                    val progressPct = uiState.fortressProgressPercentage
-                    val progressFraction = (progressPct / 100f).coerceIn(0f, 1f)
-
-                    Surface(
-                        modifier = Modifier
-                            .width(320.dp)
-                            .height(290.dp)
-                            .shadow(3.dp, RoundedCornerShape(22.dp)),
-                        shape = RoundedCornerShape(22.dp),
-                        color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color(0xFFFFFFFF),
-                                            Color(0xFFF7FCFB),
-                                            Color(0xFF0D9488).copy(alpha = 0.05f)
-                                        )
-                                    )
-                                )
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(7.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF0D9488))
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "FORTRESS SAFETY NET & SWEEP",
-                                            color = TextMuted,
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.Black,
-                                            letterSpacing = 0.7.sp
-                                        )
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF0D9488).copy(alpha = 0.12f),
-                                        border = BorderStroke(0.6.dp, Color(0xFF0D9488).copy(alpha = 0.3f))
-                                    ) {
-                                        Text(
-                                            text = "$progressPct% Funded",
-                                            color = Color(0xFF0D9488),
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                Text(
-                                    text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentFds)}",
-                                    fontSize = 27.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = TextDark,
-                                    letterSpacing = (-0.5).sp
-                                )
-
-                                Spacer(modifier = Modifier.height(2.dp))
-
-                                Text(
-                                    text = if (isDiscreetMode) "Emergency Corpus Protected" else "Corpus in Sweep FDs (Goal: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressGoal)})",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = TextMuted,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                LinearProgressIndicator(
-                                    progress = { progressFraction },
+                                Column(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(6.dp)
-                                        .clip(RoundedCornerShape(3.dp)),
-                                    color = Color(0xFF0D9488),
-                                    trackColor = Color(0xFF0D9488).copy(alpha = 0.15f)
-                                )
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = CanvasLight.copy(alpha = 0.7f),
-                                border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color(0xFFFFFFFF),
+                                                    Color(0xFFFCFAFF),
+                                                    AccentPurple.copy(alpha = 0.05f)
+                                                )
+                                            )
+                                        )
+                                        .padding(13.dp),
+                                    verticalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column {
-                                        Text("Liquid Savings Floor", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
-                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .clickable(onClick = onOpenStsInfo)
+                                                    .padding(vertical = 1.dp, horizontal = 2.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(6.dp)
+                                                        .clip(CircleShape)
+                                                        .background(statusColor)
+                                                )
+                                                Spacer(modifier = Modifier.width(5.dp))
+                                                Text(
+                                                    text = "LIQUID SAFE TO SPEND",
+                                                    color = TextMuted,
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    letterSpacing = 0.6.sp
+                                                )
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Icon(
+                                                    imageVector = Icons.Default.HelpOutline,
+                                                    contentDescription = "Explain Safe to Spend",
+                                                    tint = AccentPurple,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+
+                                            Surface(
+                                                shape = RoundedCornerShape(7.dp),
+                                                color = if (isHealthy) AccentPurple.copy(alpha = 0.1f) else statusColor.copy(alpha = 0.12f),
+                                                border = BorderStroke(0.5.dp, if (isHealthy) AccentPurple.copy(alpha = 0.25f) else statusColor.copy(alpha = 0.3f))
+                                            ) {
+                                                Text(
+                                                    text = "${uiState.metrics.safeToSpendPercentage}% Capacity",
+                                                    color = if (isHealthy) AccentPurple else statusColor,
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
                                         Text(
-                                            text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", sweepFloor)}",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = TextDark
+                                            text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
+                                            fontSize = 24.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = if (isHealthy) TextDark else SoftRed,
+                                            letterSpacing = (-0.5).sp
+                                        )
+
+                                        Spacer(modifier = Modifier.height(1.dp))
+
+                                        Text(
+                                            text = when {
+                                                isPastMonth -> "Month closed: final remaining balance"
+                                                uiState.metrics.isSalaryDelayed -> "Salary expected (${uiState.metrics.nextPaydayDay}th) • 1-day runway reserved"
+                                                isCurrentMonth && isHealthy -> if (isDiscreetMode) "Guilt-free surplus protected" else "Pure surplus • Runway reserved for ${uiState.metrics.daysUntilPayday}d (until ${uiState.metrics.nextPaydayDay}th)"
+                                                isCurrentMonth -> "Runway deficit: spending exceeds safe allowance"
+                                                else -> "Projected surplus for ${uiState.metrics.daysUntilPayday} days until payday"
+                                            },
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (uiState.metrics.isSalaryDelayed) Color(0xFFE57A28) else if (isHealthy) TextMuted else SoftRed,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        SpendingSparkline(
+                                            points = uiState.metrics.dailyExpensePoints,
+                                            lineColor = if (isHealthy) AccentPurple else SoftRed,
+                                            gradientStartColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.32f),
+                                            gradientEndColor = (if (isHealthy) AccentPurple else SoftRed).copy(alpha = 0.0f)
                                         )
                                     }
 
-                                    Box(
-                                        modifier = Modifier
-                                            .height(26.dp)
-                                            .width(1.dp)
-                                            .background(BorderLight.copy(alpha = 0.7f))
-                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        val displayInflow = if (uiState.metrics.plannedIncome > 0) uiState.metrics.plannedIncome else uiState.metrics.personalIncome
+                                        val displayAssets = if (uiState.metrics.plannedAssets > 0) uiState.metrics.plannedAssets else uiState.metrics.actualAssets
 
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text("Runway Target", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "${userProfile.fortressEmergencyMonths} Months Burn",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF0D9488)
+                                        PillarMetricCard(
+                                            title = "Inflow",
+                                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayInflow)}",
+                                            tintColor = SoftGreen,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = { onNavigateToLedgerWithFilter(TransactionType.INCOME) }
+                                        )
+                                        PillarMetricCard(
+                                            title = "Fixed Bills",
+                                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
+                                            tintColor = SoftRed,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = onNavigateToCommitments
+                                        )
+                                        PillarMetricCard(
+                                            title = "SIP Assets",
+                                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayAssets)}",
+                                            tintColor = SoftTeal,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = { onNavigateToLedgerWithFilter(TransactionType.ASSET) }
                                         )
                                     }
                                 }
                             }
                         }
+
+                        // Card 1: 3-Pillar Target Execution
+                        1 -> {
+                            val plannedExpenses = uiState.metrics.plannedExpenses
+                            val actualExpenses = uiState.metrics.actualExpenses
+                            val expDiff = actualExpenses - plannedExpenses
+                            val expFraction = if (plannedExpenses > 0) (actualExpenses / plannedExpenses).toFloat().coerceIn(0f, 1f) else if (actualExpenses > 0) 1f else 0f
+
+                            val plannedIncome = uiState.metrics.plannedIncome
+                            val actualIncome = uiState.metrics.actualIncome
+                            val incDiff = actualIncome - plannedIncome
+                            val incFraction = if (plannedIncome > 0) (actualIncome / plannedIncome).toFloat().coerceIn(0f, 1f) else if (actualIncome > 0) 1f else 0f
+
+                            val plannedAssets = uiState.metrics.plannedAssets
+                            val actualAssets = uiState.metrics.actualAssets
+                            val astDiff = actualAssets - plannedAssets
+                            val astFraction = if (plannedAssets > 0) (actualAssets / plannedAssets).toFloat().coerceIn(0f, 1f) else if (actualAssets > 0) 1f else 0f
+
+                            val isExpenseOverBudget = plannedExpenses > 0 && actualExpenses > plannedExpenses
+                            val budgetStatusLabel = when {
+                                plannedExpenses <= 0 -> "Tracking"
+                                isExpenseOverBudget -> "Over Budget"
+                                else -> "On Track"
+                            }
+                            val budgetStatusColor = when {
+                                plannedExpenses <= 0 -> TextMuted
+                                isExpenseOverBudget -> SoftRed
+                                else -> SoftGreen
+                            }
+
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .shadow(2.5.dp, RoundedCornerShape(20.dp)),
+                                shape = RoundedCornerShape(20.dp),
+                                color = CardWhite,
+                                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color(0xFFFFFFFF),
+                                                    Color(0xFFFCFAFF),
+                                                    AccentPurple.copy(alpha = 0.04f)
+                                                )
+                                            )
+                                        )
+                                        .padding(11.dp),
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .clickable(onClick = onOpenThreePillarInfo)
+                                                .padding(vertical = 1.dp, horizontal = 2.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(AccentPurple)
+                                            )
+                                            Spacer(modifier = Modifier.width(5.dp))
+                                            Text(
+                                                text = "3-PILLAR TARGET EXECUTION",
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = TextMuted,
+                                                letterSpacing = 0.6.sp
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Icon(
+                                                imageVector = Icons.Default.HelpOutline,
+                                                contentDescription = "Explain 3-Pillars",
+                                                tint = AccentPurple,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = budgetStatusColor.copy(alpha = 0.12f)
+                                        ) {
+                                            Text(
+                                                text = budgetStatusLabel,
+                                                color = budgetStatusColor,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // Expenses pill
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = CanvasLight.copy(alpha = 0.6f),
+                                        border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(20.dp)
+                                                            .clip(RoundedCornerShape(5.dp))
+                                                            .background(SoftRed.copy(alpha = 0.12f)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(Icons.Default.TrendingDown, contentDescription = null, tint = SoftRed, modifier = Modifier.size(11.dp))
+                                                    }
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text("Expenses", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = TextDark)
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(3.dp),
+                                                        color = if (isExpenseOverBudget) SoftRed.copy(alpha = 0.12f) else CardWhite
+                                                    ) {
+                                                        Text(
+                                                            text = if (plannedExpenses > 0) {
+                                                                if (isDiscreetMode) "Tracked"
+                                                                else if (expDiff > 0) "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expDiff)} Over"
+                                                                else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(expDiff))} Left"
+                                                            } else "No Cap",
+                                                            fontSize = 8.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (isExpenseOverBudget) SoftRed else TextMuted,
+                                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                Column(horizontalAlignment = Alignment.End) {
+                                                    Text(
+                                                        text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualExpenses)}",
+                                                        fontWeight = FontWeight.Black,
+                                                        fontSize = 11.5.sp,
+                                                        color = if (isExpenseOverBudget) SoftRed else TextDark
+                                                    )
+                                                    Text(
+                                                        text = if (isDiscreetMode) "Target: ••••" else "Target: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedExpenses)}",
+                                                        fontSize = 8.5.sp,
+                                                        color = TextMuted
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            LinearProgressIndicator(
+                                                progress = { expFraction },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(3.dp)
+                                                    .clip(RoundedCornerShape(1.5.dp)),
+                                                color = SoftRed,
+                                                trackColor = SoftRed.copy(alpha = 0.15f)
+                                            )
+                                        }
+                                    }
+
+                                    // Income pill
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = CanvasLight.copy(alpha = 0.6f),
+                                        border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(20.dp)
+                                                            .clip(RoundedCornerShape(5.dp))
+                                                            .background(SoftGreen.copy(alpha = 0.12f)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(Icons.Default.TrendingUp, contentDescription = null, tint = SoftGreen, modifier = Modifier.size(11.dp))
+                                                    }
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text("Income", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = TextDark)
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(3.dp),
+                                                        color = CardWhite
+                                                    ) {
+                                                        Text(
+                                                            text = if (plannedIncome > 0) {
+                                                                if (incDiff >= 0) "Target Met"
+                                                                else if (isDiscreetMode) "Short"
+                                                                else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(incDiff))} Short"
+                                                            } else "Recorded",
+                                                            fontSize = 8.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = TextMuted,
+                                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                Column(horizontalAlignment = Alignment.End) {
+                                                    Text(
+                                                        text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualIncome)}",
+                                                        fontWeight = FontWeight.Black,
+                                                        fontSize = 11.5.sp,
+                                                        color = TextDark
+                                                    )
+                                                    Text(
+                                                        text = if (isDiscreetMode) "Target: ••••" else "Target: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedIncome)}",
+                                                        fontSize = 8.5.sp,
+                                                        color = TextMuted
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            LinearProgressIndicator(
+                                                progress = { incFraction },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(3.dp)
+                                                    .clip(RoundedCornerShape(1.5.dp)),
+                                                color = SoftGreen,
+                                                trackColor = SoftGreen.copy(alpha = 0.15f)
+                                            )
+                                        }
+                                    }
+
+                                    // Assets pill
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = CanvasLight.copy(alpha = 0.6f),
+                                        border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(20.dp)
+                                                            .clip(RoundedCornerShape(5.dp))
+                                                            .background(SoftTeal.copy(alpha = 0.12f)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(Icons.Default.Savings, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(11.dp))
+                                                    }
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text("Assets / SIP", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = TextDark)
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(3.dp),
+                                                        color = CardWhite
+                                                    ) {
+                                                        Text(
+                                                            text = if (plannedAssets > 0) {
+                                                                if (astDiff >= 0) "Target Met"
+                                                                else if (isDiscreetMode) "Short"
+                                                                else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(astDiff))} Short"
+                                                            } else "Recorded",
+                                                            fontSize = 8.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = TextMuted,
+                                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                Column(horizontalAlignment = Alignment.End) {
+                                                    Text(
+                                                        text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualAssets)}",
+                                                        fontWeight = FontWeight.Black,
+                                                        fontSize = 11.5.sp,
+                                                        color = TextDark
+                                                    )
+                                                    Text(
+                                                        text = if (isDiscreetMode) "Target: ••••" else "Target: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", plannedAssets)}",
+                                                        fontSize = 8.5.sp,
+                                                        color = TextMuted
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            LinearProgressIndicator(
+                                                progress = { astFraction },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(3.dp)
+                                                    .clip(RoundedCornerShape(1.5.dp)),
+                                                color = SoftTeal,
+                                                trackColor = SoftTeal.copy(alpha = 0.15f)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Card 2: Fortress Emergency Net
+                        2 -> {
+                            val fortressGoal = uiState.fortressTarget
+                            val currentFds = uiState.fortressFdBalance
+                            val sweepFloor = userProfile.fortressSweepThreshold
+                            val progressPct = uiState.fortressProgressPercentage
+                            val progressFraction = (progressPct / 100f).coerceIn(0f, 1f)
+
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .shadow(2.5.dp, RoundedCornerShape(20.dp)),
+                                shape = RoundedCornerShape(20.dp),
+                                color = CardWhite,
+                                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color(0xFFFFFFFF),
+                                                    Color(0xFFF7FCFB),
+                                                    Color(0xFF0D9488).copy(alpha = 0.05f)
+                                                )
+                                            )
+                                        )
+                                        .padding(13.dp),
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .clickable(onClick = onOpenFortressInfo)
+                                                    .padding(vertical = 1.dp, horizontal = 2.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(6.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(0xFF0D9488))
+                                                )
+                                                Spacer(modifier = Modifier.width(5.dp))
+                                                Text(
+                                                    text = "FORTRESS SAFETY NET & SWEEP",
+                                                    color = TextMuted,
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    letterSpacing = 0.6.sp
+                                                )
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Icon(
+                                                    imageVector = Icons.Default.HelpOutline,
+                                                    contentDescription = "Explain Fortress",
+                                                    tint = Color(0xFF0D9488),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+
+                                            Surface(
+                                                shape = RoundedCornerShape(7.dp),
+                                                color = Color(0xFF0D9488).copy(alpha = 0.12f),
+                                                border = BorderStroke(0.5.dp, Color(0xFF0D9488).copy(alpha = 0.3f))
+                                            ) {
+                                                Text(
+                                                    text = "$progressPct% Funded",
+                                                    color = Color(0xFF0D9488),
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        Text(
+                                            text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", currentFds)}",
+                                            fontSize = 24.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = TextDark,
+                                            letterSpacing = (-0.5).sp
+                                        )
+
+                                        Spacer(modifier = Modifier.height(1.dp))
+
+                                        Text(
+                                            text = if (isDiscreetMode) "Emergency Corpus Protected" else "Corpus in Sweep FDs (Goal: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressGoal)})",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = TextMuted,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        LinearProgressIndicator(
+                                            progress = { progressFraction },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(4.dp)
+                                                .clip(RoundedCornerShape(2.dp)),
+                                            color = Color(0xFF0D9488),
+                                            trackColor = Color(0xFF0D9488).copy(alpha = 0.15f)
+                                        )
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = CanvasLight.copy(alpha = 0.7f),
+                                        border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.6f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text("Savings Floor", fontSize = 8.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                                                Spacer(modifier = Modifier.height(1.dp))
+                                                Text(
+                                                    text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", sweepFloor)}",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = TextDark
+                                                )
+                                            }
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .height(20.dp)
+                                                    .width(1.dp)
+                                                    .background(BorderLight.copy(alpha = 0.7f))
+                                            )
+
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text("Runway Target", fontSize = 8.5.sp, fontWeight = FontWeight.Black, color = TextMuted)
+                                                Spacer(modifier = Modifier.height(1.dp))
+                                                Text(
+                                                    text = "${userProfile.fortressEmergencyMonths} Months Burn",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF0D9488)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Upper Carousel Pill Indicators
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(3) { idx ->
+                        val isSelected = topCardsPagerState.currentPage == idx
+                        val dotWidth by animateDpAsState(
+                            targetValue = if (isSelected) 14.dp else 4.dp,
+                            animationSpec = tween(250),
+                            label = "topDotWidth"
+                        )
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 2.dp)
+                                .height(3.5.dp)
+                                .width(dotWidth)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(if (isSelected) AccentPurple else BorderLight.copy(alpha = 0.7f))
+                        )
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // 4. AUTO-SCROLLING BALANCE FLOW CAROUSEL
+        // 4. AUTO-SCROLLING BALANCE FLOW CAROUSEL (OPTION 2: ULTRA-COMPACT 2-ROW AT 108.dp)
         item {
             val startBalance = uiState.metrics.startLiquidBalance
             val endBalance = uiState.metrics.endLiquidBalance
@@ -1057,323 +1117,307 @@ fun MonthlySummaryTab(
             Column(modifier = Modifier.fillMaxWidth()) {
                 HorizontalPager(
                     state = flowPagerState,
-                    pageSpacing = 12.dp,
+                    pageSpacing = 10.dp,
                     contentPadding = PaddingValues(horizontal = 2.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(142.dp)
+                        .height(108.dp)
                 ) { pageIndex ->
                     Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .shadow(2.5.dp, RoundedCornerShape(18.dp))
-                            .clip(RoundedCornerShape(18.dp))
+                            .shadow(2.dp, RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(16.dp))
                             .clickable { onOpenBalanceFlowInfo(pageIndex) },
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(16.dp),
                         color = CardWhite,
                         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 14.dp, vertical = 11.dp),
+                                .padding(horizontal = 13.dp, vertical = 9.dp),
                             verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             when (pageIndex) {
                                 // CARD 0: LIQUID BANK FLOW (PHYSICAL CASH DELTA)
                                 0 -> {
+                                    // Row 1: Header + Pill Badge + Chevron
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftGreen))
-                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftGreen))
+                                            Spacer(modifier = Modifier.width(5.dp))
                                             Text(
                                                 text = "LIQUID BANK FLOW",
-                                                fontSize = 9.5.sp,
+                                                fontSize = 9.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = TextMuted,
-                                                letterSpacing = 0.6.sp
+                                                letterSpacing = 0.5.sp
                                             )
                                         }
 
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Inspect Math", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = AccentPurple)
-                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = (if (bankCashMovement >= 0) SoftGreen else SoftRed).copy(alpha = 0.12f)
+                                            ) {
+                                                Text(
+                                                    text = if (bankCashMovement >= 0) "Cash Added" else "Cash Drawn",
+                                                    color = if (bankCashMovement >= 0) SoftGreen else SoftRed,
+                                                    fontSize = 8.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(3.dp))
                                             Icon(Icons.Default.ChevronRight, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(13.dp))
                                         }
                                     }
 
+                                    // Row 2: Hero Value + Split Breakdown
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalAlignment = Alignment.Bottom
                                     ) {
                                         Column {
                                             Text(
                                                 text = if (isDiscreetMode) "••••••••" else "${if (bankCashMovement >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", bankCashMovement)}",
-                                                fontSize = 20.sp,
+                                                fontSize = 18.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = if (bankCashMovement >= 0) SoftGreen else SoftRed
                                             )
-                                            Text("Net Physical Bank Growth", fontSize = 10.sp, color = TextMuted)
+                                            Text("Net Bank Growth", fontSize = 9.5.sp, color = TextMuted)
                                         }
 
-                                        Surface(
-                                            shape = RoundedCornerShape(7.dp),
-                                            color = (if (bankCashMovement >= 0) SoftGreen else SoftRed).copy(alpha = 0.12f)
-                                        ) {
+                                        Column(horizontalAlignment = Alignment.End) {
                                             Text(
-                                                text = if (bankCashMovement >= 0) "Cash Added" else "Cash Drawn",
-                                                color = if (bankCashMovement >= 0) SoftGreen else SoftRed,
+                                                text = if (isDiscreetMode) "Opening: ••••" else "Opening: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBalance)}",
                                                 fontSize = 9.5.sp,
+                                                color = TextMuted
+                                            )
+                                            Text(
+                                                text = if (isDiscreetMode) "Active: ••••" else "Active: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", endBalance)}",
+                                                fontSize = 10.5.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+                                                color = TextDark
                                             )
                                         }
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = if (isDiscreetMode) "Opening: ••••" else "Opening: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", startBalance)}",
-                                            fontSize = 10.5.sp,
-                                            color = TextMuted
-                                        )
-                                        Text(
-                                            text = if (isDiscreetMode) "Active: ••••" else "Active Vaults: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", endBalance)}",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = TextDark
-                                        )
                                     }
                                 }
 
                                 // CARD 1: WEALTH RETENTION (PRE-SIP SAVINGS)
                                 1 -> {
+                                    // Row 1: Header + Pill Badge + Chevron
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftTeal))
-                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftTeal))
+                                            Spacer(modifier = Modifier.width(5.dp))
                                             Text(
                                                 text = "WEALTH RETENTION",
-                                                fontSize = 9.5.sp,
+                                                fontSize = 9.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = TextMuted,
-                                                letterSpacing = 0.6.sp
+                                                letterSpacing = 0.5.sp
                                             )
                                         }
 
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Inspect Math", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = AccentPurple)
-                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = SoftTeal.copy(alpha = 0.12f)
+                                            ) {
+                                                Text(
+                                                    text = "$retentionPct% Retained",
+                                                    color = SoftTeal,
+                                                    fontSize = 8.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(3.dp))
                                             Icon(Icons.Default.ChevronRight, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(13.dp))
                                         }
                                     }
 
+                                    // Row 2: Hero Value + Split Breakdown
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalAlignment = Alignment.Bottom
                                     ) {
                                         Column {
                                             Text(
                                                 text = if (isDiscreetMode) "••••••••" else "${if (preSipSaved >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", preSipSaved)}",
-                                                fontSize = 20.sp,
+                                                fontSize = 18.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = if (preSipSaved >= 0) SoftTeal else SoftRed
                                             )
-                                            Text("Savings Retained (Pre-SIP)", fontSize = 10.sp, color = TextMuted)
+                                            Text("Pre-SIP Saved", fontSize = 9.5.sp, color = TextMuted)
                                         }
 
-                                        Surface(
-                                            shape = RoundedCornerShape(7.dp),
-                                            color = SoftTeal.copy(alpha = 0.12f)
-                                        ) {
+                                        Column(horizontalAlignment = Alignment.End) {
                                             Text(
-                                                text = "$retentionPct% Retained",
-                                                color = SoftTeal,
+                                                text = if (isDiscreetMode) "Inflow: ••••" else "Inflow: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", incomeBase)}",
                                                 fontSize = 9.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+                                                color = TextMuted
+                                            )
+                                            Text(
+                                                text = if (isDiscreetMode) "Burn: ••••" else "Burn: -${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", lifestyleExp)}",
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = SoftRed
                                             )
                                         }
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = if (isDiscreetMode) "Inflow: ••••" else "Inflow: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", incomeBase)}",
-                                            fontSize = 10.5.sp,
-                                            color = TextMuted
-                                        )
-                                        Text(
-                                            text = if (isDiscreetMode) "Burn: ••••" else "Lifestyle Burn: -${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", lifestyleExp)}",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = SoftRed
-                                        )
                                     }
                                 }
 
                                 // CARD 2: UNALLOCATED SURPLUS (POST-SIP SURPLUS)
                                 2 -> {
+                                    // Row 1: Header + Pill Badge + Chevron
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(AccentPurple))
-                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(AccentPurple))
+                                            Spacer(modifier = Modifier.width(5.dp))
                                             Text(
                                                 text = "MONTHLY SURPLUS",
-                                                fontSize = 9.5.sp,
+                                                fontSize = 9.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = TextMuted,
-                                                letterSpacing = 0.6.sp
+                                                letterSpacing = 0.5.sp
                                             )
                                         }
 
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Inspect Math", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = AccentPurple)
-                                            Spacer(modifier = Modifier.width(2.dp))
-                                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(14.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = (if (postSipSurplus >= 0) SoftGreen else SoftRed).copy(alpha = 0.12f)
+                                            ) {
+                                                Text(
+                                                    text = if (postSipSurplus >= 0) "Surplus Safe" else "Deficit",
+                                                    color = if (postSipSurplus >= 0) SoftGreen else SoftRed,
+                                                    fontSize = 8.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(13.dp))
                                         }
                                     }
 
+                                    // Row 2: Hero Value + Split Breakdown
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalAlignment = Alignment.Bottom
                                     ) {
                                         Column {
                                             Text(
                                                 text = if (isDiscreetMode) "••••••••" else "${if (postSipSurplus >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", postSipSurplus)}",
-                                                fontSize = 20.sp,
+                                                fontSize = 18.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = if (postSipSurplus >= 0) SoftGreen else SoftRed
                                             )
-                                            Text("Unallocated Surplus (Post-SIP)", fontSize = 10.sp, color = TextMuted)
+                                            Text("Unallocated (Post-SIP)", fontSize = 9.5.sp, color = TextMuted)
                                         }
 
-                                        Surface(
-                                            shape = RoundedCornerShape(7.dp),
-                                            color = (if (postSipSurplus >= 0) SoftGreen else SoftRed).copy(alpha = 0.12f)
-                                        ) {
+                                        Column(horizontalAlignment = Alignment.End) {
                                             Text(
-                                                text = if (postSipSurplus >= 0) "Surplus Safe" else "Deficit",
-                                                color = if (postSipSurplus >= 0) SoftGreen else SoftRed,
+                                                text = if (isDiscreetMode) "Pre-SIP: ••••" else "Pre-SIP: +${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", preSipSaved)}",
                                                 fontSize = 9.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+                                                color = TextMuted
+                                            )
+                                            Text(
+                                                text = if (isDiscreetMode) "Assets: ••••" else "Assets: -${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualAssets)}",
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = SoftTeal
                                             )
                                         }
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = if (isDiscreetMode) "Pre-SIP: ••••" else "Pre-SIP: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", preSipSaved)}",
-                                            fontSize = 10.5.sp,
-                                            color = TextMuted
-                                        )
-                                        Text(
-                                            text = if (isDiscreetMode) "Assets: ••••" else "Assets: -${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", actualAssets)}",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = SoftTeal
-                                        )
                                     }
                                 }
 
                                 // CARD 3: CAPITAL RELOCATED (RESERVES & WORK FLOAT GAP)
                                 3 -> {
+                                    // Row 1: Header + Pill Badge + Chevron
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFE57A28)))
-                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(Color(0xFFE57A28)))
+                                            Spacer(modifier = Modifier.width(5.dp))
                                             Text(
                                                 text = "RESERVES & FLOAT",
-                                                fontSize = 9.5.sp,
+                                                fontSize = 9.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = TextMuted,
-                                                letterSpacing = 0.6.sp
+                                                letterSpacing = 0.5.sp
                                             )
                                         }
 
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Inspect Math", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = AccentPurple)
-                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFFE57A28).copy(alpha = 0.12f)
+                                            ) {
+                                                Text(
+                                                    text = "In FDs & Claims",
+                                                    color = Color(0xFFE57A28),
+                                                    fontSize = 8.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(3.dp))
                                             Icon(Icons.Default.ChevronRight, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(13.dp))
                                         }
                                     }
 
+                                    // Row 2: Hero Value + Split Breakdown
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalAlignment = Alignment.Bottom
                                     ) {
                                         Column {
                                             Text(
                                                 text = if (isDiscreetMode) "••••••••" else "${if (relocatedGap >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", relocatedGap)}",
-                                                fontSize = 20.sp,
+                                                fontSize = 18.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = Color(0xFFE57A28)
                                             )
-                                            Text("Capital Moved Out of Liquid Pool", fontSize = 10.sp, color = TextMuted)
+                                            Text("Capital Relocated", fontSize = 9.5.sp, color = TextMuted)
                                         }
 
-                                        Surface(
-                                            shape = RoundedCornerShape(7.dp),
-                                            color = Color(0xFFE57A28).copy(alpha = 0.12f)
-                                        ) {
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            val expectedPool = startBalance + postSipSurplus
                                             Text(
-                                                text = "In FDs & Claims",
-                                                color = Color(0xFFE57A28),
+                                                text = if (isDiscreetMode) "Expected: ••••" else "Expected: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expectedPool)}",
                                                 fontSize = 9.5.sp,
+                                                color = TextMuted
+                                            )
+                                            Text(
+                                                text = if (isDiscreetMode) "Active: ••••" else "Active: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", endBalance)}",
+                                                fontSize = 10.5.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+                                                color = TextDark
                                             )
                                         }
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        val expectedPool = startBalance + postSipSurplus
-                                        Text(
-                                            text = if (isDiscreetMode) "Expected: ••••" else "Expected: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expectedPool)}",
-                                            fontSize = 10.5.sp,
-                                            color = TextMuted
-                                        )
-                                        Text(
-                                            text = if (isDiscreetMode) "Active: ••••" else "Active: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", endBalance)}",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = TextDark
-                                        )
                                     }
                                 }
                             }
@@ -1381,9 +1425,9 @@ fun MonthlySummaryTab(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(5.dp))
 
-                // Mini Pill Indicators
+                // Lower Carousel Pill Indicators
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -1392,14 +1436,14 @@ fun MonthlySummaryTab(
                     repeat(4) { idx ->
                         val isSelected = flowPagerState.currentPage == idx
                         val dotWidth by animateDpAsState(
-                            targetValue = if (isSelected) 16.dp else 5.dp,
+                            targetValue = if (isSelected) 14.dp else 4.dp,
                             animationSpec = tween(250),
                             label = "dotWidth"
                         )
                         Box(
                             modifier = Modifier
-                                .padding(horizontal = 2.5.dp)
-                                .height(4.dp)
+                                .padding(horizontal = 2.dp)
+                                .height(3.5.dp)
                                 .width(dotWidth)
                                 .clip(RoundedCornerShape(2.dp))
                                 .background(if (isSelected) AccentPurple else BorderLight.copy(alpha = 0.7f))
@@ -1407,13 +1451,13 @@ fun MonthlySummaryTab(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
         // 5. Category Matrix Header & Switcher
         item {
             Text(text = "Category Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier
@@ -1449,7 +1493,7 @@ fun MonthlySummaryTab(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
         if (activeMatrix.isEmpty()) {
@@ -1808,25 +1852,25 @@ private fun PillarMetricCard(
     Surface(
         modifier = modifier
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(11.dp),
+        shape = RoundedCornerShape(10.dp),
         color = CardWhite,
-        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+        border = BorderStroke(0.7.dp, BorderLight.copy(alpha = 0.6f))
     ) {
-        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(5.dp)
+                        .size(4.dp)
                         .clip(CircleShape)
                         .background(tintColor)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = title, fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(text = title, fontSize = 8.5.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
             }
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(1.dp))
             Text(
                 text = amount,
-                fontSize = 12.5.sp,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = tintColor
             )
