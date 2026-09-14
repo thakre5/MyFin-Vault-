@@ -1,13 +1,15 @@
-package com.example.myfin.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -23,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -35,7 +38,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
-import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AccountTransferDialog
 import com.example.myfin.ui.components.AppBottomDock
@@ -43,13 +45,14 @@ import com.example.myfin.ui.components.DockFabAction
 import com.example.myfin.ui.components.NavigationTarget
 import com.example.myfin.ui.components.rememberAutoScrollVisibilityConnection
 import com.example.myfin.ui.theme.*
+import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.abs
 
 data class SimplePendingEditConfirmation(
     val originalAccount: AccountBalanceResult,
     val updatedName: String,
-    val updatedType: String,
+    val updatedRole: VaultTier,
     val targetBalance: Double,
     val minBalance: Double,
     val isArchived: Boolean = false
@@ -85,6 +88,7 @@ fun SimpleAccountsScreen(
     onNavigateToVaultSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val uiState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
@@ -106,11 +110,44 @@ fun SimpleAccountsScreen(
         uiState.archivedAccounts
     }
 
+    val bankCardsListState = rememberLazyListState()
+    val bankCardsSnapBehavior = rememberSnapFlingBehavior(lazyListState = bankCardsListState)
+
+    val focusedCardIndex by remember {
+        derivedStateOf {
+            val layoutInfo = bankCardsListState.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            if (visibleItems.isEmpty()) {
+                0
+            } else {
+                val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                visibleItems.minByOrNull { item ->
+                    val itemCenter = item.offset + item.size / 2
+                    abs(itemCenter - viewportCenter)
+                }?.index ?: 0
+            }
+        }
+    }
+
+    var activeSelectedCardIndex by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(focusedCardIndex) {
+        if (displayAccounts.isNotEmpty()) {
+            activeSelectedCardIndex = focusedCardIndex.coerceIn(0, displayAccounts.size - 1)
+        }
+    }
+
+    LaunchedEffect(displayAccounts.size) {
+        if (displayAccounts.isNotEmpty() && activeSelectedCardIndex >= displayAccounts.size) {
+            activeSelectedCardIndex = displayAccounts.size - 1
+        }
+    }
+
     val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
-    val totalLiquidBalance = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
+    val netVaultCapital = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
 
     val monthInflow = uiState.metrics.actualIncome
-    val monthOutflow = uiState.metrics.actualExpenses + uiState.metrics.actualAssets
+    val monthOutflow = uiState.metrics.actualExpenses + uiState.metrics.actualAssets + uiState.metrics.corporateOutlays
 
     val fabActions = remember {
         listOf(
@@ -239,7 +276,7 @@ fun SimpleAccountsScreen(
                 contentPadding = PaddingValues(top = 8.dp, bottom = 125.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Overview Liquidity Card
+                // Overview Net Capital Card
                 item(key = "overview_liquidity_card") {
                     Surface(
                         modifier = Modifier
@@ -263,14 +300,14 @@ fun SimpleAccountsScreen(
                                 .padding(18.dp)
                         ) {
                             Text(
-                                text = "Total Net Liquidity",
+                                text = "Net Vault Capital",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = TextMuted
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalLiquidBalance)}",
+                                text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", netVaultCapital)}",
                                 fontSize = 28.sp,
                                 fontWeight = FontWeight.Black,
                                 color = TextDark,
@@ -361,7 +398,7 @@ fun SimpleAccountsScreen(
                     }
                 }
 
-                // Active Accounts List Header
+                // Active Accounts Carousel Header
                 item(key = "active_accounts_header") {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -391,7 +428,7 @@ fun SimpleAccountsScreen(
                             }
                         }
                         Text(
-                            text = "Tap edit to modify",
+                            text = "Scroll or tap to focus",
                             fontSize = 11.sp,
                             color = TextMuted
                         )
@@ -412,190 +449,42 @@ fun SimpleAccountsScreen(
                         }
                     }
                 } else {
-                    items(displayAccounts, key = { it.accountName }) { account ->
-                        val tier = getAccountTier(account.accountType, account.accountName)
-                        val maskedDigits = remember(account.accountName) {
-                            val safeHash = abs(account.accountName.hashCode().toLong())
-                            String.format(Locale.US, "%04d", safeHash % 9000 + 1000)
-                        }
-
-                        val pendingBillsForAccount = remember(uiState.fixedBills, account.accountName) {
-                            uiState.fixedBills.filter {
-                                !it.isPaid &&
-                                it.type != TransactionType.INCOME &&
-                                !(it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
-                                it.accountName.equals(account.accountName, ignoreCase = true)
-                            }.sumOf { it.amount }
-                        }
-
-                        val effectiveBal = account.currentBalance - pendingBillsForAccount
-                        val isMabBreached = account.minBalance > 0.0 && effectiveBal < account.minBalance
-
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(2.dp, RoundedCornerShape(20.dp)),
-                            shape = RoundedCornerShape(20.dp),
-                            color = CardWhite,
-                            border = BorderStroke(
-                                width = if (isMabBreached) 1.dp else 0.8.dp,
-                                color = if (isMabBreached) SoftRed else BorderLight.copy(alpha = 0.7f)
-                            )
+                    item(key = "accounts_carousel") {
+                        LazyRow(
+                            state = bankCardsListState,
+                            flingBehavior = bankCardsSnapBehavior,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(horizontal = 2.dp)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .background(
-                                        Brush.verticalGradient(
-                                            colors = listOf(
-                                                tier.bgTint.copy(alpha = 0.45f),
-                                                CardWhite
-                                            )
-                                        )
-                                    )
-                                    .padding(16.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(tier.bgTint),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = tier.icon,
-                                            contentDescription = null,
-                                            tint = tier.color,
-                                            modifier = Modifier.size(19.dp)
-                                        )
-                                    }
+                            itemsIndexed(
+                                items = displayAccounts,
+                                key = { _, acc -> acc.accountName }
+                            ) { idx, acc ->
+                                val tier = getAccountTier(acc.accountType, acc.accountName)
+                                val isSelected = activeSelectedCardIndex == idx
 
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        if (isMabBreached) {
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = SoftRed.copy(alpha = 0.15f),
-                                                border = BorderStroke(0.6.dp, SoftRed.copy(alpha = 0.4f))
-                                            ) {
-                                                Text(
-                                                    text = "! MAB",
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    color = SoftRed,
-                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                                )
+                                BankAccountPhysicalCard(
+                                    account = acc,
+                                    currencySymbol = userProfile.currencySymbol,
+                                    tier = tier,
+                                    isSelected = isSelected,
+                                    showRole = true,
+                                    isDiscreetMode = isDiscreetMode,
+                                    onSelect = {
+                                        activeSelectedCardIndex = idx
+                                        coroutineScope.launch {
+                                            val layoutInfo = bankCardsListState.layoutInfo
+                                            val itemInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == idx }
+                                            if (itemInfo != null) {
+                                                val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                                                val itemCenter = itemInfo.offset + itemInfo.size / 2
+                                                bankCardsListState.animateScrollBy((itemCenter - viewportCenter).toFloat())
                                             }
-                                            Spacer(modifier = Modifier.width(4.dp))
                                         }
-
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = tier.color.copy(alpha = 0.14f)
-                                        ) {
-                                            Text(
-                                                text = account.accountType.ifBlank { tier.title },
-                                                fontSize = 9.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = tier.color,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.width(6.dp))
-
-                                        IconButton(
-                                            onClick = { editingAccount = account },
-                                            modifier = Modifier.size(26.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Edit,
-                                                contentDescription = "Edit Account",
-                                                tint = TextMuted,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                Text(
-                                    text = account.accountName,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = TextDark,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    },
+                                    onEdit = { editingAccount = acc },
+                                    modifier = Modifier.width(260.dp)
                                 )
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "•••• $maskedDigits",
-                                        fontSize = 11.sp,
-                                        color = TextMuted
-                                    )
-
-                                    if (account.minBalance > 0.0) {
-                                        Text(
-                                            text = "MAB: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", account.minBalance)}",
-                                            fontSize = 10.sp,
-                                            color = if (isMabBreached) SoftRed else TextMuted,
-                                            fontWeight = if (isMabBreached) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.Bottom
-                                ) {
-                                    Text(
-                                        text = if (isDiscreetMode) "••••••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", account.currentBalance)}",
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = if (account.currentBalance >= 0) TextDark else SoftRed,
-                                        modifier = Modifier.weight(1f, fill = false)
-                                    )
-
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        if (pendingBillsForAccount > 0.0) {
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = AccentPurple.copy(alpha = 0.10f)
-                                            ) {
-                                                Text(
-                                                    text = "AutoPay: -${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingBillsForAccount)}",
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = AccentPurple,
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                )
-                                            }
-                                        }
-
-                                        Text(
-                                            text = if (isDiscreetMode) "Base: ••••" else "Base: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", account.startingBalance)}",
-                                            fontSize = 10.sp,
-                                            color = TextMuted
-                                        )
-                                    }
-                                }
                             }
                         }
                     }
@@ -678,11 +567,11 @@ fun SimpleAccountsScreen(
                 .zIndex(4f)
         )
 
-        // Edit Account Bottom Sheet
+        // Edit Account Bottom Sheet with 4-Tier Grid Selector
         editingAccount?.let { acc ->
             var nameText by remember(acc) { mutableStateOf(acc.accountName) }
-            var typeText by remember(acc) { mutableStateOf(acc.accountType) }
-            var balanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%.2f", acc.currentBalance)) }
+            var selectedTier by remember(acc) { mutableStateOf(getAccountTier(acc.accountType, acc.accountName)) }
+            var balanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%,.2f", acc.currentBalance)) }
             val formattedMab = remember(acc.minBalance) {
                 if (acc.minBalance % 1.0 == 0.0) acc.minBalance.toLong().toString() else acc.minBalance.toString()
             }
@@ -742,19 +631,35 @@ fun SimpleAccountsScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    OutlinedTextField(
-                        value = typeText,
-                        onValueChange = { typeText = it },
-                        label = { Text("Account Role / Type (e.g., Operating, Commitments, Fortress, Cash)", fontSize = 12.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
-                    )
+                    Text("Strategic Vault Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        VaultTier.entries.forEach { tier ->
+                            val isSel = selectedTier == tier
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .clickable { selectedTier = tier },
+                                shape = RoundedCornerShape(9.dp),
+                                color = if (isSel) tier.color.copy(alpha = 0.14f) else CanvasLight,
+                                border = BorderStroke(0.7.dp, if (isSel) tier.color else BorderLight)
+                            ) {
+                                Text(
+                                    text = tier.title,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSel) tier.color else TextDark,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 7.dp)
+                                )
+                            }
+                        }
+                    }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedTextField(
                         value = balanceText,
@@ -780,7 +685,7 @@ fun SimpleAccountsScreen(
                             val parts = filtered.split('.')
                             minBalanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
                         },
-                        label = { Text("Minimum Balance Threshold (MAB)", fontSize = 12.sp) },
+                        label = { Text("Minimum Balance Threshold / MAB", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -820,7 +725,7 @@ fun SimpleAccountsScreen(
                                 pendingEditConfirmation = SimplePendingEditConfirmation(
                                     originalAccount = acc,
                                     updatedName = nameText.trim().uppercase(),
-                                    updatedType = typeText.trim().ifBlank { "Operating" },
+                                    updatedRole = selectedTier,
                                     targetBalance = targetBal,
                                     minBalance = minBal,
                                     isArchived = isArchivedState
@@ -842,7 +747,7 @@ fun SimpleAccountsScreen(
         // Confirmation Modal
         pendingEditConfirmation?.let { conf ->
             val isNameChanged = !conf.originalAccount.accountName.equals(conf.updatedName, ignoreCase = true)
-            val isTypeChanged = !conf.originalAccount.accountType.equals(conf.updatedType, ignoreCase = true)
+            val isRoleChanged = !conf.originalAccount.accountType.equals(conf.updatedRole.title, ignoreCase = true)
             val isBalChanged = abs(conf.targetBalance - conf.originalAccount.currentBalance) >= 0.01
             val isMabChanged = abs(conf.minBalance - conf.originalAccount.minBalance) >= 0.01
             val isArchiveChanged = conf.isArchived != conf.originalAccount.isArchived
@@ -855,8 +760,8 @@ fun SimpleAccountsScreen(
                         if (isNameChanged) {
                             Text("• Rename: '${conf.originalAccount.accountName}' ➔ '${conf.updatedName}'")
                         }
-                        if (isTypeChanged) {
-                            Text("• Role/Type: '${conf.originalAccount.accountType}' ➔ '${conf.updatedType}'")
+                        if (isRoleChanged) {
+                            Text("• Strategic Role: '${conf.originalAccount.accountType}' ➔ '${conf.updatedRole.title}'")
                         }
                         if (isBalChanged) {
                             val diff = conf.targetBalance - conf.originalAccount.currentBalance
@@ -868,7 +773,7 @@ fun SimpleAccountsScreen(
                         if (isArchiveChanged) {
                             Text("• Archive Status: ${if (conf.isArchived) "Archived" else "Active"}")
                         }
-                        if (!isNameChanged && !isTypeChanged && !isBalChanged && !isMabChanged && !isArchiveChanged) {
+                        if (!isNameChanged && !isRoleChanged && !isBalChanged && !isMabChanged && !isArchiveChanged) {
                             Text("No changes detected.")
                         }
                     }
@@ -881,7 +786,7 @@ fun SimpleAccountsScreen(
                                 oldName = orig.accountName,
                                 newName = conf.updatedName,
                                 startingBalance = orig.startingBalance,
-                                accountType = conf.updatedType.ifBlank { "Operating" },
+                                accountType = conf.updatedRole.title,
                                 minBalance = conf.minBalance,
                                 isArchived = conf.isArchived,
                                 sortOrder = orig.sortOrder
@@ -1096,10 +1001,10 @@ fun SimpleAccountsScreen(
             )
         }
 
-        // Add Account Bottom Sheet
+        // Add Account Bottom Sheet with 4-Tier Grid Selector
         if (showAddAccountSheet) {
             var name by remember { mutableStateOf("") }
-            var type by remember { mutableStateOf("Operating") }
+            var selectedTier by remember { mutableStateOf(VaultTier.OPERATING) }
             var balanceText by remember { mutableStateOf("") }
             var minBalanceText by remember { mutableStateOf("0") }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -1137,19 +1042,35 @@ fun SimpleAccountsScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    OutlinedTextField(
-                        value = type,
-                        onValueChange = { type = it },
-                        label = { Text("Account Role / Type (e.g., Operating, Commitments, Fortress, Cash)", fontSize = 12.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
-                    )
+                    Text("Strategic Vault Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        VaultTier.entries.forEach { tier ->
+                            val isSel = selectedTier == tier
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .clickable { selectedTier = tier },
+                                shape = RoundedCornerShape(9.dp),
+                                color = if (isSel) tier.color.copy(alpha = 0.14f) else CanvasLight,
+                                border = BorderStroke(0.7.dp, if (isSel) tier.color else BorderLight)
+                            ) {
+                                Text(
+                                    text = tier.title,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSel) tier.color else TextDark,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 7.dp)
+                                )
+                            }
+                        }
+                    }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedTextField(
                         value = balanceText,
@@ -1175,7 +1096,7 @@ fun SimpleAccountsScreen(
                             val parts = filtered.split('.')
                             minBalanceText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
                         },
-                        label = { Text("Minimum Balance (MAB)", fontSize = 12.sp) },
+                        label = { Text("Minimum Balance Threshold (MAB)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1193,7 +1114,7 @@ fun SimpleAccountsScreen(
                                 viewModel.addAccount(
                                     name = name.trim().uppercase(),
                                     startingBalance = bal,
-                                    type = type.trim().ifBlank { "Operating" },
+                                    type = selectedTier.title,
                                     minBalance = minBal
                                 )
                                 showAddAccountSheet = false
@@ -1210,6 +1131,158 @@ fun SimpleAccountsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun BankAccountPhysicalCard(
+    account: AccountBalanceResult,
+    currencySymbol: String,
+    tier: VaultTier,
+    isSelected: Boolean,
+    showRole: Boolean,
+    isDiscreetMode: Boolean,
+    onSelect: () -> Unit,
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val maskedDigits = remember(account.accountName) {
+        val safeHash = abs(account.accountName.hashCode().toLong())
+        String.format(Locale.US, "%04d", safeHash % 9000 + 1000)
+    }
+    val isMabBreached = account.minBalance > 0 && account.currentBalance < account.minBalance
+
+    Surface(
+        modifier = modifier
+            .shadow(if (isSelected) 4.dp else 1.5.dp, RoundedCornerShape(20.dp))
+            .clickable(onClick = onSelect),
+        shape = RoundedCornerShape(20.dp),
+        color = CardWhite,
+        border = BorderStroke(
+            width = if (isSelected) 1.5.dp else 0.8.dp,
+            color = if (isMabBreached) SoftRed else if (isSelected) tier.color else BorderLight.copy(alpha = 0.7f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            tier.bgTint.copy(alpha = if (isSelected) 0.5f else 0.3f),
+                            CardWhite
+                        )
+                    )
+                )
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(tier.bgTint),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = tier.icon,
+                        contentDescription = null,
+                        tint = tier.color,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isMabBreached) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = SoftRed.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = "! MAB",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                color = SoftRed,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+
+                    if (showRole) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = tier.color.copy(alpha = 0.14f)
+                        ) {
+                            Text(
+                                text = tier.title,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = tier.color,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit Account",
+                            tint = TextMuted,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = account.accountName,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = TextDark,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "•••• $maskedDigits",
+                    fontSize = 11.sp,
+                    color = TextMuted
+                )
+                if (account.minBalance > 0.0) {
+                    Text(
+                        text = if (isDiscreetMode) "MAB: ••••" else "MAB: $currencySymbol${account.minBalance.toInt()}",
+                        fontSize = 10.sp,
+                        color = if (isMabBreached) SoftRed else TextMuted,
+                        fontWeight = if (isMabBreached) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = if (isDiscreetMode) "••••••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Black,
+                color = if (account.currentBalance >= 0) TextDark else SoftRed
+            )
         }
     }
 }
