@@ -90,7 +90,7 @@ fun YearlyCashflowTab(
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 240.dp)
     ) {
-        // 1. COMPACT DUAL-WAVE CASHFLOW DYNAMICS (Height reduced & optimized)
+        // 1. COMPACT DUAL-WAVE CASHFLOW DYNAMICS
         item(key = "dual_smooth_wave_card") {
             DualSmoothWaveCard(
                 title = "Cashflow Dynamics",
@@ -122,7 +122,7 @@ fun YearlyCashflowTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 2. 12-MONTH NET CASHFLOW PULSE (Micro Surplus / Deficit Strip)
+        // 2. 12-MONTH NET CASHFLOW PULSE
         item(key = "monthly_cashflow_pulse_card") {
             MonthlyCashflowPulseCard(
                 yearlyMonths = yearlyMonthsData,
@@ -329,7 +329,7 @@ fun YearlyCashflowTab(
                                 whyItMatters = "Reveals quarterly seasonality, such as holiday spending in Q4 or bonus infusions in Q1.",
                                 actionableTip = "Target a minimum of 20% retention across every active quarter."
                             )
-                        }
+                        )
                     },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -436,9 +436,7 @@ private fun DualSmoothWaveCard(
 
                 IconButton(
                     onClick = onInfoClick,
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
+                    modifier = Modifier.size(28.dp).clip(CircleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Info,
