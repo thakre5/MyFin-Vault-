@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -53,16 +54,20 @@ fun YearlyMonthsTab(
         yearlyMonthsData.filter { !it.isFuture && (it.lifestyleExpenses > 0.0 || it.income > 0.0) }
     }
 
-    val avgMonthlyBurn = remember(activeMonths) {
-        if (activeMonths.isNotEmpty()) activeMonths.map { it.lifestyleExpenses }.average() else 0.0
+    val monthsWithBurn = remember(activeMonths) {
+        activeMonths.filter { it.lifestyleExpenses > 0.0 }
     }
 
-    val leanestMonth = remember(activeMonths) {
-        activeMonths.minByOrNull { it.lifestyleExpenses }
+    val avgMonthlyBurn = remember(monthsWithBurn) {
+        if (monthsWithBurn.isNotEmpty()) monthsWithBurn.map { it.lifestyleExpenses }.average() else 0.0
     }
 
-    val peakMonth = remember(activeMonths) {
-        activeMonths.maxByOrNull { it.lifestyleExpenses }
+    val leanestMonth = remember(monthsWithBurn) {
+        monthsWithBurn.minByOrNull { it.lifestyleExpenses }
+    }
+
+    val peakMonth = remember(monthsWithBurn) {
+        monthsWithBurn.maxByOrNull { it.lifestyleExpenses }
     }
 
     LazyColumn(
@@ -71,7 +76,7 @@ fun YearlyMonthsTab(
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 240.dp)
     ) {
-        // 1. COMPACT LAYERED COMPOSITION CARD WITH INTERACTIVE LAYER TOGGLING
+        // 1. COMPACT LAYERED COMPOSITION CARD WITH DYNAMIC LAYER STATS
         item(key = "layered_mountain_card") {
             CompactLayeredMountainCard(
                 yearlyMonths = yearlyMonthsData,
@@ -97,12 +102,13 @@ fun YearlyMonthsTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 2. BEST VS. WORST CYCLE SPOTLIGHT CARD
-        if (activeMonths.isNotEmpty()) {
+        // 2. BEST VS. WORST CYCLE SPOTLIGHT CARD (ADAPTIVE FOR SINGLE OR MULTI-MONTH)
+        if (monthsWithBurn.isNotEmpty()) {
             item(key = "spotlight_cycles_card") {
                 MonthlySpotlightComparisonCard(
                     leanest = leanestMonth,
                     peak = peakMonth,
+                    activeCount = monthsWithBurn.size,
                     avgBurn = avgMonthlyBurn,
                     currencySymbol = currencySymbol,
                     isDiscreet = isDiscreetMode,
@@ -157,7 +163,7 @@ fun YearlyMonthsTab(
 }
 
 // =========================================================
-// 1. COMPACT LAYERED COMPOSITION CARD (HEIGHT REDUCED TO 118.dp)
+// 1. COMPACT LAYERED COMPOSITION CARD (ISOLATION SAFE)
 // =========================================================
 
 @Composable
@@ -168,6 +174,15 @@ private fun CompactLayeredMountainCard(
     onInfoClick: () -> Unit
 ) {
     var selectedFilter by remember { mutableStateOf(OutflowLayerFilter.ALL) }
+
+    val layerTotal = remember(yearlyMonths, selectedFilter) {
+        when (selectedFilter) {
+            OutflowLayerFilter.ALL -> yearlyMonths.sumOf { it.lifestyleExpenses + it.assets }
+            OutflowLayerFilter.FIXED -> yearlyMonths.sumOf { it.fixedExpenses }
+            OutflowLayerFilter.LIFESTYLE -> yearlyMonths.sumOf { it.lifestyleExpenses }
+            OutflowLayerFilter.ASSETS -> yearlyMonths.sumOf { it.assets }
+        }
+    }
 
     Surface(
         modifier = Modifier
@@ -189,7 +204,11 @@ private fun CompactLayeredMountainCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Outflow Composition", fontWeight = FontWeight.Black, fontSize = 16.5.sp, color = TextDark)
-                    Text("Fixed Commitments vs. Lifestyle vs. SIP", fontSize = 10.5.sp, color = TextMuted)
+                    Text(
+                        text = if (isDiscreet) "${selectedFilter.label}: ••••" else "${selectedFilter.label}: $currencySymbol${String.format(Locale.US, "%,.0f", layerTotal)}",
+                        fontSize = 10.5.sp,
+                        color = TextMuted
+                    )
                 }
 
                 IconButton(
@@ -246,7 +265,7 @@ private fun CompactLayeredMountainCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Compact Canvas (118.dp)
+            // Compact Canvas (118.dp) with true layer isolation
             FilteredMountainCanvas(
                 yearlyMonths = yearlyMonths,
                 activeFilter = selectedFilter,
@@ -289,21 +308,30 @@ private fun FilteredMountainCanvas(
         val count = 12
         val stepX = w / (count - 1).toFloat()
 
-        val maxStack = yearlyMonths.maxOfOrNull { it.lifestyleExpenses + it.assets }?.coerceAtLeast(100.0) ?: 100.0
+        val maxOutflow = yearlyMonths.maxOfOrNull { it.lifestyleExpenses + it.assets }?.coerceAtLeast(100.0) ?: 100.0
 
-        val ptsFixed = mutableListOf<Offset>()
-        val ptsLifestyle = mutableListOf<Offset>()
-        val ptsAssets = mutableListOf<Offset>()
+        // Background reference gridlines
+        for (i in 1..2) {
+            val y = h * (i / 3f)
+            drawLine(color = Color(0xFFF1F5F9), start = Offset(0f, y), end = Offset(w, y), strokeWidth = 1.dp.toPx())
+        }
 
-        yearlyMonths.forEachIndexed { idx, m ->
-            val x = idx * stepX
-            val rFixed = (m.fixedExpenses / maxStack).toFloat().coerceIn(0.04f, 0.92f)
-            val rLife = (m.lifestyleExpenses / maxStack).toFloat().coerceIn(0.04f, 0.92f)
-            val rAsset = ((m.lifestyleExpenses + m.assets) / maxStack).toFloat().coerceIn(0.04f, 0.92f)
-
-            ptsFixed.add(Offset(x, h * (1f - rFixed)))
-            ptsLifestyle.add(Offset(x, h * (1f - rLife)))
-            ptsAssets.add(Offset(x, h * (1f - rAsset)))
+        // Shaded Future Months
+        val firstFutureIndex = yearlyMonths.indexOfFirst { it.isFuture }
+        if (firstFutureIndex != -1) {
+            val futureStartX = firstFutureIndex * stepX
+            drawRect(
+                color = Color(0xFFF8FAFC).copy(alpha = 0.70f),
+                topLeft = Offset(futureStartX, 0f),
+                size = Size(w - futureStartX, h)
+            )
+            drawLine(
+                color = Color(0xFFCBD5E1),
+                start = Offset(futureStartX, 0f),
+                end = Offset(futureStartX, h),
+                strokeWidth = 1.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 5f), 0f)
+            )
         }
 
         fun drawLayerPath(pts: List<Offset>, color: Color, fillBrush: Brush) {
@@ -327,50 +355,96 @@ private fun FilteredMountainCanvas(
             drawPath(path = path, color = color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
         }
 
-        // Horizontal Gridlines
-        for (i in 1..2) {
-            val y = h * (i / 3f)
-            drawLine(color = Color(0xFFF1F5F9), start = Offset(0f, y), end = Offset(w, y), strokeWidth = 1.dp.toPx())
-        }
+        when (activeFilter) {
+            // STACKED COMPOSITION (Cyan at top, Violet in middle, Slate at bottom)
+            OutflowLayerFilter.ALL -> {
+                val ptsAssets = yearlyMonths.mapIndexed { idx, m ->
+                    val x = idx * stepX
+                    val r = ((m.lifestyleExpenses + m.assets) / maxOutflow).toFloat().coerceIn(0.04f, 0.92f)
+                    Offset(x, h * (1f - r))
+                }
+                val ptsLifestyle = yearlyMonths.mapIndexed { idx, m ->
+                    val x = idx * stepX
+                    val r = (m.lifestyleExpenses / maxOutflow).toFloat().coerceIn(0.04f, 0.92f)
+                    Offset(x, h * (1f - r))
+                }
+                val ptsFixed = yearlyMonths.mapIndexed { idx, m ->
+                    val x = idx * stepX
+                    val r = (m.fixedExpenses / maxOutflow).toFloat().coerceIn(0.04f, 0.92f)
+                    Offset(x, h * (1f - r))
+                }
 
-        val showAssets = activeFilter == OutflowLayerFilter.ALL || activeFilter == OutflowLayerFilter.ASSETS
-        val showLifestyle = activeFilter == OutflowLayerFilter.ALL || activeFilter == OutflowLayerFilter.LIFESTYLE
-        val showFixed = activeFilter == OutflowLayerFilter.ALL || activeFilter == OutflowLayerFilter.FIXED
+                drawLayerPath(
+                    ptsAssets,
+                    Color(0xFF06B6D4),
+                    Brush.verticalGradient(listOf(Color(0xFF06B6D4).copy(alpha = 0.28f), Color.Transparent))
+                )
+                drawLayerPath(
+                    ptsLifestyle,
+                    Color(0xFF8B5CF6),
+                    Brush.verticalGradient(listOf(Color(0xFF8B5CF6).copy(alpha = 0.38f), Color.Transparent))
+                )
+                drawLayerPath(
+                    ptsFixed,
+                    Color(0xFF475569),
+                    Brush.verticalGradient(listOf(Color(0xFF475569).copy(alpha = 0.50f), Color(0xFF1E293B).copy(alpha = 0.20f)))
+                )
+            }
 
-        if (showAssets) {
-            drawLayerPath(
-                ptsAssets,
-                Color(0xFF06B6D4),
-                Brush.verticalGradient(listOf(Color(0xFF06B6D4).copy(alpha = if (activeFilter == OutflowLayerFilter.ASSETS) 0.55f else 0.28f), Color.Transparent))
-            )
-        }
+            // ISOLATED FIXED BILLS
+            OutflowLayerFilter.FIXED -> {
+                val ptsFixed = yearlyMonths.mapIndexed { idx, m ->
+                    val x = idx * stepX
+                    val r = (m.fixedExpenses / maxOutflow).toFloat().coerceIn(0.04f, 0.92f)
+                    Offset(x, h * (1f - r))
+                }
+                drawLayerPath(
+                    ptsFixed,
+                    Color(0xFF475569),
+                    Brush.verticalGradient(listOf(Color(0xFF475569).copy(alpha = 0.55f), Color.Transparent))
+                )
+            }
 
-        if (showLifestyle) {
-            drawLayerPath(
-                ptsLifestyle,
-                Color(0xFF8B5CF6),
-                Brush.verticalGradient(listOf(Color(0xFF8B5CF6).copy(alpha = if (activeFilter == OutflowLayerFilter.LIFESTYLE) 0.55f else 0.35f), Color.Transparent))
-            )
-        }
+            // ISOLATED LIFESTYLE BURN
+            OutflowLayerFilter.LIFESTYLE -> {
+                val ptsLifestyle = yearlyMonths.mapIndexed { idx, m ->
+                    val x = idx * stepX
+                    val r = (m.lifestyleExpenses / maxOutflow).toFloat().coerceIn(0.04f, 0.92f)
+                    Offset(x, h * (1f - r))
+                }
+                drawLayerPath(
+                    ptsLifestyle,
+                    Color(0xFF8B5CF6),
+                    Brush.verticalGradient(listOf(Color(0xFF8B5CF6).copy(alpha = 0.45f), Color.Transparent))
+                )
+            }
 
-        if (showFixed) {
-            drawLayerPath(
-                ptsFixed,
-                Color(0xFF475569),
-                Brush.verticalGradient(listOf(Color(0xFF475569).copy(alpha = if (activeFilter == OutflowLayerFilter.FIXED) 0.65f else 0.45f), Color(0xFF1E293B).copy(alpha = 0.2f)))
-            )
+            // ISOLATED ASSETS SIP STREAM (True standalone from 0)
+            OutflowLayerFilter.ASSETS -> {
+                val ptsIsolatedAssets = yearlyMonths.mapIndexed { idx, m ->
+                    val x = idx * stepX
+                    val r = (m.assets / maxOutflow).toFloat().coerceIn(0.04f, 0.92f)
+                    Offset(x, h * (1f - r))
+                }
+                drawLayerPath(
+                    ptsIsolatedAssets,
+                    Color(0xFF06B6D4),
+                    Brush.verticalGradient(listOf(Color(0xFF06B6D4).copy(alpha = 0.45f), Color.Transparent))
+                )
+            }
         }
     }
 }
 
 // =========================================================
-// 2. BEST VS. WORST CYCLE SPOTLIGHT CARD
+// 2. BEST VS. WORST CYCLE SPOTLIGHT CARD (COLLISION SAFE)
 // =========================================================
 
 @Composable
 private fun MonthlySpotlightComparisonCard(
     leanest: YearlyMonthData?,
     peak: YearlyMonthData?,
+    activeCount: Int,
     avgBurn: Double,
     currencySymbol: String,
     isDiscreet: Boolean,
@@ -407,89 +481,126 @@ private fun MonthlySpotlightComparisonCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Leanest Month
+            if (activeCount < 2 || leanest?.monthIndex == peak?.monthIndex) {
+                // Single Active Month Pacing View
                 Surface(
                     modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onTapMonth(leanest) },
-                    shape = RoundedCornerShape(12.dp),
-                    color = CanvasLight,
-                    border = BorderStroke(0.6.dp, SoftGreen.copy(alpha = 0.4f))
-                ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Leanest Cycle", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = SoftGreen)
-                            Icon(Icons.AutoMirrored.Filled.TrendingDown, contentDescription = null, tint = SoftGreen, modifier = Modifier.size(13.dp))
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = leanest?.monthName ?: "—",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextDark
-                        )
-                        Text(
-                            text = if (isDiscreet || leanest == null) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", leanest.lifestyleExpenses)}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SoftGreen
-                        )
-                        val leanDiff = if (leanest != null && avgBurn > 0) (((avgBurn - leanest.lifestyleExpenses) / avgBurn) * 100).roundToInt() else 0
-                        Text(
-                            text = "$leanDiff% under average",
-                            fontSize = 8.5.sp,
-                            color = TextMuted
-                        )
-                    }
-                }
-
-                // Peak Month
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
+                        .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { onTapMonth(peak) },
                     shape = RoundedCornerShape(12.dp),
                     color = CanvasLight,
-                    border = BorderStroke(0.6.dp, SoftRed.copy(alpha = 0.4f))
+                    border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.4f))
                 ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Peak Cycle", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
-                            Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = SoftRed, modifier = Modifier.size(13.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Current Active Pacing", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(peak?.monthName ?: "—", fontSize = 14.sp, fontWeight = FontWeight.Black, color = TextDark)
                         }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = peak?.monthName ?: "—",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextDark
-                        )
-                        Text(
-                            text = if (isDiscreet || peak == null) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", peak.lifestyleExpenses)}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SoftRed
-                        )
-                        val peakDiff = if (peak != null && avgBurn > 0) (((peak.lifestyleExpenses - avgBurn) / avgBurn) * 100).roundToInt() else 0
-                        Text(
-                            text = "+$peakDiff% over average",
-                            fontSize = 8.5.sp,
-                            color = TextMuted
-                        )
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = if (isDiscreet || peak == null) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", peak.lifestyleExpenses)}",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextDark
+                            )
+                            Text("Initial monthly burn baseline", fontSize = 8.5.sp, color = TextMuted)
+                        }
+                    }
+                }
+            } else {
+                // Multi-Month Comparative View
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Leanest Month
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onTapMonth(leanest) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = CanvasLight,
+                        border = BorderStroke(0.6.dp, SoftGreen.copy(alpha = 0.4f))
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Leanest Cycle", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = SoftGreen)
+                                Icon(Icons.AutoMirrored.Filled.TrendingDown, contentDescription = null, tint = SoftGreen, modifier = Modifier.size(13.dp))
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = leanest?.monthName ?: "—",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextDark
+                            )
+                            Text(
+                                text = if (isDiscreet || leanest == null) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", leanest.lifestyleExpenses)}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SoftGreen
+                            )
+                            val leanDiff = if (leanest != null && avgBurn > 0) (((avgBurn - leanest.lifestyleExpenses) / avgBurn) * 100).roundToInt() else 0
+                            Text(
+                                text = "$leanDiff% under average",
+                                fontSize = 8.5.sp,
+                                color = TextMuted
+                            )
+                        }
+                    }
+
+                    // Peak Month
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onTapMonth(peak) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = CanvasLight,
+                        border = BorderStroke(0.6.dp, SoftRed.copy(alpha = 0.4f))
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Peak Cycle", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
+                                Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = SoftRed, modifier = Modifier.size(13.dp))
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = peak?.monthName ?: "—",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextDark
+                            )
+                            Text(
+                                text = if (isDiscreet || peak == null) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", peak.lifestyleExpenses)}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SoftRed
+                            )
+                            val peakDiff = if (peak != null && avgBurn > 0) (((peak.lifestyleExpenses - avgBurn) / avgBurn) * 100).roundToInt() else 0
+                            Text(
+                                text = "+$peakDiff% over average",
+                                fontSize = 8.5.sp,
+                                color = TextMuted
+                            )
+                        }
                     }
                 }
             }
@@ -498,7 +609,7 @@ private fun MonthlySpotlightComparisonCard(
 }
 
 // =========================================================
-// 3. CONNECTED MILESTONE TIMELINE ROW
+// 3. CONNECTED MILESTONE TIMELINE ROW (WITH CORPORATE FLOAT)
 // =========================================================
 
 @Composable
@@ -533,7 +644,7 @@ private fun TimelineMonthRow(
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
     ) {
-        // Timeline Spine (Left Axis)
+        // Timeline Spine
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.width(32.dp)
@@ -545,7 +656,6 @@ private fun TimelineMonthRow(
                     .background(if (isFirst) Color.Transparent else BorderLight)
             )
 
-            // Timeline Node Circle
             Box(
                 modifier = Modifier
                     .size(16.dp)
@@ -572,7 +682,7 @@ private fun TimelineMonthRow(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Card Content (Right)
+        // Card Content
         Surface(
             modifier = Modifier
                 .weight(1f)
@@ -614,7 +724,7 @@ private fun TimelineMonthRow(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Row 2: Burn Figure and Benchmark Indicator
+                // Row 2: Burn Figure, Benchmark Indicator & Corporate Float
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -627,11 +737,22 @@ private fun TimelineMonthRow(
                             fontWeight = FontWeight.Black,
                             color = if (data.isFuture || !hasActivity) TextMuted else TextDark
                         )
-                        Text(
-                            text = "Lifestyle Burn",
-                            fontSize = 9.5.sp,
-                            color = TextMuted
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Lifestyle Burn",
+                                fontSize = 9.5.sp,
+                                color = TextMuted
+                            )
+                            if (data.workExpenses > 0.0) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "+${(data.workExpenses / 1000).toInt()}k float",
+                                    fontSize = 8.5.sp,
+                                    color = Color(0xFFE57A28),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
 
                     if (hasActivity && !data.isFuture && avgBurn > 0) {
@@ -652,8 +773,8 @@ private fun TimelineMonthRow(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Row 3: 3-Pillar Micro Distribution Bar for this month
-                val totalMonthOutflow = (data.fixedExpenses + (data.lifestyleExpenses - data.fixedExpenses).coerceAtLeast(0.0) + data.assets).coerceAtLeast(1.0)
+                // Row 3: 3-Pillar Micro Distribution Bar
+                val totalMonthOutflow = (data.lifestyleExpenses + data.assets).coerceAtLeast(1.0)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -668,13 +789,13 @@ private fun TimelineMonthRow(
                         val assetRatio = (data.assets / totalMonthOutflow).toFloat().coerceIn(0f, 1f)
 
                         if (fixedRatio > 0) {
-                            Box(modifier = Modifier.weight(fixedRatio.coerceAtLeast(0.05f)).fillMaxHeight().background(Color(0xFF475569)))
+                            Box(modifier = Modifier.weight(fixedRatio.coerceAtLeast(0.04f)).fillMaxHeight().background(Color(0xFF475569)))
                         }
                         if (discRatio > 0) {
-                            Box(modifier = Modifier.weight(discRatio.coerceAtLeast(0.05f)).fillMaxHeight().background(Color(0xFF8B5CF6)))
+                            Box(modifier = Modifier.weight(discRatio.coerceAtLeast(0.04f)).fillMaxHeight().background(Color(0xFF8B5CF6)))
                         }
                         if (assetRatio > 0) {
-                            Box(modifier = Modifier.weight(assetRatio.coerceAtLeast(0.05f)).fillMaxHeight().background(Color(0xFF06B6D4)))
+                            Box(modifier = Modifier.weight(assetRatio.coerceAtLeast(0.04f)).fillMaxHeight().background(Color(0xFF06B6D4)))
                         }
                     }
                 }
