@@ -3,17 +3,19 @@ package com.example.myfin.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,13 +24,26 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.ui.theme.*
 import java.util.Locale
 import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
+
+private val RADAR_PALETTE = listOf(
+    Color(0xFF8B5CF6), // Purple
+    Color(0xFF06B6D4), // Cyan
+    Color(0xFF10B981), // Emerald
+    Color(0xFFF59E0B), // Amber
+    Color(0xFFF43F5E), // Rose
+    Color(0xFF64748B)  // Slate
+)
 
 @Composable
 fun YearlyAuditTab(
@@ -39,65 +54,123 @@ fun YearlyAuditTab(
     isDiscreetMode: Boolean,
     onOpenGraphGuide: (GraphExplanationGuide) -> Unit
 ) {
+    // 1. True Pareto Principle Math (Cumulative 80/20 calculation)
+    val totalAnnualBurn = remember(categoryTrajectories) {
+        categoryTrajectories.sumOf { it.annualTotal }
+    }
+
+    val paretoMetrics = remember(categoryTrajectories, totalAnnualBurn) {
+        if (totalAnnualBurn <= 0.0 || categoryTrajectories.isEmpty()) {
+            null
+        } else {
+            var cumulative = 0.0
+            var count = 0
+            for (cat in categoryTrajectories) {
+                cumulative += cat.annualTotal
+                count++
+                if (cumulative / totalAnnualBurn >= 0.75) break
+            }
+            val percentage = ((cumulative / totalAnnualBurn) * 100).roundToInt()
+            Pair(count, percentage)
+        }
+    }
+
+    // 2. Budget Overrun Diagnostics
+    val overrunCategories = remember(categoryTrajectories, plannedCategoryCeilings) {
+        categoryTrajectories.filter { cat ->
+            val ceiling = plannedCategoryCeilings[cat.categoryName] ?: 0.0
+            ceiling > 0.0 && cat.annualTotal > ceiling
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp),
-        contentPadding = PaddingValues(top = 4.dp, bottom = 180.dp)
+        contentPadding = PaddingValues(top = 4.dp, bottom = 240.dp)
     ) {
-        item(key = "organic_curved_star_radar") {
-            OrganicCurvedStarRadarCard(
-                categorySums = categoryTrajectories.map { it.annualTotal },
-                onInfoClick = {
-                    onOpenGraphGuide(
-                        GraphExplanationGuide(
-                            title = "Annual Spending Pareto",
-                            subtitle = "Organic Category Weight Distribution",
-                            whatItShows = "Maps which lifestyle categories absorb the highest percentage of your outflow over the course of the year.",
-                            visualElements = listOf(
-                                "Outer Spikes" to "Categories where spending is concentrated or spiking.",
-                                "Center Rings" to "Lower spending thresholds.",
-                                "Radial Symmetry" to "A balanced star indicates well-distributed expenditure."
-                            ),
-                            whyItMatters = "Identifies disproportionate budget drains according to the Pareto Principle (80% of expenses often come from 20% of categories).",
-                            actionableTip = "Focus optimizations on the longest protruding spike to make the biggest impact."
-                        )
-                    )
-                }
-            )
-            Spacer(modifier = Modifier.height(22.dp))
-        }
-
-        item(key = "budget_vs_actual_dual_pillars") {
-            BudgetVsActualDualPillarsCard(
+        // 1. PARETO SPENDING WEIGHT CONCENTRATION RADAR
+        item(key = "compact_pareto_radar_card") {
+            CompactParetoRadarCard(
                 categoryTrajectories = categoryTrajectories,
-                plannedCategoryCeilings = plannedCategoryCeilings,
+                paretoMetrics = paretoMetrics,
+                totalBurn = totalAnnualBurn,
                 currencySymbol = currencySymbol,
                 isDiscreet = isDiscreetMode,
                 onInfoClick = {
                     onOpenGraphGuide(
                         GraphExplanationGuide(
-                            title = "Budgeted vs. Actual Outflow",
-                            subtitle = "Variance Analysis",
-                            whatItShows = "Compares actual realized spending against real annualized budget ceilings set in your Budget Planner.",
+                            title = "Annual Spending Pareto",
+                            subtitle = "Cumulative Category Concentration",
+                            whatItShows = "Audits your annual outflow distribution against the Pareto Principle (where the vital top categories drive the majority of burn).",
                             visualElements = listOf(
-                                "Slate Grey Bar" to "Real annualized budget limit (Monthly Target × 12).",
-                                "Purple Bar" to "Actual realized annual spending.",
-                                "Height Difference" to "Reflects true surplus or overrun."
+                                "Radial Crests" to "Protrusions represent categories absorbing the largest share of capital.",
+                                "Concentric Rings" to "Proportional spending thresholds (33%, 66%, 100%).",
+                                "Pareto Metric" to "Shows the exact count of categories accounting for >75% of total annual burn."
                             ),
-                            whyItMatters = "Instantly highlights categories where annual spending has exceeded planning targets.",
-                            actionableTip = "Categories where the purple bar exceeds the grey bar require tighter variable spend controls."
+                            whyItMatters = "Focusing your savings efforts on the top 2-3 protruding categories yields far greater financial results than micromanaging small expenses.",
+                            actionableTip = "Cap discretionary limits on your top 2 categories to instantly improve annual retention."
                         )
                     )
                 }
             )
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(14.dp))
         }
 
+        // 2. BUDGETED VS. ACTUAL OUTFLOW VARIANCE
+        item(key = "budget_vs_actual_dual_pillars") {
+            CompactBudgetVsActualCard(
+                categoryTrajectories = categoryTrajectories,
+                plannedCategoryCeilings = plannedCategoryCeilings,
+                overrunCount = overrunCategories.size,
+                currencySymbol = currencySymbol,
+                isDiscreet = isDiscreetMode,
+                onInfoClick = {
+                    onOpenGraphGuide(
+                        GraphExplanationGuide(
+                            title = "Budget vs. Realized Outflow",
+                            subtitle = "Annualized Variance Analysis",
+                            whatItShows = "Compares actual realized category spending against real annualized limits configured in your Budget Planner.",
+                            visualElements = listOf(
+                                "Grey Bars" to "Annualized budget ceiling (Target × 12).",
+                                "Purple Bars" to "Actual realized annual spend.",
+                                "Red Bars" to "Identifies categories where spending exceeded targets."
+                            ),
+                            whyItMatters = "Pinpoints exact lifestyle domains where budget targets were violated over the calendar year.",
+                            actionableTip = "For categories flagged in red, tighten monthly limits or rebalance targets for the upcoming year."
+                        )
+                    )
+                }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        // 3. CATEGORY TRAJECTORY LIST HEADER
         item(key = "trajectories_title") {
-            Text("Annual Trajectory by Category", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextDark)
-            Text("12-month burn pattern & peak month spikes", fontSize = 11.sp, color = TextMuted)
-            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Category Trajectory & Spikes", fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = TextDark)
+                    Text("12-month pattern with peak burn month", fontSize = 10.5.sp, color = TextMuted)
+                }
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = CanvasLight,
+                    border = BorderStroke(0.6.dp, BorderLight)
+                ) {
+                    Text(
+                        text = "${categoryTrajectories.size} Categories",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
         if (categoryTrajectories.isEmpty()) {
@@ -105,10 +178,11 @@ fun YearlyAuditTab(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    color = CardWhite
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight)
                 ) {
-                    Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                        Text("No recorded expenses for this year", fontSize = 12.sp, color = TextMuted)
+                    Box(modifier = Modifier.padding(28.dp), contentAlignment = Alignment.Center) {
+                        Text("No recorded category expenses for this year", fontSize = 12.sp, color = TextMuted)
                     }
                 }
             }
@@ -117,8 +191,11 @@ fun YearlyAuditTab(
                 val isLegacy = remember(isCategoryLegacy, item.categoryName) {
                     isCategoryLegacy(item.categoryName)
                 }
-                CategoryTrajectoryRowCard(
+                val plannedCeiling = plannedCategoryCeilings[item.categoryName] ?: 0.0
+
+                PolishedCategoryTrajectoryRow(
                     item = item,
+                    annualCeiling = plannedCeiling,
                     currencySymbol = currencySymbol,
                     isDiscreet = isDiscreetMode,
                     isLegacy = isLegacy
@@ -129,64 +206,161 @@ fun YearlyAuditTab(
     }
 }
 
+// =========================================================
+// 1. COMPACT PARETO RADAR CARD (LABELED & MATHEMATICALLY BOUND)
+// =========================================================
+
 @Composable
-private fun OrganicCurvedStarRadarCard(
-    categorySums: List<Double>,
+private fun CompactParetoRadarCard(
+    categoryTrajectories: List<CategoryAnnualTrajectory>,
+    paretoMetrics: Pair<Int, Int>?,
+    totalBurn: Double,
+    currencySymbol: String,
+    isDiscreet: Boolean,
     onInfoClick: () -> Unit
 ) {
+    val topCategories = remember(categoryTrajectories) {
+        categoryTrajectories.take(6)
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(22.dp)),
-        shape = RoundedCornerShape(22.dp),
+            .shadow(4.dp, RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp),
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header with Pareto Insight Badge
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onInfoClick),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Annual Spending Pareto", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
-                    Text("Organic category weight distribution", fontSize = 11.5.sp, color = TextMuted)
+                    Text("Annual Spending Pareto", fontWeight = FontWeight.Black, fontSize = 16.5.sp, color = TextDark)
+                    Text("Outflow distribution & weight concentration", fontSize = 10.5.sp, color = TextMuted)
                 }
 
                 IconButton(
                     onClick = onInfoClick,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
+                    modifier = Modifier.size(28.dp).clip(CircleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Info,
-                        contentDescription = "Graph Explanation",
+                        contentDescription = "Pareto Explanation",
                         tint = TextMuted,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
+            // Mathematical Pareto Banner
+            if (paretoMetrics != null) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = AccentPurple.copy(alpha = 0.08f),
+                    border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.25f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.PieChart, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Top ${paretoMetrics.first} categories drive ${paretoMetrics.second}% of annual burn",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AccentPurple
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            // Compact Star Polygon (Trimmed to 135.dp)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp),
+                    .height(135.dp),
                 contentAlignment = Alignment.Center
             ) {
-                OrganicStarRadarCanvas(categorySums = categorySums)
+                CompactStarRadarCanvas(
+                    topCategories = topCategories,
+                    modifier = Modifier.fillMaxSize()
+                )
 
                 Surface(
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(28.dp),
                     shape = CircleShape,
                     color = CardWhite,
-                    shadowElevation = 3.dp,
-                    border = BorderStroke(1.dp, Color(0xFFEDE9FE))
+                    shadowElevation = 2.dp,
+                    border = BorderStroke(0.8.dp, Color(0xFFEDE9FE))
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.PieChart, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                        Text(
+                            text = "${topCategories.size}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = AccentPurple
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Labeled Category Color Chips (Fixes the unlabeled spoke issue)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                topCategories.chunked(2).forEach { rowPair ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowPair.forEachIndexed { colIdx, cat ->
+                            val colorIdx = (topCategories.indexOf(cat)).coerceIn(0, RADAR_PALETTE.lastIndex)
+                            val chipColor = RADAR_PALETTE[colorIdx]
+
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(CanvasLight)
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(chipColor))
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = cat.categoryName,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextDark,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Text(
+                                    text = "${cat.percentageOfTotal.toInt()}%",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = chipColor
+                                )
+                            }
+                        }
+                        if (rowPair.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -195,42 +369,51 @@ private fun OrganicCurvedStarRadarCard(
 }
 
 @Composable
-private fun OrganicStarRadarCanvas(
-    categorySums: List<Double>
+private fun CompactStarRadarCanvas(
+    topCategories: List<CategoryAnnualTrajectory>,
+    modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val numAxes = 6
+    Canvas(modifier = modifier) {
+        val n = topCategories.size.coerceIn(3, 6)
         val c = center
         val maxR = size.minDimension * 0.44f
 
+        // 3 Concentric Reference Polygons
         for (ring in 1..3) {
             val r = maxR * (ring / 3f)
             drawCircle(
                 color = Color(0xFFF1F5F9),
                 radius = r,
                 center = c,
-                style = Stroke(width = 1.dp.toPx())
+                style = Stroke(width = 0.8.dp.toPx())
             )
         }
 
-        val hasData = categorySums.any { it > 0.0 }
-        val maxAmt = categorySums.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+        if (topCategories.isEmpty()) return@Canvas
 
+        val maxAmt = topCategories.maxOfOrNull { it.annualTotal }?.coerceAtLeast(1.0) ?: 1.0
         val polyPath = Path()
-        val n = numAxes
 
         for (i in 0 until n) {
-            val amt = categorySums.getOrNull(i) ?: 0.0
-            val ratio = if (hasData) (amt / maxAmt).toFloat().coerceIn(0.20f, 0.95f) else 0.45f
+            val amt = topCategories.getOrNull(i)?.annualTotal ?: 0.0
+            val ratio = (amt / maxAmt).toFloat().coerceIn(0.18f, 0.95f)
             val rTip = maxR * ratio
             val angTip = (i * 2 * Math.PI / n) - Math.PI / 2
             val pTip = Offset(c.x + (rTip * cos(angTip)).toFloat(), c.y + (rTip * sin(angTip)).toFloat())
 
-            val nextAmt = categorySums.getOrNull((i + 1) % n) ?: 0.0
-            val nextRatio = if (hasData) (nextAmt / maxAmt).toFloat().coerceIn(0.20f, 0.95f) else 0.45f
+            val nextAmt = topCategories.getOrNull((i + 1) % n)?.annualTotal ?: 0.0
+            val nextRatio = (nextAmt / maxAmt).toFloat().coerceIn(0.18f, 0.95f)
             val rValley = min(rTip, maxR * nextRatio) * 0.58f
             val angValley = ((i + 0.5) * 2 * Math.PI / n) - Math.PI / 2
             val pValley = Offset(c.x + (rValley * cos(angValley)).toFloat(), c.y + (rValley * sin(angValley)).toFloat())
+
+            // Spoke axis line
+            drawLine(
+                color = Color(0xFFE2E8F0),
+                start = c,
+                end = Offset(c.x + (maxR * cos(angTip)).toFloat(), c.y + (maxR * sin(angTip)).toFloat()),
+                strokeWidth = 0.8.dp.toPx()
+            )
 
             if (i == 0) polyPath.moveTo(pTip.x, pTip.y) else polyPath.lineTo(pTip.x, pTip.y)
             polyPath.lineTo(pValley.x, pValley.y)
@@ -248,64 +431,120 @@ private fun OrganicStarRadarCanvas(
         drawPath(
             path = polyPath,
             color = Color(0xFF8B5CF6),
-            style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
+
+        // Draw vertex dots with palette accent
+        for (i in 0 until n) {
+            val amt = topCategories.getOrNull(i)?.annualTotal ?: 0.0
+            val ratio = (amt / maxAmt).toFloat().coerceIn(0.18f, 0.95f)
+            val rTip = maxR * ratio
+            val angTip = (i * 2 * Math.PI / n) - Math.PI / 2
+            val pTip = Offset(c.x + (rTip * cos(angTip)).toFloat(), c.y + (rTip * sin(angTip)).toFloat())
+
+            val dotColor = RADAR_PALETTE[i % RADAR_PALETTE.size]
+            drawCircle(color = Color.White, radius = 4.dp.toPx(), center = pTip)
+            drawCircle(color = dotColor, radius = 2.5.dp.toPx(), center = pTip)
+        }
     }
 }
 
+// =========================================================
+// 2. BUDGET VS ACTUAL DUAL PILLARS (OVERRUN SENSITIVE)
+// =========================================================
+
 @Composable
-private fun BudgetVsActualDualPillarsCard(
+private fun CompactBudgetVsActualCard(
     categoryTrajectories: List<CategoryAnnualTrajectory>,
     plannedCategoryCeilings: Map<String, Double>,
+    overrunCount: Int,
     currencySymbol: String,
     isDiscreet: Boolean,
     onInfoClick: () -> Unit
 ) {
+    // Sort prioritized by highest budget overruns first, then highest spend
+    val displayList = remember(categoryTrajectories, plannedCategoryCeilings) {
+        categoryTrajectories.sortedByDescending { cat ->
+            val planned = plannedCategoryCeilings[cat.categoryName] ?: 0.0
+            if (planned > 0) (cat.annualTotal - planned) else 0.0
+        }.take(4)
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(22.dp)),
-        shape = RoundedCornerShape(22.dp),
+            .shadow(4.dp, RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp),
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onInfoClick),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Budgeted vs. Actual Outflow", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
-                    Text("Real variance analysis against annualized budget targets", fontSize = 11.5.sp, color = TextMuted)
+                    Text("Budget vs. Realized Outflow", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
+                    Text("Variance analysis against annualized planner limits", fontSize = 10.5.sp, color = TextMuted)
                 }
 
                 IconButton(
                     onClick = onInfoClick,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
+                    modifier = Modifier.size(28.dp).clip(CircleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Info,
-                        contentDescription = "Graph Explanation",
+                        contentDescription = "Variance Explanation",
                         tint = TextMuted,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            val displayList = categoryTrajectories.take(4)
+            // Diagnostic Banner (Overrun Alert vs On Track)
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (overrunCount > 0) SoftRed.copy(alpha = 0.08f) else SoftGreen.copy(alpha = 0.08f),
+                border = BorderStroke(0.6.dp, if (overrunCount > 0) SoftRed.copy(alpha = 0.25f) else SoftGreen.copy(alpha = 0.25f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (overrunCount > 0) Icons.Default.WarningAmber else Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = if (overrunCount > 0) SoftRed else SoftGreen,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (overrunCount > 0) "$overrunCount categories exceeded annual planned budget" else "All categories within planned annual ceilings",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (overrunCount > 0) SoftRed else SoftGreen
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             val maxBurn = displayList.maxOfOrNull { cat ->
-                maxOf(cat.annualTotal, plannedCategoryCeilings[cat.categoryName] ?: 0.0)
+                max(cat.annualTotal, plannedCategoryCeilings[cat.categoryName] ?: 0.0)
             }?.coerceAtLeast(100.0) ?: 100.0
 
+            // Pillar Chart (Height 105.dp)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(120.dp),
+                    .height(105.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.Bottom
             ) {
@@ -324,65 +563,95 @@ private fun BudgetVsActualDualPillarsCard(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.Bottom
                         ) {
+                            // Target Pillar
                             Box(
                                 modifier = Modifier
-                                    .width(14.dp)
-                                    .height((90 * plannedRatio).dp)
-                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                    .width(13.dp)
+                                    .height((76 * plannedRatio).dp)
+                                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
                                     .background(if (plannedAmt > 0) Color(0xFFCBD5E1) else Color(0xFFE2E8F0))
                             )
+                            // Realized Spend Pillar
                             Box(
                                 modifier = Modifier
-                                    .width(14.dp)
-                                    .height((90 * actualRatio).dp)
-                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                    .width(13.dp)
+                                    .height((76 * actualRatio).dp)
+                                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
                                     .background(if (isOverrun) SoftRed else Color(0xFF8B5CF6))
                             )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(cat.categoryName.take(6), fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(5.dp))
+                        Text(
+                            text = cat.categoryName.take(5),
+                            fontSize = 9.sp,
+                            color = if (isOverrun) SoftRed else TextMuted,
+                            fontWeight = if (isOverrun) FontWeight.Bold else FontWeight.Medium
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-            HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
             Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+            Spacer(modifier = Modifier.height(8.dp))
 
+            // Chart Legend
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFCBD5E1)))
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFCBD5E1)))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Planned Target", fontSize = 10.5.sp, color = TextMuted)
+                    Text("Planned Target", fontSize = 9.5.sp, color = TextMuted)
                 }
-                Spacer(modifier = Modifier.width(20.dp))
+                Spacer(modifier = Modifier.width(18.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF8B5CF6)))
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF8B5CF6)))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Realized Spend", fontSize = 10.5.sp, color = TextMuted)
+                    Text("Spend (Normal)", fontSize = 9.5.sp, color = TextMuted)
+                }
+                Spacer(modifier = Modifier.width(18.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftRed))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Overrun", fontSize = 9.5.sp, color = SoftRed, fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
 }
 
+// =========================================================
+// 3. POLISHED CATEGORY TRAJECTORY ROW CARD
+// =========================================================
+
 @Composable
-private fun CategoryTrajectoryRowCard(
+private fun PolishedCategoryTrajectoryRow(
     item: CategoryAnnualTrajectory,
+    annualCeiling: Double,
     currencySymbol: String,
     isDiscreet: Boolean,
     isLegacy: Boolean = false
 ) {
+    val isOverrun = annualCeiling > 0.0 && item.annualTotal > annualCeiling
+    val monthlyAverage = item.annualTotal / 12.0
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         color = CardWhite,
-        border = BorderStroke(0.6.dp, if (isLegacy) Color(0xFFFFB74D).copy(alpha = 0.7f) else BorderLight)
+        border = BorderStroke(
+            0.7.dp,
+            when {
+                isOverrun -> SoftRed.copy(alpha = 0.5f)
+                isLegacy -> Color(0xFFFFB74D).copy(alpha = 0.7f)
+                else -> BorderLight
+            }
+        )
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(13.dp)) {
+            // Row 1: Title, Badges, Total Spend
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -400,36 +669,65 @@ private fun CategoryTrajectoryRowCard(
                             ) {
                                 Text(
                                     text = "Legacy",
-                                    fontSize = 8.5.sp,
+                                    fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFE65100),
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
                         }
+                        if (isOverrun) {
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = SoftRed.copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = "Over Budget",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SoftRed,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
                     }
-                    Text("${String.format(Locale.US, "%.1f", item.percentageOfTotal)}% of annual outflow", fontSize = 10.5.sp, color = TextMuted)
+                    Text(
+                        text = "${String.format(Locale.US, "%.1f", item.percentageOfTotal)}% of annual outflow • Avg $currencySymbol${String.format(Locale.US, "%,.0f", monthlyAverage)}/mo",
+                        fontSize = 10.sp,
+                        color = TextMuted
+                    )
                 }
 
-                Text(
-                    text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.annualTotal)}",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 14.sp,
-                    color = AccentPurple
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.annualTotal)}",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.5.sp,
+                        color = if (isOverrun) SoftRed else AccentPurple
+                    )
+                    if (annualCeiling > 0) {
+                        Text(
+                            text = if (isDiscreet) "Cap: ••••" else "Cap: $currencySymbol${String.format(Locale.US, "%,.0f", annualCeiling)}",
+                            fontSize = 9.sp,
+                            color = TextMuted
+                        )
+                    }
+                }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
+            // Row 2: 12-Month Sparkline Canvas
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(28.dp)
+                    .height(26.dp)
             ) {
                 val maxMonth = item.monthlyAmounts.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
                 val pts = item.monthlyAmounts.mapIndexed { idx, amt ->
                     val x = (idx.toFloat() / 11f) * size.width
-                    val y = size.height * (1f - (amt / maxMonth).toFloat().coerceIn(0.1f, 0.9f))
+                    val y = size.height * (1f - (amt / maxMonth).toFloat().coerceIn(0.12f, 0.88f))
                     Offset(x, y)
                 }
 
@@ -437,21 +735,32 @@ private fun CategoryTrajectoryRowCard(
                 pts.forEachIndexed { idx, pt ->
                     if (idx == 0) path.moveTo(pt.x, pt.y) else path.lineTo(pt.x, pt.y)
                 }
-                drawPath(path, color = AccentPurple, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
+                drawPath(
+                    path = path,
+                    color = if (isOverrun) SoftRed else AccentPurple,
+                    style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
+                )
 
                 val peakPt = pts[item.peakMonthIndex]
-                drawCircle(color = SoftRed, radius = 3.dp.toPx(), center = peakPt)
+                drawCircle(color = Color.White, radius = 4.dp.toPx(), center = peakPt)
+                drawCircle(color = if (isOverrun) SoftRed else AccentPurple, radius = 2.6.dp.toPx(), center = peakPt)
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
+            // Row 3: Sparkline Timeline Footer
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Jan", fontSize = 9.sp, color = TextMuted)
-                Text("Peak: ${YEARLY_MONTH_NAMES[item.peakMonthIndex]}", fontSize = 9.5.sp, color = SoftRed, fontWeight = FontWeight.Bold)
-                Text("Dec", fontSize = 9.sp, color = TextMuted)
+                Text("Jan", fontSize = 8.5.sp, color = TextMuted)
+                Text(
+                    text = "Peak: ${YEARLY_MONTH_NAMES[item.peakMonthIndex]} ($currencySymbol${String.format(Locale.US, "%,.0f", item.peakMonthAmount)})",
+                    fontSize = 9.sp,
+                    color = if (isOverrun) SoftRed else AccentPurple,
+                    fontWeight = FontWeight.Bold
+                )
+                Text("Dec", fontSize = 8.5.sp, color = TextMuted)
             }
         }
     }
