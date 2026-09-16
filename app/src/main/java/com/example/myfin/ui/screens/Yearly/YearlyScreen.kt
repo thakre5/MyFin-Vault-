@@ -57,6 +57,8 @@ fun YearlyScreen(
     val yearlyState by viewModel.yearlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
+    val selectedYear = yearlyState.selectedYear
+
     val pagerState = rememberPagerState(pageCount = { 4 })
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
     val pageTitles = remember { listOf("Cashflow", "12 Months", "Assets & Wealth", "Audit") }
@@ -84,6 +86,7 @@ fun YearlyScreen(
     val currentWealthAccumulated = (annualAssets + annualNetSurplus).coerceAtLeast(0.0)
     val goalCompletionPercentage = if (annualTargetGoal > 0.0) (currentWealthAccumulated / annualTargetGoal).toFloat().coerceIn(0f, 1f) else 0f
 
+    // Optimized: uses native personalIncome from YearlyMonthData
     val quarterlyData = remember(yearlyMonthsData) {
         if (yearlyMonthsData.size >= 12) {
             listOf(
@@ -92,7 +95,7 @@ fun YearlyScreen(
                 "Q3" to yearlyMonthsData.subList(6, 9),
                 "Q4" to yearlyMonthsData.subList(9, 12)
             ).mapIndexed { qIdx, (label, months) ->
-                val qInc = months.sumOf { it.netSavings + it.lifestyleExpenses + it.assets }
+                val qInc = months.sumOf { if (it.personalIncome > 0.0) it.personalIncome else it.income }
                 val qExp = months.sumOf { it.lifestyleExpenses }
                 val qAst = months.sumOf { it.assets }
                 val qNet = months.sumOf { it.netSavings }
@@ -110,8 +113,8 @@ fun YearlyScreen(
         } else emptyList()
     }
 
+    // Optimized: directly index with (tx.month - 1) instead of re-allocating Calendar
     val categoryTrajectories = remember(allYearTransactions, annualExpenses) {
-        val txCal = Calendar.getInstance()
         val expenseTxs = allYearTransactions.filter { it.type == TransactionType.EXPENSE }
         val grouped = expenseTxs.groupBy { it.category }
 
@@ -119,8 +122,7 @@ fun YearlyScreen(
             val total = txs.sumOf { it.amount }
             val monthlySums = DoubleArray(12) { 0.0 }
             for (tx in txs) {
-                txCal.timeInMillis = tx.date
-                val mIdx = txCal.get(Calendar.MONTH).coerceIn(0, 11)
+                val mIdx = (tx.month - 1).coerceIn(0, 11)
                 monthlySums[mIdx] += tx.amount
             }
             val peakMonth = monthlySums.indices.maxByOrNull { monthlySums[it] } ?: 0
@@ -161,14 +163,14 @@ fun YearlyScreen(
         }
     }
 
-    val fabActions = remember(uiState.selectedYear) {
+    val fabActions = remember(selectedYear) {
         listOf(
             DockFabAction(
                 icon = Icons.Default.TableChart,
                 label = "Export Statement (.xlsx)",
                 onClick = {
                     val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-                    xlsxExportLauncher.launch("MyFin_Annual_${uiState.selectedYear}_$timeStamp.xlsx")
+                    xlsxExportLauncher.launch("MyFin_Annual_${selectedYear}_$timeStamp.xlsx")
                 }
             ),
             DockFabAction(
@@ -176,7 +178,7 @@ fun YearlyScreen(
                 label = "Tax Ledger (.csv)",
                 onClick = {
                     val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-                    csvExportLauncher.launch("MyFin_Tax_Ledger_${uiState.selectedYear}_$timeStamp.csv")
+                    csvExportLauncher.launch("MyFin_Tax_Ledger_${selectedYear}_$timeStamp.csv")
                 }
             )
         )
@@ -231,7 +233,7 @@ fun YearlyScreen(
                             IconButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    viewModel.selectYear(uiState.selectedYear - 1)
+                                    viewModel.selectYear(selectedYear - 1)
                                 },
                                 modifier = Modifier.size(28.dp)
                             ) {
@@ -239,7 +241,7 @@ fun YearlyScreen(
                             }
 
                             Text(
-                                text = "Year ${uiState.selectedYear}",
+                                text = "Year $selectedYear",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 13.5.sp,
                                 color = TextDark,
@@ -249,7 +251,7 @@ fun YearlyScreen(
                             IconButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    viewModel.selectYear(uiState.selectedYear + 1)
+                                    viewModel.selectYear(selectedYear + 1)
                                 },
                                 modifier = Modifier.size(28.dp)
                             ) {
@@ -317,7 +319,7 @@ fun YearlyScreen(
                         goalCompletionPercentage = goalCompletionPercentage,
                         wealthMetrics = wealthMetrics,
                         multiYearAssets = multiYearAssets,
-                        selectedYear = uiState.selectedYear,
+                        selectedYear = selectedYear,
                         currencySymbol = userProfile.currencySymbol,
                         isDiscreetMode = isDiscreetMode,
                         onOpenGraphGuide = { activeGraphGuide = it }
@@ -331,7 +333,8 @@ fun YearlyScreen(
                         },
                         currencySymbol = userProfile.currencySymbol,
                         isDiscreetMode = isDiscreetMode,
-                        onOpenGraphGuide = { activeGraphGuide = it }
+                        onOpenGraphGuide = { activeGraphGuide = it },
+                        onCategoryClick = { /* Drill down or filter by category */ }
                     )
                 }
             }
@@ -378,7 +381,7 @@ fun YearlyScreen(
                 onDismiss = { activeMatrixSheet = null },
                 onNavigateToMonth = { monthIdx ->
                     viewModel.selectMonth(monthIdx)
-                    onNavigateToMonth(uiState.selectedYear, monthIdx)
+                    onNavigateToMonth(selectedYear, monthIdx)
                 }
             )
         }
@@ -395,13 +398,13 @@ fun YearlyScreen(
         inspectedMonth?.let { mData ->
             InspectedMonthBottomSheet(
                 mData = mData,
-                selectedYear = uiState.selectedYear,
+                selectedYear = selectedYear,
                 currencySymbol = userProfile.currencySymbol,
                 isDiscreetMode = isDiscreetMode,
                 onDismiss = { inspectedMonth = null },
                 onOpenMonth = { monthIdx ->
                     viewModel.selectMonth(monthIdx)
-                    onNavigateToMonth(uiState.selectedYear, monthIdx)
+                    onNavigateToMonth(selectedYear, monthIdx)
                 }
             )
         }
