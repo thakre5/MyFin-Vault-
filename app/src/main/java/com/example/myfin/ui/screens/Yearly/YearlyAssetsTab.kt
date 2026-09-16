@@ -50,16 +50,22 @@ fun YearlyAssetsTab(
     val liquidShare = (wealthMetrics.liquidReserves / totalKnownWealth).toFloat().coerceIn(0f, 1f)
     val investedShare = (wealthMetrics.totalInvestments / totalKnownWealth).toFloat().coerceIn(0f, 1f)
 
+    // Formula clarity logic
+    val quarterOfIncome = annualTargetGoal // Represents the 25% income benchmark or fortress floor
+    val targetBasisTag = "25% Savings Target"
+    val targetFormulaExplainer = "Calculated as 25% of your annual earnings (or your Fortress buffer floor, whichever is higher)."
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 240.dp)
     ) {
-        // 1. ASYMMETRICAL SPLIT HERO CARD (COMPACT HEART ON RIGHT)
+        // 1. ASYMMETRICAL SPLIT HERO CARD (WITH CLEAR TARGET MATH)
         item(key = "compact_split_heart_card") {
             CompactSplitGoalHeartCard(
                 title = "Wealth Accumulation Goal",
+                targetBadgeLabel = targetBasisTag,
                 currentAmount = currentWealthAccumulated,
                 targetAmount = annualTargetGoal,
                 completionRatio = goalCompletionPercentage,
@@ -68,16 +74,19 @@ fun YearlyAssetsTab(
                 onInfoClick = {
                     onOpenGraphGuide(
                         GraphExplanationGuide(
-                            title = "Annual Wealth Goal",
-                            subtitle = "Liquid Capital & Net Worth Milestone",
-                            whatItShows = "Visualizes progress toward your annual net worth milestone, tracking capital deployed into investments plus retained operating cash.",
+                            title = "How Target is Calculated",
+                            subtitle = "Annual Wealth Milestone Formula",
+                            whatItShows = "Your milestone of $currencySymbol${String.format(Locale.US, "%,.0f", annualTargetGoal)} is calculated as:\n\n" +
+                                    "Target = max(25% of Annual Income, Fortress Emergency Fund)\n\n" +
+                                    "• 25% Savings Rate: Benchmarks accumulating at least a quarter of your total annual earnings.\n" +
+                                    "• Fortress Floor: Ensures your annual compounding milestone never dips below your essential emergency runway.",
                             visualElements = listOf(
-                                "Liquid Wave Level" to "Percentage of your annual wealth target achieved.",
-                                "Target Fraction" to "Current capital saved vs. target threshold.",
-                                "Outer Heart Perimeter" to "Total annual compounding goal threshold."
+                                "Accumulated ($currencySymbol${String.format(Locale.US, "%,.0f", currentWealthAccumulated)})" to "Total capital routed into SIPs/Assets + retained liquid cash this year.",
+                                "Milestone Goal ($currencySymbol${String.format(Locale.US, "%,.0f", annualTargetGoal)})" to "Target capital to accumulate by December 31st.",
+                                "Liquid Wave ($pct%)" to "Visual indicator of progress toward this year's milestone."
                             ),
-                            whyItMatters = "Directly audits long-term capital deployment over daily survival burn.",
-                            actionableTip = "Aim to hit 100% by Q4. Every surplus rupee routed to Fortress raises the water level."
+                            whyItMatters = "Ensures you are systematically converting living income into long-term compounding net worth.",
+                            actionableTip = "Surplus funds moved to Fortress or investments raise the wave level directly."
                         )
                     )
                 }
@@ -272,12 +281,13 @@ fun YearlyAssetsTab(
 }
 
 // =========================================================
-// 1. COMPACT ASYMMETRICAL SPLIT GOAL CARD (CLEAN & CRASH-SAFE)
+// 1. COMPACT ASYMMETRICAL SPLIT GOAL CARD (WITH CLEAR BADGES)
 // =========================================================
 
 @Composable
 private fun CompactSplitGoalHeartCard(
     title: String,
+    targetBadgeLabel: String,
     currentAmount: Double,
     targetAmount: Double,
     completionRatio: Float,
@@ -297,7 +307,7 @@ private fun CompactSplitGoalHeartCard(
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-            // Top Header: Badge, Title & Main Info Icon
+            // Top Header: Benchmark Badge, Pacing Status & Info Icon
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -309,21 +319,22 @@ private fun CompactSplitGoalHeartCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = Color(0xFFEDE9FE)
+                        color = Color(0xFFEDE9FE),
+                        modifier = Modifier.clickable(onClick = onInfoClick)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Shield,
                                 contentDescription = null,
                                 tint = AccentPurple,
-                                modifier = Modifier.size(12.dp)
+                                modifier = Modifier.size(11.dp)
                             )
-                            Spacer(modifier = Modifier.width(3.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Milestone",
+                                text = targetBadgeLabel,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = AccentPurple
@@ -337,11 +348,11 @@ private fun CompactSplitGoalHeartCard(
                         border = BorderStroke(0.6.dp, BorderLight)
                     ) {
                         Text(
-                            text = if (pct >= 100) "Goal Achieved" else "Paced for Q4",
+                            text = if (pct >= 100) "Milestone Achieved" else "Paced for Q4",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (pct >= 100) SoftGreen else TextMuted,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.5.dp)
                         )
                     }
                 }
@@ -352,7 +363,7 @@ private fun CompactSplitGoalHeartCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Info,
-                        contentDescription = "Goal Info",
+                        contentDescription = "Target Math Info",
                         tint = TextMuted,
                         modifier = Modifier.size(15.dp)
                     )
@@ -376,16 +387,24 @@ private fun CompactSplitGoalHeartCard(
 
                     Spacer(modifier = Modifier.height(2.dp))
 
-                    Text(
-                        text = if (isDiscreet) "•••• / ••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", currentAmount)} / $currencySymbol${String.format(Locale.US, "%,.0f", targetAmount)}",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextDark
-                    )
+                    Row(verticalAlignment = Alignment.Baseline) {
+                        Text(
+                            text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", currentAmount)}",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Black,
+                            color = TextDark
+                        )
+                        Text(
+                            text = if (isDiscreet) " / ••••" else " / $currencySymbol${String.format(Locale.US, "%,.0f", targetAmount)}",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextMuted
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Crash-Safe Nested Box Track Bar
+                    // Crash-Safe Progress Bar
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(0.92f)
@@ -408,7 +427,13 @@ private fun CompactSplitGoalHeartCard(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = if (isDiscreet) "Compounding active" else if (remainingGap == 0.0) "Annual milestone reached!" else "Need $currencySymbol${String.format(Locale.US, "%,.0f", remainingGap)} more to hit target",
+                        text = if (isDiscreet) {
+                            "Compounding active"
+                        } else if (remainingGap == 0.0) {
+                            "Annual 25% benchmark reached!"
+                        } else {
+                            "Need $currencySymbol${String.format(Locale.US, "%,.0f", remainingGap)} more (Target: 25% of Inflow)"
+                        },
                         fontSize = 9.5.sp,
                         color = TextMuted
                     )
@@ -420,7 +445,8 @@ private fun CompactSplitGoalHeartCard(
                 Box(
                     modifier = Modifier
                         .size(92.dp)
-                        .clip(RoundedCornerShape(16.dp)),
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable(onClick = onInfoClick),
                     contentAlignment = Alignment.Center
                 ) {
                     CleanLivingHeartCanvas(
@@ -569,7 +595,7 @@ private fun CleanLivingHeartCanvas(
 }
 
 // =========================================================
-// 3. MULTI-YEAR COMPACT SEGMENTED PILLARS (WITH YEAR LABELS)
+// 3. MULTI-YEAR COMPACT SEGMENTED PILLARS
 // =========================================================
 
 @Composable
@@ -718,7 +744,6 @@ private fun MultiYearSegmentedCanvas(
             )
         }
 
-        // Baseline divider line
         drawLine(
             color = Color(0xFFE5E7EB),
             start = Offset(0f, h - 18.dp.toPx()),
