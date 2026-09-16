@@ -44,7 +44,7 @@ fun YearlyCashflowTab(
     quarterlyData: List<QuarterlyMetrics>,
     currencySymbol: String,
     isDiscreetMode: Boolean,
-    onOpenGraphGuide: (GraphExplanationGuide) -> Unit
+    onOpenMatrixSheet: (CashflowMatrixSheetType) -> Unit
 ) {
     val yearlyMonthsData = yearlyState.yearlyMonths
     val annualPersonalIncome = yearlyState.annualPersonalIncome
@@ -90,7 +90,7 @@ fun YearlyCashflowTab(
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 240.dp)
     ) {
-        // 1. COMPACT DUAL-WAVE CASHFLOW DYNAMICS
+        // 1. COMPACT DUAL-WAVE CASHFLOW DYNAMICS (Opens Dynamics Matrix Sheet)
         item(key = "dual_smooth_wave_card") {
             DualSmoothWaveCard(
                 title = "Cashflow Dynamics",
@@ -101,54 +101,23 @@ fun YearlyCashflowTab(
                 activeMonthsCount = activeMonthsCount,
                 currencySymbol = currencySymbol,
                 isDiscreet = isDiscreetMode,
-                onInfoClick = {
-                    onOpenGraphGuide(
-                        GraphExplanationGuide(
-                            title = "Cashflow Dynamics",
-                            subtitle = "Personal Inflow vs. Lifestyle Burn",
-                            whatItShows = "Maps monthly personal earnings against true lifestyle expenses across all 12 months. Excludes corporate advances and capital movements.",
-                            visualElements = listOf(
-                                "Emerald Line" to "Personal earned income (Salary and verified credits).",
-                                "Purple Line" to "True lifestyle burn (Living costs, groceries, utilities).",
-                                "Shaded Area" to "Unelapsed/future accounting cycles under projection.",
-                                "Touch Guideline" to "Drag across the wave to inspect month-by-month cashflow."
-                            ),
-                            whyItMatters = "Maintains visibility on lifestyle inflation. A widening gap between the green and purple lines directly compounds into net wealth.",
-                            actionableTip = "Keep the spread as wide as possible. A single high burn month can absorb months of disciplined surplus."
-                        )
-                    )
-                }
+                onInfoClick = { onOpenMatrixSheet(CashflowMatrixSheetType.CASHFLOW_DYNAMICS) }
             )
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 2. 12-MONTH NET CASHFLOW PULSE
+        // 2. 12-MONTH NET CASHFLOW PULSE (Opens 12-Month Itemized Audit Sheet)
         item(key = "monthly_cashflow_pulse_card") {
             MonthlyCashflowPulseCard(
                 yearlyMonths = yearlyMonthsData,
                 currencySymbol = currencySymbol,
                 isDiscreet = isDiscreetMode,
-                onInfoClick = {
-                    onOpenGraphGuide(
-                        GraphExplanationGuide(
-                            title = "12-Month Cashflow Pulse",
-                            subtitle = "Surplus & Deficit Rhythm",
-                            whatItShows = "Displays net cash retention per calendar month centered on a zero baseline.",
-                            visualElements = listOf(
-                                "Green Bars (Rising)" to "Surplus months where monthly income exceeded total outlays.",
-                                "Red Bars (Dipping)" to "Deficit months where personal burn exceeded that month's earnings.",
-                                "Grey Dots" to "Planned/future cycles awaiting ledger transactions."
-                            ),
-                            whyItMatters = "Surplus consistency is more critical than a single massive income month. You want as many green spikes as possible.",
-                            actionableTip = "If more than 2 consecutive months dip into the red, check Commitments Vault for bill spikes."
-                        )
-                    )
-                }
+                onInfoClick = { onOpenMatrixSheet(CashflowMatrixSheetType.CASHFLOW_PULSE) }
             )
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 3. ANNUAL 3-PILLAR CAPITAL DEPLOYMENT MATRIX
+        // 3. ANNUAL 3-PILLAR CAPITAL DEPLOYMENT MATRIX (Opens 50/30/20 Benchmark Matrix Sheet)
         item(key = "annual_three_pillar_matrix_card") {
             AnnualThreePillarMatrixCard(
                 annualIncome = annualPersonalIncome,
@@ -162,28 +131,12 @@ fun YearlyCashflowTab(
                 retainedRatio = retainedRatio,
                 currencySymbol = currencySymbol,
                 isDiscreet = isDiscreetMode,
-                onInfoClick = {
-                    onOpenGraphGuide(
-                        GraphExplanationGuide(
-                            title = "Annual 3-Pillar Allocation",
-                            subtitle = "Capital Distribution Framework",
-                            whatItShows = "Breaks down how every earned rupee was distributed throughout the year across structural accounts.",
-                            visualElements = listOf(
-                                "Slate Layer" to "Fixed non-negotiable bills (AutoPay, EMIs, Rent, Utilities).",
-                                "Purple Layer" to "Discretionary lifestyle burn (Dining, Shopping, Fuel).",
-                                "Cyan Layer" to "Assets & SIP investments directly compounding your portfolio.",
-                                "Emerald Layer" to "Pure liquid cash surplus retained in operating and fortress vaults."
-                            ),
-                            whyItMatters = "Audits adherence to healthy budgeting guidelines (keeping fixed bills under 50% and assets/savings above 20%).",
-                            actionableTip = "Aim to deploy unspent green retained surplus into Fortress Sweep FDs at month-end."
-                        )
-                    )
-                }
+                onInfoClick = { onOpenMatrixSheet(CashflowMatrixSheetType.THREE_PILLAR_ALLOCATION) }
             )
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 4. YEAR-END PROJECTED RUN-RATE FORECAST
+        // 4. YEAR-END PROJECTED RUN-RATE FORECAST (Opens Forecast Math Breakdown Sheet)
         item(key = "annual_forecast_runrate_card") {
             AnnualForecastRunRateCard(
                 activeMonths = activeMonthsCount,
@@ -193,49 +146,19 @@ fun YearlyCashflowTab(
                 projectedSurplus = projectedNetSurplus,
                 currencySymbol = currencySymbol,
                 isDiscreet = isDiscreetMode,
-                onInfoClick = {
-                    onOpenGraphGuide(
-                        GraphExplanationGuide(
-                            title = "12-Month Run-Rate Forecast",
-                            subtitle = "Paced Annual Velocity",
-                            whatItShows = "Extrapolates your active average burn and inflow across 12 full calendar months to project year-end standing.",
-                            visualElements = listOf(
-                                "Forecasted Inflow" to "Projected total earnings if current pace continues through December.",
-                                "Forecasted Burn" to "Projected full-year expenses based on active-month burn rate.",
-                                "Year-End Surplus" to "Anticipated net liquid capital remaining at year close."
-                            ),
-                            whyItMatters = "Eliminates mid-year dilution. You see your true destination rather than an incomplete partial-year snapshot.",
-                            actionableTip = "Use positive year-end surplus forecasts to plan annual wealth lump sums or tax savings."
-                        )
-                    )
-                }
+                onInfoClick = { onOpenMatrixSheet(CashflowMatrixSheetType.RUN_RATE_FORECAST) }
             )
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 5. CORPORATE FLOAT & CLAIMS BANNER (Conditional)
+        // 5. CORPORATE FLOAT & CLAIMS BANNER (Opens Corporate Advance & Claims Matrix Sheet)
         if (reimbursementStatus.cumulativeWorkExpenses > 0.0 || reimbursementStatus.excessAdvanceHeld > 0.0) {
             item(key = "reimbursement_banner") {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .clickable {
-                            onOpenGraphGuide(
-                                GraphExplanationGuide(
-                                    title = "Corporate Float & Claims",
-                                    subtitle = "Business Travel & Outlay Isolation",
-                                    whatItShows = "Tracks company expenses paid out of pocket versus company advances held in your accounts.",
-                                    visualElements = listOf(
-                                        "Advance Held" to "Company capital held in your account, strictly ring-fenced from safe-to-spend.",
-                                        "Claim Due" to "Reimbursements owed back to your bank account.",
-                                        "Settled" to "Zero net discrepancy between work expenses and claim deposits."
-                                    ),
-                                    whyItMatters = "Prevents corporate expenses from skewing personal burn metrics or causing accidental budget deficits.",
-                                    actionableTip = "Submit claims immediately on cycle close so personal accounts are replenished."
-                                )
-                            )
-                        },
+                        .clickable { onOpenMatrixSheet(CashflowMatrixSheetType.CORPORATE_FLOAT) },
                     shape = RoundedCornerShape(16.dp),
                     color = CardWhite,
                     border = BorderStroke(0.8.dp, Color(0xFFE57A28).copy(alpha = 0.35f))
@@ -309,28 +232,13 @@ fun YearlyCashflowTab(
             }
         }
 
-        // 6. FISCAL QUARTER RETENTION GRID
+        // 6. FISCAL QUARTER RETENTION GRID (Opens Quarterly Cashflow Ledger Sheet)
         item(key = "cashflow_quarterly_grid") {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .clickable {
-                        onOpenGraphGuide(
-                            GraphExplanationGuide(
-                                title = "Fiscal Quarter Retention",
-                                subtitle = "Quarterly Savings Efficiency",
-                                whatItShows = "Aggregates personal income, burn, and net surplus across 3-month fiscal periods (Q1 to Q4).",
-                                visualElements = listOf(
-                                    "Retention %" to "Percentage of quarterly income retained as net surplus.",
-                                    "k Metric" to "Net currency volume saved per quarter in thousands.",
-                                    "Pending" to "Future quarters with zero logged ledger activity."
-                                ),
-                                whyItMatters = "Reveals quarterly seasonality, such as holiday spending in Q4 or bonus infusions in Q1.",
-                                actionableTip = "Target a minimum of 20% retention across every active quarter."
-                            )
-                        )
-                    },
+                    .clickable { onOpenMatrixSheet(CashflowMatrixSheetType.QUARTERLY_RETENTION) },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -339,7 +247,7 @@ fun YearlyCashflowTab(
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Default.HelpOutline,
-                        contentDescription = "Quarterly Guide",
+                        contentDescription = "Quarterly Matrix",
                         tint = TextMuted,
                         modifier = Modifier.size(15.dp)
                     )
@@ -358,7 +266,10 @@ fun YearlyCashflowTab(
                     val surplusText = if (!hasActivity) "Pending" else "${currencySymbol}${(q.netSurplus / 1000).toInt()}k"
 
                     Surface(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(13.dp))
+                            .clickable { onOpenMatrixSheet(CashflowMatrixSheetType.QUARTERLY_RETENTION) },
                         shape = RoundedCornerShape(13.dp),
                         color = CardWhite,
                         border = BorderStroke(0.7.dp, BorderLight)
@@ -387,7 +298,7 @@ fun YearlyCashflowTab(
 }
 
 // =========================================================
-// 1. DUAL SMOOTH WAVE CARD (COMPACT HEIGHT & CLICKABLE)
+// 1. DUAL SMOOTH WAVE CARD (COMPACT & CLICKABLE)
 // =========================================================
 
 @Composable
@@ -436,11 +347,13 @@ private fun DualSmoothWaveCard(
 
                 IconButton(
                     onClick = onInfoClick,
-                    modifier = Modifier.size(28.dp).clip(CircleShape)
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Info,
-                        contentDescription = "Graph Explanation",
+                        contentDescription = "Graph Matrix",
                         tint = TextMuted,
                         modifier = Modifier.size(16.dp)
                     )
@@ -449,7 +362,7 @@ private fun DualSmoothWaveCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Interactive Touch Scrubber Banner (Compact)
+            // Interactive Touch Scrubber Banner
             AnimatedContent(
                 targetState = selectedMonthIndex,
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -516,7 +429,7 @@ private fun DualSmoothWaveCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Dual Wave Canvas (118.dp compact height)
+            // Dual Wave Canvas
             DualWaveCanvas(
                 yearlyMonths = yearlyMonths,
                 selectedMonthIndex = selectedMonthIndex,
@@ -681,7 +594,7 @@ private fun MonthlyCashflowPulseCard(
                     Spacer(modifier = Modifier.width(3.dp))
                     Icon(
                         imageVector = Icons.Default.HelpOutline,
-                        contentDescription = "Pulse Explanation",
+                        contentDescription = "Pulse Matrix",
                         tint = AccentPurple,
                         modifier = Modifier.size(13.dp)
                     )
@@ -827,7 +740,7 @@ private fun AnnualThreePillarMatrixCard(
                     Spacer(modifier = Modifier.width(3.dp))
                     Icon(
                         imageVector = Icons.Default.HelpOutline,
-                        contentDescription = "Pillar Explanation",
+                        contentDescription = "Pillar Matrix",
                         tint = AccentPurple,
                         modifier = Modifier.size(13.dp)
                     )
@@ -975,7 +888,7 @@ private fun AnnualForecastRunRateCard(
                     Spacer(modifier = Modifier.width(3.dp))
                     Icon(
                         imageVector = Icons.Default.HelpOutline,
-                        contentDescription = "Forecast Explanation",
+                        contentDescription = "Forecast Matrix",
                         tint = AccentPurple,
                         modifier = Modifier.size(13.dp)
                     )
