@@ -49,11 +49,9 @@ fun YearlyAssetsTab(
     val totalKnownWealth = (wealthMetrics.totalInvestments + wealthMetrics.liquidReserves).coerceAtLeast(1.0)
     val liquidShare = (wealthMetrics.liquidReserves / totalKnownWealth).toFloat().coerceIn(0f, 1f)
     val investedShare = (wealthMetrics.totalInvestments / totalKnownWealth).toFloat().coerceIn(0f, 1f)
+    val completionPct = (goalCompletionPercentage * 100).toInt()
 
-    // Formula clarity logic
-    val quarterOfIncome = annualTargetGoal // Represents the 25% income benchmark or fortress floor
     val targetBasisTag = "25% Savings Target"
-    val targetFormulaExplainer = "Calculated as 25% of your annual earnings (or your Fortress buffer floor, whichever is higher)."
 
     LazyColumn(
         modifier = Modifier
@@ -83,7 +81,7 @@ fun YearlyAssetsTab(
                             visualElements = listOf(
                                 "Accumulated ($currencySymbol${String.format(Locale.US, "%,.0f", currentWealthAccumulated)})" to "Total capital routed into SIPs/Assets + retained liquid cash this year.",
                                 "Milestone Goal ($currencySymbol${String.format(Locale.US, "%,.0f", annualTargetGoal)})" to "Target capital to accumulate by December 31st.",
-                                "Liquid Wave ($pct%)" to "Visual indicator of progress toward this year's milestone."
+                                "Liquid Wave ($completionPct%)" to "Visual indicator of progress toward this year's milestone."
                             ),
                             whyItMatters = "Ensures you are systematically converting living income into long-term compounding net worth.",
                             actionableTip = "Surplus funds moved to Fortress or investments raise the wave level directly."
@@ -387,7 +385,7 @@ private fun CompactSplitGoalHeartCard(
 
                     Spacer(modifier = Modifier.height(2.dp))
 
-                    Row(verticalAlignment = Alignment.Baseline) {
+                    Row(verticalAlignment = Alignment.Bottom) {
                         Text(
                             text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", currentAmount)}",
                             fontSize = 17.sp,
@@ -595,7 +593,7 @@ private fun CleanLivingHeartCanvas(
 }
 
 // =========================================================
-// 3. MULTI-YEAR COMPACT SEGMENTED PILLARS
+// 3. MULTI-YEAR COMPACT SEGMENTED PILLARS (WITH YEAR LABELS)
 // =========================================================
 
 @Composable
