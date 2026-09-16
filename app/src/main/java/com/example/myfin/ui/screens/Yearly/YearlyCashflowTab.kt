@@ -90,7 +90,7 @@ fun YearlyCashflowTab(
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 240.dp)
     ) {
-        // 1. COMPACT DUAL-WAVE CASHFLOW DYNAMICS (Opens Dynamics Matrix Sheet)
+        // 1. CASHFLOW DYNAMICS (Opens Dynamics Matrix Sheet)
         item(key = "dual_smooth_wave_card") {
             DualSmoothWaveCard(
                 title = "Cashflow Dynamics",
@@ -106,7 +106,7 @@ fun YearlyCashflowTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 2. 12-MONTH NET CASHFLOW PULSE (Opens 12-Month Itemized Audit Sheet)
+        // 2. 12-MONTH NET CASHFLOW PULSE (Opens Monthly Itemized Table Sheet)
         item(key = "monthly_cashflow_pulse_card") {
             MonthlyCashflowPulseCard(
                 yearlyMonths = yearlyMonthsData,
@@ -117,7 +117,7 @@ fun YearlyCashflowTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 3. ANNUAL 3-PILLAR CAPITAL DEPLOYMENT MATRIX (Opens 50/30/20 Benchmark Matrix Sheet)
+        // 3. ANNUAL 3-PILLAR CAPITAL DEPLOYMENT MATRIX (Opens 50/30/20 Benchmark Matrix)
         item(key = "annual_three_pillar_matrix_card") {
             AnnualThreePillarMatrixCard(
                 annualIncome = annualPersonalIncome,
@@ -136,7 +136,7 @@ fun YearlyCashflowTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 4. YEAR-END PROJECTED RUN-RATE FORECAST (Opens Forecast Math Breakdown Sheet)
+        // 4. YEAR-END PROJECTED RUN-RATE FORECAST (Opens 12-Month Extrapolation Math)
         item(key = "annual_forecast_runrate_card") {
             AnnualForecastRunRateCard(
                 activeMonths = activeMonthsCount,
@@ -151,7 +151,7 @@ fun YearlyCashflowTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 5. CORPORATE FLOAT & CLAIMS BANNER (Opens Corporate Advance & Claims Matrix Sheet)
+        // 5. CORPORATE FLOAT & CLAIMS BANNER (Opens Outlay & Advance Ledger)
         if (reimbursementStatus.cumulativeWorkExpenses > 0.0 || reimbursementStatus.excessAdvanceHeld > 0.0) {
             item(key = "reimbursement_banner") {
                 Surface(
@@ -232,7 +232,7 @@ fun YearlyCashflowTab(
             }
         }
 
-        // 6. FISCAL QUARTER RETENTION GRID (Opens Quarterly Cashflow Ledger Sheet)
+        // 6. FISCAL QUARTER RETENTION GRID (Opens Quarterly Breakdown Sheet)
         item(key = "cashflow_quarterly_grid") {
             Row(
                 modifier = Modifier
