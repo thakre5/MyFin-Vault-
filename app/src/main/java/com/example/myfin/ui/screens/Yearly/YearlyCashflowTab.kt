@@ -316,9 +316,9 @@ private fun DualSmoothWaveCard(
     var selectedMonthIndex by remember { mutableStateOf<Int?>(null) }
     val activeMonthlyAvgBurn = if (annualExpenses > 0) annualExpenses / activeMonthsCount else 0.0
 
-    val netRetained = annualIncome - annualExpenses
+    val netOperatingSurplus = annualIncome - annualExpenses
     val retentionPercentage = if (annualIncome > 0) {
-        ((netRetained / annualIncome) * 100).coerceIn(-100.0, 100.0).roundToInt()
+        ((netOperatingSurplus / annualIncome) * 100).coerceIn(-100.0, 100.0).roundToInt()
     } else 0
 
     val peakMonth = yearlyMonths.filter { !it.isFuture }.maxByOrNull { it.lifestyleExpenses }
@@ -370,7 +370,8 @@ private fun DualSmoothWaveCard(
             ) { scrubIdx ->
                 if (scrubIdx != null && scrubIdx in yearlyMonths.indices) {
                     val mData = yearlyMonths[scrubIdx]
-                    val mInflow = mData.netSavings + mData.lifestyleExpenses + mData.assets
+                    // Optimized: uses native personalIncome from YearlyMonthData
+                    val mInflow = if (mData.personalIncome > 0.0) mData.personalIncome else mData.income
                     val mBurn = mData.lifestyleExpenses
                     val mSurplus = mData.netSavings
                     val mRate = if (mInflow > 0) ((mSurplus / mInflow) * 100).toInt() else 0
@@ -522,26 +523,26 @@ private fun DualSmoothWaveCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = (if (netRetained >= 0) SoftTeal else SoftRed).copy(alpha = 0.12f)
+                            color = (if (netOperatingSurplus >= 0) SoftTeal else SoftRed).copy(alpha = 0.12f)
                         ) {
                             Text(
                                 text = "$retentionPercentage% Retained",
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (netRetained >= 0) SoftTeal else SoftRed,
+                                color = if (netOperatingSurplus >= 0) SoftTeal else SoftRed,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }
                     }
                     Spacer(modifier = Modifier.height(1.dp))
                     Text(
-                        text = if (isDiscreet) "••••" else "${if (netRetained >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", netRetained)}",
+                        text = if (isDiscreet) "••••" else "${if (netOperatingSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", netOperatingSurplus)}",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Black,
-                        color = if (netRetained >= 0) SoftTeal else SoftRed
+                        color = if (netOperatingSurplus >= 0) SoftTeal else SoftRed
                     )
                     Text(
-                        text = "Net Cash Retained",
+                        text = "Net Operating Spread",
                         fontSize = 9.sp,
                         color = TextMuted,
                         fontWeight = FontWeight.Medium
@@ -1010,7 +1011,10 @@ private fun DualWaveCanvas(
         val count = 12
         val stepX = w / (count - 1).toFloat()
 
-        val personalInflows = yearlyMonths.map { it.netSavings + it.lifestyleExpenses + it.assets }
+        // Optimized: Uses direct personalIncome from YearlyMonthData
+        val personalInflows = yearlyMonths.map {
+            if (it.personalIncome > 0.0) it.personalIncome else it.income
+        }
         val personalBurns = yearlyMonths.map { it.lifestyleExpenses }
 
         val maxVal = (personalInflows + personalBurns).maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
