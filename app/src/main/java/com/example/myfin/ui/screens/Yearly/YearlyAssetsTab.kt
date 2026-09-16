@@ -22,10 +22,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.text.font.FontWeight
@@ -73,11 +70,11 @@ fun YearlyAssetsTab(
                         GraphExplanationGuide(
                             title = "Annual Wealth Goal",
                             subtitle = "Liquid Capital & Net Worth Milestone",
-                            whatItShows = "Visualizes progress toward your annual net worth milestone, tracking capital deployed into investments plus retained cash.",
+                            whatItShows = "Visualizes progress toward your annual net worth milestone, tracking capital deployed into investments plus retained operating cash.",
                             visualElements = listOf(
                                 "Liquid Wave Level" to "Percentage of your annual wealth target achieved.",
                                 "Target Fraction" to "Current capital saved vs. target threshold.",
-                                "Outer Heart Perimeter" to "Total compounding goal threshold."
+                                "Outer Heart Perimeter" to "Total annual compounding goal threshold."
                             ),
                             whyItMatters = "Directly audits long-term capital deployment over daily survival burn.",
                             actionableTip = "Aim to hit 100% by Q4. Every surplus rupee routed to Fortress raises the water level."
@@ -100,12 +97,35 @@ fun YearlyAssetsTab(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                onOpenGraphGuide(
+                                    GraphExplanationGuide(
+                                        title = "Realizable Net Worth",
+                                        subtitle = "Solvency & Lifetime Capital Audit",
+                                        whatItShows = "Distinguishes between liquid cash, compounding market assets, collectable loans, and written-off bad debt.",
+                                        visualElements = listOf(
+                                            "Realizable Net Worth" to "Liquid cash + Active investments + Collectable receivables.",
+                                            "Gross Wealth" to "Realizable net worth + Non-performing assets (NPA).",
+                                            "Active Loans Out" to "Capital loaned to others expected to return.",
+                                            "NPA Bad Debt" to "Uncollectable loans written off to protect net worth accuracy."
+                                        ),
+                                        whyItMatters = "Ensures your financial health reflects collectible, real capital rather than phantom receivables.",
+                                        actionableTip = "Keep NPA at zero by avoiding uncollateralized lending."
+                                    )
+                                )
+                            },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("Realizable Net Worth", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Realizable Net Worth", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+                            }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", wealthMetrics.realizableNetWorth)}",
@@ -142,7 +162,7 @@ fun YearlyAssetsTab(
                         if (investedShare > 0) {
                             Box(
                                 modifier = Modifier
-                                    .weight(investedShare)
+                                    .weight(investedShare.coerceAtLeast(0.01f))
                                     .fillMaxHeight()
                                     .background(SoftTeal)
                             )
@@ -150,7 +170,7 @@ fun YearlyAssetsTab(
                         if (liquidShare > 0) {
                             Box(
                                 modifier = Modifier
-                                    .weight(liquidShare)
+                                    .weight(liquidShare.coerceAtLeast(0.01f))
                                     .fillMaxHeight()
                                     .background(SoftGreen)
                             )
@@ -252,7 +272,7 @@ fun YearlyAssetsTab(
 }
 
 // =========================================================
-// 1. COMPACT ASYMMETRICAL SPLIT GOAL CARD (HEART ON RIGHT)
+// 1. COMPACT ASYMMETRICAL SPLIT GOAL CARD (CLEAN & CRASH-SAFE)
 // =========================================================
 
 @Composable
@@ -276,14 +296,13 @@ private fun CompactSplitGoalHeartCard(
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Left Side: Metrics, Progress Bar, Gap
-            Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            // Top Header: Badge, Title & Main Info Icon
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -327,97 +346,94 @@ private fun CompactSplitGoalHeartCard(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = title,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextDark
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Text(
-                    text = if (isDiscreet) "•••• / ••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", currentAmount)} / $currencySymbol${String.format(Locale.US, "%,.0f", targetAmount)}",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Black,
-                    color = TextDark
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Left Mini Track Bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth(0.92f)
-                        .height(4.5.dp)
-                        .clip(CircleShape)
-                        .background(BorderLight.copy(alpha = 0.5f))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(completionRatio.coerceIn(0.04f, 1f))
-                            .fillMaxHeight()
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(AccentPurple, Color(0xFF10B981))
-                                )
-                            )
-                    )
-                    if (completionRatio < 1f) {
-                        Box(
-                            modifier = Modifier
-                                .weight((1f - completionRatio).coerceAtLeast(0f))
-                                .fillMaxHeight()
-                                .background(Color.Transparent)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = if (isDiscreet) "Compounding active" else if (remainingGap == 0.0) "Annual milestone reached!" else "Need $currencySymbol${String.format(Locale.US, "%,.0f", remainingGap)} more to hit target",
-                    fontSize = 9.5.sp,
-                    color = TextMuted
-                )
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Right Side: Small Animated Liquid Heart Canvas (96.dp) with Info Button
-            Box(
-                modifier = Modifier
-                    .size(96.dp)
-                    .clip(RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                CleanLivingHeartCanvas(
-                    fillPercentage = completionRatio,
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                Text(
-                    text = "$pct%",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color.White,
-                    letterSpacing = (-0.5).sp
-                )
-
                 IconButton(
                     onClick = onInfoClick,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(24.dp)
-                        .clip(CircleShape)
+                    modifier = Modifier.size(26.dp).clip(CircleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Info,
                         contentDescription = "Goal Info",
-                        tint = TextMuted.copy(alpha = 0.8f),
-                        modifier = Modifier.size(14.dp)
+                        tint = TextMuted,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Body: Left Metrics & Right Liquid Heart
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Text(
+                        text = if (isDiscreet) "•••• / ••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", currentAmount)} / $currencySymbol${String.format(Locale.US, "%,.0f", targetAmount)}",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextDark
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Crash-Safe Nested Box Track Bar
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .height(5.dp)
+                            .clip(CircleShape)
+                            .background(BorderLight.copy(alpha = 0.5f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(completionRatio.coerceIn(0.04f, 1f))
+                                .fillMaxHeight()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(AccentPurple, Color(0xFF10B981))
+                                    )
+                                )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = if (isDiscreet) "Compounding active" else if (remainingGap == 0.0) "Annual milestone reached!" else "Need $currencySymbol${String.format(Locale.US, "%,.0f", remainingGap)} more to hit target",
+                        fontSize = 9.5.sp,
+                        color = TextMuted
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Compact Animated Liquid Heart Canvas (92.dp)
+                Box(
+                    modifier = Modifier
+                        .size(92.dp)
+                        .clip(RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CleanLivingHeartCanvas(
+                        fillPercentage = completionRatio,
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    Text(
+                        text = "$pct%",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        letterSpacing = (-0.5).sp
                     )
                 }
             }
@@ -460,7 +476,6 @@ private fun CleanLivingHeartCanvas(
         val w = size.width
         val h = size.height
 
-        // Subtle Grid
         val gridStep = 16.dp.toPx()
         var currentX = 0f
         while (currentX < w) {
@@ -491,7 +506,6 @@ private fun CleanLivingHeartCanvas(
             val amplitude = 4.dp.toPx()
             val wavelength = w * 0.85f
 
-            // Wave Layer 1
             val backWave = Path().apply {
                 val startY = fillTop + amplitude * sin(wavePhase1)
                 moveTo(0f, startY)
@@ -514,7 +528,6 @@ private fun CleanLivingHeartCanvas(
                 )
             )
 
-            // Wave Layer 2
             val frontSurface = Path()
             val frontWave = Path().apply {
                 val startY = fillTop + (amplitude * 0.85f) * sin(-wavePhase2)
@@ -556,7 +569,7 @@ private fun CleanLivingHeartCanvas(
 }
 
 // =========================================================
-// 3. MULTI-YEAR COMPACT SEGMENTED PILLARS
+// 3. MULTI-YEAR COMPACT SEGMENTED PILLARS (WITH YEAR LABELS)
 // =========================================================
 
 @Composable
@@ -609,10 +622,10 @@ private fun MultiYearSegmentedPillarsCard(
                 selectedYear = selectedYear,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(115.dp)
+                    .height(120.dp)
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 multiYearAssets.forEach { item ->
@@ -675,15 +688,15 @@ private fun MultiYearSegmentedCanvas(
         val count = multiYearAssets.size.coerceAtLeast(1)
         val maxVal = multiYearAssets.maxOfOrNull { it.totalAssets }?.coerceAtLeast(100.0) ?: 100.0
 
-        val barWidth = 28.dp.toPx()
-        val spacing = (w - (barWidth * count)) / (count + 1).coerceAtLeast(1)
+        val barWidth = 32.dp.toPx()
+        val spacing = ((w - (barWidth * count)) / (count + 1)).coerceAtLeast(10f)
 
         multiYearAssets.forEachIndexed { idx, item ->
             val x = spacing + idx * (barWidth + spacing)
             val ratio = (item.totalAssets / maxVal).toFloat().coerceIn(0.06f, 0.90f)
-            val barH = (h * 0.74f) * ratio
+            val barH = (h * 0.70f) * ratio
             val isCurrent = item.year == selectedYear
-            val baseY = h - 16.dp.toPx()
+            val baseY = h - 18.dp.toPx()
 
             drawRoundRect(
                 brush = if (isCurrent) {
@@ -705,10 +718,11 @@ private fun MultiYearSegmentedCanvas(
             )
         }
 
+        // Baseline divider line
         drawLine(
             color = Color(0xFFE5E7EB),
-            start = Offset(0f, h - 14.dp.toPx()),
-            end = Offset(w, h - 14.dp.toPx()),
+            start = Offset(0f, h - 18.dp.toPx()),
+            end = Offset(w, h - 18.dp.toPx()),
             strokeWidth = 1.dp.toPx()
         )
     }
