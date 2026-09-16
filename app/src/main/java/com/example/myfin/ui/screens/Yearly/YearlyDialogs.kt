@@ -419,6 +419,7 @@ fun CashflowActiveMatrixSheet(
                 // 6. CORPORATE FLOAT & CLAIMS MATRIX
                 CashflowMatrixSheetType.CORPORATE_FLOAT -> {
                     val status = yearlyState.reimbursementStatus
+                    val totalReimbursementsReceived = yearlyMonths.sumOf { it.corporateReimbursements }
 
                     SheetHeader(
                         title = "Corporate Float & Claims Ledger",
@@ -432,7 +433,7 @@ fun CashflowActiveMatrixSheet(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         MatrixDataRow("Total Work Expenses Logged", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.totalWorkExpenses)}", "Business outlays paid by you", Color(0xFFE57A28))
                         MatrixDataRow("Corporate Advances Held", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.excessAdvanceHeld)}", "Upfront company funds (Ring-fenced)", Color(0xFF0D9488))
-                        MatrixDataRow("Reimbursements Received", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.cumulativeCorporateCredits)}", "Settled company refunds", SoftGreen)
+                        MatrixDataRow("Reimbursements Received", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalReimbursementsReceived)}", "Settled company refunds", SoftGreen)
                         HorizontalDivider(color = BorderLight, thickness = 0.8.dp)
                         MatrixDataRow("Pending Claim Due", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.pendingReimbursement)}", "Balance owed back to your account", if (status.pendingReimbursement > 0) SoftRed else SoftGreen, isBold = true)
                     }
@@ -544,7 +545,7 @@ private fun PillarDetailedRow(
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Text(pillarName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                    Text(benchmark, fontSize = 10.sp, color = if (isHealthy) SoftGreen else SoftAmber)
+                    Text(benchmark, fontSize = 10.sp, color = if (isHealthy) SoftGreen else Color(0xFFF59E0B))
                 }
             }
 
