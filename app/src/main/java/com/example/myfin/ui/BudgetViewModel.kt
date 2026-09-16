@@ -111,7 +111,7 @@ data class YearlyMonthData(
     val income: Double = 0.0,
     val expenses: Double = 0.0,
     val assets: Double = 0.0,
-    val personalIncome: Double = 0.0, // Fixed: Added explicit personalIncome
+    val personalIncome: Double = 0.0,
     val lifestyleExpenses: Double = 0.0,
     val workExpenses: Double = 0.0,
     val corporateReimbursements: Double = 0.0,
@@ -174,7 +174,7 @@ data class MonthlyUiState(
     val budgetPlans: List<BudgetPlanEntity> = emptyList(),
     val commitmentsShortfall: CommitmentsShortfallStatus = CommitmentsShortfallStatus(),
     val paydaySuggestion: PaydayAllocationPlan? = null,
-    val monthEndSweepPlan: MonthEndSweepPlan? = null,
+    val monthEndSweepSuggestion: MonthEndSweepPlan? = null,
     val reimbursementStatus: ReimbursementStatus = ReimbursementStatus(),
     val frequentCategories: List<CategoryEntity> = emptyList(),
     val frequentSubcategories: List<SubcategoryEntity> = emptyList(),
@@ -190,6 +190,7 @@ data class MonthlyUiState(
     val categoryBreakdowns: List<CategoryPerformance> get() = categories
     val accountList: List<String> get() = frequentAccounts.ifEmpty { activeAccounts.map { it.accountName } }
     val subcategories: List<SubcategoryEntity> get() = frequentSubcategories.ifEmpty { masterSubcategories }
+    val monthEndSweepPlan: MonthEndSweepPlan? get() = monthEndSweepSuggestion
 }
 
 data class YearlyUiState(
@@ -489,7 +490,6 @@ class BudgetViewModel(
                 else -> 0.0
             }
 
-            // Payday detection & calendar engine
             val salaryTxsInCurrentMonth = regularTxs.filter {
                 it.type == TransactionType.INCOME &&
                 it.category.equals("Salary & Professional Inflow", ignoreCase = true)
@@ -861,7 +861,7 @@ class BudgetViewModel(
                 budgetPlans = plans,
                 commitmentsShortfall = shortfallStatus,
                 paydaySuggestion = paydaySuggestion,
-                monthEndSweepPlan = monthEndSweepSuggestion,
+                monthEndSweepSuggestion = monthEndSweepSuggestion,
                 reimbursementStatus = monthReimbursementStatus,
                 frequentCategories = sortedMasterCats,
                 frequentSubcategories = sortedMasterSubcats,
@@ -937,12 +937,10 @@ class BudgetViewModel(
                 tx.type == TransactionType.ASSET && !isLoanGiven(tx) && !isNpaWriteOff(tx)
             }
 
-            // Direct year filter on stored entity column
             val allYearTransactions = allTransactions.filter { tx ->
                 tx.year == year && tx.type != TransactionType.TRANSFER
             }
 
-            // Fixed: 12 months map with explicit personalIncome and reliable fixed bill check
             val yearlyMonths = (1..12).map { m ->
                 val isFutureMonth = (year == thisYear && m > thisMonth) || (year > thisYear)
                 val monthTxs = allYearTransactions.filter { tx -> tx.month == m }
@@ -989,7 +987,6 @@ class BudgetViewModel(
                 )
             }
 
-            // Fixed: Derive yearly totals from allYearTransactions so annual totals match 12-month sums 1:1
             val totalIncome = allYearTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
             val totalExpense = allYearTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
             val totalAssets = allYearTransactions.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
@@ -1023,7 +1020,6 @@ class BudgetViewModel(
             }.coerceAtLeast(0.0)
 
             val cumulativeAssetMap = sortedMapOf<Int, Double>()
-            // Seed startYear - 1 so growth percentage for startYear computes correctly
             cumulativeAssetMap[startYear - 1] = runningCumulativeAssets
             annualNetAssetMap.toSortedMap().forEach { (y, netAmt) ->
                 runningCumulativeAssets = (runningCumulativeAssets + netAmt).coerceAtLeast(0.0)
@@ -1040,7 +1036,6 @@ class BudgetViewModel(
                 MultiYearAssetMetric(year = y, totalAssets = currentCum, growthPercent = growth)
             }
 
-            // Fixed: Align totalActiveInvestments with isGenuineSavingsOrAsset
             val allTimeInvestmentsInflow = allTransactions.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
             val allTimeCapitalDrawdowns = allTransactions.filter(isCapitalDrawdown).sumOf { it.amount }
             val totalActiveInvestments = (allTimeInvestmentsInflow - allTimeCapitalDrawdowns).coerceAtLeast(0.0)
