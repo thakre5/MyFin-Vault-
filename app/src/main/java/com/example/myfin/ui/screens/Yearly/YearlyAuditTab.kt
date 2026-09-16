@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.ui.theme.*
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -52,9 +53,9 @@ fun YearlyAuditTab(
     isCategoryLegacy: (String) -> Boolean,
     currencySymbol: String,
     isDiscreetMode: Boolean,
-    onOpenGraphGuide: (GraphExplanationGuide) -> Unit
+    onOpenGraphGuide: (GraphExplanationGuide) -> Unit,
+    onCategoryClick: (String) -> Unit = {}
 ) {
-    // 1. True Pareto Principle Math (Cumulative 80/20 calculation)
     val totalAnnualBurn = remember(categoryTrajectories) {
         categoryTrajectories.sumOf { it.annualTotal }
     }
@@ -75,11 +76,17 @@ fun YearlyAuditTab(
         }
     }
 
-    // 2. Budget Overrun Diagnostics
     val overrunCategories = remember(categoryTrajectories, plannedCategoryCeilings) {
         categoryTrajectories.filter { cat ->
             val ceiling = plannedCategoryCeilings[cat.categoryName] ?: 0.0
             ceiling > 0.0 && cat.annualTotal > ceiling
+        }
+    }
+
+    val totalOverrunAmount = remember(overrunCategories, plannedCategoryCeilings) {
+        overrunCategories.sumOf { cat ->
+            val ceiling = plannedCategoryCeilings[cat.categoryName] ?: 0.0
+            cat.annualTotal - ceiling
         }
     }
 
@@ -89,7 +96,7 @@ fun YearlyAuditTab(
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 240.dp)
     ) {
-        // 1. PARETO SPENDING WEIGHT CONCENTRATION RADAR
+        // 1. COMPACT PARETO RADAR CARD (Active Metrics Displayed)
         item(key = "compact_pareto_radar_card") {
             CompactParetoRadarCard(
                 categoryTrajectories = categoryTrajectories,
@@ -117,12 +124,13 @@ fun YearlyAuditTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 2. BUDGETED VS. ACTUAL OUTFLOW VARIANCE
+        // 2. BUDGET VS. ACTUAL OUTFLOW VARIANCE (With Overrun Amount)
         item(key = "budget_vs_actual_dual_pillars") {
             CompactBudgetVsActualCard(
                 categoryTrajectories = categoryTrajectories,
                 plannedCategoryCeilings = plannedCategoryCeilings,
                 overrunCount = overrunCategories.size,
+                totalOverrun = totalOverrunAmount,
                 currencySymbol = currencySymbol,
                 isDiscreet = isDiscreetMode,
                 onInfoClick = {
@@ -198,7 +206,8 @@ fun YearlyAuditTab(
                     annualCeiling = plannedCeiling,
                     currencySymbol = currencySymbol,
                     isDiscreet = isDiscreetMode,
-                    isLegacy = isLegacy
+                    isLegacy = isLegacy,
+                    onClick = { onCategoryClick(item.categoryName) }
                 )
                 Spacer(modifier = Modifier.height(10.dp))
             }
@@ -207,7 +216,7 @@ fun YearlyAuditTab(
 }
 
 // =========================================================
-// 1. COMPACT PARETO RADAR CARD (LABELED & MATHEMATICALLY BOUND)
+// 1. COMPACT PARETO RADAR CARD
 // =========================================================
 
 @Composable
@@ -232,7 +241,6 @@ private fun CompactParetoRadarCard(
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header with Pareto Insight Badge
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -243,7 +251,11 @@ private fun CompactParetoRadarCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Annual Spending Pareto", fontWeight = FontWeight.Black, fontSize = 16.5.sp, color = TextDark)
-                    Text("Outflow distribution & weight concentration", fontSize = 10.5.sp, color = TextMuted)
+                    Text(
+                        text = if (isDiscreet) "Total Burn: ••••" else "Total Burn: $currencySymbol${String.format(Locale.US, "%,.0f", totalBurn)}",
+                        fontSize = 10.5.sp,
+                        color = TextMuted
+                    )
                 }
 
                 IconButton(
@@ -261,7 +273,6 @@ private fun CompactParetoRadarCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Mathematical Pareto Banner
             if (paretoMetrics != null) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
@@ -286,7 +297,6 @@ private fun CompactParetoRadarCard(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Compact Star Polygon (Trimmed to 135.dp)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -318,14 +328,13 @@ private fun CompactParetoRadarCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Labeled Category Color Chips (Fixes the unlabeled spoke issue)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 topCategories.chunked(2).forEach { rowPair ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        rowPair.forEachIndexed { colIdx, cat ->
+                        rowPair.forEach { cat ->
                             val colorIdx = (topCategories.indexOf(cat)).coerceIn(0, RADAR_PALETTE.lastIndex)
                             val chipColor = RADAR_PALETTE[colorIdx]
 
@@ -374,11 +383,10 @@ private fun CompactStarRadarCanvas(
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
-        val n = topCategories.size.coerceIn(3, 6)
+        val count = topCategories.size
         val c = center
         val maxR = size.minDimension * 0.44f
 
-        // 3 Concentric Reference Polygons
         for (ring in 1..3) {
             val r = maxR * (ring / 3f)
             drawCircle(
@@ -389,8 +397,9 @@ private fun CompactStarRadarCanvas(
             )
         }
 
-        if (topCategories.isEmpty()) return@Canvas
+        if (count < 3) return@Canvas
 
+        val n = count.coerceAtMost(6)
         val maxAmt = topCategories.maxOfOrNull { it.annualTotal }?.coerceAtLeast(1.0) ?: 1.0
         val polyPath = Path()
 
@@ -407,7 +416,6 @@ private fun CompactStarRadarCanvas(
             val angValley = ((i + 0.5) * 2 * Math.PI / n) - Math.PI / 2
             val pValley = Offset(c.x + (rValley * cos(angValley)).toFloat(), c.y + (rValley * sin(angValley)).toFloat())
 
-            // Spoke axis line
             drawLine(
                 color = Color(0xFFE2E8F0),
                 start = c,
@@ -434,7 +442,6 @@ private fun CompactStarRadarCanvas(
             style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
 
-        // Draw vertex dots with palette accent
         for (i in 0 until n) {
             val amt = topCategories.getOrNull(i)?.annualTotal ?: 0.0
             val ratio = (amt / maxAmt).toFloat().coerceIn(0.18f, 0.95f)
@@ -450,7 +457,7 @@ private fun CompactStarRadarCanvas(
 }
 
 // =========================================================
-// 2. BUDGET VS ACTUAL DUAL PILLARS (OVERRUN SENSITIVE)
+// 2. BUDGET VS ACTUAL DUAL PILLARS
 // =========================================================
 
 @Composable
@@ -458,11 +465,11 @@ private fun CompactBudgetVsActualCard(
     categoryTrajectories: List<CategoryAnnualTrajectory>,
     plannedCategoryCeilings: Map<String, Double>,
     overrunCount: Int,
+    totalOverrun: Double,
     currencySymbol: String,
     isDiscreet: Boolean,
     onInfoClick: () -> Unit
 ) {
-    // Sort prioritized by highest budget overruns first, then highest spend
     val displayList = remember(categoryTrajectories, plannedCategoryCeilings) {
         categoryTrajectories.sortedByDescending { cat ->
             val planned = plannedCategoryCeilings[cat.categoryName] ?: 0.0
@@ -507,7 +514,6 @@ private fun CompactBudgetVsActualCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Diagnostic Banner (Overrun Alert vs On Track)
             Surface(
                 shape = RoundedCornerShape(8.dp),
                 color = if (overrunCount > 0) SoftRed.copy(alpha = 0.08f) else SoftGreen.copy(alpha = 0.08f),
@@ -526,7 +532,11 @@ private fun CompactBudgetVsActualCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (overrunCount > 0) "$overrunCount categories exceeded annual planned budget" else "All categories within planned annual ceilings",
+                        text = if (overrunCount > 0) {
+                            if (isDiscreet) "$overrunCount categories exceeded budget" else "$overrunCount categories exceeded budget (+$currencySymbol${String.format(Locale.US, "%,.0f", totalOverrun)})"
+                        } else {
+                            "All categories within planned annual ceilings"
+                        },
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (overrunCount > 0) SoftRed else SoftGreen
@@ -540,7 +550,6 @@ private fun CompactBudgetVsActualCard(
                 max(cat.annualTotal, plannedCategoryCeilings[cat.categoryName] ?: 0.0)
             }?.coerceAtLeast(100.0) ?: 100.0
 
-            // Pillar Chart (Height 105.dp)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -563,7 +572,6 @@ private fun CompactBudgetVsActualCard(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.Bottom
                         ) {
-                            // Target Pillar
                             Box(
                                 modifier = Modifier
                                     .width(13.dp)
@@ -571,7 +579,6 @@ private fun CompactBudgetVsActualCard(
                                     .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
                                     .background(if (plannedAmt > 0) Color(0xFFCBD5E1) else Color(0xFFE2E8F0))
                             )
-                            // Realized Spend Pillar
                             Box(
                                 modifier = Modifier
                                     .width(13.dp)
@@ -595,7 +602,6 @@ private fun CompactBudgetVsActualCard(
             HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Chart Legend
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
@@ -623,7 +629,7 @@ private fun CompactBudgetVsActualCard(
 }
 
 // =========================================================
-// 3. POLISHED CATEGORY TRAJECTORY ROW CARD
+// 3. POLISHED CATEGORY TRAJECTORY ROW
 // =========================================================
 
 @Composable
@@ -632,13 +638,17 @@ private fun PolishedCategoryTrajectoryRow(
     annualCeiling: Double,
     currencySymbol: String,
     isDiscreet: Boolean,
-    isLegacy: Boolean = false
+    isLegacy: Boolean = false,
+    onClick: () -> Unit = {}
 ) {
     val isOverrun = annualCeiling > 0.0 && item.annualTotal > annualCeiling
     val monthlyAverage = item.annualTotal / 12.0
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(14.dp),
         color = CardWhite,
         border = BorderStroke(
@@ -651,7 +661,6 @@ private fun PolishedCategoryTrajectoryRow(
         )
     ) {
         Column(modifier = Modifier.padding(13.dp)) {
-            // Row 1: Title, Badges, Total Spend
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -718,7 +727,6 @@ private fun PolishedCategoryTrajectoryRow(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Row 2: 12-Month Sparkline Canvas
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -748,7 +756,6 @@ private fun PolishedCategoryTrajectoryRow(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Row 3: Sparkline Timeline Footer
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
