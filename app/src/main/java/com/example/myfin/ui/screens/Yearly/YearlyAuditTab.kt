@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PieChart
@@ -30,7 +31,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.ui.theme.*
 import java.util.Locale
-import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -66,7 +66,8 @@ fun YearlyAuditTab(
         } else {
             var cumulative = 0.0
             var count = 0
-            for (cat in categoryTrajectories) {
+            val sorted = categoryTrajectories.sortedByDescending { it.annualTotal }
+            for (cat in sorted) {
                 cumulative += cat.annualTotal
                 count++
                 if (cumulative / totalAnnualBurn >= 0.75) break
@@ -96,7 +97,7 @@ fun YearlyAuditTab(
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 240.dp)
     ) {
-        // 1. COMPACT PARETO RADAR CARD (Active Metrics Displayed)
+        // 1. COMPACT PARETO RADAR CARD
         item(key = "compact_pareto_radar_card") {
             CompactParetoRadarCard(
                 categoryTrajectories = categoryTrajectories,
@@ -124,7 +125,7 @@ fun YearlyAuditTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 2. BUDGET VS. ACTUAL OUTFLOW VARIANCE (With Overrun Amount)
+        // 2. BUDGET VS. ACTUAL OUTFLOW VARIANCE
         item(key = "budget_vs_actual_dual_pillars") {
             CompactBudgetVsActualCard(
                 categoryTrajectories = categoryTrajectories,
@@ -216,7 +217,7 @@ fun YearlyAuditTab(
 }
 
 // =========================================================
-// 1. COMPACT PARETO RADAR CARD
+// 1. COMPACT PARETO RADAR CARD (WITH ADAPTIVE N < 3 FALLBACK)
 // =========================================================
 
 @Composable
@@ -297,31 +298,60 @@ private fun CompactParetoRadarCard(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(135.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CompactStarRadarCanvas(
-                    topCategories = topCategories,
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                Surface(
-                    modifier = Modifier.size(28.dp),
-                    shape = CircleShape,
-                    color = CardWhite,
-                    shadowElevation = 2.dp,
-                    border = BorderStroke(0.8.dp, Color(0xFFEDE9FE))
+            if (topCategories.size >= 3) {
+                // Star Polygon for >= 3 categories
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(135.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "${topCategories.size}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Black,
-                            color = AccentPurple
-                        )
+                    CompactStarRadarCanvas(
+                        topCategories = topCategories,
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    Surface(
+                        modifier = Modifier.size(28.dp),
+                        shape = CircleShape,
+                        color = CardWhite,
+                        shadowElevation = 2.dp,
+                        border = BorderStroke(0.8.dp, Color(0xFFEDE9FE))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "${topCategories.size}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                color = AccentPurple
+                            )
+                        }
+                    }
+                }
+            } else if (topCategories.isNotEmpty()) {
+                // Adaptive Split Bar for 1 or 2 categories (Clean, avoids empty polygon)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(12.dp)
+                            .clip(CircleShape)
+                            .background(BorderLight.copy(alpha = 0.4f))
+                    ) {
+                        topCategories.forEachIndexed { idx, cat ->
+                            val color = RADAR_PALETTE[idx % RADAR_PALETTE.size]
+                            val ratio = if (totalBurn > 0) (cat.annualTotal / totalBurn).toFloat().coerceIn(0.04f, 1f) else 1f
+                            Box(
+                                modifier = Modifier
+                                    .weight(ratio)
+                                    .fillMaxHeight()
+                                    .background(color)
+                            )
+                        }
                     }
                 }
             }
@@ -457,7 +487,7 @@ private fun CompactStarRadarCanvas(
 }
 
 // =========================================================
-// 2. BUDGET VS ACTUAL DUAL PILLARS
+// 2. BUDGET VS ACTUAL DUAL PILLARS (OVERRUN SENSITIVE)
 // =========================================================
 
 @Composable
@@ -470,11 +500,17 @@ private fun CompactBudgetVsActualCard(
     isDiscreet: Boolean,
     onInfoClick: () -> Unit
 ) {
+    // Overrun-prioritized sort: Overrun categories take slots 1..N, remaining filled by top spenders
     val displayList = remember(categoryTrajectories, plannedCategoryCeilings) {
-        categoryTrajectories.sortedByDescending { cat ->
+        val overruns = categoryTrajectories.filter { cat ->
             val planned = plannedCategoryCeilings[cat.categoryName] ?: 0.0
-            if (planned > 0) (cat.annualTotal - planned) else 0.0
-        }.take(4)
+            planned > 0.0 && cat.annualTotal > planned
+        }.sortedByDescending { cat ->
+            cat.annualTotal - (plannedCategoryCeilings[cat.categoryName] ?: 0.0)
+        }
+        val others = categoryTrajectories.filter { it !in overruns }
+            .sortedByDescending { it.annualTotal }
+        (overruns + others).take(4)
     }
 
     Surface(
@@ -589,10 +625,14 @@ private fun CompactBudgetVsActualCard(
                         }
                         Spacer(modifier = Modifier.height(5.dp))
                         Text(
-                            text = cat.categoryName.take(5),
+                            text = cat.categoryName,
                             fontSize = 9.sp,
                             color = if (isOverrun) SoftRed else TextMuted,
-                            fontWeight = if (isOverrun) FontWeight.Bold else FontWeight.Medium
+                            fontWeight = if (isOverrun) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.width(48.dp)
                         )
                     }
                 }
@@ -629,7 +669,7 @@ private fun CompactBudgetVsActualCard(
 }
 
 // =========================================================
-// 3. POLISHED CATEGORY TRAJECTORY ROW
+// 3. POLISHED CATEGORY TRAJECTORY ROW (PRIVACY-SAFE)
 // =========================================================
 
 @Composable
@@ -708,20 +748,29 @@ private fun PolishedCategoryTrajectoryRow(
                     )
                 }
 
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.annualTotal)}",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 14.5.sp,
-                        color = if (isOverrun) SoftRed else AccentPurple
-                    )
-                    if (annualCeiling > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            text = if (isDiscreet) "Cap: ••••" else "Cap: $currencySymbol${String.format(Locale.US, "%,.0f", annualCeiling)}",
-                            fontSize = 9.sp,
-                            color = TextMuted
+                            text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.annualTotal)}",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 14.5.sp,
+                            color = if (isOverrun) SoftRed else AccentPurple
                         )
+                        if (annualCeiling > 0) {
+                            Text(
+                                text = if (isDiscreet) "Cap: ••••" else "Cap: $currencySymbol${String.format(Locale.US, "%,.0f", annualCeiling)}",
+                                fontSize = 9.sp,
+                                color = TextMuted
+                            )
+                        }
                     }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Inspect Category",
+                        tint = TextMuted.copy(alpha = 0.6f),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
 
@@ -762,7 +811,13 @@ private fun PolishedCategoryTrajectoryRow(
             ) {
                 Text("Jan", fontSize = 8.5.sp, color = TextMuted)
                 Text(
-                    text = "Peak: ${YEARLY_MONTH_NAMES[item.peakMonthIndex]} ($currencySymbol${String.format(Locale.US, "%,.0f", item.peakMonthAmount)})",
+                    text = if (item.annualTotal <= 0.0) {
+                        "No spend recorded"
+                    } else if (isDiscreet) {
+                        "Peak: ${YEARLY_MONTH_NAMES[item.peakMonthIndex]}"
+                    } else {
+                        "Peak: ${YEARLY_MONTH_NAMES[item.peakMonthIndex]} ($currencySymbol${String.format(Locale.US, "%,.0f", item.peakMonthAmount)})"
+                    },
                     fontSize = 9.sp,
                     color = if (isOverrun) SoftRed else AccentPurple,
                     fontWeight = FontWeight.Bold
