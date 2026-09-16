@@ -63,6 +63,7 @@ fun YearlyScreen(
 
     var inspectedMonth by remember { mutableStateOf<YearlyMonthData?>(null) }
     var activeGraphGuide by remember { mutableStateOf<GraphExplanationGuide?>(null) }
+    var activeMatrixSheet by remember { mutableStateOf<CashflowMatrixSheetType?>(null) }
     var isDiscreetMode by remember { mutableStateOf(false) }
 
     val yearlyMonthsData = yearlyState.yearlyMonths
@@ -296,7 +297,7 @@ fun YearlyScreen(
                         quarterlyData = quarterlyData,
                         currencySymbol = userProfile.currencySymbol,
                         isDiscreetMode = isDiscreetMode,
-                        onOpenGraphGuide = { activeGraphGuide = it }
+                        onOpenMatrixSheet = { activeMatrixSheet = it }
                     )
 
                     1 -> YearlyMonthsTab(
@@ -366,6 +367,23 @@ fun YearlyScreen(
                 .zIndex(4f)
         )
 
+        // Live Active Financial Matrix Sheet (Tab 0)
+        activeMatrixSheet?.let { matrixType ->
+            CashflowActiveMatrixSheet(
+                sheetType = matrixType,
+                yearlyState = yearlyState,
+                quarterlyData = quarterlyData,
+                currencySymbol = userProfile.currencySymbol,
+                isDiscreetMode = isDiscreetMode,
+                onDismiss = { activeMatrixSheet = null },
+                onNavigateToMonth = { monthIdx ->
+                    viewModel.selectMonth(monthIdx)
+                    onNavigateToMonth(uiState.selectedYear, monthIdx)
+                }
+            )
+        }
+
+        // Static Graph Explanation Sheet (Tabs 1, 2, 3)
         activeGraphGuide?.let { guide ->
             GraphExplanationBottomSheet(
                 guide = guide,
@@ -373,6 +391,7 @@ fun YearlyScreen(
             )
         }
 
+        // Monthly Detailed Inspector Sheet
         inspectedMonth?.let { mData ->
             InspectedMonthBottomSheet(
                 mData = mData,
