@@ -2,6 +2,7 @@ package com.example.myfin.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -175,14 +176,14 @@ fun CashflowActiveMatrixSheet(
                     ProTipNotice("Operating surplus is the purest wealth indicator. A wide spread between inflow and burn feeds your Fortress vaults directly.")
                 }
 
-                // 2. 12-MONTH CASHFLOW PULSE MATRIX (ITEMIZED MONTHS TABLE)
+                // 2. 12-MONTH CASHFLOW PULSE MATRIX (ITEMIZED MONTHS TABLE WITH DIRECT NAVIGATION)
                 CashflowMatrixSheetType.CASHFLOW_PULSE -> {
                     val surplusMonths = yearlyMonths.count { !it.isFuture && it.netSavings > 0 }
                     val deficitMonths = yearlyMonths.count { !it.isFuture && it.netSavings < 0 }
 
                     SheetHeader(
                         title = "12-Month Cashflow Pulse",
-                        subtitle = "Month-by-month retention ledger",
+                        subtitle = "Tap month to inspect detailed breakdown",
                         badge = "$surplusMonths Surplus / $deficitMonths Deficit",
                         badgeColor = SoftGreen
                     )
@@ -198,9 +199,16 @@ fun CashflowActiveMatrixSheet(
                         items(yearlyMonths) { m ->
                             val isSurplus = m.netSavings >= 0
                             val statusColor = if (m.isFuture) TextMuted else if (isSurplus) SoftGreen else SoftRed
+                            val mInflow = if (m.personalIncome > 0.0) m.personalIncome else m.income
 
                             Surface(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        onDismiss()
+                                        onNavigateToMonth(m.monthIndex)
+                                    },
                                 shape = RoundedCornerShape(10.dp),
                                 color = CanvasLight,
                                 border = BorderStroke(0.6.dp, BorderLight)
@@ -215,7 +223,7 @@ fun CashflowActiveMatrixSheet(
                                     Column {
                                         Text(m.monthName, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = TextDark)
                                         Text(
-                                            text = if (isDiscreetMode) "••••" else "In: $currencySymbol${String.format(Locale.US, "%,.0f", m.income)} | Burn: $currencySymbol${String.format(Locale.US, "%,.0f", m.lifestyleExpenses)}",
+                                            text = if (isDiscreetMode) "••••" else "In: $currencySymbol${String.format(Locale.US, "%,.0f", mInflow)} | Burn: $currencySymbol${String.format(Locale.US, "%,.0f", m.lifestyleExpenses)}",
                                             fontSize = 10.sp,
                                             color = TextMuted
                                         )
@@ -430,11 +438,11 @@ fun CashflowActiveMatrixSheet(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MatrixDataRow("Total Work Expenses Logged", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.totalWorkExpenses)}", "Business outlays paid by you", Color(0xFFE57A28))
+                        MatrixDataRow("Work Expenses Logged (YTD)", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.totalWorkExpenses)}", "Business outlays paid by you this year", Color(0xFFE57A28))
                         MatrixDataRow("Corporate Advances Held", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.excessAdvanceHeld)}", "Upfront company funds (Ring-fenced)", Color(0xFF0D9488))
-                        MatrixDataRow("Reimbursements Received", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalReimbursementsReceived)}", "Settled company refunds", SoftGreen)
+                        MatrixDataRow("Reimbursements Received (YTD)", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalReimbursementsReceived)}", "Settled company refunds this year", SoftGreen)
                         HorizontalDivider(color = BorderLight, thickness = 0.8.dp)
-                        MatrixDataRow("Pending Claim Due", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.pendingReimbursement)}", "Balance owed back to your account", if (status.pendingReimbursement > 0) SoftRed else SoftGreen, isBold = true)
+                        MatrixDataRow("All-Time Pending Claim Due", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.pendingReimbursement)}", "Balance owed back to your personal accounts", if (status.pendingReimbursement > 0) SoftRed else SoftGreen, isBold = true)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -690,6 +698,10 @@ fun GraphExplanationBottomSheet(
     }
 }
 
+// =========================================================
+// INSPECTED MONTH BOTTOM SHEET (ACCURATE PERSONAL INFLOW)
+// =========================================================
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InspectedMonthBottomSheet(
@@ -700,7 +712,8 @@ fun InspectedMonthBottomSheet(
     onDismiss: () -> Unit,
     onOpenMonth: (Int) -> Unit
 ) {
-    val monthPersonalIncome = mData.netSavings + mData.lifestyleExpenses + mData.assets
+    // Fixed: Native personalIncome read ensures loans are not double counted
+    val monthPersonalIncome = if (mData.personalIncome > 0.0) mData.personalIncome else mData.income
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
