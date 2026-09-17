@@ -12,6 +12,7 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
@@ -49,6 +50,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -57,6 +59,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.SubcomposeAsyncImage
 import com.example.myfin.BuildConfig
 import com.example.myfin.data.ExcelExportManager
@@ -87,6 +92,150 @@ enum class SettingsAccordionSection {
 
 private val SettingsTealColor = Color(0xFF0D9488)
 
+// ==========================================
+// BULLETPROOF SETTINGS INTENT LAUNCHERS
+// ==========================================
+
+fun openAppDetailsSettings(context: Context) {
+    try {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Toast.makeText(context, "Could not open settings: ${e.message}", Toast.LENGTH_SHORT).show()
+    }
+}
+
+fun openExactAlarmSettings(context: Context) {
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                data = Uri.fromParts("package", context.packageName, null)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } else {
+            openAppDetailsSettings(context)
+        }
+    } catch (_: Exception) {
+        openAppDetailsSettings(context)
+    }
+}
+
+fun openBatteryOptimizationSettings(context: Context) {
+    val packageName = context.packageName
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && powerManager?.isIgnoringBatteryOptimizations(packageName) == false) {
+        try {
+            val requestIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(requestIntent)
+            return
+        } catch (_: Exception) { }
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        try {
+            val listIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(listIntent)
+            return
+        } catch (_: Exception) { }
+    }
+
+    try {
+        val samsungBatteryIntent = Intent().apply {
+            setClassName("com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(samsungBatteryIntent)
+        return
+    } catch (_: Exception) { }
+
+    openAppDetailsSettings(context)
+}
+
+fun openNotificationSettings(context: Context) {
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val intent = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                putExtra(Settings.EXTRA_CHANNEL_ID, ReminderScheduler.CHANNEL_ID_REMINDERS)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } else {
+            openAppDetailsSettings(context)
+        }
+    } catch (_: Exception) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val appNotifIntent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(appNotifIntent)
+            } else {
+                openAppDetailsSettings(context)
+            }
+        } catch (_: Exception) {
+            openAppDetailsSettings(context)
+        }
+    }
+}
+
+private fun triggerBiometricVerificationScan(
+    context: Context,
+    onSuccess: () -> Unit,
+    onFailure: (String) -> Unit
+) {
+    val activity = context as? FragmentActivity
+    if (activity == null) {
+        onSuccess()
+        return
+    }
+
+    try {
+        val executor = ContextCompat.getMainExecutor(activity)
+        val prompt = BiometricPrompt(
+            activity,
+            executor,
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    super.onAuthenticationSucceeded(result)
+                    onSuccess()
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    super.onAuthenticationError(errorCode, errString)
+                    onFailure(errString.toString())
+                }
+
+                override fun onAuthenticationFailed() {
+                    super.onAuthenticationFailed()
+                    onFailure("Biometric recognition failed")
+                }
+            }
+        )
+
+        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Confirm Biometric Identity")
+            .setSubtitle("Scan fingerprint or face to enable biometric vault lock")
+            .setNegativeButtonText("Cancel")
+            .build()
+
+        prompt.authenticate(promptInfo)
+    } catch (e: Exception) {
+        onFailure("Authentication error: ${e.message}")
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -97,6 +246,7 @@ fun SettingsScreen(
     onNavigateToVaults: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
     val userProfile by viewModel.userProfile.collectAsState()
     val monthlyUiState by viewModel.monthlyUiState.collectAsState()
@@ -111,13 +261,49 @@ fun SettingsScreen(
     var showRestoreConfirmDialog by remember { mutableStateOf(false) }
     var pendingPermissionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
+    val alarmManager = remember { context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager }
+    val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as? PowerManager }
+
+    var canScheduleExactAlarms by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                alarmManager?.canScheduleExactAlarms() ?: true
+            } else true
+        )
+    }
+
+    var isIgnoringBatteryOptimizations by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: true
+            } else true
+        )
+    }
+
+    // Auto-refresh permission & battery states when returning from Android System Settings
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                canScheduleExactAlarms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    alarmManager?.canScheduleExactAlarms() ?: true
+                } else true
+
+                isIgnoringBatteryOptimizations = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: true
+                } else true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
             pendingPermissionAction?.invoke()
         } else {
-            Toast.makeText(context, "Notification permission is required to post alerts", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Notification permission is required to post reminders", Toast.LENGTH_LONG).show()
         }
         pendingPermissionAction = null
     }
@@ -138,20 +324,6 @@ fun SettingsScreen(
         } else {
             onGranted()
         }
-    }
-
-    val alarmManager = remember { context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager }
-    val canScheduleExactAlarms = remember(context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            alarmManager?.canScheduleExactAlarms() ?: true
-        } else true
-    }
-
-    val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as? PowerManager }
-    var isIgnoringBatteryOptimizations by remember(context) {
-        mutableStateOf(
-            powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: true
-        )
     }
 
     LaunchedEffect(initialActiveSheet) {
@@ -500,7 +672,7 @@ fun SettingsScreen(
                         onClick = { activeSheet = SettingsActiveSheet.VAULT_STRATEGY }
                     )
                     SettingsChildNavRow(
-                        title = "Auto-Sweep Operating Threshold",
+                        title = "Fortress Liquid Savings Cap (Auto-Sweep)",
                         value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", autoSweepLimit)}",
                         onClick = { activeSheet = SettingsActiveSheet.AUTO_SWEEP_THRESHOLD }
                     )
@@ -533,7 +705,27 @@ fun SettingsScreen(
                     SettingsChildSwitchRow(
                         title = "Biometric Authentication",
                         isChecked = userProfile.isBiometricEnabled,
-                        onToggle = { activeSheet = SettingsActiveSheet.BIOMETRIC_CONFIRM },
+                        onToggle = { shouldEnable ->
+                            if (shouldEnable) {
+                                if (!viewModel.securityManager.canAuthenticateWithBiometrics(context)) {
+                                    Toast.makeText(context, "Biometrics not available on this device", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    triggerBiometricVerificationScan(
+                                        context = context,
+                                        onSuccess = {
+                                            viewModel.updateBiometricEnabled(true)
+                                            Toast.makeText(context, "Biometric unlock activated", Toast.LENGTH_SHORT).show()
+                                        },
+                                        onFailure = { errorMsg ->
+                                            Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                }
+                            } else {
+                                viewModel.updateBiometricEnabled(false)
+                                Toast.makeText(context, "Biometrics disabled", Toast.LENGTH_SHORT).show()
+                            }
+                        },
                         onClick = { activeSheet = SettingsActiveSheet.BIOMETRIC_CONFIRM }
                     )
                     SettingsChildNavRow(
@@ -551,7 +743,7 @@ fun SettingsScreen(
                     )
                 }
 
-                // Reminders & Alerts
+                // Reminders & Alerts (Live Re-armed & Fully Reactive)
                 val reminderTime = String.format(Locale.US, "%02d:%02d", userProfile.reminderHour, userProfile.reminderMinute)
                 ExpandableSettingsCard(
                     icon = Icons.Outlined.Notifications,
@@ -561,7 +753,6 @@ fun SettingsScreen(
                         expandedSection = if (expandedSection == SettingsAccordionSection.REMINDERS) SettingsAccordionSection.NONE else SettingsAccordionSection.REMINDERS
                     }
                 ) {
-                    // Daily Review Reminder Toggle
                     SettingsChildSwitchRow(
                         title = "Daily Review Reminder ($reminderTime)",
                         isChecked = userProfile.reminderEnabled,
@@ -589,7 +780,6 @@ fun SettingsScreen(
                         onClick = { activeSheet = SettingsActiveSheet.DAILY_REMINDER }
                     )
 
-                    // AutoPay Bill Due Alerts Toggle
                     SettingsChildSwitchRow(
                         title = "AutoPay Bill Due Alerts (48h)",
                         isChecked = userProfile.isAutoPayReminderEnabled,
@@ -616,7 +806,6 @@ fun SettingsScreen(
                         }
                     )
 
-                    // Budget Overrun Warnings Toggle
                     SettingsChildSwitchRow(
                         title = "Budget Overrun Warnings",
                         isChecked = userProfile.isOverrunWarningEnabled,
@@ -629,7 +818,6 @@ fun SettingsScreen(
 
                     HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
 
-                    // Immediate Test Trigger
                     SettingsChildNavRow(
                         title = "Send Test Notification Now",
                         value = "Trigger",
@@ -641,60 +829,25 @@ fun SettingsScreen(
                         }
                     )
 
-                    // Battery Optimization Exemption
                     SettingsChildNavRow(
                         title = "Battery Optimization Status",
-                        value = if (isIgnoringBatteryOptimizations) "Unrestricted" else "Optimize (May delay alarms)",
-                        onClick = {
-                            try {
-                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                    data = Uri.parse("package:${context.packageName}")
-                                }
-                                context.startActivity(intent)
-                            } catch (_: Exception) {
-                                val fallback = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                context.startActivity(fallback)
-                            }
-                        }
+                        value = if (isIgnoringBatteryOptimizations) "Unrestricted" else "Optimize (May delay)",
+                        onClick = { openBatteryOptimizationSettings(context) }
                     )
 
-                    // System Notification Channel Shortcut
                     SettingsChildNavRow(
                         title = "Android Notification Settings",
                         value = "System Channel",
-                        onClick = {
-                            try {
-                                val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
-                                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                        putExtra(Settings.EXTRA_CHANNEL_ID, ReminderScheduler.CHANNEL_ID_REMINDERS)
-                                    }
-                                } else {
-                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                        data = Uri.fromParts("package", context.packageName, null)
-                                    }
-                                }
-                                context.startActivity(intent)
-                            } catch (_: Exception) {
-                                val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                    data = Uri.fromParts("package", context.packageName, null)
-                                }
-                                context.startActivity(fallback)
-                            }
-                        }
+                        onClick = { openNotificationSettings(context) }
                     )
 
+                    // Warning banner for restricted exact alarms
                     if (!canScheduleExactAlarms && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    val exactIntent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                        data = Uri.fromParts("package", context.packageName, null)
-                                    }
-                                    context.startActivity(exactIntent)
-                                },
+                                .clickable { openExactAlarmSettings(context) },
                             shape = RoundedCornerShape(8.dp),
                             color = SoftAmber.copy(alpha = 0.12f),
                             border = BorderStroke(0.6.dp, SoftAmber)
@@ -702,12 +855,54 @@ fun SettingsScreen(
                             Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Warning, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Exact Alarms restricted by Android OS. Tap to grant permission so alarms fire on the exact minute.",
-                                    fontSize = 11.sp,
-                                    color = TextDark,
-                                    lineHeight = 15.sp
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Exact Alarms restricted by Android OS",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextDark
+                                    )
+                                    Text(
+                                        text = "Tap to grant permission so alarms fire on the exact minute.",
+                                        fontSize = 10.5.sp,
+                                        color = TextMuted,
+                                        lineHeight = 14.sp
+                                    )
+                                }
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+
+                    // Warning banner for battery optimizations
+                    if (!isIgnoringBatteryOptimizations && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { openBatteryOptimizationSettings(context) },
+                            shape = RoundedCornerShape(8.dp),
+                            color = SoftTeal.copy(alpha = 0.12f),
+                            border = BorderStroke(0.6.dp, SoftTeal)
+                        ) {
+                            Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.BatteryAlert, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Battery Optimization Active",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextDark
+                                    )
+                                    Text(
+                                        text = "Tap to exempt MyFin so background battery savers do not kill scheduled alarms.",
+                                        fontSize = 10.5.sp,
+                                        color = TextMuted,
+                                        lineHeight = 14.sp
+                                    )
+                                }
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = SoftTeal, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
@@ -748,9 +943,15 @@ fun SettingsScreen(
                         expandedSection = if (expandedSection == SettingsAccordionSection.REPORTS) SettingsAccordionSection.NONE else SettingsAccordionSection.REPORTS
                     }
                 ) {
+                    Text(
+                        text = "Exports your entire lifetime ledger history across all connected vaults and categories.",
+                        fontSize = 11.sp,
+                        color = TextMuted,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
                     SettingsChildNavRow(
                         title = "Export Excel Statement (.xlsx)",
-                        value = "Generate",
+                        value = "All-Time Statement",
                         onClick = {
                             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
                             xlsxExportLauncher.launch("MyFin_Statement_$timeStamp.xlsx")
@@ -758,7 +959,7 @@ fun SettingsScreen(
                     )
                     SettingsChildNavRow(
                         title = "Export Universal Ledger (.csv)",
-                        value = "Export",
+                        value = "All-Time Ledger",
                         onClick = {
                             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
                             csvExportLauncher.launch("MyFin_Ledger_$timeStamp.csv")
@@ -1333,7 +1534,7 @@ fun SettingsScreen(
                         val parsedIncome = incomeInput.toDoubleOrNull() ?: userProfile.baseMonthlyIncome
                         val cleanDob = dobInput.trim()
                         if (cleanDob.isNotBlank()) {
-                            viewModel.updateDateOfBirth(cleanDob)
+                            viewModel.securityManager.setRecoveryDob(cleanDob)
                         }
                         val updated = userProfile.copy(
                             id = 1,
@@ -1514,8 +1715,8 @@ fun SettingsScreen(
                     .imePadding()
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
-                Text("Auto-Sweep Operating Threshold", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Sets the liquid savings cap in your Fortress vault. Excess amounts automatically sweep into Emergency Fixed Deposits.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
+                Text("Fortress Liquid Savings Cap", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                Text("Sets the liquid savings cushion in your Fortress account. Excess amounts automatically sweep into Emergency Fixed Deposits.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1526,7 +1727,7 @@ fun SettingsScreen(
                         val parts = filtered.split('.')
                         thresholdInput = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
                     },
-                    label = { Text("Savings Liquid Cap (${userProfile.currencySymbol})") },
+                    label = { Text("Liquid Savings Cap (${userProfile.currencySymbol})") },
                     placeholder = { Text("e.g. 25000") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -1541,7 +1742,7 @@ fun SettingsScreen(
                         val parsed = thresholdInput.toDoubleOrNull() ?: 0.0
                         viewModel.updateFortressSweepThreshold(parsed)
                         activeSheet = SettingsActiveSheet.NONE
-                        Toast.makeText(context, "Auto-sweep threshold set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", parsed)}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Fortress savings cap set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", parsed)}", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1549,473 +1750,12 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
-                    Text("Save Operating Threshold", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Save Savings Cap", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
             }
         }
-    }
-
-    // Fortress Safety Net Target Sheet
-    if (activeSheet == SettingsActiveSheet.FORTRESS_SAFETY_NET) {
-        var selectedMonths by remember(userProfile) { mutableIntStateOf(userProfile.fortressEmergencyMonths.takeIf { it > 0 } ?: 6) }
-
-        ModalBottomSheet(
-            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
-            containerColor = CardWhite,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .padding(horizontal = 24.dp, vertical = 8.dp)
-            ) {
-                Text("Fortress Safety Net Target", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Represents your target Emergency Reserve in sweep-in FDs, calculated from your average monthly living spend.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                val baselineBurn = if (avgMonthlySpend > 0.0) avgMonthlySpend else max(userProfile.baseMonthlyIncome, 1000.0)
-                val computedTarget = baselineBurn * selectedMonths
-
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = CanvasLight,
-                    border = BorderStroke(0.8.dp, BorderLight)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("Emergency Fund Goal (Sweep FDs)", fontSize = 11.5.sp, color = TextMuted)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)}",
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Black,
-                            color = SettingsTealColor
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "$selectedMonths Months × ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", baselineBurn)}/mo (Baseline spend)",
-                            fontSize = 11.sp,
-                            color = TextMuted
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text("Select Runway Target:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(3, 6, 9, 12).forEach { months ->
-                        val isSel = selectedMonths == months
-                        OutlinedButton(
-                            onClick = { selectedMonths = months },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isSel) SettingsTealColor.copy(alpha = 0.12f) else Color.Transparent
-                            ),
-                            border = BorderStroke(1.dp, if (isSel) SettingsTealColor else BorderLight)
-                        ) {
-                            Text("$months M", fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium, color = if (isSel) SettingsTealColor else TextDark)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Button(
-                    onClick = {
-                        viewModel.updateFortressEmergencyMonths(selectedMonths)
-                        viewModel.updateFortressManualTarget(0.0)
-                        activeSheet = SettingsActiveSheet.NONE
-                        Toast.makeText(context, "Fortress target set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)} ($selectedMonths Months)", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
-                ) {
-                    Text("Apply Target Runway", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-        }
-    }
-
-    // Opening Corporate Float Modal Sheet
-    if (showCorporateFloatSheet) {
-        var selectedFloatMode by remember(userProfile) {
-            mutableStateOf(
-                when {
-                    userProfile.initialCompanyAdvance > 0.0 -> "ADVANCE_HELD"
-                    userProfile.initialReimbursementClaim > 0.0 -> "CLAIM_DUE"
-                    else -> "SETTLED"
-                }
-            )
-        }
-        var amountInput by remember(userProfile) {
-            val initialAmt = when {
-                userProfile.initialCompanyAdvance > 0.0 -> userProfile.initialCompanyAdvance
-                userProfile.initialReimbursementClaim > 0.0 -> userProfile.initialReimbursementClaim
-                else -> 0.0
-            }
-            mutableStateOf(if (initialAmt > 0.0) String.format(Locale.US, "%.0f", initialAmt) else "")
-        }
-
-        ModalBottomSheet(
-            onDismissRequest = { showCorporateFloatSheet = false },
-            containerColor = CardWhite,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .padding(horizontal = 24.dp, vertical = 8.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        modifier = Modifier.size(38.dp),
-                        shape = CircleShape,
-                        color = Color(0xFFE57A28).copy(alpha = 0.12f)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Work,
-                                contentDescription = null,
-                                tint = Color(0xFFE57A28),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text("Opening Corporate Float", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                        Text("Pre-existing balances before using MyFin", fontSize = 12.sp, color = TextMuted)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = CanvasLight,
-                    border = BorderStroke(0.6.dp, BorderLight)
-                ) {
-                    Text(
-                        text = "If your employer gave you an advance float or owes you money for past business trips, set it here so it doesn't distort your personal living budget.",
-                        fontSize = 11.5.sp,
-                        color = TextMuted,
-                        lineHeight = 16.sp,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text("Select Current Float Status:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        Triple("SETTLED", "All Settled", "No prior claims or advance money held"),
-                        Triple("CLAIM_DUE", "Company Owes Me", "I paid out-of-pocket and expect reimbursement"),
-                        Triple("ADVANCE_HELD", "Holding Company Advance", "Company gave me float that is in my account")
-                    ).forEach { (mode, title, subtitle) ->
-                        val isSelected = selectedFloatMode == mode
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { selectedFloatMode = mode },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) Color(0xFFE57A28).copy(alpha = 0.08f) else CanvasLight,
-                            border = BorderStroke(1.dp, if (isSelected) Color(0xFFE57A28) else BorderLight)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
-                                    Text(subtitle, fontSize = 11.sp, color = TextMuted)
-                                }
-                                RadioButton(
-                                    selected = isSelected,
-                                    onClick = { selectedFloatMode = mode },
-                                    colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFE57A28))
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (selectedFloatMode != "SETTLED") {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = amountInput,
-                        onValueChange = { input ->
-                            val filtered = input.filter { it.isDigit() || it == '.' }
-                            val parts = filtered.split('.')
-                            amountInput = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
-                        },
-                        label = {
-                            Text(
-                                if (selectedFloatMode == "CLAIM_DUE") "Pending Claim Amount (${userProfile.currencySymbol})"
-                                else "Advance Float Held (${userProfile.currencySymbol})"
-                            )
-                        },
-                        placeholder = { Text("e.g. 15000") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Button(
-                    onClick = {
-                        val parsedAmt = amountInput.toDoubleOrNull() ?: 0.0
-                        val initialClaim = if (selectedFloatMode == "CLAIM_DUE") parsedAmt else 0.0
-                        val initialAdvance = if (selectedFloatMode == "ADVANCE_HELD") parsedAmt else 0.0
-
-                        viewModel.updateOpeningCorporateFloat(initialClaim, initialAdvance)
-                        showCorporateFloatSheet = false
-                        Toast.makeText(context, "Opening float status updated", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = TextDark)
-                ) {
-                    Text("Save Opening Float", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-        }
-    }
-
-    // Biometrics Sheet
-    if (activeSheet == SettingsActiveSheet.BIOMETRIC_CONFIRM || activeSheet == SettingsActiveSheet.SECURITY) {
-        ModalBottomSheet(
-            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
-            containerColor = CardWhite,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(150.dp)
-                        .padding(top = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    BiometricIllustrationCanvas(modifier = Modifier.fillMaxSize())
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = "Biometric Authentication",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black,
-                    color = TextDark,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Biometric authentication encrypts your local database access using device hardware keys. Your stored data never leaves this phone.",
-                    fontSize = 12.5.sp,
-                    color = TextMuted,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Button(
-                    onClick = {
-                        val targetState = !userProfile.isBiometricEnabled
-                        if (targetState && !viewModel.securityManager.canAuthenticateWithBiometrics(context)) {
-                            Toast.makeText(context, "Biometrics not available on this device", Toast.LENGTH_SHORT).show()
-                        } else {
-                            viewModel.updateBiometricEnabled(targetState)
-                            activeSheet = SettingsActiveSheet.NONE
-                            Toast.makeText(context, if (targetState) "Biometrics Enabled" else "Biometrics Disabled", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (userProfile.isBiometricEnabled) SoftRed else AccentPurple)
-                ) {
-                    Text(
-                        text = if (userProfile.isBiometricEnabled) "Disable Biometrics" else "Enable Biometric Unlock",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.5.sp,
-                        color = Color.White
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-        }
-    }
-
-    // Currency & Country Sheet
-    if (activeSheet == SettingsActiveSheet.COUNTRY_CURRENCY_PICKER || activeSheet == SettingsActiveSheet.CURRENCY) {
-        ModalBottomSheet(
-            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
-            containerColor = CardWhite,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 8.dp)
-            ) {
-                Text("Select Country & Currency", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Updates formatting symbol across all vaults & reports", fontSize = 12.sp, color = TextMuted)
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 380.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SupportedCountries.forEach { item ->
-                        val isSel = userProfile.currencySymbol == item.currencySymbol
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    viewModel.updateCurrencySymbol(item.currencySymbol)
-                                    activeSheet = SettingsActiveSheet.NONE
-                                    Toast.makeText(context, "Country set to ${item.countryName} (${item.currencySymbol})", Toast.LENGTH_SHORT).show()
-                                },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSel) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                            border = BorderStroke(0.7.dp, if (isSel) AccentPurple else BorderLight)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(item.flagEmoji, fontSize = 20.sp)
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text(item.countryName, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                        Text("${item.currencySymbol} - ${item.currencyCode}", fontSize = 11.5.sp, color = TextMuted)
-                                    }
-                                }
-                                if (isSel) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-        }
-    }
-
-    // Reset Confirm Modal (With Exact Safeguard Input)
-    if (activeSheet == SettingsActiveSheet.RESET_CONFIRM || activeSheet == SettingsActiveSheet.DATA_MANAGEMENT) {
-        var resetKeywordInput by remember { mutableStateOf("") }
-        val isConfirmed = resetKeywordInput.trim() == "RESET"
-
-        AlertDialog(
-            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
-            title = { Text("Reset Entire Financial Vault?", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = SoftRed) },
-            text = {
-                Column {
-                    Text(
-                        "This action permanently wipes all transactions, accounts, fixed bills, and custom categories. To proceed, type RESET in all caps below:",
-                        fontSize = 13.sp,
-                        color = TextDark,
-                        lineHeight = 17.sp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = resetKeywordInput,
-                        onValueChange = { resetKeywordInput = it },
-                        placeholder = { Text("Type RESET to confirm") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (isConfirmed) {
-                            viewModel.resetEntireVault {
-                                activeSheet = SettingsActiveSheet.NONE
-                                Toast.makeText(context, "Vault reset complete", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
-                    enabled = isConfirmed,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SoftRed,
-                        disabledContainerColor = SoftRed.copy(alpha = 0.3f)
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text("Wipe All Data", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { activeSheet = SettingsActiveSheet.NONE }) {
-                    Text("Cancel", color = TextDark)
-                }
-            }
-        )
     }
 }
 
