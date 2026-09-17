@@ -32,7 +32,7 @@ object PdfExportManager {
             val titlePaint = Paint().apply {
                 color = android.graphics.Color.parseColor("#6C5CE7")
                 textSize = 22f
-                isBoldText = true
+                isFakeBoldText = true
             }
 
             val subtitlePaint = Paint().apply {
@@ -47,11 +47,11 @@ object PdfExportManager {
             canvas.drawText("Generated on: $dateStr | Period: $timeRangeLabel", 50f, y, subtitlePaint)
 
             y += 40f
-            paint.isBoldText = true
+            paint.isFakeBoldText = true
             canvas.drawText("Executive Summary", 50f, y, paint)
 
             y += 25f
-            paint.isBoldText = false
+            paint.isFakeBoldText = false
             paint.textSize = 13f
 
             val rows = listOf(
