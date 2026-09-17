@@ -46,13 +46,13 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        // Initialize notification channel as early as possible
         ReminderScheduler.createNotificationChannels(applicationContext)
 
         // Session Auto-Lock Lifecycle Observer (60-second timeout)
         lifecycle.addObserver(LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_STOP -> {
-                    // Avoid recording background time on screen rotation or configuration changes
                     if (!isChangingConfigurations) {
                         securityManager.recordAppBackgrounded()
                     }
@@ -74,8 +74,7 @@ class MainActivity : FragmentActivity() {
 
                 val isFirstLaunch = !userProfile.isOnboardingCompleted
 
-                // Enforce FLAG_SECURE whenever app is locked (!isUnlocked)
-                // Screen capture is only permitted when actively unlocked AND explicitly allowed in settings
+                // Enforce FLAG_SECURE whenever app is locked
                 LaunchedEffect(userProfile.isScreenCaptureAllowed, isFirstLaunch, isUnlocked) {
                     val allowCapture = isFirstLaunch || (isUnlocked && userProfile.isScreenCaptureAllowed)
                     if (allowCapture) {
@@ -88,15 +87,25 @@ class MainActivity : FragmentActivity() {
                     }
                 }
 
+                // Arm the daily alarm immediately when permission is granted
                 val notificationPermissionLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.RequestPermission()
-                ) { }
+                ) { isGranted ->
+                    if (isGranted && userProfile.reminderEnabled) {
+                        ReminderScheduler.scheduleDailyReminder(
+                            applicationContext,
+                            userProfile.reminderHour,
+                            userProfile.reminderMinute
+                        )
+                    }
+                }
 
-                // Request notification permission contextually once onboarding is completed
+                // Check permissions and arm alarms whenever reminders are enabled
                 LaunchedEffect(isFirstLaunch, userProfile.reminderEnabled, userProfile.isAutoPayReminderEnabled) {
                     if (!isFirstLaunch && (userProfile.reminderEnabled || userProfile.isAutoPayReminderEnabled)) {
+                        var hasPermission = true
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            val hasPermission = ContextCompat.checkSelfPermission(
+                            hasPermission = ContextCompat.checkSelfPermission(
                                 this@MainActivity,
                                 Manifest.permission.POST_NOTIFICATIONS
                             ) == PackageManager.PERMISSION_GRANTED
@@ -104,6 +113,15 @@ class MainActivity : FragmentActivity() {
                             if (!hasPermission) {
                                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
+                        }
+
+                        // Re-arm alarm schedule on launch if permission is granted
+                        if (hasPermission && userProfile.reminderEnabled) {
+                            ReminderScheduler.scheduleDailyReminder(
+                                applicationContext,
+                                userProfile.reminderHour,
+                                userProfile.reminderMinute
+                            )
                         }
                     }
                 }
