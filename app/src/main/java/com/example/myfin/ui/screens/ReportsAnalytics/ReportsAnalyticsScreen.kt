@@ -92,15 +92,26 @@ fun ReportsAnalyticsScreen(
         }
     }
 
-    val pdfExportLauncher = rememberLauncherForActivityResult(
+     val pdfExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri ->
         uri?.let {
             coroutineScope.launch {
-                Toast.makeText(context, "Financial Statement (.pdf) exported!", Toast.LENGTH_SHORT).show()
+                val ok = PdfExportManager.exportToUri(
+                    context = context,
+                    uri = it,
+                    currencySymbol = userProfile.currencySymbol,
+                    timeRangeLabel = selectedTimeRange.label,
+                    totalIncome = personalIncome,
+                    totalExpenses = personalExpenses,
+                    netSurplus = netSurplus,
+                    safeToSpend = uiState.metrics.safeToSpend
+                )
+                Toast.makeText(context, if (ok) "Financial Statement (.pdf) exported successfully!" else "PDF export failed", Toast.LENGTH_SHORT).show()
             }
         }
     }
+
 
     val allTransactions = remember(yearlyState.allYearTransactions, uiState.groupedTransactions) {
         val currentMonthTxs = uiState.groupedTransactions.values.flatten()
