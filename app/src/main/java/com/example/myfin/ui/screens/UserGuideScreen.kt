@@ -49,6 +49,8 @@ enum class GuideAccordionSection {
     VAULT_MODES,
     MAB_AND_SURPLUS,
     MATHEMATICAL_FORMULAS,
+    YEARLY_AUDIT,
+    REPORTS_ANALYTICS,
     SCREEN_DIRECTORY,
     BACKUP_EXPORTS,
     SYMBOL_LEGEND
@@ -61,7 +63,6 @@ fun UserGuideScreen(
     val haptic = LocalHapticFeedback.current
     var expandedSection by rememberSaveable { mutableStateOf(GuideAccordionSection.ARCHITECTURE) }
 
-    // Intercept hardware and gesture back actions for a seamless exit transition
     BackHandler {
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         onBack()
@@ -84,7 +85,6 @@ fun UserGuideScreen(
                         .fillMaxWidth()
                         .background(CanvasLight)
                 ) {
-                    // Top Purple Gradient Horizon Banner
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -143,7 +143,6 @@ fun UserGuideScreen(
                             }
                         }
 
-                        // Overlapping Hero Icon on Horizon Line
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
@@ -170,7 +169,6 @@ fun UserGuideScreen(
                         }
                     }
 
-                    // Guide Title Block
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -185,14 +183,13 @@ fun UserGuideScreen(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Mathematical Engine, MAB Floors & Corporate Float Specs",
+                            text = "Mathematical Engine, Multi-Year Compounding & Analytics Specs",
                             fontSize = 12.5.sp,
                             color = TextMuted
                         )
                     }
                 }
 
-                // Smooth Dissolve Fade Overlay at Bottom of Pinned Header
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -200,16 +197,13 @@ fun UserGuideScreen(
                         .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(
-                                    CanvasLight,
-                                    CanvasLight.copy(alpha = 0f)
-                                )
+                                colors = listOf(CanvasLight, CanvasLight.copy(alpha = 0f))
                             )
                         )
                 )
             }
 
-            // 2. SCROLLABLE HANDBOOK CARDS CONTAINER
+            // 2. SCROLLABLE ACCORDION CONTAINER
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -227,210 +221,321 @@ fun UserGuideScreen(
                     subtitle = "100% Offline SQLite & Hardware KeyStore",
                     isExpanded = expandedSection == GuideAccordionSection.ARCHITECTURE,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.ARCHITECTURE) {
-                            GuideAccordionSection.NONE
-                        } else {
-                            GuideAccordionSection.ARCHITECTURE
-                        }
+                        expandedSection = if (expandedSection == GuideAccordionSection.ARCHITECTURE) GuideAccordionSection.NONE else GuideAccordionSection.ARCHITECTURE
                     }
                 ) {
-                    GuideTextParagraph("MyFin Vault is engineered around a 100% offline-first local ledger model. The application maintains zero external cloud databases, zero telemetry, and zero network trackers. All financial data stays strictly on your physical device.")
+                    GuideTextParagraph("MyFin Vault is engineered around a strict offline-first local ledger model. The application maintains zero external cloud databases, zero telemetry, and zero network trackers. All financial records stay strictly on your physical device.")
 
                     GuideFeatureBullet(
                         title = "Local Data Sovereignty",
-                        desc = "Every transaction, budget plan, and custom category is committed directly to on-device SQLite storage via Android Room persistence."
+                        desc = "Every transaction, budget target, and account record is committed directly to on-device SQLite storage via Android Room persistence."
                     )
                     GuideFeatureBullet(
                         title = "Hardware-Backed Biometrics",
-                        desc = "Biometric authentication uses native BiometricPrompt and Android KeyStore hardware crypto sandboxes. Cryptographic keys never leave the local secure environment."
+                        desc = "Biometric authentication uses native BiometricPrompt and Android KeyStore hardware crypto sandboxes. Cryptographic keys never leave the secure enclave."
                     )
                     GuideFeatureBullet(
                         title = "Corporate Float Segregation",
-                        desc = "Business travel, client dining, and courier expenses are recorded under a dedicated first-class Corporate flow. They reduce physical bank balances without contaminating personal lifestyle spending or inflating earned personal income."
+                        desc = "Business travel, client dining, and reimbursable outlays are recorded under a dedicated first-class Corporate flow. They reduce physical bank balances without contaminating personal lifestyle spending or inflating earned personal income."
+                    )
+                    GuideFeatureBullet(
+                        title = "Non-Personal Inflow Deduction",
+                        desc = "Capital drawdowns, emergency FD liquidations, tax refunds, and loan repayments received are systematically deducted from total inflow so only pure earned income informs your living budget."
                     )
                     GuideFeatureBullet(
                         title = "Anti-Spy Window Guard (FLAG_SECURE)",
-                        desc = "Blocks OS-level screenshots, screen mirroring, and prevents recent task preview snapshots in Android's App Switcher."
+                        desc = "Blocks OS-level screenshots, screen recording, and prevents recent task preview snapshots in Android's App Switcher."
                     )
                 }
 
-                // Section 2: Vault Operating Modes
+                // Section 2: Vault Operating Modes & Automated Engines
                 GuideAccordionCard(
                     icon = Icons.Default.Layers,
-                    title = "2. Vault Operating Modes",
-                    subtitle = "3-Vault Strategy vs. Simple Mode",
+                    title = "2. Vault Operating Modes & Engines",
+                    subtitle = "3-Vault Strategy, Payday Waterfall & Sweeps",
                     isExpanded = expandedSection == GuideAccordionSection.VAULT_MODES,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.VAULT_MODES) {
-                            GuideAccordionSection.NONE
-                        } else {
-                            GuideAccordionSection.VAULT_MODES
-                        }
+                        expandedSection = if (expandedSection == GuideAccordionSection.VAULT_MODES) GuideAccordionSection.NONE else GuideAccordionSection.VAULT_MODES
                     }
                 ) {
                     GuideTextParagraph("You can switch between two capital segregation frameworks in Settings and Vault Hub at any time:")
 
                     GuideSubheading("A. 3-Vault Strategy (Recommended)")
                     GuideFeatureBullet(
-                        title = "Operating Vault",
-                        desc = "Absorbs day-to-day variable lifestyle expenses (groceries, leisure, transport, dining). Suggests sweeps when surplus exceeds your dynamic monthly runway target."
+                        title = "Operating Vault Tier",
+                        desc = "Absorbs day-to-day variable lifestyle expenses (groceries, leisure, transport, dining). Holds a living runway buffer calibrated to daily burn velocity."
                     )
                     GuideFeatureBullet(
-                        title = "Commitments Vault",
-                        desc = "Reserved strictly for fixed obligations (AutoPay bills, rent, EMIs, insurance, recurring dues) so funds cannot be accidentally spent."
+                        title = "Commitments Vault Tier",
+                        desc = "Reserved strictly for contractual obligations (AutoPay bills, rent, EMIs, insurance, recurring subscriptions) so non-negotiable cash cannot be accidentally spent."
                     )
                     GuideFeatureBullet(
-                        title = "Fortress Vault",
-                        desc = "High-reserve emergency buffer. Automatically categorizes balances up to your safety threshold as liquid cushion, and sweeps excess amounts into emergency fixed deposits."
+                        title = "Fortress Vault Tier",
+                        desc = "Long-term emergency cushion. Balances up to your safety threshold remain liquid, while excess surplus compounds in fixed deposit reserves."
                     )
                     GuideFeatureBullet(
-                        title = "Cash Wallet",
-                        desc = "Physical petty cash tracking for micro-payments."
+                        title = "Physical Cash Tier",
+                        desc = "Physical wallet buffer for cash transactions and petty daily expenses."
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                    GuideSubheading("B. Automated Allocation Engines")
+                    GuideFeatureBullet(
+                        title = "Dynamic Salary & Payday Engine",
+                        desc = "Automatically detects recurring primary salary credits and counts down the exact days until your next payday based on historical credit patterns."
+                    )
+                    GuideFeatureBullet(
+                        title = "Payday Waterfall Allocation Plan",
+                        desc = "When salary arrives in 3-Vault mode, the engine suggests a 4-tier transfer plan: (1) Fund Operating living buffer, (2) Eliminate Commitments shortfall, (3) Route target surplus to Fortress, (4) Retain remaining balance in Operating."
+                    )
+                    GuideFeatureBullet(
+                        title = "Month-End Wealth Sweep Plan",
+                        desc = "From the 28th of each month, the system evaluates surplus operating cash above upcoming runway needs (days left + days to next payday) and suggests sweeping excess funds into Fortress compounding."
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
-                    GuideSubheading("B. Simple Mode")
-                    GuideTextParagraph("Aggregates all connected bank accounts and cash balances into a single flat liquidity pool without segregated reserve buckets.")
+                    GuideSubheading("C. Simple Mode")
+                    GuideTextParagraph("Aggregates all connected bank accounts and cash balances into a single flat liquidity pool without segregated reserve tiers.")
                 }
 
                 // Section 3: MAB Floors & Liquid Surplus
                 GuideAccordionCard(
                     icon = Icons.Default.AccountBalance,
                     title = "3. MAB Floors & Spendable Surplus",
-                    subtitle = "Minimum Average Balance & Automated Safety",
+                    subtitle = "Minimum Balance Protection & Shortfall Alerts",
                     isExpanded = expandedSection == GuideAccordionSection.MAB_AND_SURPLUS,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.MAB_AND_SURPLUS) {
-                            GuideAccordionSection.NONE
-                        } else {
-                            GuideAccordionSection.MAB_AND_SURPLUS
-                        }
+                        expandedSection = if (expandedSection == GuideAccordionSection.MAB_AND_SURPLUS) GuideAccordionSection.NONE else GuideAccordionSection.MAB_AND_SURPLUS
                     }
                 ) {
-                    GuideTextParagraph("MyFin Vault enforces protection for bank minimum balance (MAB) requirements across all active accounts:")
+                    GuideTextParagraph("MyFin Vault enforces strict protection for bank minimum average balance (MAB) requirements across all active accounts:")
 
                     GuideFeatureBullet(
                         title = "Protected MAB Floor",
-                        desc = "Each bank account can be assigned a minimum balance floor to prevent non-maintenance penalty charges."
+                        desc = "Each bank account can be assigned a minimum balance floor to prevent non-maintenance bank penalty charges."
                     )
                     GuideFeatureBullet(
                         title = "Spendable Surplus Calculation",
-                        desc = "Surplus = max(0, Current Balance - MAB). This ensures allocation engines only suggest truly disposable cash rather than eating into your required banking floor."
+                        desc = "Surplus = max(0, Current Balance - MAB). Ensures allocation engines only suggest truly disposable cash rather than dipping into required banking floors."
                     )
                     GuideFeatureBullet(
-                        title = "Commitments Shortfall Warnings",
-                        desc = "If unpaid global outlays (bills and recurring commitments originating from the Commitments vault) exceed your balance, MyFin surfaces an urgent shortfall warning with 1-tap transfer prompts."
+                        title = "Commitments Shortfall Engine",
+                        desc = "Checks if Commitments account balance covers upcoming scheduled bills. If deficit exists, it surfaces an urgent warning with the earliest due date and 1-tap transfer prompts."
                     )
                     GuideFeatureBullet(
-                        title = "Payday & Month-End Sweep Engines",
-                        desc = "When your salary is logged in 3-Vault mode, the app calculates exact bill funding and emergency transfers. At month-end (from the 28th), any surplus remaining above your living buffer can be swept directly into the Fortress vault."
+                        title = "Pure Guilt-Free Safe-to-Spend (Option 2)",
+                        desc = "Anchored directly to verified physical cash in Operating accounts above MAB, deducting queued unpaid bills, company advances held, and living runway buffers until next payday."
                     )
                 }
 
-                // Section 4: Mathematical Engine & Formulas (Fully aligned with BudgetViewModel)
+                // Section 4: Mathematical Engine & Core Formulas
                 GuideAccordionCard(
                     icon = Icons.Default.Functions,
                     title = "4. Mathematical Engine & Formulas",
-                    subtitle = "Real-Time S2S, Runways, Corporate Float & Splits",
+                    subtitle = "S2S, Runways, Wealth Goals & Net Worth",
                     isExpanded = expandedSection == GuideAccordionSection.MATHEMATICAL_FORMULAS,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.MATHEMATICAL_FORMULAS) {
-                            GuideAccordionSection.NONE
-                        } else {
-                            GuideAccordionSection.MATHEMATICAL_FORMULAS
-                        }
+                        expandedSection = if (expandedSection == GuideAccordionSection.MATHEMATICAL_FORMULAS) GuideAccordionSection.NONE else GuideAccordionSection.MATHEMATICAL_FORMULAS
                     }
                 ) {
-                    GuideSubheading("A. Effective Base Inflow Determination")
+                    GuideSubheading("A. Pure Personal Income Determination")
                     GuideFormulaBox(
-                        formula = "I_base = max(I_planned, I_personal)\nI_personal = max(0, I_actual - Σ Non_Personal_Inflows)",
-                        explanation = "Corporate reimbursements are tracked under CORPORATE and do not touch I_actual. Only non-operating capital drawdowns, deposit maturities, and loan paybacks received are deducted from realized income."
+                        formula = "I_personal = max(0, I_actual - Σ Non_Personal_Inflows)\nNon_Personal = Loan_Paybacks + Tax_Refunds + Capital_Drawdowns",
+                        explanation = "Isolates true earned income. Excludes debt repayments received, tax returns, and investment liquidations so capital recycling never artificially inflates your living budget."
                     )
 
-                    GuideSubheading("B. Fixed Commitments Load")
+                    GuideSubheading("B. Safe-to-Spend (S2S) Cash-Floor Formula")
                     GuideFormulaBox(
-                        formula = "C_fixed = Σ FixedBills_(EXPENSE + TRANSFER)\nC_pending = Σ Unpaid_Bills + max(0, A_planned - A_invested)\nLoad_% = (C_fixed / I_base) * 100",
-                        explanation = "Fixed commitments incorporate recurring living bills, AutoPay sweeps, and unfulfilled SIP targets, calculating the percentage of monthly base inflow strictly pre-committed."
+                        formula = "S2S = max(0, Liquid_Operating_Above_MAB - Unpaid_Bills - Advance_Held - Runway_Protection)\nRunway_Protection = (Daily_Burn_Velocity) × (Days_Until_Payday)",
+                        explanation = "Guarantees you never accidentally spend rent money, company advance money, or the funds needed to survive until your next verified salary credit."
                     )
 
-                    GuideSubheading("C. Safe-to-Spend (S2S) Dual Engine")
+                    GuideSubheading("C. Annual Wealth Accumulation Milestone Target")
                     GuideFormulaBox(
-                        formula = "S2S_theoretical = max(0, I_base - C_pending - E_discretionary)\nCash_Floor = max(0, Liquid_Operating_Cash - C_pending - Advance_Held)\nS2S_real = min(S2S_theoretical, Cash_Floor)",
-                        explanation = "Theoretical headroom is bounded by physical cash in Operating accounts above their MAB floors, strictly ring-fencing unpaid commitments and company advances held."
+                        formula = "W_target = max(I_personal × 0.25, Fortress_Target)\nW_accumulated = Total_Yearly_Assets + max(0, Annual_Net_Surplus)",
+                        explanation = "Benchmarks accumulating at least 25% of annual personal earnings, with your Fortress emergency fund acting as the absolute floor so long-term milestones remain robust."
                     )
 
-                    GuideSubheading("D. Net Capital Retained & Retention Rate")
+                    GuideSubheading("D. Realizable Net Worth vs. Solvency Distribution")
                     GuideFormulaBox(
-                        formula = "R_net = (I_personal - E_lifestyle) - A_genuine\nRetention_% = (R_net / I_personal) * 100",
-                        explanation = "Measures true preserved wealth after deducting living expenses (E_lifestyle) and genuine capital investments (A_genuine, excluding personal loans given out or NPAs) from earned personal income."
+                        formula = "Realizable_Net_Worth = Liquid_Reserves + Total_Investments + Active_Receivables\nGross_Wealth = Realizable_Net_Worth + NPA_Bad_Debt_Written_Off",
+                        explanation = "Distinguishes between collectible, appreciating capital and non-performing debt (NPA). Uncollectible loans are written off from Net Worth to protect balance sheet integrity."
                     )
 
-                    GuideSubheading("E. Corporate Float & Settlement Isolation")
+                    GuideSubheading("E. Net Capital Retained & Retention Rate")
                     GuideFormulaBox(
-                        formula = "Float_pending = max(0, Σ Work_Outlays - Σ Claims_Received)\nAdvance_held = max(0, Σ Claims_Received - Σ Work_Outlays)",
-                        explanation = "Work expenses reduce bank vault balances but are completely quarantined from personal lifestyle burn. Corporate claims increase bank balances without being counted as personal taxable earnings."
+                        formula = "R_net = (I_personal - E_lifestyle) - A_genuine\nRetention_% = (R_net / I_personal) × 100",
+                        explanation = "Measures true preserved wealth after deducting living burn (E_lifestyle) and genuine investment assets (A_genuine, excluding peer-to-peer loans given out) from earned income."
                     )
 
-                    GuideSubheading("F. 50 / 30 / 20 Cashflow Split")
+                    GuideSubheading("F. 12-Month Extrapolated Run-Rate Velocity")
                     GuideFormulaBox(
-                        formula = "Needs (50%) = Fixed Bills + Essential Categories\nWants (30%) = max(0, E_lifestyle - Needs)\nAssets (20%) = Σ Asset Investments",
-                        explanation = "Organizes monthly personal outflow into standard macro allocations for long-term financial health."
+                        formula = "Projected_Annual = (YTD_Amount / Active_Elapsed_Months) × 12\nProjected_Surplus = Proj_Inflow - Proj_Burn - Proj_Assets",
+                        explanation = "Extrapolates completed month pacing across a full 12-month calendar cycle to project your year-end financial position."
+                    )
+
+                    GuideSubheading("G. Corporate Float & Advance Ring-Fence")
+                    GuideFormulaBox(
+                        formula = "Float_Pending = max(0, Work_Outlays - Claims_Received)\nAdvance_Held = max(0, Claims_Received - Work_Outlays)",
+                        explanation = "Work expenses reduce bank balances but are ring-fenced from personal living burn. Company advances held are quarantined from spendable liquidity."
                     )
                 }
 
-                // Section 5: Screen Directory & Navigation
+                // Section 5: Yearly Fiscal Audit & Wealth Compounding
+                GuideAccordionCard(
+                    icon = Icons.Default.DateRange,
+                    title = "5. Yearly Fiscal Audit & Compounding",
+                    subtitle = "Cashflow Dynamics, Mountain Layers & Pareto",
+                    isExpanded = expandedSection == GuideAccordionSection.YEARLY_AUDIT,
+                    onToggleExpand = {
+                        expandedSection = if (expandedSection == GuideAccordionSection.YEARLY_AUDIT) GuideAccordionSection.NONE else GuideAccordionSection.YEARLY_AUDIT
+                    }
+                ) {
+                    GuideTextParagraph("The Yearly module provides macro fiscal auditing across a 4-tab horizontal pager synchronized with 6 live calculation matrices:")
+
+                    GuideSubheading("Tab 0: Cashflow Dynamics")
+                    GuideFeatureBullet(
+                        title = "Dual Smooth Wave with Touch Scrubber",
+                        desc = "Cubic Bézier wave comparing monthly personal inflow against lifestyle burn. Slide across the canvas to inspect exact monthly surplus and retention rates."
+                    )
+                    GuideFeatureBullet(
+                        title = "12-Month Cashflow Pulse & 3-Pillar Allocation",
+                        desc = "Sparkline ledger showing surplus vs deficit months, paired with annual 50/30/20 capital deployment tracking."
+                    )
+                    GuideFeatureBullet(
+                        title = "Fiscal Quarter Retention Grid (Q1–Q4)",
+                        desc = "Breaks annual performance into 3-month rhythms to spot seasonal spending spikes and bonus accumulations."
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    GuideSubheading("Tab 1: 12-Month Cycles & Outflow Mountain")
+                    GuideFeatureBullet(
+                        title = "3-Layer Outflow Mountain Silhouette",
+                        desc = "Stacked silhouette displaying Fixed Commitments (slate base), Lifestyle Burn (violet middle), and Assets SIP (cyan crest). Filter chips isolate individual streams."
+                    )
+                    GuideFeatureBullet(
+                        title = "Adaptive Cycle Spotlight",
+                        desc = "Compares your leanest spending month against your peak burn month, automatically adapting to single-month pacing when starting a new accounting year."
+                    )
+                    GuideFeatureBullet(
+                        title = "Chronological Milestone Timeline",
+                        desc = "Connected monthly cards with burn benchmark badges, 3-pillar micro progress bars, and corporate travel float tags."
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    GuideSubheading("Tab 2: Assets & Solvency")
+                    GuideFeatureBullet(
+                        title = "Animated Liquid Heart Goal Canvas",
+                        desc = "Dual sine-wave animated liquid heart showing real-time progress toward your 25% annual wealth accumulation milestone."
+                    )
+                    GuideFeatureBullet(
+                        title = "Multi-Year Compounding Pillars (Option A)",
+                        desc = "Tracks multi-year asset stock accumulation (Investments + Liquid Reserves - Capital Drawdowns) with pre-seeded YoY growth percentages."
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    GuideSubheading("Tab 3: Annual Spending Pareto & Audit")
+                    GuideFeatureBullet(
+                        title = "Organic Curved Star Radar",
+                        desc = "Audits category spending concentration using the 80/20 Pareto principle. Automatically adapts to a proportional bar when fewer than 3 categories exist."
+                    )
+                    GuideFeatureBullet(
+                        title = "Budget vs. Actual Variance Pillars",
+                        desc = "Compares realized annual spend against annualized planner targets (Monthly Target × 12), prioritizing overruns."
+                    )
+                }
+
+                // Section 6: Reports & Multi-Span Analytics Hub
+                GuideAccordionCard(
+                    icon = Icons.Default.BarChart,
+                    title = "6. Reports & Multi-Span Analytics Hub",
+                    subtitle = "Timeframe Pipelines, Burn Velocity & Rhythms",
+                    isExpanded = expandedSection == GuideAccordionSection.REPORTS_ANALYTICS,
+                    onToggleExpand = {
+                        expandedSection = if (expandedSection == GuideAccordionSection.REPORTS_ANALYTICS) GuideAccordionSection.NONE else GuideAccordionSection.REPORTS_ANALYTICS
+                    }
+                ) {
+                    GuideTextParagraph("The Reports & Analytics Hub analyzes spending density and velocity rhythms across customizable time intervals:")
+
+                    GuideFeatureBullet(
+                        title = "Dynamic Timeframe Selector",
+                        desc = "Toggle between This Week, This Month, Last Month, and This Year. All charts, averages, and rosters update instantly."
+                    )
+                    GuideFeatureBullet(
+                        title = "Multi-Span Cumulative Trajectories (W, M, 3 M, 6 M, Y)",
+                        desc = "Plots cumulative spending burn-down curves against target limits across weekly, monthly, quarterly, semi-annual, and yearly spans."
+                    )
+                    GuideFeatureBullet(
+                        title = "Concentric Allocation Rings",
+                        desc = "Dual-ring geometry comparing fixed AutoPay obligations against variable discretionary spending."
+                    )
+                    GuideFeatureBullet(
+                        title = "Velocity Frequency Density Strip",
+                        desc = "28-day micro impulse strip mapping purchasing friction to help establish low-spend recovery days."
+                    )
+                    GuideFeatureBullet(
+                        title = "50 / 30 / 20 Symmetrical Funnel Ribbon",
+                        desc = "Displays proportion bands for Needs (50%), Wants (30%), and Asset SIPs (20%) with live percentages."
+                    )
+                    GuideFeatureBullet(
+                        title = "Month-over-Month Velocity Surge Detection",
+                        desc = "Automatically flags any lifestyle category that accelerates by more than +15% compared to the prior calendar month."
+                    )
+                    GuideFeatureBullet(
+                        title = "Universal Graph Information Sheets",
+                        desc = "Tapping any visualization opens a detailed sheet with mathematical formulas, active numbers, and interpretation advice."
+                    )
+                }
+
+                // Section 7: Screen Directory & Navigation
                 GuideAccordionCard(
                     icon = Icons.Default.TouchApp,
-                    title = "5. Screen Directory & Navigation",
+                    title = "7. Screen Directory & Navigation",
                     subtitle = "Monthly, Planner, Master DB, Analytics & Vaults",
                     isExpanded = expandedSection == GuideAccordionSection.SCREEN_DIRECTORY,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.SCREEN_DIRECTORY) {
-                            GuideAccordionSection.NONE
-                        } else {
-                            GuideAccordionSection.SCREEN_DIRECTORY
-                        }
+                        expandedSection = if (expandedSection == GuideAccordionSection.SCREEN_DIRECTORY) GuideAccordionSection.NONE else GuideAccordionSection.SCREEN_DIRECTORY
                     }
                 ) {
                     GuideFeatureBullet(
                         title = "Monthly Dashboard",
-                        desc = "Real Liquid Safe-to-Spend hero display, lifestyle burn velocity sparklines, AutoPay checklist, and a 4-way Category Matrix (Expenses, Income, Assets/SIP, and Corporate)."
+                        desc = "Real Liquid Safe-to-Spend display, lifestyle burn velocity sparklines, AutoPay bill checklist, and a 4-way Category Matrix (Expenses, Income, Assets/SIP, Corporate)."
+                    )
+                    GuideFeatureBullet(
+                        title = "Yearly Fiscal View",
+                        desc = "4-tab macro audit hub: Cashflow Dynamics, 12-Month Outflow Mountain, Assets & Solvency, and Annual Spending Pareto."
                     )
                     GuideFeatureBullet(
                         title = "Budget Planner",
-                        desc = "Pre-allocate planned ceilings for Expenses, Income, Assets, and Corporate float. Features 1-click previous month budget cloning, AutoPay floor protection, and ceiling freezes."
+                        desc = "Pre-allocate planned limits for Expenses, Income, Assets, and Corporate float. Features 1-click previous month cloning and AutoPay floor protection."
                     )
                     GuideFeatureBullet(
                         title = "Taxonomy Master DB",
-                        desc = "Full CRUD management for Categories and Subcategories across all four transaction types, with cascading historical SQLite updates."
+                        desc = "Full management for Categories and Subcategories across all transaction types, with cascading historical SQLite updates."
                     )
                     GuideFeatureBullet(
                         title = "Reports & Analytics Hub",
-                        desc = "Dedicated 3-tab dock: (1) Summary Analytics (Net Capital spline wave, concentric donut, burn velocity bars), (2) Category Analytics (6-axis radar web, 50/30/20 ribbon, corporate float card), (3) Wealth Analytics (reserve mountain chart, asset bubble map, runway gauge)."
+                        desc = "Timeframe-driven 3-tab hub: Summary Analytics (trajectories, concentric rings), Categories Analytics (radar web, 50/30/20 ribbon), and Wealth Analytics (reserve mountain, 3-bubble distribution)."
                     )
                     GuideFeatureBullet(
                         title = "Vault Accounts Hub & Carousel",
-                        desc = "Swipeable physical bank cards with card reordering, MAB badge editing, auto-sweep threshold calibration, and instant inter-vault transfers with backdated date support."
+                        desc = "Swipeable physical bank cards with card reordering, MAB badge editing, sweep threshold calibration, and instant inter-vault transfers."
                     )
                 }
 
-                // Section 6: Data Backup & Export Engines
+                // Section 8: Data Backup & Export Engines
                 GuideAccordionCard(
                     icon = Icons.Default.SaveAlt,
-                    title = "6. Backup, Restore & Exports",
+                    title = "8. Backup, Restore & Exports",
                     subtitle = "Full .json snapshots, .xlsx Workbooks, .csv Ledgers",
                     isExpanded = expandedSection == GuideAccordionSection.BACKUP_EXPORTS,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.BACKUP_EXPORTS) {
-                            GuideAccordionSection.NONE
-                        } else {
-                            GuideAccordionSection.BACKUP_EXPORTS
-                        }
+                        expandedSection = if (expandedSection == GuideAccordionSection.BACKUP_EXPORTS) GuideAccordionSection.NONE else GuideAccordionSection.BACKUP_EXPORTS
                     }
                 ) {
                     GuideFeatureBullet(
                         title = "Full Vault Snapshot (.json)",
-                        desc = "Serializes the complete database (UserProfile, Transactions, Categories, Accounts, Fixed Bills, Budget Plans) into an offline encrypted JSON snapshot for seamless migrations and restores."
+                        desc = "Serializes the complete database (UserProfile, Transactions, Categories, Accounts, Fixed Bills, Budget Plans) into an offline JSON backup for migrations and restores."
                     )
                     GuideFeatureBullet(
                         title = "Accounting Statement (.xlsx)",
@@ -440,20 +545,20 @@ fun UserGuideScreen(
                         title = "Universal Flat Ledger (.csv)",
                         desc = "Standard UTF-8 comma-separated export formatted with Byte Order Mark (\\uFEFF) for compatibility across Excel, Numbers, and Google Sheets."
                     )
+                    GuideFeatureBullet(
+                        title = "PDF Financial Statements",
+                        desc = "Exports formatted periodic summary statements directly from the Reports & Analytics dock."
+                    )
                 }
 
-                // Section 7: Mathematical Legend & Symbol Index (Fully aligned with BudgetViewModel)
+                // Section 9: Mathematical Legend & Symbol Index
                 GuideAccordionCard(
                     icon = Icons.Default.FormatListNumbered,
-                    title = "7. Mathematical Legend & Symbols",
+                    title = "9. Mathematical Legend & Symbols",
                     subtitle = "Reference Table of Arithmetic Variables",
                     isExpanded = expandedSection == GuideAccordionSection.SYMBOL_LEGEND,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == GuideAccordionSection.SYMBOL_LEGEND) {
-                            GuideAccordionSection.NONE
-                        } else {
-                            GuideAccordionSection.SYMBOL_LEGEND
-                        }
+                        expandedSection = if (expandedSection == GuideAccordionSection.SYMBOL_LEGEND) GuideAccordionSection.NONE else GuideAccordionSection.SYMBOL_LEGEND
                     }
                 ) {
                     GuideSymbolRow(symbol = "I_personal", meaning = "Pure Personal Inflow", formula = "I_actual - NonPersonal_Inflow")
@@ -462,15 +567,19 @@ fun UserGuideScreen(
                     GuideSymbolRow(symbol = "C_pending", meaning = "Queued Unpaid Commitments", formula = "Σ Unpaid_Bills + Pending_SIP")
                     GuideSymbolRow(symbol = "MAB", meaning = "Minimum Average Balance Floor", formula = "Protected Account Minimum")
                     GuideSymbolRow(symbol = "Surplus", meaning = "Spendable Cash Above Floor", formula = "max(0, Balance - MAB)")
-                    GuideSymbolRow(symbol = "S2S", meaning = "Liquid Safe-to-Spend", formula = "min(S2S_theo, Cash_Floor)")
+                    GuideSymbolRow(symbol = "S2S", meaning = "Liquid Safe-to-Spend", formula = "Cash_Floor - Runway_Protection")
+                    GuideSymbolRow(symbol = "W_target", meaning = "Annual Wealth Goal", formula = "max(I_personal × 0.25, Fortress)")
+                    GuideSymbolRow(symbol = "RNW", meaning = "Realizable Net Worth", formula = "Liquid + Invested + Receivables")
+                    GuideSymbolRow(symbol = "GW", meaning = "Gross Wealth (Audit)", formula = "RNW + NPA_Bad_Debt")
+                    GuideSymbolRow(symbol = "NPA", meaning = "Non-Performing Assets", formula = "Written-off bad personal debt")
                     GuideSymbolRow(symbol = "F_corp", meaning = "Pending Corporate Claims", formula = "max(0, Outlays - Claims)")
                     GuideSymbolRow(symbol = "R_net", meaning = "Net Retained Capital", formula = "(I_personal - E_lifestyle) - A_genuine")
-                    GuideSymbolRow(symbol = "M_runway", meaning = "Emergency Cushion Months", formula = "Liquid Vaults / max(1.0, Monthly_Burn)")
+                    GuideSymbolRow(symbol = "V_daily", meaning = "Daily Burn Velocity", formula = "Period_Spend / Total_Days")
+                    GuideSymbolRow(symbol = "M_runway", meaning = "Emergency Cushion Months", formula = "Liquid Vaults / Monthly_Burn")
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Shared App Branding Footer
                 AppBrandingFooter(
                     modifier = Modifier.fillMaxWidth(),
                     version = "v${BuildConfig.VERSION_NAME}",
