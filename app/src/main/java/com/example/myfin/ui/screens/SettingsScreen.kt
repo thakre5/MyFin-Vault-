@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -106,6 +107,8 @@ fun SettingsScreen(
     var expandedSection by rememberSaveable { mutableStateOf(SettingsAccordionSection.NONE) }
     var avatarRefreshKey by remember { mutableStateOf(0L) }
 
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
     var pendingPermissionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -142,6 +145,13 @@ fun SettingsScreen(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             alarmManager?.canScheduleExactAlarms() ?: true
         } else true
+    }
+
+    val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as? PowerManager }
+    var isIgnoringBatteryOptimizations by remember(context) {
+        mutableStateOf(
+            powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: true
+        )
     }
 
     LaunchedEffect(initialActiveSheet) {
@@ -181,7 +191,7 @@ fun SettingsScreen(
     ) { uri ->
         uri?.let {
             viewModel.backupVaultToEncryptedJson(context, it) { success: Boolean, msg: String ->
-                Toast.makeText(context, if (success) "Full encrypted backup saved!" else msg.ifBlank { "Backup failed" }, Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, if (success) "Full backup saved!" else msg.ifBlank { "Backup failed" }, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -190,9 +200,8 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let {
-            viewModel.restoreVaultFromEncryptedJson(context, it) { success: Boolean, msg: String ->
-                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-            }
+            pendingRestoreUri = it
+            showRestoreConfirmDialog = true
         }
     }
 
@@ -542,7 +551,7 @@ fun SettingsScreen(
                     )
                 }
 
-                // Reminders & Alerts (Fully Wired & Reactive)
+                // Reminders & Alerts
                 val reminderTime = String.format(Locale.US, "%02d:%02d", userProfile.reminderHour, userProfile.reminderMinute)
                 ExpandableSettingsCard(
                     icon = Icons.Outlined.Notifications,
@@ -620,10 +629,10 @@ fun SettingsScreen(
 
                     HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
 
-                    // Instant Test Action
+                    // Immediate Test Trigger
                     SettingsChildNavRow(
-                        title = "Send Test Notification",
-                        value = "Test Alert",
+                        title = "Send Test Notification Now",
+                        value = "Trigger",
                         onClick = {
                             checkAndRequestNotificationPermission {
                                 ReminderScheduler.triggerImmediateTestNotification(context.applicationContext)
@@ -632,7 +641,24 @@ fun SettingsScreen(
                         }
                     )
 
-                    // System App Settings Channel
+                    // Battery Optimization Exemption
+                    SettingsChildNavRow(
+                        title = "Battery Optimization Status",
+                        value = if (isIgnoringBatteryOptimizations) "Unrestricted" else "Optimize (May delay alarms)",
+                        onClick = {
+                            try {
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                val fallback = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                context.startActivity(fallback)
+                            }
+                        }
+                    )
+
+                    // System Notification Channel Shortcut
                     SettingsChildNavRow(
                         title = "Android Notification Settings",
                         value = "System Channel",
@@ -677,7 +703,7 @@ fun SettingsScreen(
                                 Icon(Icons.Default.Warning, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Exact Alarms restricted by OS. Tap to allow exact alarms so notifications fire on the exact minute.",
+                                    text = "Exact Alarms restricted by Android OS. Tap to grant permission so alarms fire on the exact minute.",
                                     fontSize = 11.sp,
                                     color = TextDark,
                                     lineHeight = 15.sp
@@ -883,6 +909,214 @@ fun SettingsScreen(
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+
+    // Restore Backup Confirmation Dialog
+    if (showRestoreConfirmDialog && pendingRestoreUri != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showRestoreConfirmDialog = false
+                pendingRestoreUri = null
+            },
+            icon = { Icon(Icons.Default.Backup, contentDescription = null, tint = AccentPurple) },
+            title = { Text("Restore Vault Snapshot?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Restoring this backup will replace all current ledger records, accounts, and budget plans with the data from the selected snapshot. Are you sure you want to proceed?",
+                    fontSize = 13.sp,
+                    color = TextDark,
+                    lineHeight = 17.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val uriToRestore = pendingRestoreUri
+                        showRestoreConfirmDialog = false
+                        pendingRestoreUri = null
+                        if (uriToRestore != null) {
+                            viewModel.restoreVaultFromEncryptedJson(context, uriToRestore) { success: Boolean, msg: String ->
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                ) {
+                    Text("Restore Snapshot", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showRestoreConfirmDialog = false
+                    pendingRestoreUri = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Modify PIN Modal Sheet (With Current PIN / Recovery Gate)
+    if (activeSheet == SettingsActiveSheet.CHANGE_PIN) {
+        var isCurrentAuthVerified by remember { mutableStateOf(false) }
+        var useDobFallback by remember { mutableStateOf(false) }
+
+        var currentPinInput by remember { mutableStateOf("") }
+        var verifyDobInput by remember { mutableStateOf("") }
+        var newPinInput by remember { mutableStateOf("") }
+        var confirmPinInput by remember { mutableStateOf("") }
+        var pinErrorMessage by remember { mutableStateOf<String?>(null) }
+
+        ModalBottomSheet(
+            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            containerColor = CardWhite,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                Text("Modify Master PIN", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                Text(
+                    if (!isCurrentAuthVerified) "Verify your identity before changing passcode" else "Enter and confirm your new 4-6 digit passcode",
+                    fontSize = 12.sp,
+                    color = TextMuted
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (!isCurrentAuthVerified) {
+                    if (!useDobFallback) {
+                        OutlinedTextField(
+                            value = currentPinInput,
+                            onValueChange = { if (it.length <= 6) { currentPinInput = it.filter { ch -> ch.isDigit() }; pinErrorMessage = null } },
+                            label = { Text("Enter Current Master PIN") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        TextButton(
+                            onClick = { useDobFallback = true; pinErrorMessage = null },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Forgot current PIN? Use DOB recovery", fontSize = 11.5.sp, color = AccentPurple)
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = verifyDobInput,
+                            onValueChange = { verifyDobInput = it; pinErrorMessage = null },
+                            label = { Text("Recovery Key (DOB: DD/MM/YYYY or YYYY-MM-DD)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        TextButton(
+                            onClick = { useDobFallback = false; pinErrorMessage = null },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Verify with Current PIN instead", fontSize = 11.5.sp, color = AccentPurple)
+                        }
+                    }
+
+                    if (pinErrorMessage != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(pinErrorMessage.orEmpty(), color = SoftRed, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            val isValid = if (!useDobFallback) {
+                                viewModel.securityManager.verifyPin(currentPinInput)
+                            } else {
+                                viewModel.securityManager.verifyRecoveryDob(verifyDobInput) ||
+                                        (userProfile.dateOfBirth.isNotBlank() && verifyDobInput.replace("[^0-9]".toRegex(), "") == userProfile.dateOfBirth.replace("[^0-9]".toRegex(), ""))
+                            }
+
+                            if (isValid) {
+                                isCurrentAuthVerified = true
+                                pinErrorMessage = null
+                            } else {
+                                pinErrorMessage = if (!useDobFallback) "Incorrect Master PIN." else "DOB verification failed."
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    ) {
+                        Text("Verify Identity", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = newPinInput,
+                        onValueChange = { if (it.length <= 6) { newPinInput = it.filter { ch -> ch.isDigit() }; pinErrorMessage = null } },
+                        label = { Text("New Master PIN (4-6 digits)") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = confirmPinInput,
+                        onValueChange = { if (it.length <= 6) { confirmPinInput = it.filter { ch -> ch.isDigit() }; pinErrorMessage = null } },
+                        label = { Text("Confirm New PIN") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                    )
+
+                    if (pinErrorMessage != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(pinErrorMessage.orEmpty(), color = SoftRed, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = {
+                            if (newPinInput.length < 4) {
+                                pinErrorMessage = "New PIN must be at least 4 digits."
+                            } else if (newPinInput != confirmPinInput) {
+                                pinErrorMessage = "PIN confirmation does not match."
+                            } else {
+                                viewModel.saveMasterPin(newPinInput)
+                                activeSheet = SettingsActiveSheet.NONE
+                                Toast.makeText(context, "Master PIN updated successfully", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    ) {
+                        Text("Save New PIN", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
             }
         }
     }
@@ -1661,103 +1895,6 @@ fun SettingsScreen(
         }
     }
 
-    // Modify PIN Sheet
-    if (activeSheet == SettingsActiveSheet.CHANGE_PIN) {
-        var verifyDob by remember { mutableStateOf("") }
-        var newPin by remember { mutableStateOf("") }
-        var confirmPin by remember { mutableStateOf("") }
-        var errorMessage by remember { mutableStateOf<String?>(null) }
-
-        ModalBottomSheet(
-            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
-            containerColor = CardWhite,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .padding(horizontal = 24.dp, vertical = 8.dp)
-            ) {
-                Text("Modify Master PIN", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Verify your recovery Date of Birth to set a new 4-digit passcode", fontSize = 12.sp, color = TextMuted)
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = verifyDob,
-                    onValueChange = { verifyDob = it; errorMessage = null },
-                    label = { Text("Security Key (DOB: DD/MM/YYYY or YYYY-MM-DD)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = newPin,
-                    onValueChange = { if (it.length <= 6) { newPin = it.filter { ch -> ch.isDigit() }; errorMessage = null } },
-                    label = { Text("New Master PIN (4-6 digits)") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = confirmPin,
-                    onValueChange = { if (it.length <= 6) { confirmPin = it.filter { ch -> ch.isDigit() }; errorMessage = null } },
-                    label = { Text("Confirm New PIN") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
-                )
-
-                if (errorMessage != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(errorMessage.orEmpty(), color = SoftRed, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Button(
-                    onClick = {
-                        val isDobValid = viewModel.securityManager.verifyRecoveryDob(verifyDob) ||
-                                (userProfile.dateOfBirth.isNotBlank() && verifyDob.replace("[^0-9]".toRegex(), "") == userProfile.dateOfBirth.replace("[^0-9]".toRegex(), ""))
-
-                        if (!isDobValid) {
-                            errorMessage = "DOB verification failed. Please enter your correct birth date."
-                        } else if (newPin.length < 4) {
-                            errorMessage = "New PIN must be at least 4 digits."
-                        } else if (newPin != confirmPin) {
-                            errorMessage = "PIN confirmation does not match."
-                        } else {
-                            viewModel.saveMasterPin(newPin)
-                            activeSheet = SettingsActiveSheet.NONE
-                            Toast.makeText(context, "Master PIN updated successfully", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
-                ) {
-                    Text("Update Master PIN", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-        }
-    }
-
     // Currency & Country Sheet
     if (activeSheet == SettingsActiveSheet.COUNTRY_CURRENCY_PICKER || activeSheet == SettingsActiveSheet.CURRENCY) {
         ModalBottomSheet(
@@ -1826,28 +1963,48 @@ fun SettingsScreen(
         }
     }
 
-    // Reset Confirm Modal
+    // Reset Confirm Modal (With Exact Safeguard Input)
     if (activeSheet == SettingsActiveSheet.RESET_CONFIRM || activeSheet == SettingsActiveSheet.DATA_MANAGEMENT) {
+        var resetKeywordInput by remember { mutableStateOf("") }
+        val isConfirmed = resetKeywordInput.trim() == "RESET"
+
         AlertDialog(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
             title = { Text("Reset Entire Financial Vault?", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = SoftRed) },
             text = {
-                Text(
-                    "This action permanently wipes all transactions, accounts, fixed bills, and custom categories from your device storage. This cannot be undone.",
-                    fontSize = 13.sp,
-                    color = TextDark,
-                    lineHeight = 17.sp
-                )
+                Column {
+                    Text(
+                        "This action permanently wipes all transactions, accounts, fixed bills, and custom categories. To proceed, type RESET in all caps below:",
+                        fontSize = 13.sp,
+                        color = TextDark,
+                        lineHeight = 17.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = resetKeywordInput,
+                        onValueChange = { resetKeywordInput = it },
+                        placeholder = { Text("Type RESET to confirm") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.resetEntireVault {
-                            activeSheet = SettingsActiveSheet.NONE
-                            Toast.makeText(context, "Vault reset complete", Toast.LENGTH_SHORT).show()
+                        if (isConfirmed) {
+                            viewModel.resetEntireVault {
+                                activeSheet = SettingsActiveSheet.NONE
+                                Toast.makeText(context, "Vault reset complete", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = SoftRed),
+                    enabled = isConfirmed,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SoftRed,
+                        disabledContainerColor = SoftRed.copy(alpha = 0.3f)
+                    ),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("Wipe All Data", fontWeight = FontWeight.Bold)
