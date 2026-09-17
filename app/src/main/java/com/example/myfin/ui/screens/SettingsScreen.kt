@@ -1,4 +1,4 @@
-package com.example.myfin.ui.screens
+Package com.example.myfin.ui.screens
 
 import android.Manifest
 import android.app.AlarmManager
@@ -125,40 +125,30 @@ fun openExactAlarmSettings(context: Context) {
 }
 
 fun openBatteryOptimizationSettings(context: Context) {
-    val packageName = context.packageName
-    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && powerManager?.isIgnoringBatteryOptimizations(packageName) == false) {
-        try {
-            val requestIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:$packageName")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(requestIntent)
-            return
-        } catch (_: Exception) { }
-    }
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        try {
-            val listIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(listIntent)
-            return
-        } catch (_: Exception) { }
-    }
-
     try {
-        val samsungBatteryIntent = Intent().apply {
-            setClassName("com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } else {
+            openAppDetailsSettings(context)
         }
-        context.startActivity(samsungBatteryIntent)
-        return
-    } catch (_: Exception) { }
-
-    openAppDetailsSettings(context)
+    } catch (_: Exception) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val listIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(listIntent)
+            } else {
+                openAppDetailsSettings(context)
+            }
+        } catch (_: Exception) {
+            openAppDetailsSettings(context)
+        }
+    }
 }
 
 fun openNotificationSettings(context: Context) {
@@ -1449,7 +1439,7 @@ fun SettingsScreen(
         }
     }
 
-    // Personal Info Modal Sheet
+    // Personal Info Modal Sheet (Race-condition free)
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
         var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
         var emailInput by remember(userProfile) { mutableStateOf(userProfile.email) }
@@ -1693,7 +1683,7 @@ fun SettingsScreen(
         }
     }
 
-    // Auto-Sweep Threshold Sheet
+    // Auto-Sweep Threshold Sheet (Clarified Terminology)
     if (activeSheet == SettingsActiveSheet.AUTO_SWEEP_THRESHOLD) {
         var thresholdInput by remember(userProfile) {
             mutableStateOf(
@@ -1716,7 +1706,7 @@ fun SettingsScreen(
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Fortress Liquid Savings Cap", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Sets the liquid savings cushion in your Fortress account. Excess amounts automatically sweep into Emergency Fixed Deposits.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
+                Text("Sets the liquid savings cushion in your Fortress account. Any savings exceeding this limit automatically sweep into Emergency Fixed Deposits.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1756,6 +1746,524 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(14.dp))
             }
         }
+    }
+
+    // Fortress Safety Net Target Sheet
+    if (activeSheet == SettingsActiveSheet.FORTRESS_SAFETY_NET) {
+        var selectedMonths by remember(userProfile) { mutableIntStateOf(userProfile.fortressEmergencyMonths.takeIf { it > 0 } ?: 6) }
+
+        ModalBottomSheet(
+            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            containerColor = CardWhite,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                Text("Fortress Safety Net Target", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                Text("Represents your target Emergency Reserve in sweep-in FDs, calculated from your average monthly living spend.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val baselineBurn = if (avgMonthlySpend > 0.0) avgMonthlySpend else max(userProfile.baseMonthlyIncome, 1000.0)
+                val computedTarget = baselineBurn * selectedMonths
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = CanvasLight,
+                    border = BorderStroke(0.8.dp, BorderLight)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Emergency Fund Goal (Sweep FDs)", fontSize = 11.5.sp, color = TextMuted)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)}",
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Black,
+                            color = SettingsTealColor
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "$selectedMonths Months × ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", baselineBurn)}/mo (Baseline spend)",
+                            fontSize = 11.sp,
+                            color = TextMuted
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("Select Runway Target:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(3, 6, 9, 12).forEach { months ->
+                        val isSel = selectedMonths == months
+                        OutlinedButton(
+                            onClick = { selectedMonths = months },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (isSel) SettingsTealColor.copy(alpha = 0.12f) else Color.Transparent
+                            ),
+                            border = BorderStroke(1.dp, if (isSel) SettingsTealColor else BorderLight)
+                        ) {
+                            Text("$months M", fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium, color = if (isSel) SettingsTealColor else TextDark)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        viewModel.updateFortressEmergencyMonths(selectedMonths)
+                        viewModel.updateFortressManualTarget(0.0)
+                        activeSheet = SettingsActiveSheet.NONE
+                        Toast.makeText(context, "Fortress target set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)} ($selectedMonths Months)", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                ) {
+                    Text("Apply Target Runway", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    }
+
+    // Opening Corporate Float Modal Sheet
+    if (showCorporateFloatSheet) {
+        var selectedFloatMode by remember(userProfile) {
+            mutableStateOf(
+                when {
+                    userProfile.initialCompanyAdvance > 0.0 -> "ADVANCE_HELD"
+                    userProfile.initialReimbursementClaim > 0.0 -> "CLAIM_DUE"
+                    else -> "SETTLED"
+                }
+            )
+        }
+        var amountInput by remember(userProfile) {
+            val initialAmt = when {
+                userProfile.initialCompanyAdvance > 0.0 -> userProfile.initialCompanyAdvance
+                userProfile.initialReimbursementClaim > 0.0 -> userProfile.initialReimbursementClaim
+                else -> 0.0
+            }
+            mutableStateOf(if (initialAmt > 0.0) String.format(Locale.US, "%.0f", initialAmt) else "")
+        }
+
+        ModalBottomSheet(
+            onDismissRequest = { showCorporateFloatSheet = false },
+            containerColor = CardWhite,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(38.dp),
+                        shape = CircleShape,
+                        color = Color(0xFFE57A28).copy(alpha = 0.12f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Work,
+                                contentDescription = null,
+                                tint = Color(0xFFE57A28),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Opening Corporate Float", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                        Text("Pre-existing balances before using MyFin", fontSize = 12.sp, color = TextMuted)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = CanvasLight,
+                    border = BorderStroke(0.6.dp, BorderLight)
+                ) {
+                    Text(
+                        text = "If your employer gave you an advance float or owes you money for past business trips, set it here so it doesn't distort your personal living budget.",
+                        fontSize = 11.5.sp,
+                        color = TextMuted,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("Select Current Float Status:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        Triple("SETTLED", "All Settled", "No prior claims or advance money held"),
+                        Triple("CLAIM_DUE", "Company Owes Me", "I paid out-of-pocket and expect reimbursement"),
+                        Triple("ADVANCE_HELD", "Holding Company Advance", "Company gave me float that is in my account")
+                    ).forEach { (mode, title, subtitle) ->
+                        val isSelected = selectedFloatMode == mode
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { selectedFloatMode = mode },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) Color(0xFFE57A28).copy(alpha = 0.08f) else CanvasLight,
+                            border = BorderStroke(1.dp, if (isSelected) Color(0xFFE57A28) else BorderLight)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
+                                    Text(subtitle, fontSize = 11.sp, color = TextMuted)
+                                }
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = { selectedFloatMode = mode },
+                                    colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFE57A28))
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (selectedFloatMode != "SETTLED") {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = amountInput,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            amountInput = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
+                        label = {
+                            Text(
+                                if (selectedFloatMode == "CLAIM_DUE") "Pending Claim Amount (${userProfile.currencySymbol})"
+                                else "Advance Float Held (${userProfile.currencySymbol})"
+                            )
+                        },
+                        placeholder = { Text("e.g. 15000") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        val parsedAmt = amountInput.toDoubleOrNull() ?: 0.0
+                        val initialClaim = if (selectedFloatMode == "CLAIM_DUE") parsedAmt else 0.0
+                        val initialAdvance = if (selectedFloatMode == "ADVANCE_HELD") parsedAmt else 0.0
+
+                        viewModel.updateOpeningCorporateFloat(initialClaim, initialAdvance)
+                        showCorporateFloatSheet = false
+                        Toast.makeText(context, "Opening float status updated", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = TextDark)
+                ) {
+                    Text("Save Opening Float", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    }
+
+    // Biometrics Sheet
+    if (activeSheet == SettingsActiveSheet.BIOMETRIC_CONFIRM || activeSheet == SettingsActiveSheet.SECURITY) {
+        ModalBottomSheet(
+            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            containerColor = CardWhite,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(150.dp)
+                        .padding(top = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BiometricIllustrationCanvas(modifier = Modifier.fillMaxSize())
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = "Biometric Authentication",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = TextDark,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Biometric authentication encrypts your local database access using device hardware keys. Your stored data never leaves this phone.",
+                    fontSize = 12.5.sp,
+                    color = TextMuted,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = {
+                        val targetState = !userProfile.isBiometricEnabled
+                        if (targetState) {
+                            if (!viewModel.securityManager.canAuthenticateWithBiometrics(context)) {
+                                Toast.makeText(context, "Biometrics not available on this device", Toast.LENGTH_SHORT).show()
+                            } else {
+                                triggerBiometricVerificationScan(
+                                    context = context,
+                                    onSuccess = {
+                                        viewModel.updateBiometricEnabled(true)
+                                        activeSheet = SettingsActiveSheet.NONE
+                                        Toast.makeText(context, "Biometrics Enabled", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onFailure = { err ->
+                                        Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+                        } else {
+                            viewModel.updateBiometricEnabled(false)
+                            activeSheet = SettingsActiveSheet.NONE
+                            Toast.makeText(context, "Biometrics Disabled", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (userProfile.isBiometricEnabled) SoftRed else AccentPurple)
+                ) {
+                    Text(
+                        text = if (userProfile.isBiometricEnabled) "Disable Biometrics" else "Enable Biometric Unlock",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.5.sp,
+                        color = Color.White
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    }
+
+    // Currency & Country Sheet with Search Bar
+    if (activeSheet == SettingsActiveSheet.COUNTRY_CURRENCY_PICKER || activeSheet == SettingsActiveSheet.CURRENCY) {
+        var countrySearchQuery by remember { mutableStateOf("") }
+        val filteredCountries = remember(countrySearchQuery) {
+            if (countrySearchQuery.isBlank()) SupportedCountries
+            else {
+                val q = countrySearchQuery.trim().lowercase()
+                SupportedCountries.filter {
+                    it.countryName.lowercase().contains(q) ||
+                    it.currencyCode.lowercase().contains(q) ||
+                    it.currencySymbol.lowercase().contains(q)
+                }
+            }
+        }
+
+        ModalBottomSheet(
+            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            containerColor = CardWhite,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                Text("Select Country & Currency", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                Text("Updates formatting symbol across all vaults & reports", fontSize = 12.sp, color = TextMuted)
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = countrySearchQuery,
+                    onValueChange = { countrySearchQuery = it },
+                    placeholder = { Text("Search country, currency, or code...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted) },
+                    trailingIcon = {
+                        if (countrySearchQuery.isNotBlank()) {
+                            IconButton(onClick = { countrySearchQuery = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextMuted)
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 340.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (filteredCountries.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No matching countries or currencies found", fontSize = 13.sp, color = TextMuted)
+                        }
+                    } else {
+                        filteredCountries.forEach { item ->
+                            val isSel = userProfile.currencySymbol == item.currencySymbol
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        viewModel.updateCurrencySymbol(item.currencySymbol)
+                                        activeSheet = SettingsActiveSheet.NONE
+                                        Toast.makeText(context, "Country set to ${item.countryName} (${item.currencySymbol})", Toast.LENGTH_SHORT).show()
+                                    },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSel) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
+                                border = BorderStroke(0.7.dp, if (isSel) AccentPurple else BorderLight)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(item.flagEmoji, fontSize = 20.sp)
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(item.countryName, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                            Text("${item.currencySymbol} - ${item.currencyCode}", fontSize = 11.5.sp, color = TextMuted)
+                                        }
+                                    }
+                                    if (isSel) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    }
+
+    // Reset Confirm Modal (With Strict Safeguard Input)
+    if (activeSheet == SettingsActiveSheet.RESET_CONFIRM || activeSheet == SettingsActiveSheet.DATA_MANAGEMENT) {
+        var resetKeywordInput by remember { mutableStateOf("") }
+        val isConfirmed = resetKeywordInput.trim() == "RESET"
+
+        AlertDialog(
+            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            title = { Text("Reset Entire Financial Vault?", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = SoftRed) },
+            text = {
+                Column {
+                    Text(
+                        "This action permanently wipes all transactions, accounts, fixed bills, and custom categories. To proceed, type RESET in all caps below:",
+                        fontSize = 13.sp,
+                        color = TextDark,
+                        lineHeight = 17.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = resetKeywordInput,
+                        onValueChange = { resetKeywordInput = it },
+                        placeholder = { Text("Type RESET to confirm") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (isConfirmed) {
+                            viewModel.resetEntireVault {
+                                activeSheet = SettingsActiveSheet.NONE
+                                Toast.makeText(context, "Vault reset complete", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = isConfirmed,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SoftRed,
+                        disabledContainerColor = SoftRed.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Wipe All Data", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { activeSheet = SettingsActiveSheet.NONE }) {
+                    Text("Cancel", color = TextDark)
+                }
+            }
+        )
     }
 }
 
