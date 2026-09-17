@@ -6,30 +6,40 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
+import android.util.Log
 import java.util.Calendar
 
 object ReminderScheduler {
 
     const val CHANNEL_ID_REMINDERS = "myfin_daily_reminders"
     const val ACTION_DAILY_REMINDER = "com.example.myfin.ACTION_DAILY_REMINDER"
+    const val ACTION_TEST_NOTIFICATION = "com.example.myfin.ACTION_TEST_NOTIFICATION"
     private const val REMINDER_REQUEST_CODE = 9001
 
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
-            if (notificationManager.getNotificationChannel(CHANNEL_ID_REMINDERS) == null) {
-                val name = "Daily Check-in & AutoPay Alerts"
-                val descriptionText = "Notifications for recurring bill reminders and end-of-day spend logging"
-                val importance = NotificationManager.IMPORTANCE_DEFAULT
-                val channel = NotificationChannel(CHANNEL_ID_REMINDERS, name, importance).apply {
-                    description = descriptionText
-                    enableLights(true)
-                    enableVibration(true)
-                }
-                notificationManager.createNotificationChannel(channel)
+            val name = "Daily Check-in & AutoPay Alerts"
+            val descriptionText = "Notifications for recurring bill reminders and end-of-day spend logging"
+            val importance = NotificationManager.IMPORTANCE_HIGH // High importance enables heads-up display and sound
+            
+            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val audioAttributes = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .build()
+
+            val channel = NotificationChannel(CHANNEL_ID_REMINDERS, name, importance).apply {
+                description = descriptionText
+                enableLights(true)
+                enableVibration(true)
+                setSound(soundUri, audioAttributes)
             }
+            notificationManager.createNotificationChannel(channel)
         }
     }
 
@@ -80,7 +90,9 @@ object ReminderScheduler {
                     pendingIntent
                 )
             }
-        } catch (_: SecurityException) {
+            Log.d("ReminderScheduler", "Alarm successfully scheduled for: ${calendar.time}")
+        } catch (e: Exception) {
+            Log.e("ReminderScheduler", "Failed to schedule alarm: ${e.message}", e)
             try {
                 alarmManager.setAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
@@ -88,7 +100,18 @@ object ReminderScheduler {
                     pendingIntent
                 )
             } catch (_: Exception) { }
-        } catch (_: Exception) { }
+        }
+    }
+
+    /**
+     * Instantly triggers the receiver to post a notification immediately (bypasses 24-hour wait for testing).
+     */
+    fun triggerImmediateTestNotification(context: Context) {
+        createNotificationChannels(context)
+        val intent = Intent(context, ReminderReceiver::class.java).apply {
+            action = ACTION_TEST_NOTIFICATION
+        }
+        context.sendBroadcast(intent)
     }
 
     fun cancelReminder(context: Context) {
