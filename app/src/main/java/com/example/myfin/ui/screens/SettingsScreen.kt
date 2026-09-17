@@ -1,9 +1,13 @@
 package com.example.myfin.ui.screens
 
 import android.Manifest
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -55,6 +59,7 @@ import androidx.core.content.ContextCompat
 import coil.compose.SubcomposeAsyncImage
 import com.example.myfin.BuildConfig
 import com.example.myfin.data.ExcelExportManager
+import com.example.myfin.data.ReminderScheduler
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AppBrandingFooter
 import com.example.myfin.ui.components.SettingsActiveSheet
@@ -101,8 +106,43 @@ fun SettingsScreen(
     var expandedSection by rememberSaveable { mutableStateOf(SettingsAccordionSection.NONE) }
     var avatarRefreshKey by remember { mutableStateOf(0L) }
 
-    var pendingReminderHour by remember { mutableIntStateOf(userProfile.reminderHour) }
-    var pendingReminderMinute by remember { mutableIntStateOf(userProfile.reminderMinute) }
+    var pendingPermissionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            pendingPermissionAction?.invoke()
+        } else {
+            Toast.makeText(context, "Notification permission is required to post alerts", Toast.LENGTH_LONG).show()
+        }
+        pendingPermissionAction = null
+    }
+
+    fun checkAndRequestNotificationPermission(onGranted: () -> Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val isGranted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (isGranted) {
+                onGranted()
+            } else {
+                pendingPermissionAction = onGranted
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        } else {
+            onGranted()
+        }
+    }
+
+    val alarmManager = remember { context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager }
+    val canScheduleExactAlarms = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            alarmManager?.canScheduleExactAlarms() ?: true
+        } else true
+    }
 
     LaunchedEffect(initialActiveSheet) {
         if (initialActiveSheet != SettingsActiveSheet.NONE) {
@@ -182,24 +222,13 @@ fun SettingsScreen(
                         avatarRefreshKey = timestamp
                         Toast.makeText(context, "Profile picture updated", Toast.LENGTH_SHORT).show()
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     viewModel.updateProfileImageUri(sourceUri.toString())
                     withContext(Dispatchers.Main) {
                         avatarRefreshKey = System.currentTimeMillis()
                     }
                 }
             }
-        }
-    }
-
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            viewModel.updateReminderSettings(context, true, pendingReminderHour, pendingReminderMinute)
-            Toast.makeText(context, "Reminder enabled for ${String.format(Locale.US, "%02d:%02d", pendingReminderHour, pendingReminderMinute)}", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(context, "Notification permission is required for daily reminders", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -416,11 +445,7 @@ fun SettingsScreen(
                     title = "Profile & Regional",
                     isExpanded = expandedSection == SettingsAccordionSection.PROFILE,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == SettingsAccordionSection.PROFILE) {
-                            SettingsAccordionSection.NONE
-                        } else {
-                            SettingsAccordionSection.PROFILE
-                        }
+                        expandedSection = if (expandedSection == SettingsAccordionSection.PROFILE) SettingsAccordionSection.NONE else SettingsAccordionSection.PROFILE
                     }
                 ) {
                     SettingsChildNavRow(
@@ -456,11 +481,7 @@ fun SettingsScreen(
                     title = "Strategy & Architecture",
                     isExpanded = expandedSection == SettingsAccordionSection.STRATEGY,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == SettingsAccordionSection.STRATEGY) {
-                            SettingsAccordionSection.NONE
-                        } else {
-                            SettingsAccordionSection.STRATEGY
-                        }
+                        expandedSection = if (expandedSection == SettingsAccordionSection.STRATEGY) SettingsAccordionSection.NONE else SettingsAccordionSection.STRATEGY
                     }
                 ) {
                     SettingsChildSwitchRow(
@@ -497,11 +518,7 @@ fun SettingsScreen(
                     title = "Security & Privacy",
                     isExpanded = expandedSection == SettingsAccordionSection.SECURITY,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == SettingsAccordionSection.SECURITY) {
-                            SettingsAccordionSection.NONE
-                        } else {
-                            SettingsAccordionSection.SECURITY
-                        }
+                        expandedSection = if (expandedSection == SettingsAccordionSection.SECURITY) SettingsAccordionSection.NONE else SettingsAccordionSection.SECURITY
                     }
                 ) {
                     SettingsChildSwitchRow(
@@ -525,40 +542,149 @@ fun SettingsScreen(
                     )
                 }
 
-                // Reminders & Alerts
+                // Reminders & Alerts (Fully Wired & Reactive)
                 val reminderTime = String.format(Locale.US, "%02d:%02d", userProfile.reminderHour, userProfile.reminderMinute)
                 ExpandableSettingsCard(
                     icon = Icons.Outlined.Notifications,
                     title = "Reminders & Alerts",
                     isExpanded = expandedSection == SettingsAccordionSection.REMINDERS,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == SettingsAccordionSection.REMINDERS) {
-                            SettingsAccordionSection.NONE
-                        } else {
-                            SettingsAccordionSection.REMINDERS
-                        }
+                        expandedSection = if (expandedSection == SettingsAccordionSection.REMINDERS) SettingsAccordionSection.NONE else SettingsAccordionSection.REMINDERS
                     }
                 ) {
+                    // Daily Review Reminder Toggle
                     SettingsChildSwitchRow(
                         title = "Daily Review Reminder ($reminderTime)",
                         isChecked = userProfile.reminderEnabled,
-                        onToggle = { activeSheet = SettingsActiveSheet.DAILY_REMINDER },
+                        onToggle = { shouldEnable ->
+                            if (shouldEnable) {
+                                checkAndRequestNotificationPermission {
+                                    val updated = userProfile.copy(id = 1, reminderEnabled = true)
+                                    viewModel.saveUserProfile(updated)
+                                    ReminderScheduler.scheduleDailyReminder(
+                                        context.applicationContext,
+                                        updated.reminderHour,
+                                        updated.reminderMinute
+                                    )
+                                    Toast.makeText(context, "Daily reminder active for $reminderTime", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                val updated = userProfile.copy(id = 1, reminderEnabled = false)
+                                viewModel.saveUserProfile(updated)
+                                if (!updated.isAutoPayReminderEnabled) {
+                                    ReminderScheduler.cancelReminder(context.applicationContext)
+                                }
+                                Toast.makeText(context, "Daily reminder turned off", Toast.LENGTH_SHORT).show()
+                            }
+                        },
                         onClick = { activeSheet = SettingsActiveSheet.DAILY_REMINDER }
                     )
+
+                    // AutoPay Bill Due Alerts Toggle
                     SettingsChildSwitchRow(
                         title = "AutoPay Bill Due Alerts (48h)",
                         isChecked = userProfile.isAutoPayReminderEnabled,
-                        onToggle = {
-                            viewModel.saveUserProfile(userProfile.copy(isAutoPayReminderEnabled = !userProfile.isAutoPayReminderEnabled))
+                        onToggle = { shouldEnable ->
+                            if (shouldEnable) {
+                                checkAndRequestNotificationPermission {
+                                    val updated = userProfile.copy(id = 1, isAutoPayReminderEnabled = true)
+                                    viewModel.saveUserProfile(updated)
+                                    ReminderScheduler.scheduleDailyReminder(
+                                        context.applicationContext,
+                                        updated.reminderHour,
+                                        updated.reminderMinute
+                                    )
+                                    Toast.makeText(context, "AutoPay alerts enabled", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                val updated = userProfile.copy(id = 1, isAutoPayReminderEnabled = false)
+                                viewModel.saveUserProfile(updated)
+                                if (!updated.reminderEnabled) {
+                                    ReminderScheduler.cancelReminder(context.applicationContext)
+                                }
+                                Toast.makeText(context, "AutoPay alerts disabled", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     )
+
+                    // Budget Overrun Warnings Toggle
                     SettingsChildSwitchRow(
                         title = "Budget Overrun Warnings",
                         isChecked = userProfile.isOverrunWarningEnabled,
-                        onToggle = {
-                            viewModel.saveUserProfile(userProfile.copy(isOverrunWarningEnabled = !userProfile.isOverrunWarningEnabled))
+                        onToggle = { shouldEnable ->
+                            val updated = userProfile.copy(id = 1, isOverrunWarningEnabled = shouldEnable)
+                            viewModel.saveUserProfile(updated)
+                            Toast.makeText(context, if (shouldEnable) "Overrun warnings enabled" else "Overrun warnings disabled", Toast.LENGTH_SHORT).show()
                         }
                     )
+
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+
+                    // Instant Test Action
+                    SettingsChildNavRow(
+                        title = "Send Test Notification",
+                        value = "Test Alert",
+                        onClick = {
+                            checkAndRequestNotificationPermission {
+                                ReminderScheduler.triggerImmediateTestNotification(context.applicationContext)
+                                Toast.makeText(context, "Test alert sent! Check your notification shade.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+
+                    // System App Settings Channel
+                    SettingsChildNavRow(
+                        title = "Android Notification Settings",
+                        value = "System Channel",
+                        onClick = {
+                            try {
+                                val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+                                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                        putExtra(Settings.EXTRA_CHANNEL_ID, ReminderScheduler.CHANNEL_ID_REMINDERS)
+                                    }
+                                } else {
+                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = Uri.fromParts("package", context.packageName, null)
+                                    }
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.fromParts("package", context.packageName, null)
+                                }
+                                context.startActivity(fallback)
+                            }
+                        }
+                    )
+
+                    if (!canScheduleExactAlarms && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    val exactIntent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                        data = Uri.fromParts("package", context.packageName, null)
+                                    }
+                                    context.startActivity(exactIntent)
+                                },
+                            shape = RoundedCornerShape(8.dp),
+                            color = SoftAmber.copy(alpha = 0.12f),
+                            border = BorderStroke(0.6.dp, SoftAmber)
+                        ) {
+                            Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Exact Alarms restricted by OS. Tap to allow exact alarms so notifications fire on the exact minute.",
+                                    fontSize = 11.sp,
+                                    color = TextDark,
+                                    lineHeight = 15.sp
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Data Backup & Recovery
@@ -567,11 +693,7 @@ fun SettingsScreen(
                     title = "Data Backup & Recovery",
                     isExpanded = expandedSection == SettingsAccordionSection.BACKUP,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == SettingsAccordionSection.BACKUP) {
-                            SettingsAccordionSection.NONE
-                        } else {
-                            SettingsAccordionSection.BACKUP
-                        }
+                        expandedSection = if (expandedSection == SettingsAccordionSection.BACKUP) SettingsAccordionSection.NONE else SettingsAccordionSection.BACKUP
                     }
                 ) {
                     SettingsChildNavRow(
@@ -597,11 +719,7 @@ fun SettingsScreen(
                     title = "Financial Statements & Reports",
                     isExpanded = expandedSection == SettingsAccordionSection.REPORTS,
                     onToggleExpand = {
-                        expandedSection = if (expandedSection == SettingsAccordionSection.REPORTS) {
-                            SettingsAccordionSection.NONE
-                        } else {
-                            SettingsAccordionSection.REPORTS
-                        }
+                        expandedSection = if (expandedSection == SettingsAccordionSection.REPORTS) SettingsAccordionSection.NONE else SettingsAccordionSection.REPORTS
                     }
                 ) {
                     SettingsChildNavRow(
@@ -769,7 +887,134 @@ fun SettingsScreen(
         }
     }
 
-    // Sheets & Modals
+    // Daily Reminder Time Picker Bottom Sheet
+    if (activeSheet == SettingsActiveSheet.DAILY_REMINDER || activeSheet == SettingsActiveSheet.REMINDERS || activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
+        var hourText by remember(userProfile) { mutableStateOf(String.format(Locale.US, "%02d", userProfile.reminderHour)) }
+        var minText by remember(userProfile) { mutableStateOf(String.format(Locale.US, "%02d", userProfile.reminderMinute)) }
+
+        ModalBottomSheet(
+            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            containerColor = CardWhite,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                Text("Daily Expense Review Reminder", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
+                Text("Configure your daily check-in notification time", fontSize = 12.sp, color = TextMuted)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = CanvasLight,
+                    border = BorderStroke(0.6.dp, BorderLight)
+                ) {
+                    Text(
+                        text = "• Alarms are scheduled locally on your device hardware.\n• Zero battery drain, telemetry, or network access.\n• Ensure notification permission is allowed on Android 13+.",
+                        fontSize = 11.5.sp,
+                        color = TextMuted,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.padding(14.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = hourText,
+                        onValueChange = { input ->
+                            if (input.length <= 2) {
+                                hourText = input.filter { it.isDigit() }
+                            }
+                        },
+                        label = { Text("Hour (0-23)") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    OutlinedTextField(
+                        value = minText,
+                        onValueChange = { input ->
+                            if (input.length <= 2) {
+                                minText = input.filter { it.isDigit() }
+                            }
+                        },
+                        label = { Text("Minute (0-59)") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        val parsedHour = (hourText.toIntOrNull() ?: userProfile.reminderHour).coerceIn(0, 23)
+                        val parsedMin = (minText.toIntOrNull() ?: userProfile.reminderMinute).coerceIn(0, 59)
+
+                        checkAndRequestNotificationPermission {
+                            val updated = userProfile.copy(
+                                id = 1,
+                                reminderEnabled = true,
+                                reminderHour = parsedHour,
+                                reminderMinute = parsedMin
+                            )
+                            viewModel.saveUserProfile(updated)
+                            ReminderScheduler.scheduleDailyReminder(context.applicationContext, parsedHour, parsedMin)
+                            Toast.makeText(context, "Daily reminder scheduled for ${String.format(Locale.US, "%02d:%02d", parsedHour, parsedMin)}", Toast.LENGTH_SHORT).show()
+                        }
+                        activeSheet = SettingsActiveSheet.NONE
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                ) {
+                    Text("Save & Activate Reminder", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+
+                if (userProfile.reminderEnabled) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val updated = userProfile.copy(id = 1, reminderEnabled = false)
+                            viewModel.saveUserProfile(updated)
+                            if (!updated.isAutoPayReminderEnabled) {
+                                ReminderScheduler.cancelReminder(context.applicationContext)
+                            }
+                            activeSheet = SettingsActiveSheet.NONE
+                            Toast.makeText(context, "Daily reminder disabled", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftRed),
+                        border = BorderStroke(1.dp, SoftRed.copy(alpha = 0.5f))
+                    ) {
+                        Text("Turn Off Daily Reminder", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    }
+
+    // Personal Info Modal Sheet
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
         var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
         var emailInput by remember(userProfile) { mutableStateOf(userProfile.email) }
@@ -881,6 +1126,7 @@ fun SettingsScreen(
         }
     }
 
+    // Vault Strategy Sheet
     if (activeSheet == SettingsActiveSheet.VAULT_STRATEGY || activeSheet == SettingsActiveSheet.STRATEGY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -1035,7 +1281,7 @@ fun SettingsScreen(
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Auto-Sweep Operating Threshold", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Sets the liquid savings cap maintained in your Fortress account. Any savings balance exceeding this limit automatically sweeps into Emergency Fixed Deposits within the same account.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
+                Text("Sets the liquid savings cap in your Fortress vault. Excess amounts automatically sweep into Emergency Fixed Deposits.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1240,7 +1486,7 @@ fun SettingsScreen(
                     border = BorderStroke(0.6.dp, BorderLight)
                 ) {
                     Text(
-                        text = "If your employer already gave you advance float (sitting in your bank) or owes you money for past business trips, set it here so it doesn't skew your personal living budget.",
+                        text = "If your employer gave you an advance float or owes you money for past business trips, set it here so it doesn't distort your personal living budget.",
                         fontSize = 11.5.sp,
                         color = TextMuted,
                         lineHeight = 16.sp,
@@ -1264,7 +1510,7 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                            .clickable { selectedFloatMode = mode },
+                                .clickable { selectedFloatMode = mode },
                             shape = RoundedCornerShape(12.dp),
                             color = if (isSelected) Color(0xFFE57A28).copy(alpha = 0.08f) else CanvasLight,
                             border = BorderStroke(1.dp, if (isSelected) Color(0xFFE57A28) else BorderLight)
@@ -1339,6 +1585,7 @@ fun SettingsScreen(
         }
     }
 
+    // Biometrics Sheet
     if (activeSheet == SettingsActiveSheet.BIOMETRIC_CONFIRM || activeSheet == SettingsActiveSheet.SECURITY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -1414,6 +1661,7 @@ fun SettingsScreen(
         }
     }
 
+    // Modify PIN Sheet
     if (activeSheet == SettingsActiveSheet.CHANGE_PIN) {
         var verifyDob by remember { mutableStateOf("") }
         var newPin by remember { mutableStateOf("") }
@@ -1510,107 +1758,7 @@ fun SettingsScreen(
         }
     }
 
-    if (activeSheet == SettingsActiveSheet.DAILY_REMINDER || activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
-        var hourText by remember(userProfile) { mutableStateOf(userProfile.reminderHour.toString()) }
-        var minText by remember(userProfile) { mutableStateOf(userProfile.reminderMinute.toString()) }
-
-        ModalBottomSheet(
-            onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
-            containerColor = CardWhite,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .padding(horizontal = 24.dp, vertical = 8.dp)
-            ) {
-                Text("Daily Expense Review", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Configure scheduled offline reminder time", fontSize = 12.sp, color = TextMuted)
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = CanvasLight,
-                    border = BorderStroke(0.6.dp, BorderLight)
-                ) {
-                    Text(
-                        text = "• Reminders are scheduled locally using AlarmManager.\n• No background telemetry or internet connection required.\n• Ensure notification permissions are granted on Android 13+.",
-                        fontSize = 11.5.sp,
-                        color = TextMuted,
-                        lineHeight = 16.sp,
-                        modifier = Modifier.padding(14.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedTextField(
-                        value = hourText,
-                        onValueChange = { input ->
-                            if (input.length <= 2) {
-                                hourText = input.filter { it.isDigit() }
-                            }
-                        },
-                        label = { Text("Hour (0-23)") },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-
-                    OutlinedTextField(
-                        value = minText,
-                        onValueChange = { input ->
-                            if (input.length <= 2) {
-                                minText = input.filter { it.isDigit() }
-                            }
-                        },
-                        label = { Text("Minute (0-59)") },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Button(
-                    onClick = {
-                        val parsedHour = (hourText.toIntOrNull() ?: userProfile.reminderHour).coerceIn(0, 23)
-                        val parsedMin = (minText.toIntOrNull() ?: userProfile.reminderMinute).coerceIn(0, 59)
-                        pendingReminderHour = parsedHour
-                        pendingReminderMinute = parsedMin
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            viewModel.updateReminderSettings(context, true, parsedHour, parsedMin)
-                            Toast.makeText(context, "Reminder set for ${String.format(Locale.US, "%02d:%02d", parsedHour, parsedMin)}", Toast.LENGTH_SHORT).show()
-                        }
-                        activeSheet = SettingsActiveSheet.NONE
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
-                ) {
-                    Text("Save Reminder Time", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-        }
-    }
-
+    // Currency & Country Sheet
     if (activeSheet == SettingsActiveSheet.COUNTRY_CURRENCY_PICKER || activeSheet == SettingsActiveSheet.CURRENCY) {
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -1678,6 +1826,7 @@ fun SettingsScreen(
         }
     }
 
+    // Reset Confirm Modal
     if (activeSheet == SettingsActiveSheet.RESET_CONFIRM || activeSheet == SettingsActiveSheet.DATA_MANAGEMENT) {
         AlertDialog(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
