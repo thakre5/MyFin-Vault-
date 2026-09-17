@@ -6,7 +6,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.RingtoneManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -21,20 +23,25 @@ class ReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
         val pendingResult = goAsync()
+        val action = intent?.action
+        Log.d("ReminderReceiver", "Broadcast received with action: $action")
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val database = AppDatabase.getDatabase(context)
+                val database = AppDatabase.getDatabase(context.applicationContext)
                 val dao = database.budgetDao()
                 val profile = dao.getUserProfileDirect() ?: UserProfile(id = 1)
 
-                val isBoot = intent?.action == Intent.ACTION_BOOT_COMPLETED ||
-                        intent?.action == Intent.ACTION_MY_PACKAGE_REPLACED
+                val isBoot = action == Intent.ACTION_BOOT_COMPLETED ||
+                        action == Intent.ACTION_MY_PACKAGE_REPLACED ||
+                        action == "android.intent.action.QUICKBOOT_POWERON" ||
+                        action == "com.htc.intent.action.QUICKBOOT_POWERON"
 
                 if (isBoot) {
+                    Log.d("ReminderReceiver", "System reboot detected. Rescheduling alarms...")
                     if (profile.reminderEnabled) {
                         ReminderScheduler.scheduleDailyReminder(
-                            context,
+                            context.applicationContext,
                             profile.reminderHour,
                             profile.reminderMinute
                         )
@@ -42,22 +49,24 @@ class ReminderReceiver : BroadcastReceiver() {
                     return@launch
                 }
 
-                if (profile.reminderEnabled) {
+                val isTest = action == ReminderScheduler.ACTION_TEST_NOTIFICATION
+
+                // Re-arm the next day's alarm cycle
+                if (profile.reminderEnabled && !isTest) {
                     ReminderScheduler.scheduleDailyReminder(
-                        context,
+                        context.applicationContext,
                         profile.reminderHour,
                         profile.reminderMinute
                     )
                 }
 
-                ReminderScheduler.createNotificationChannels(context)
+                ReminderScheduler.createNotificationChannels(context.applicationContext)
 
                 val cal = Calendar.getInstance()
                 val currentDay = cal.get(Calendar.DAY_OF_MONTH)
                 val currentMonth = cal.get(Calendar.MONTH) + 1
                 val currentYear = cal.get(Calendar.YEAR)
 
-                // Exclude Income and Corporate Claim Receivables from outgoing bill alerts
                 val fixedBills = dao.getFixedBillsForMonthDirect(currentMonth, currentYear)
                     .filter { !it.isPaid && 
                         it.type != TransactionType.INCOME && 
@@ -73,12 +82,14 @@ class ReminderReceiver : BroadcastReceiver() {
                 val currency = profile.currencySymbol
 
                 val notificationTitle = when {
+                    isTest -> "🔔 MyFin Notification Test"
                     dueToday.isNotEmpty() -> "⚠️ AutoPay Due Today"
                     dueWithin48h.isNotEmpty() -> "Upcoming AutoPay Alert"
                     else -> "MyFin Daily Check-in"
                 }
 
                 val contentText = when {
+                    isTest -> "Notifications and alarm dispatchers are working properly!"
                     dueToday.isNotEmpty() -> {
                         val names = dueToday.joinToString(", ") { bill ->
                             val formattedAmt = String.format(Locale.US, "%,.0f", bill.amount)
@@ -101,34 +112,44 @@ class ReminderReceiver : BroadcastReceiver() {
                     }
                 }
 
-                val launchIntent = Intent(context, MainActivity::class.java).apply {
+                val launchIntent = Intent(context.applicationContext, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 }
                 val pendingIntent = PendingIntent.getActivity(
-                    context,
+                    context.applicationContext,
                     0,
                     launchIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
 
-                val builder = NotificationCompat.Builder(context, ReminderScheduler.CHANNEL_ID_REMINDERS)
-                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                val appIcon = context.applicationInfo.icon.takeIf { it != 0 } ?: android.R.drawable.ic_dialog_info
+                val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+                val builder = NotificationCompat.Builder(context.applicationContext, ReminderScheduler.CHANNEL_ID_REMINDERS)
+                    .setSmallIcon(appIcon)
                     .setContentTitle(notificationTitle)
                     .setContentText(contentText)
                     .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
-                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setDefaults(NotificationCompat.DEFAULT_ALL)
+                    .setSound(defaultSoundUri)
                     .setContentIntent(pendingIntent)
                     .setAutoCancel(true)
 
                 val hasPermission = ContextCompat.checkSelfPermission(
-                    context,
+                    context.applicationContext,
                     Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED
 
                 if (hasPermission || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                     try {
-                        NotificationManagerCompat.from(context).notify(1001, builder.build())
-                    } catch (_: SecurityException) { }
+                        NotificationManagerCompat.from(context.applicationContext).notify(1001, builder.build())
+                        Log.d("ReminderReceiver", "Notification posted successfully ID 1001")
+                    } catch (e: Exception) {
+                        Log.e("ReminderReceiver", "Failed to post notification: ${e.message}", e)
+                    }
+                } else {
+                    Log.w("ReminderReceiver", "Notification NOT posted: POST_NOTIFICATIONS permission not granted.")
                 }
             } finally {
                 pendingResult.finish()
