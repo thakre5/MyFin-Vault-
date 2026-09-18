@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.ExcelExportManager
+import com.example.myfin.data.PdfExportManager
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
@@ -91,27 +92,6 @@ fun ReportsAnalyticsScreen(
             }
         }
     }
-
-     val pdfExportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/pdf")
-    ) { uri ->
-        uri?.let {
-            coroutineScope.launch {
-                val ok = PdfExportManager.exportToUri(
-                    context = context,
-                    uri = it,
-                    currencySymbol = userProfile.currencySymbol,
-                    timeRangeLabel = selectedTimeRange.label,
-                    totalIncome = personalIncome,
-                    totalExpenses = personalExpenses,
-                    netSurplus = netSurplus,
-                    safeToSpend = uiState.metrics.safeToSpend
-                )
-                Toast.makeText(context, if (ok) "Financial Statement (.pdf) exported successfully!" else "PDF export failed", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
 
     val allTransactions = remember(yearlyState.allYearTransactions, uiState.groupedTransactions) {
         val currentMonthTxs = uiState.groupedTransactions.values.flatten()
@@ -221,6 +201,26 @@ fun ReportsAnalyticsScreen(
     }
 
     val netSurplus = personalIncome - personalExpenses - genuineAssets
+
+    val pdfExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        uri?.let {
+            coroutineScope.launch {
+                val ok = PdfExportManager.exportToUri(
+                    context = context,
+                    uri = it,
+                    currencySymbol = userProfile.currencySymbol,
+                    timeRangeLabel = selectedTimeRange.label,
+                    totalIncome = personalIncome,
+                    totalExpenses = personalExpenses,
+                    netSurplus = netSurplus,
+                    safeToSpend = uiState.metrics.safeToSpend
+                )
+                Toast.makeText(context, if (ok) "Financial Statement (.pdf) exported successfully!" else "PDF export failed", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     val corporateOutlays = remember(filteredTransactions) {
         filteredTransactions.filter {
