@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="108dp"
+            android:height="108dp"
+            android:viewportWidth="108"
+            android:viewportHeight="108">
+
+            <group
+                android:name="shield_base"
+                android:pivotX="54"
+                android:pivotY="53">
+                <path
+                    android:pathData="M 54,18 L 82,32 C 82,60 54,88 54,88 C 54,88 26,60 26,32 Z"
+                    android:strokeWidth="4"
+                    android:strokeColor="#10B981"
+                    android:fillColor="#00000000" />
+            </group>
+
+            <group android:name="chart_vector">
+                <path
+                    android:name="growth_arrow"
+                    android:trimPathEnd="0"
+                    android:pathData="M 36,64 L 46,54 L 56,60 L 72,40 M 64,40 L 72,40 L 72,48"
+                    android:strokeWidth="3.5"
+                    android:strokeColor="#34D399"
+                    android:strokeLineCap="round"
+                    android:strokeLineJoin="round" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target
+        android:name="shield_base"
+        android:animation="@animator/pulse_scale" />
+
+    <target
+        android:name="growth_arrow"
+        android:animation="@animator/draw_path" />
+</animated-vector>
