@@ -19,15 +19,11 @@ object PdfExportManager {
         netSurplus: Double,
         safeToSpend: Double
     ): Boolean {
-        try {
-            val pdfDocument = PdfDocument()
-            val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // Standard A4 size
+        val pdfDocument = PdfDocument()
+        return try {
+            val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // Standard A4 (595 x 842 pt)
             val page = pdfDocument.startPage(pageInfo)
             val canvas: Canvas = page.canvas
-            val paint = Paint().apply {
-                color = android.graphics.Color.BLACK
-                textSize = 14f
-            }
 
             val titlePaint = Paint().apply {
                 color = android.graphics.Color.parseColor("#6C5CE7")
@@ -40,8 +36,14 @@ object PdfExportManager {
                 textSize = 12f
             }
 
+            val paint = Paint().apply {
+                color = android.graphics.Color.BLACK
+                textSize = 14f
+            }
+
             var y = 50f
             canvas.drawText("MyFin Financial Statement", 50f, y, titlePaint)
+
             y += 25f
             val dateStr = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.US).format(Date())
             canvas.drawText("Generated on: $dateStr | Period: $timeRangeLabel", 50f, y, subtitlePaint)
@@ -71,12 +73,15 @@ object PdfExportManager {
 
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                 pdfDocument.writeTo(outputStream)
-            }
-            pdfDocument.close()
-            return true
+                outputStream.flush()
+            } ?: return false
+
+            true
         } catch (e: Exception) {
             e.printStackTrace()
-            return false
+            false
+        } finally {
+            pdfDocument.close()
         }
     }
 }
