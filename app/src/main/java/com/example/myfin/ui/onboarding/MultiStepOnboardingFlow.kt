@@ -5,7 +5,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
+import androidx.compose.animation.graphics.res.animatedVectorResource
+import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
+import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -26,17 +31,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.example.myfin.R
 import com.example.myfin.data.AccountEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
-import com.example.myfin.ui.components.MyFinAppLogo
 import com.example.myfin.ui.onboarding.steps.*
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalAnimationGraphicsApi::class)
 @Composable
 fun MultiStepOnboardingFlow(
     viewModel: BudgetViewModel,
@@ -49,8 +54,19 @@ fun MultiStepOnboardingFlow(
 
     var showSplashReveal by remember { mutableStateOf(true) }
 
+    // Animated Vector Drawable Painter for Shield Growth Logo
+    val animatedLogo = AnimatedImageVector.animatedVectorResource(R.drawable.avd_logo_shield_growth)
+    var isLogoAtEnd by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
-        delay(2000L)
+        // Run continuous loop of the logo draw & pulse animation
+        launch {
+            while (true) {
+                isLogoAtEnd = !isLogoAtEnd
+                delay(1200L)
+            }
+        }
+        delay(2200L)
         showSplashReveal = false
     }
 
@@ -236,9 +252,9 @@ fun MultiStepOnboardingFlow(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0xFF4C1D95),
-                                AccentPurple,
-                                PurplePrimary
+                                Color(0xFF1E2034),
+                                Color(0xFF131522),
+                                Color(0xFF0B0C14)
                             )
                         )
                     ),
@@ -249,16 +265,19 @@ fun MultiStepOnboardingFlow(
                     verticalArrangement = Arrangement.Center,
                     modifier = Modifier.padding(horizontal = 32.dp)
                 ) {
-                    MyFinAppLogo(
-                        size = 80.dp,
-                        showBackgroundContainer = true,
-                        elevation = 8.dp
+                    Image(
+                        painter = rememberAnimatedVectorPainter(
+                            animatedImageVector = animatedLogo,
+                            atEnd = isLogoAtEnd
+                        ),
+                        contentDescription = "MyFin Vault Shield Logo",
+                        modifier = Modifier.size(100.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Text(
-                        text = "MyFin",
+                        text = "MyFin Vault",
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Black,
                         color = Color.White,
@@ -271,7 +290,7 @@ fun MultiStepOnboardingFlow(
                         text = "Your Wealth. Your Rules. Zero Cloud.",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = Color(0xFF34D399),
                         textAlign = TextAlign.Center,
                         letterSpacing = 0.2.sp
                     )
