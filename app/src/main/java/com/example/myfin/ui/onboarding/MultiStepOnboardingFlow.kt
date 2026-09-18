@@ -252,9 +252,9 @@ fun MultiStepOnboardingFlow(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0xFF1E2034),
-                                Color(0xFF131522),
-                                Color(0xFF0B0C14)
+                                Color(0xFF2D1B69),
+                                AccentPurpleDark,
+                                AccentPurple
                             )
                         )
                     ),
@@ -290,7 +290,7 @@ fun MultiStepOnboardingFlow(
                         text = "Your Wealth. Your Rules. Zero Cloud.",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF34D399),
+                        color = Color(0xFFC084FC),
                         textAlign = TextAlign.Center,
                         letterSpacing = 0.2.sp
                     )
