@@ -5,12 +5,14 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 
-class OnboardingDateVisualTransformation : VisualTransformation {
+object OnboardingDateVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
-        val trimmed = text.text.take(8)
+        // Strip out non-digit characters and enforce max 8 numeric digits (DDMMYYYY)
+        val digitsOnly = text.text.filter { it.isDigit() }.take(8)
+
         val out = buildString {
-            for (i in trimmed.indices) {
-                append(trimmed[i])
+            for (i in digitsOnly.indices) {
+                append(digitsOnly[i])
                 if (i == 1 || i == 3) {
                     append('/')
                 }
@@ -41,7 +43,4 @@ class OnboardingDateVisualTransformation : VisualTransformation {
 
         return TransformedText(AnnotatedString(out), offsetTranslator)
     }
-
-    override fun equals(other: Any?): Boolean = other is OnboardingDateVisualTransformation
-    override fun hashCode(): Int = javaClass.hashCode()
 }
