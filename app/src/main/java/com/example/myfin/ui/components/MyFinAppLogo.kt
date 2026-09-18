@@ -17,6 +17,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.myfin.R
+import com.example.myfin.ui.theme.AccentPurple
+import com.example.myfin.ui.theme.AccentPurpleDark
 
 @Composable
 fun MyFinAppLogo(
@@ -37,9 +39,9 @@ fun MyFinAppLogo(
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
-                                    Color(0xFF1E2034),
-                                    Color(0xFF131522),
-                                    Color(0xFF0C0D15)
+                                    Color(0xFF2D1B69),
+                                    AccentPurpleDark,
+                                    AccentPurple
                                 )
                             )
                         )
