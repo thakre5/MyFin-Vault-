@@ -3,10 +3,13 @@ package com.example.myfin.ui.onboarding
 import androidx.compose.ui.graphics.Color
 import com.example.myfin.data.TransactionType
 
-val CyanPrimary = Color(0xFF00D2EE)
-val PurplePrimary = Color(0xFF6C5CE7)
-val TealPrimary = Color(0xFF10B981)
-val CoralAccent = Color(0xFFFF6B6B)
+// MyFin Vault Emerald & Obsidian Palette
+val VaultPrimaryEmerald = Color(0xFF10B981)
+val VaultMintHighlight = Color(0xFF34D399)
+val VaultDarkSurface = Color(0xFF131522)
+val VaultDarkBackground = Color(0xFF0B0C14)
+val VaultBorderStroke = Color(0xFF1E293B)
+val VaultTextMuted = Color(0xFF94A3B8)
 
 data class CountryCurrencyMapping(
     val countryName: String,
@@ -15,7 +18,7 @@ data class CountryCurrencyMapping(
     val currencyCode: String
 )
 
-val SupportedCountries = listOf(
+val SupportedCountries: List<CountryCurrencyMapping> = listOf(
     CountryCurrencyMapping("India", "🇮🇳", "₹", "INR"),
     CountryCurrencyMapping("United States", "🇺🇸", "$", "USD"),
     CountryCurrencyMapping("United Kingdom", "🇬🇧", "£", "GBP"),
@@ -50,7 +53,7 @@ data class OnboardingCarouselSlide(
     val subtitle: String
 )
 
-val WelcomeCarouselSlides = listOf(
+val WelcomeCarouselSlides: List<OnboardingCarouselSlide> = listOf(
     OnboardingCarouselSlide(
         title = "Own Your Wealth\nArchitecture",
         subtitle = "Create your offline vault to partition, store,\nand grow your capital securely"
