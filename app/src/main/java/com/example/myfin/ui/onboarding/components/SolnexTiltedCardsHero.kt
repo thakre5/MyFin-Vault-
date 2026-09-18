@@ -2,7 +2,15 @@ package com.example.myfin.ui.onboarding.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -30,7 +38,7 @@ fun SolnexTiltedCardsHero(
             .height(235.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Back Card (Violet / Purple Gradient)
+        // Back Card (Obsidian & Emerald Border Accent)
         Box(
             modifier = Modifier
                 .offset(x = (-32).dp, y = (-10).dp)
@@ -43,32 +51,36 @@ fun SolnexTiltedCardsHero(
                 .height(140.dp)
                 .background(
                     Brush.linearGradient(
-                        colors = listOf(Color(0xFF8B5CF6), Color(0xFFA855F7), Color(0xFFC084FC))
+                        colors = listOf(
+                            Color(0xFF1E2034),
+                            Color(0xFF131522),
+                            Color(0xFF0B0C14)
+                        )
                     )
                 )
                 .padding(14.dp)
         ) {
             Text(
                 text = "✦",
-                color = Color.White.copy(alpha = 0.85f),
+                color = Color(0xFF34D399).copy(alpha = 0.85f),
                 fontSize = 14.sp
             )
             Column(modifier = Modifier.align(Alignment.BottomStart)) {
                 Text(
-                    text = "Balance",
+                    text = "Reserve Vault",
                     fontSize = 9.sp,
                     color = Color.White.copy(alpha = 0.7f)
                 )
                 Text(
-                    text = "$currencySymbol 2,597.12",
+                    text = "$currencySymbol 12,450.00",
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = Color(0xFF34D399)
                 )
             }
         }
 
-        // Front Card (Rose / Magenta Gradient)
+        // Front Card (Primary Emerald to Teal Gradient)
         Box(
             modifier = Modifier
                 .offset(x = 14.dp, y = 16.dp)
@@ -82,11 +94,9 @@ fun SolnexTiltedCardsHero(
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            Color(0xFF6B052B),
-                            Color(0xFF9D174D),
-                            Color(0xFFC026D3),
-                            Color(0xFFE11D48),
-                            Color(0xFFF43F5E)
+                            Color(0xFF047857),
+                            Color(0xFF059669),
+                            Color(0xFF10B981)
                         )
                     )
                 )
@@ -101,12 +111,12 @@ fun SolnexTiltedCardsHero(
 
             Column(modifier = Modifier.align(Alignment.BottomStart)) {
                 Text(
-                    text = "Balance",
+                    text = "Total Balance",
                     fontSize = 10.sp,
-                    color = Color.White.copy(alpha = 0.8f)
+                    color = Color.White.copy(alpha = 0.85f)
                 )
                 Text(
-                    text = "$currencySymbol 24,597.36",
+                    text = "$currencySymbol 84,250.00",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Black,
                     color = Color.White
@@ -114,7 +124,7 @@ fun SolnexTiltedCardsHero(
             }
         }
 
-        // Top Euro Coin Badge
+        // Top Vault Badge (Shield Glyph)
         Box(
             modifier = Modifier
                 .size(62.dp)
@@ -124,27 +134,27 @@ fun SolnexTiltedCardsHero(
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Color(0xFFFFFFFF), Color(0xFFE2E8F0), Color(0xFF94A3B8))
+                        colors = listOf(Color(0xFF1E293B), Color(0xFF0F172A))
                     )
                 ),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokePx = 2.dp.toPx()
                 drawCircle(
-                    color = Color(0xFFCBD5E1),
+                    color = Color(0xFF10B981),
                     radius = size.minDimension * 0.44f,
-                    style = Stroke(width = 2.dp.toPx())
+                    style = Stroke(width = strokePx)
                 )
             }
             Text(
-                text = "€",
-                fontSize = 23.sp,
-                fontWeight = FontWeight.Black,
-                color = Color(0xFF64748B)
+                text = "🛡",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Black
             )
         }
 
-        // Bottom Bitcoin Coin Badge
+        // Bottom Vault Currency Badge
         Box(
             modifier = Modifier
                 .size(72.dp)
@@ -154,23 +164,24 @@ fun SolnexTiltedCardsHero(
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Color(0xFFFFFFFF), Color(0xFFF1F5F9), Color(0xFF64748B))
+                        colors = listOf(Color(0xFF0F172A), Color(0xFF020617))
                     )
                 ),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokePx = 2.5.dp.toPx()
                 drawCircle(
-                    color = Color(0xFFCBD5E1),
+                    color = Color(0xFF34D399),
                     radius = size.minDimension * 0.44f,
-                    style = Stroke(width = 2.5.dp.toPx())
+                    style = Stroke(width = strokePx)
                 )
             }
             Text(
-                text = "₿",
-                fontSize = 28.sp,
+                text = currencySymbol,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Black,
-                color = Color(0xFF475569)
+                color = Color(0xFF34D399)
             )
         }
     }
