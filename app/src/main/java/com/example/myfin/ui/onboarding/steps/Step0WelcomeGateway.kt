@@ -70,7 +70,7 @@ import com.example.myfin.ui.onboarding.CountryCurrencyMapping
 import com.example.myfin.ui.onboarding.InitialAccountSetup
 import com.example.myfin.ui.onboarding.InitialCommitmentPreset
 import com.example.myfin.ui.onboarding.SupportedCountries
-import com.example.myfin.ui.onboarding.TealPrimary
+import com.example.myfin.ui.onboarding.VaultPrimaryEmerald
 import com.example.myfin.ui.onboarding.WelcomeCarouselSlides
 import com.example.myfin.ui.onboarding.components.OnboardingDateVisualTransformation
 import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
@@ -96,6 +96,17 @@ private fun sanitizeDecimalInput(input: String): String {
     } else {
         filtered
     }
+}
+
+private fun isValidCalendarDate(day: Int, month: Int, year: Int): Boolean {
+    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+    if (year !in 1900..currentYear || month !in 1..12) return false
+    val cal = Calendar.getInstance().apply {
+        set(Calendar.YEAR, year)
+        set(Calendar.MONTH, month - 1)
+    }
+    val maxDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    return day in 1..maxDays
 }
 
 @Composable
@@ -272,8 +283,8 @@ fun OnboardingStep0WelcomeGateway(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFF3E8FF),
-                        Color(0xFFEDE9FE).copy(alpha = 0.65f),
+                        Color(0xFFE6F4EA),
+                        Color(0xFFF1F8F5),
                         Color(0xFFF8FAFC),
                         CanvasLight
                     )
@@ -386,7 +397,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 .width(width)
                                                 .height(4.dp)
                                                 .clip(CircleShape)
-                                                .background(if (isSelected) TextDark else BorderLight)
+                                                .background(if (isSelected) VaultPrimaryEmerald else BorderLight)
                                         )
                                     }
                                 }
@@ -427,7 +438,7 @@ fun OnboardingStep0WelcomeGateway(
                                         onValueChange = onDisplayNameChange,
                                         placeholder = { Text("Username", fontSize = 13.5.sp, color = TextMuted) },
                                         leadingIcon = {
-                                            Icon(Icons.Outlined.Person, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Outlined.Person, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(18.dp))
                                         },
                                         singleLine = true,
                                         textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
@@ -437,7 +448,7 @@ fun OnboardingStep0WelcomeGateway(
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
                                             unfocusedContainerColor = CardWhite,
-                                            focusedBorderColor = AccentPurple,
+                                            focusedBorderColor = VaultPrimaryEmerald,
                                             unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
                                         )
                                     )
@@ -447,7 +458,7 @@ fun OnboardingStep0WelcomeGateway(
                                         onValueChange = onEmailChange,
                                         placeholder = { Text("Email Address", fontSize = 13.5.sp, color = TextMuted) },
                                         leadingIcon = {
-                                            Icon(Icons.Outlined.Mail, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Outlined.Mail, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(18.dp))
                                         },
                                         singleLine = true,
                                         textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
@@ -457,7 +468,7 @@ fun OnboardingStep0WelcomeGateway(
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
                                             unfocusedContainerColor = CardWhite,
-                                            focusedBorderColor = AccentPurple,
+                                            focusedBorderColor = VaultPrimaryEmerald,
                                             unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
                                         )
                                     )
@@ -471,9 +482,9 @@ fun OnboardingStep0WelcomeGateway(
                                             onValueChange = { input -> onDobChange(input.filter { it.isDigit() }.take(8)) },
                                             placeholder = { Text("DD/MM/YYYY", fontSize = 12.sp, color = TextMuted) },
                                             leadingIcon = {
-                                                Icon(Icons.Default.CalendarToday, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(15.dp))
+                                                Icon(Icons.Default.CalendarToday, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(15.dp))
                                             },
-                                            visualTransformation = OnboardingDateVisualTransformation(),
+                                            visualTransformation = OnboardingDateVisualTransformation,
                                             singleLine = true,
                                             textStyle = TextStyle(fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = TextDark, letterSpacing = 0.5.sp),
                                             shape = RoundedCornerShape(26.dp),
@@ -482,7 +493,7 @@ fun OnboardingStep0WelcomeGateway(
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedContainerColor = CardWhite,
                                                 unfocusedContainerColor = CardWhite,
-                                                focusedBorderColor = AccentPurple,
+                                                focusedBorderColor = VaultPrimaryEmerald,
                                                 unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
                                             )
                                         )
@@ -560,7 +571,7 @@ fun OnboardingStep0WelcomeGateway(
                                         onValueChange = onMasterPinChange,
                                         placeholder = { Text("Create Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
-                                            Icon(Icons.Outlined.Lock, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Outlined.Lock, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(18.dp))
                                         },
                                         trailingIcon = {
                                             IconButton(onClick = { showMasterPassword = !showMasterPassword }) {
@@ -581,7 +592,7 @@ fun OnboardingStep0WelcomeGateway(
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
                                             unfocusedContainerColor = CardWhite,
-                                            focusedBorderColor = AccentPurple,
+                                            focusedBorderColor = VaultPrimaryEmerald,
                                             unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
                                         )
                                     )
@@ -592,12 +603,12 @@ fun OnboardingStep0WelcomeGateway(
                                         onValueChange = onConfirmPinChange,
                                         placeholder = { Text("Confirm Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
-                                            Icon(Icons.Outlined.Lock, contentDescription = null, tint = if (isPinMatching) TealPrimary else AccentPurple, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Outlined.Lock, contentDescription = null, tint = if (isPinMatching) VaultPrimaryEmerald else BorderLight, modifier = Modifier.size(18.dp))
                                         },
                                         trailingIcon = {
                                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp)) {
                                                 if (isPinMatching) {
-                                                    Icon(Icons.Default.CheckCircle, contentDescription = "Matched", tint = TealPrimary, modifier = Modifier.size(18.dp))
+                                                    Icon(Icons.Default.CheckCircle, contentDescription = "Matched", tint = VaultPrimaryEmerald, modifier = Modifier.size(18.dp))
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                 }
                                                 IconButton(onClick = { showConfirmPassword = !showConfirmPassword }) {
@@ -619,7 +630,7 @@ fun OnboardingStep0WelcomeGateway(
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
                                             unfocusedContainerColor = CardWhite,
-                                            focusedBorderColor = if (isPinMatching) TealPrimary else AccentPurple,
+                                            focusedBorderColor = if (isPinMatching) VaultPrimaryEmerald else BorderLight,
                                             unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
                                         )
                                     )
@@ -638,11 +649,11 @@ fun OnboardingStep0WelcomeGateway(
                                                 modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Icon(Icons.Default.CalendarToday, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(16.dp))
+                                                Icon(Icons.Default.CalendarToday, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(16.dp))
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                                                     Text(text = formattedDob, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextDark, lineHeight = 15.sp, maxLines = 1)
-                                                    Text(text = "Recovery Key Bound", fontSize = 9.sp, fontWeight = FontWeight.Medium, color = TealPrimary, lineHeight = 11.sp, maxLines = 1)
+                                                    Text(text = "Recovery Key Bound", fontSize = 9.sp, fontWeight = FontWeight.Medium, color = VaultPrimaryEmerald, lineHeight = 11.sp, maxLines = 1)
                                                 }
                                             }
                                         }
@@ -668,7 +679,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 },
                                             shape = RoundedCornerShape(26.dp),
                                             color = CardWhite,
-                                            border = BorderStroke(1.dp, if (isBiometricEnabled) AccentPurple.copy(alpha = 0.6f) else BorderLight.copy(alpha = 0.9f))
+                                            border = BorderStroke(1.dp, if (isBiometricEnabled) VaultPrimaryEmerald.copy(alpha = 0.6f) else BorderLight.copy(alpha = 0.9f))
                                         ) {
                                             Row(
                                                 modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
@@ -676,7 +687,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(Icons.Default.Fingerprint, contentDescription = null, tint = if (isBiometricEnabled) AccentPurple else TextMuted, modifier = Modifier.size(17.dp))
+                                                    Icon(Icons.Default.Fingerprint, contentDescription = null, tint = if (isBiometricEnabled) VaultPrimaryEmerald else TextMuted, modifier = Modifier.size(17.dp))
                                                     Spacer(modifier = Modifier.width(5.dp))
                                                     Text(text = "Biometric", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                                 }
@@ -697,7 +708,7 @@ fun OnboardingStep0WelcomeGateway(
                                                         }
                                                     },
                                                     modifier = Modifier.scale(0.7f),
-                                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = AccentPurple, uncheckedTrackColor = CanvasLight)
+                                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = VaultPrimaryEmerald, uncheckedTrackColor = CanvasLight)
                                                 )
                                             }
                                         }
@@ -745,10 +756,10 @@ fun OnboardingStep0WelcomeGateway(
                                                 strategyDetailTarget = "3-VAULT"
                                             },
                                         shape = RoundedCornerShape(26.dp),
-                                        color = if (is3Tier) AccentPurple.copy(alpha = 0.08f) else CardWhite,
+                                        color = if (is3Tier) VaultPrimaryEmerald.copy(alpha = 0.08f) else CardWhite,
                                         border = BorderStroke(
                                             width = if (is3Tier) 1.5.dp else 1.dp,
-                                            color = if (is3Tier) AccentPurple else BorderLight.copy(alpha = 0.9f)
+                                            color = if (is3Tier) VaultPrimaryEmerald else BorderLight.copy(alpha = 0.9f)
                                         )
                                     ) {
                                         Row(
@@ -760,10 +771,10 @@ fun OnboardingStep0WelcomeGateway(
                                                 Surface(
                                                     modifier = Modifier.size(36.dp),
                                                     shape = CircleShape,
-                                                    color = if (is3Tier) AccentPurple.copy(alpha = 0.15f) else CanvasLight
+                                                    color = if (is3Tier) VaultPrimaryEmerald.copy(alpha = 0.15f) else CanvasLight
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
-                                                        Icon(Icons.Outlined.AccountBalance, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(19.dp))
+                                                        Icon(Icons.Outlined.AccountBalance, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(19.dp))
                                                     }
                                                 }
                                                 Spacer(modifier = Modifier.width(12.dp))
@@ -778,7 +789,7 @@ fun OnboardingStep0WelcomeGateway(
                                                     focusManager.clearFocus()
                                                     strategyDetailTarget = "3-VAULT"
                                                 },
-                                                colors = RadioButtonDefaults.colors(selectedColor = AccentPurple, unselectedColor = BorderLight)
+                                                colors = RadioButtonDefaults.colors(selectedColor = VaultPrimaryEmerald, unselectedColor = BorderLight)
                                             )
                                         }
                                     }
@@ -795,10 +806,10 @@ fun OnboardingStep0WelcomeGateway(
                                                 strategyDetailTarget = "SIMPLE"
                                             },
                                         shape = RoundedCornerShape(26.dp),
-                                        color = if (isSimple) AccentPurple.copy(alpha = 0.08f) else CardWhite,
+                                        color = if (isSimple) VaultPrimaryEmerald.copy(alpha = 0.08f) else CardWhite,
                                         border = BorderStroke(
                                             width = if (isSimple) 1.5.dp else 1.dp,
-                                            color = if (isSimple) AccentPurple else BorderLight.copy(alpha = 0.9f)
+                                            color = if (isSimple) VaultPrimaryEmerald else BorderLight.copy(alpha = 0.9f)
                                         )
                                     ) {
                                         Row(
@@ -810,10 +821,10 @@ fun OnboardingStep0WelcomeGateway(
                                                 Surface(
                                                     modifier = Modifier.size(36.dp),
                                                     shape = CircleShape,
-                                                    color = if (isSimple) AccentPurple.copy(alpha = 0.15f) else CanvasLight
+                                                    color = if (isSimple) VaultPrimaryEmerald.copy(alpha = 0.15f) else CanvasLight
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
-                                                        Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(19.dp))
+                                                        Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(19.dp))
                                                     }
                                                 }
                                                 Spacer(modifier = Modifier.width(12.dp))
@@ -828,7 +839,7 @@ fun OnboardingStep0WelcomeGateway(
                                                     focusManager.clearFocus()
                                                     strategyDetailTarget = "SIMPLE"
                                                 },
-                                                colors = RadioButtonDefaults.colors(selectedColor = AccentPurple, unselectedColor = BorderLight)
+                                                colors = RadioButtonDefaults.colors(selectedColor = VaultPrimaryEmerald, unselectedColor = BorderLight)
                                             )
                                         }
                                     }
@@ -864,8 +875,8 @@ fun OnboardingStep0WelcomeGateway(
                                         .fillMaxWidth()
                                         .height(44.dp),
                                     shape = RoundedCornerShape(22.dp),
-                                    color = AccentPurple.copy(alpha = 0.08f),
-                                    border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.25f))
+                                    color = VaultPrimaryEmerald.copy(alpha = 0.08f),
+                                    border = BorderStroke(0.8.dp, VaultPrimaryEmerald.copy(alpha = 0.25f))
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -884,7 +895,7 @@ fun OnboardingStep0WelcomeGateway(
                                             text = "${selectedCountry.currencySymbol} ${String.format(Locale.US, "%,.2f", totalLiquidBalance)}",
                                             fontSize = 14.5.sp,
                                             fontWeight = FontWeight.Black,
-                                            color = AccentPurple
+                                            color = VaultPrimaryEmerald
                                         )
                                     }
                                 }
@@ -938,7 +949,7 @@ fun OnboardingStep0WelcomeGateway(
                                                             Icon(
                                                                 imageVector = if (isCash) Icons.Outlined.Payments else Icons.Outlined.AccountBalance,
                                                                 contentDescription = null,
-                                                                tint = AccentPurple,
+                                                                tint = VaultPrimaryEmerald,
                                                                 modifier = Modifier.size(16.dp)
                                                             )
                                                         }
@@ -965,7 +976,7 @@ fun OnboardingStep0WelcomeGateway(
                                                                 text = account.defaultType,
                                                                 fontSize = 9.5.sp,
                                                                 fontWeight = FontWeight.Medium,
-                                                                color = TealPrimary,
+                                                                color = VaultPrimaryEmerald,
                                                                 lineHeight = 11.sp,
                                                                 maxLines = 1,
                                                                 overflow = TextOverflow.Ellipsis
@@ -982,8 +993,8 @@ fun OnboardingStep0WelcomeGateway(
                                                                             editingMabAccountIndex = index
                                                                         },
                                                                     shape = RoundedCornerShape(6.dp),
-                                                                    color = if (currentMinBal > 0.0) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                                                                    border = BorderStroke(0.5.dp, if (currentMinBal > 0.0) AccentPurple.copy(alpha = 0.4f) else BorderLight)
+                                                                    color = if (currentMinBal > 0.0) VaultPrimaryEmerald.copy(alpha = 0.12f) else CanvasLight,
+                                                                    border = BorderStroke(0.5.dp, if (currentMinBal > 0.0) VaultPrimaryEmerald.copy(alpha = 0.4f) else BorderLight)
                                                                 ) {
                                                                     Row(
                                                                         verticalAlignment = Alignment.CenterVertically,
@@ -993,7 +1004,7 @@ fun OnboardingStep0WelcomeGateway(
                                                                             text = mabDisplay,
                                                                             fontSize = 8.5.sp,
                                                                             fontWeight = FontWeight.Bold,
-                                                                            color = if (currentMinBal > 0.0) AccentPurple else TextMuted,
+                                                                            color = if (currentMinBal > 0.0) VaultPrimaryEmerald else TextMuted,
                                                                             maxLines = 1,
                                                                             softWrap = false
                                                                         )
@@ -1053,7 +1064,7 @@ fun OnboardingStep0WelcomeGateway(
                                                                     textAlign = TextAlign.End
                                                                 ),
                                                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                                                cursorBrush = SolidColor(AccentPurple),
+                                                                cursorBrush = SolidColor(VaultPrimaryEmerald),
                                                                 modifier = Modifier.fillMaxWidth()
                                                             )
                                                         }
@@ -1101,9 +1112,9 @@ fun OnboardingStep0WelcomeGateway(
                                             modifier = Modifier.align(Alignment.End),
                                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                         ) {
-                                            Icon(Icons.Default.Add, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(15.dp))
+                                            Icon(Icons.Default.Add, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(15.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("+ Add Bank", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                                            Text("+ Add Bank", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = VaultPrimaryEmerald)
                                         }
                                     }
                                 }
@@ -1119,7 +1130,7 @@ fun OnboardingStep0WelcomeGateway(
                                     Icon(
                                         Icons.Default.Info,
                                         contentDescription = null,
-                                        tint = AccentPurple.copy(alpha = 0.8f),
+                                        tint = VaultPrimaryEmerald.copy(alpha = 0.8f),
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -1180,7 +1191,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 modifier = Modifier
                                                     .size(6.dp)
                                                     .clip(CircleShape)
-                                                    .background(Color(0xFF10B981))
+                                                    .background(VaultPrimaryEmerald)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Column(verticalArrangement = Arrangement.Center) {
@@ -1189,7 +1200,7 @@ fun OnboardingStep0WelcomeGateway(
                                                     text = "${selectedCountry.currencySymbol} ${String.format(Locale.US, "%,.0f", totalIncome)}",
                                                     fontSize = 11.5.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF10B981),
+                                                    color = VaultPrimaryEmerald,
                                                     lineHeight = 13.sp
                                                 )
                                             }
@@ -1232,7 +1243,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 modifier = Modifier
                                                     .size(6.dp)
                                                     .clip(CircleShape)
-                                                    .background(AccentPurple)
+                                                    .background(Color(0xFF0284C7))
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Column(verticalArrangement = Arrangement.Center) {
@@ -1241,7 +1252,7 @@ fun OnboardingStep0WelcomeGateway(
                                                     text = "${selectedCountry.currencySymbol} ${String.format(Locale.US, "%,.0f", totalAssets)}",
                                                     fontSize = 11.5.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = AccentPurple,
+                                                    color = Color(0xFF0284C7),
                                                     lineHeight = 13.sp
                                                 )
                                             }
@@ -1258,15 +1269,15 @@ fun OnboardingStep0WelcomeGateway(
                                     commitments.forEachIndexed { index, item ->
                                         val isSelected = item.isSelected
                                         val typeColor = when (item.type) {
-                                            TransactionType.INCOME -> Color(0xFF10B981)
+                                            TransactionType.INCOME -> VaultPrimaryEmerald
                                             TransactionType.EXPENSE -> Color(0xFFF43F5E)
-                                            TransactionType.ASSET -> AccentPurple
+                                            TransactionType.ASSET -> Color(0xFF0284C7)
                                             else -> TextDark
                                         }
                                         val typeBg = when (item.type) {
-                                            TransactionType.INCOME -> Color(0xFF10B981).copy(alpha = 0.12f)
+                                            TransactionType.INCOME -> VaultPrimaryEmerald.copy(alpha = 0.12f)
                                             TransactionType.EXPENSE -> Color(0xFFF43F5E).copy(alpha = 0.12f)
-                                            TransactionType.ASSET -> AccentPurple.copy(alpha = 0.12f)
+                                            TransactionType.ASSET -> Color(0xFF0284C7).copy(alpha = 0.12f)
                                             else -> CanvasLight
                                         }
 
@@ -1299,7 +1310,7 @@ fun OnboardingStep0WelcomeGateway(
                                                     Icon(
                                                         imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                                                         contentDescription = "Toggle",
-                                                        tint = if (isSelected) AccentPurple else BorderLight,
+                                                        tint = if (isSelected) VaultPrimaryEmerald else BorderLight,
                                                         modifier = Modifier.size(20.dp)
                                                     )
 
@@ -1402,7 +1413,7 @@ fun OnboardingStep0WelcomeGateway(
                                                                     textAlign = TextAlign.End
                                                                 ),
                                                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                                                cursorBrush = SolidColor(AccentPurple),
+                                                                cursorBrush = SolidColor(VaultPrimaryEmerald),
                                                                 modifier = Modifier.fillMaxWidth()
                                                             )
                                                         }
@@ -1424,7 +1435,7 @@ fun OnboardingStep0WelcomeGateway(
                                     Icon(
                                         Icons.Default.Info,
                                         contentDescription = null,
-                                        tint = AccentPurple.copy(alpha = 0.8f),
+                                        tint = VaultPrimaryEmerald.copy(alpha = 0.8f),
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -1457,14 +1468,13 @@ fun OnboardingStep0WelcomeGateway(
                                     currentStage = GatewayStage.IDENTITY
                                 }
                                 GatewayStage.IDENTITY -> {
-                                    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
                                     val day = if (rawDobDigits.length >= 2) rawDobDigits.substring(0, 2).toIntOrNull() ?: 0 else 0
                                     val month = if (rawDobDigits.length >= 4) rawDobDigits.substring(2, 4).toIntOrNull() ?: 0 else 0
                                     val year = if (rawDobDigits.length == 8) rawDobDigits.substring(4, 8).toIntOrNull() ?: 0 else 0
 
                                     if (displayName.trim().isEmpty()) {
                                         Toast.makeText(context, "Please enter your username", Toast.LENGTH_SHORT).show()
-                                    } else if (rawDobDigits.length < 8 || day !in 1..31 || month !in 1..12 || year !in 1900..currentYear) {
+                                    } else if (rawDobDigits.length < 8 || !isValidCalendarDate(day, month, year)) {
                                         Toast.makeText(context, "Enter a valid calendar date (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
                                     } else {
                                         focusManager.clearFocus()
@@ -1569,8 +1579,8 @@ fun OnboardingStep0WelcomeGateway(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFFF3E8FF).copy(alpha = 0.95f),
-                            Color(0xFFF3E8FF).copy(alpha = 0.60f),
+                            Color(0xFFE6F4EA).copy(alpha = 0.95f),
+                            Color(0xFFE6F4EA).copy(alpha = 0.60f),
                             Color.Transparent
                         )
                     )
@@ -1612,10 +1622,10 @@ fun OnboardingStep0WelcomeGateway(
                             Surface(
                                 modifier = Modifier.size(38.dp),
                                 shape = CircleShape,
-                                color = AccentPurple.copy(alpha = 0.12f)
+                                color = VaultPrimaryEmerald.copy(alpha = 0.12f)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.Shield, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.Shield, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(20.dp))
                                 }
                             }
                             Spacer(modifier = Modifier.width(12.dp))
@@ -1657,14 +1667,14 @@ fun OnboardingStep0WelcomeGateway(
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable { customMabText = preset },
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
-                                    border = BorderStroke(0.8.dp, if (isSel) AccentPurple else BorderLight)
+                                    color = if (isSel) VaultPrimaryEmerald.copy(alpha = 0.14f) else CanvasLight,
+                                    border = BorderStroke(0.8.dp, if (isSel) VaultPrimaryEmerald else BorderLight)
                                 ) {
                                     Text(
                                         text = label,
                                         fontSize = 11.sp,
                                         fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSel) AccentPurple else TextDark,
+                                        color = if (isSel) VaultPrimaryEmerald else TextDark,
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.padding(vertical = 8.dp)
                                     )
@@ -1684,7 +1694,7 @@ fun OnboardingStep0WelcomeGateway(
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AccentPurple,
+                                focusedBorderColor = VaultPrimaryEmerald,
                                 unfocusedBorderColor = BorderLight
                             )
                         )
@@ -1700,9 +1710,9 @@ fun OnboardingStep0WelcomeGateway(
                                 .fillMaxWidth()
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                            colors = ButtonDefaults.buttonColors(containerColor = VaultPrimaryEmerald)
                         ) {
-                            Text("Set Minimum Balance", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                            Text("Set Minimum Balance", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = Color.White)
                         }
                     }
                 }
@@ -1727,14 +1737,14 @@ fun OnboardingStep0WelcomeGateway(
                     Surface(
                         modifier = Modifier.size(60.dp),
                         shape = CircleShape,
-                        color = AccentPurple.copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))
+                        color = VaultPrimaryEmerald.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, VaultPrimaryEmerald.copy(alpha = 0.25f))
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = if (target == "3-VAULT") Icons.Outlined.AccountBalance else Icons.Outlined.AccountBalanceWallet,
                                 contentDescription = null,
-                                tint = AccentPurple,
+                                tint = VaultPrimaryEmerald,
                                 modifier = Modifier.size(30.dp)
                             )
                         }
@@ -1777,7 +1787,7 @@ fun OnboardingStep0WelcomeGateway(
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.CreditCard, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.CreditCard, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text("Primary Operating Vault", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
@@ -1785,7 +1795,7 @@ fun OnboardingStep0WelcomeGateway(
                                     }
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Shield, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Shield, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text("Bills & Autopay Commitments", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
@@ -1793,7 +1803,7 @@ fun OnboardingStep0WelcomeGateway(
                                     }
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Security, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Security, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text("Emergency Fortress", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
@@ -1814,7 +1824,7 @@ fun OnboardingStep0WelcomeGateway(
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text("Unified Cash Flow", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
@@ -1822,7 +1832,7 @@ fun OnboardingStep0WelcomeGateway(
                                     }
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.CheckCircleOutline, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.CheckCircleOutline, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text("Zero Transfer Management", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
@@ -1882,9 +1892,9 @@ fun OnboardingStep0WelcomeGateway(
                         .padding(bottom = 32.dp, top = 8.dp)
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(modifier = Modifier.size(38.dp), shape = CircleShape, color = AccentPurple.copy(alpha = 0.12f)) {
+                        Surface(modifier = Modifier.size(38.dp), shape = CircleShape, color = VaultPrimaryEmerald.copy(alpha = 0.12f)) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Public, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Public, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(20.dp))
                             }
                         }
                         Spacer(modifier = Modifier.width(12.dp))
@@ -1908,8 +1918,8 @@ fun OnboardingStep0WelcomeGateway(
                                         showCountryPickerSheet = false
                                     },
                                 shape = RoundedCornerShape(14.dp),
-                                color = if (isSelected) AccentPurple.copy(alpha = 0.10f) else CanvasLight,
-                                border = BorderStroke(0.8.dp, if (isSelected) AccentPurple else BorderLight)
+                                color = if (isSelected) VaultPrimaryEmerald.copy(alpha = 0.10f) else CanvasLight,
+                                border = BorderStroke(0.8.dp, if (isSelected) VaultPrimaryEmerald else BorderLight)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
@@ -1923,7 +1933,7 @@ fun OnboardingStep0WelcomeGateway(
                                     }
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (isSelected) AccentPurple else CardWhite,
+                                        color = if (isSelected) VaultPrimaryEmerald else CardWhite,
                                         border = BorderStroke(0.6.dp, BorderLight)
                                     ) {
                                         Text(
@@ -1954,9 +1964,9 @@ fun OnboardingStep0WelcomeGateway(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp, top = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = AccentPurple.copy(alpha = 0.12f), border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))) {
+                    Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = VaultPrimaryEmerald.copy(alpha = 0.12f), border = BorderStroke(1.dp, VaultPrimaryEmerald.copy(alpha = 0.25f))) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.FolderOpen, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(30.dp))
+                            Icon(Icons.Default.FolderOpen, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(30.dp))
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
@@ -1967,12 +1977,12 @@ fun OnboardingStep0WelcomeGateway(
                     Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = CanvasLight, border = BorderStroke(0.8.dp, BorderLight)) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.LockReset, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.LockReset, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text("Requires the Master PIN used when creating the backup.", fontSize = 11.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.CheckCircleOutline, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.CheckCircleOutline, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text("Restores all bank accounts, taxonomies, and fixed bills.", fontSize = 11.5.sp, color = TextDark, fontWeight = FontWeight.Medium)
                             }
@@ -2010,9 +2020,9 @@ fun OnboardingStep0WelcomeGateway(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp, top = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = AccentPurple.copy(alpha = 0.12f), border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))) {
+                    Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = VaultPrimaryEmerald.copy(alpha = 0.12f), border = BorderStroke(1.dp, VaultPrimaryEmerald.copy(alpha = 0.25f))) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Fingerprint, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(32.dp))
+                            Icon(Icons.Default.Fingerprint, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(32.dp))
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
@@ -2022,7 +2032,7 @@ fun OnboardingStep0WelcomeGateway(
                     Spacer(modifier = Modifier.height(18.dp))
                     Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = CanvasLight, border = BorderStroke(0.8.dp, BorderLight)) {
                         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Security, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Security, contentDescription = null, tint = VaultPrimaryEmerald, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(10.dp))
                             Text("Protected by Android Hardware Keystore. Biometrics never leave your physical device.", fontSize = 11.5.sp, color = TextDark, fontWeight = FontWeight.Medium, lineHeight = 15.sp)
                         }
