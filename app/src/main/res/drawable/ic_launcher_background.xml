@@ -5,86 +5,19 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- Ambient Orbital Field Glow -->
     <path
-        android:pathData="M 54,54 m -33,0 a 33,33 0 1,1 66,0 a 33,33 0 1,1 -66,0"
-        android:strokeWidth="1.2"
-        android:strokeColor="#20FFFFFF"/>
-
-    <!-- Ribbon 1: Operating Liquidity (Top Loop - Electric Cyan to Royal Blue) -->
-    <path
-        android:pathData="M 40,62 C 34,52 35,37 44,28 C 51,21 62,22 67,28 C 73,35 73,47 66,55 L 58,49 C 62,43 62,36 59,32 C 55,29 49,29 45,33 C 40,39 39,49 44,56 Z">
+        android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
             <gradient
-                android:startX="35"
-                android:startY="22"
-                android:endX="72"
-                android:endY="58"
+                android:startX="54"
+                android:startY="0"
+                android:endX="54"
+                android:endY="108"
                 android:type="linear">
-                <item android:offset="0.0" android:color="#FF00F5FF"/>
-                <item android:offset="0.5" android:color="#FF00B4D8"/>
-                <item android:offset="1.0" android:color="#FF1D4ED8"/>
+                <item android:offset="0.0" android:color="#FF1E2034"/>
+                <item android:offset="0.55" android:color="#FF131522"/>
+                <item android:offset="1.0" android:color="#FF0B0C14"/>
             </gradient>
         </aapt:attr>
     </path>
-
-    <!-- Ribbon 2: Fortress Reserve (Bottom-Right Loop - Mint to Emerald) -->
-    <path
-        android:pathData="M 66,43 C 75,47 83,57 80,68 C 77,78 67,83 58,81 C 49,79 42,70 41,59 L 51,59 C 51,65 56,70 61,71 C 66,72 71,68 72,63 C 74,56 68,50 61,48 Z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startX="41"
-                android:startY="43"
-                android:endX="82"
-                android:endY="82"
-                android:type="linear">
-                <item android:offset="0.0" android:color="#FF34D399"/>
-                <item android:offset="0.6" android:color="#FF10B981"/>
-                <item android:offset="1.0" android:color="#FF047857"/>
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <!-- Ribbon 3: Commitments Outflow (Bottom-Left Loop - Neon Violet to Deep Indigo) -->
-    <path
-        android:pathData="M 48,70 C 39,71 28,65 26,54 C 24,44 32,34 42,33 C 50,32 59,38 63,48 L 53,52 C 51,47 46,43 41,44 C 36,45 32,50 33,55 C 34,61 40,63 46,62 Z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startX="25"
-                android:startY="32"
-                android:endX="63"
-                android:endY="70"
-                android:type="linear">
-                <item android:offset="0.0" android:color="#FFC084FC"/>
-                <item android:offset="0.5" android:color="#FF8B5CF6"/>
-                <item android:offset="1.0" android:color="#FF4338CA"/>
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <!-- Center Equilibrium Core (Lock Nucleus) -->
-    <path
-        android:pathData="M 54,54 m -5,0 a 5,5 0 1,1 10,0 a 5,5 0 1,1 -10,0"
-        android:fillColor="#FF0B0C14"/>
-
-    <path
-        android:pathData="M 54,54 m -2.8,0 a 2.8,2.8 0 1,1 5.6,0 a 2.8,2.8 0 1,1 -5.6,0">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startX="51"
-                android:startY="51"
-                android:endX="57"
-                android:endY="57"
-                android:type="linear">
-                <item android:offset="0.0" android:color="#FFFFFFFF"/>
-                <item android:offset="1.0" android:color="#FF00F5FF"/>
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <path
-        android:pathData="M 54,54 m -5.5,0 a 5.5,5.5 0 1,1 11,0 a 5.5,5.5 0 1,1 -11,0"
-        android:strokeWidth="0.8"
-        android:strokeColor="#33FFFFFF"/>
 </vector>
