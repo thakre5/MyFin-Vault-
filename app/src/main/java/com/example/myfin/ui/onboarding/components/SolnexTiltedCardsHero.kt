@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myfin.ui.theme.AccentPurple
+import com.example.myfin.ui.theme.AccentPurpleDark
 
 @Composable
 fun SolnexTiltedCardsHero(
@@ -38,7 +40,7 @@ fun SolnexTiltedCardsHero(
             .height(235.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Back Card (Obsidian & Emerald Border Accent)
+        // Back Card (Deep Indigo & Purple Gradient)
         Box(
             modifier = Modifier
                 .offset(x = (-32).dp, y = (-10).dp)
@@ -52,9 +54,9 @@ fun SolnexTiltedCardsHero(
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            Color(0xFF1E2034),
-                            Color(0xFF131522),
-                            Color(0xFF0B0C14)
+                            Color(0xFF2D1B69),
+                            Color(0xFF1E1045),
+                            Color(0xFF0F0824)
                         )
                     )
                 )
@@ -62,7 +64,7 @@ fun SolnexTiltedCardsHero(
         ) {
             Text(
                 text = "✦",
-                color = Color(0xFF34D399).copy(alpha = 0.85f),
+                color = Color(0xFFC084FC).copy(alpha = 0.85f),
                 fontSize = 14.sp
             )
             Column(modifier = Modifier.align(Alignment.BottomStart)) {
@@ -75,12 +77,12 @@ fun SolnexTiltedCardsHero(
                     text = "$currencySymbol 12,450.00",
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF34D399)
+                    color = Color(0xFFC084FC)
                 )
             }
         }
 
-        // Front Card (Primary Emerald to Teal Gradient)
+        // Front Card (Primary AccentPurple Gradient)
         Box(
             modifier = Modifier
                 .offset(x = 14.dp, y = 16.dp)
@@ -94,9 +96,10 @@ fun SolnexTiltedCardsHero(
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            Color(0xFF047857),
-                            Color(0xFF059669),
-                            Color(0xFF10B981)
+                            Color(0xFF5A4BD1),
+                            AccentPurple,
+                            Color(0xFF8B5CF6),
+                            Color(0xFFA855F7)
                         )
                     )
                 )
@@ -134,7 +137,7 @@ fun SolnexTiltedCardsHero(
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Color(0xFF1E293B), Color(0xFF0F172A))
+                        colors = listOf(Color(0xFF2E1065), Color(0xFF1E1B4B))
                     )
                 ),
             contentAlignment = Alignment.Center
@@ -142,7 +145,7 @@ fun SolnexTiltedCardsHero(
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val strokePx = 2.dp.toPx()
                 drawCircle(
-                    color = Color(0xFF10B981),
+                    color = AccentPurple,
                     radius = size.minDimension * 0.44f,
                     style = Stroke(width = strokePx)
                 )
@@ -164,7 +167,7 @@ fun SolnexTiltedCardsHero(
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Color(0xFF0F172A), Color(0xFF020617))
+                        colors = listOf(Color(0xFF1E1B4B), Color(0xFF0F0A1C))
                     )
                 ),
             contentAlignment = Alignment.Center
@@ -172,7 +175,7 @@ fun SolnexTiltedCardsHero(
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val strokePx = 2.5.dp.toPx()
                 drawCircle(
-                    color = Color(0xFF34D399),
+                    color = Color(0xFFC084FC),
                     radius = size.minDimension * 0.44f,
                     style = Stroke(width = strokePx)
                 )
@@ -181,7 +184,7 @@ fun SolnexTiltedCardsHero(
                 text = currencySymbol,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Black,
-                color = Color(0xFF34D399)
+                color = Color(0xFFC084FC)
             )
         }
     }
