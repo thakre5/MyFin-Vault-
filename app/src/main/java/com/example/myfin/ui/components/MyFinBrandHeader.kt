@@ -27,9 +27,8 @@ fun MyFinBrandHeader(
     val primaryTextColor = if (isDarkTheme) Color.White else TextDark
     val brandGradient = Brush.horizontalGradient(
         colors = listOf(
-            Color(0xFF00D2EE), // Operating Cyan
-            Color(0xFF8B5CF6), // Commitments Purple
-            Color(0xFF10B981)  // Fortress Teal
+            Color(0xFF10B981), // Emerald Core
+            Color(0xFF34D399)  // Mint Apex
         )
     )
 
@@ -49,7 +48,7 @@ fun MyFinBrandHeader(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "My",
-                    fontSize = (logoSize.value * 0.48f).sp,
+                    fontSize = (logoSize.value * 0.48f).coerceIn(14f, 24f).sp,
                     fontWeight = FontWeight.Black,
                     color = primaryTextColor,
                     letterSpacing = (-0.5).sp
@@ -57,7 +56,7 @@ fun MyFinBrandHeader(
 
                 Text(
                     text = "Fin",
-                    fontSize = (logoSize.value * 0.48f).sp,
+                    fontSize = (logoSize.value * 0.48f).coerceIn(14f, 24f).sp,
                     fontWeight = FontWeight.Black,
                     style = TextStyle(brush = brandGradient),
                     letterSpacing = (-0.5).sp
@@ -70,7 +69,7 @@ fun MyFinBrandHeader(
                         fontSize = 8.5.sp,
                         fontWeight = FontWeight.Black,
                         fontFamily = FontFamily.Monospace,
-                        color = if (isDarkTheme) Color(0xFF00D2EE) else Color(0xFF6C5CE7),
+                        color = Color(0xFF10B981),
                         letterSpacing = 1.sp
                     )
                 }
