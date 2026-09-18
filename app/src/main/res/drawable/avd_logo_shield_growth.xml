@@ -16,7 +16,7 @@
                 <path
                     android:pathData="M 54,18 L 82,32 C 82,60 54,88 54,88 C 54,88 26,60 26,32 Z"
                     android:strokeWidth="4"
-                    android:strokeColor="#10B981"
+                    android:strokeColor="#6C5CE7"
                     android:fillColor="#00000000" />
             </group>
 
@@ -26,7 +26,7 @@
                     android:trimPathEnd="0"
                     android:pathData="M 36,64 L 46,54 L 56,60 L 72,40 M 64,40 L 72,40 L 72,48"
                     android:strokeWidth="3.5"
-                    android:strokeColor="#34D399"
+                    android:strokeColor="#A855F7"
                     android:strokeLineCap="round"
                     android:strokeLineJoin="round" />
             </group>
