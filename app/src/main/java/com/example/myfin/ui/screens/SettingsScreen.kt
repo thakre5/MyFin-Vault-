@@ -649,7 +649,13 @@ fun SettingsScreen(
 
                 // Strategy & Architecture
                 val autoSweepLimit = userProfile.fortressSweepThreshold
-                val fortressTarget = monthlyUiState.fortressTarget
+                val baselineBurn = if (avgMonthlySpend > 0.0) avgMonthlySpend else max(userProfile.baseMonthlyIncome, 1000.0)
+                val fortressMonths = userProfile.fortressEmergencyMonths.takeIf { it > 0 } ?: 6
+                val fortressTarget = if (userProfile.fortressManualTarget > 0.0) {
+                    userProfile.fortressManualTarget
+                } else {
+                    baselineBurn * fortressMonths
+                }
                 val floatSummary = when {
                     userProfile.initialCompanyAdvance > 0.0 ->
                         "Advance: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.initialCompanyAdvance)}"
@@ -679,7 +685,7 @@ fun SettingsScreen(
                     )
                     SettingsChildNavRow(
                         title = "Fortress Safety Net Target",
-                        value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressTarget)} (${userProfile.fortressEmergencyMonths}M)",
+                        value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressTarget)} (${fortressMonths}M)",
                         onClick = { activeSheet = SettingsActiveSheet.FORTRESS_SAFETY_NET }
                     )
                     SettingsChildNavRow(
