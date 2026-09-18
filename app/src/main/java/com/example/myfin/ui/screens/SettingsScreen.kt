@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -51,6 +52,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -125,30 +127,40 @@ fun openExactAlarmSettings(context: Context) {
 }
 
 fun openBatteryOptimizationSettings(context: Context) {
-    try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:${context.packageName}")
+    val packageName = context.packageName
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && powerManager?.isIgnoringBatteryOptimizations(packageName) == false) {
+        try {
+            val requestIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(intent)
-        } else {
-            openAppDetailsSettings(context)
-        }
-    } catch (_: Exception) {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val listIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(listIntent)
-            } else {
-                openAppDetailsSettings(context)
-            }
-        } catch (_: Exception) {
-            openAppDetailsSettings(context)
-        }
+            context.startActivity(requestIntent)
+            return
+        } catch (_: Exception) { }
     }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        try {
+            val listIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(listIntent)
+            return
+        } catch (_: Exception) { }
+    }
+
+    try {
+        val samsungBatteryIntent = Intent().apply {
+            setClassName("com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(samsungBatteryIntent)
+        return
+    } catch (_: Exception) { }
+
+    openAppDetailsSettings(context)
 }
 
 fun openNotificationSettings(context: Context) {
@@ -270,7 +282,6 @@ fun SettingsScreen(
         )
     }
 
-    // Auto-refresh permission & battery states when returning from Android System Settings
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -1149,7 +1160,7 @@ fun SettingsScreen(
         )
     }
 
-    // Modify PIN Modal Sheet (With Current PIN / Recovery Gate)
+    // Modify PIN Modal Sheet
     if (activeSheet == SettingsActiveSheet.CHANGE_PIN) {
         var isCurrentAuthVerified by remember { mutableStateOf(false) }
         var useDobFallback by remember { mutableStateOf(false) }
@@ -1439,7 +1450,7 @@ fun SettingsScreen(
         }
     }
 
-    // Personal Info Modal Sheet (Race-condition free)
+    // Personal Info Modal Sheet
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
         var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
         var emailInput by remember(userProfile) { mutableStateOf(userProfile.email) }
@@ -1683,7 +1694,7 @@ fun SettingsScreen(
         }
     }
 
-    // Auto-Sweep Threshold Sheet (Clarified Terminology)
+    // Auto-Sweep Threshold Sheet
     if (activeSheet == SettingsActiveSheet.AUTO_SWEEP_THRESHOLD) {
         var thresholdInput by remember(userProfile) {
             mutableStateOf(
@@ -1706,7 +1717,7 @@ fun SettingsScreen(
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Fortress Liquid Savings Cap", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Sets the liquid savings cushion in your Fortress account. Any savings exceeding this limit automatically sweep into Emergency Fixed Deposits.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
+                Text("Sets the liquid savings cushion in your Fortress account. Excess amounts automatically sweep into Emergency Fixed Deposits.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -2100,7 +2111,7 @@ fun SettingsScreen(
         }
     }
 
-    // Currency & Country Sheet with Search Bar
+    // Currency & Country Sheet with Compact Single-Line Search Bar
     if (activeSheet == SettingsActiveSheet.COUNTRY_CURRENCY_PICKER || activeSheet == SettingsActiveSheet.CURRENCY) {
         var countrySearchQuery by remember { mutableStateOf("") }
         val filteredCountries = remember(countrySearchQuery) {
@@ -2131,22 +2142,67 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                OutlinedTextField(
-                    value = countrySearchQuery,
-                    onValueChange = { countrySearchQuery = it },
-                    placeholder = { Text("Search country, currency, or code...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted) },
-                    trailingIcon = {
-                        if (countrySearchQuery.isNotBlank()) {
-                            IconButton(onClick = { countrySearchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextMuted)
+                // Compact Single-Line Search Bar
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = CanvasLight,
+                    border = BorderStroke(0.8.dp, BorderLight),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (countrySearchQuery.isEmpty()) {
+                                Text(
+                                    text = "Search country, code, or symbol...",
+                                    fontSize = 13.sp,
+                                    color = TextMuted,
+                                    maxLines = 1
+                                )
+                            }
+                            BasicTextField(
+                                value = countrySearchQuery,
+                                onValueChange = { countrySearchQuery = it },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextDark
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (countrySearchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = { countrySearchQuery = "" },
+                                modifier = Modifier.size(22.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear",
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(14.dp)
+                                )
                             }
                         }
-                    },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
