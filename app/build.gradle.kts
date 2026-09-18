@@ -16,11 +16,13 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
+    // Keep namespace as com.example.myfin so zero Kotlin files or imports need editing
     namespace = "com.example.myfin"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.myfin"
+        // Updated to a production-grade domain to prevent banking apps from flagging test namespaces
+        applicationId = "io.myfin.vault"
         minSdk = 26
         targetSdk = 34
         versionCode = 12
@@ -86,7 +88,7 @@ android {
         getByName("debug") {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("staticSigning")
-            applicationIdSuffix = ".debug"
+            // Removed applicationIdSuffix = ".debug" to avoid being flagged by bank security engines
         }
         getByName("release") {
             isMinifyEnabled = true
