@@ -13,6 +13,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myfin.ui.theme.AccentPurple
+import com.example.myfin.ui.theme.AccentPurpleDark
 import com.example.myfin.ui.theme.TextDark
 import com.example.myfin.ui.theme.TextMuted
 
@@ -27,8 +29,8 @@ fun MyFinBrandHeader(
     val primaryTextColor = if (isDarkTheme) Color.White else TextDark
     val brandGradient = Brush.horizontalGradient(
         colors = listOf(
-            Color(0xFF10B981), // Emerald Core
-            Color(0xFF34D399)  // Mint Apex
+            AccentPurple,
+            AccentPurpleDark
         )
     )
 
@@ -69,7 +71,7 @@ fun MyFinBrandHeader(
                         fontSize = 8.5.sp,
                         fontWeight = FontWeight.Black,
                         fontFamily = FontFamily.Monospace,
-                        color = Color(0xFF10B981),
+                        color = AccentPurple,
                         letterSpacing = 1.sp
                     )
                 }
