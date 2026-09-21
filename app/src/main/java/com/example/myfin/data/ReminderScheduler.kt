@@ -25,7 +25,7 @@ object ReminderScheduler {
 
             val name = "Daily Check-in & AutoPay Alerts"
             val descriptionText = "Notifications for recurring bill reminders and end-of-day spend logging"
-            val importance = NotificationManager.IMPORTANCE_HIGH // High importance enables heads-up display and sound
+            val importance = NotificationManager.IMPORTANCE_HIGH
             
             val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             val audioAttributes = AudioAttributes.Builder()
@@ -49,6 +49,7 @@ object ReminderScheduler {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val intent = Intent(context, ReminderReceiver::class.java).apply {
             action = ACTION_DAILY_REMINDER
+            setPackage(context.packageName)
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
@@ -110,6 +111,7 @@ object ReminderScheduler {
         createNotificationChannels(context)
         val intent = Intent(context, ReminderReceiver::class.java).apply {
             action = ACTION_TEST_NOTIFICATION
+            setPackage(context.packageName)
         }
         context.sendBroadcast(intent)
     }
@@ -118,6 +120,7 @@ object ReminderScheduler {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val intent = Intent(context, ReminderReceiver::class.java).apply {
             action = ACTION_DAILY_REMINDER
+            setPackage(context.packageName)
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
