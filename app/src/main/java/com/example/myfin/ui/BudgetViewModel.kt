@@ -877,9 +877,6 @@ class BudgetViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthlyUiState())
 
-    // =========================================================================
-    // YEARLY UI STATE ENGINE (UNIFIED & REFINED)
-    // =========================================================================
     val yearlyUiState: StateFlow<YearlyUiState> = combine(
         currentYear,
         dao.getAccountBalances(),
@@ -1235,7 +1232,7 @@ class BudgetViewModel(
 
     fun updateVaultMode(mode: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(current.copy(id = 1, vaultMode = mode))
         }
     }
@@ -1255,28 +1252,28 @@ class BudgetViewModel(
 
     fun updateProfileImageUri(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(current.copy(id = 1, profileImageUri = uriString))
         }
     }
 
     fun updateCoverImageUri(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(current.copy(id = 1, coverImageUri = uriString))
         }
     }
 
     fun updateDisplayName(name: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(current.copy(id = 1, displayName = name))
         }
     }
 
     fun updateEmail(email: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(current.copy(id = 1, email = email.trim()))
         }
     }
@@ -1284,36 +1281,58 @@ class BudgetViewModel(
     fun updateDateOfBirth(dob: String) {
         viewModelScope.launch(Dispatchers.IO) {
             securityManager.setRecoveryDob(dob)
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(current.copy(id = 1, dateOfBirth = dob.trim()))
         }
     }
 
     fun updateCurrencySymbol(symbol: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(current.copy(id = 1, currencySymbol = symbol))
         }
     }
 
     fun updateFortressSweepThreshold(threshold: Double) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(current.copy(id = 1, fortressSweepThreshold = threshold))
         }
     }
 
+    /**
+     * Atomically sets target runway months and clears any manual numeric target override.
+     */
     fun updateFortressEmergencyMonths(months: Int) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
-            dao.saveUserProfile(current.copy(id = 1, fortressEmergencyMonths = months))
+            val current = dao.getUserProfileDirect() ?: userProfile.value
+            dao.saveUserProfile(
+                current.copy(
+                    id = 1,
+                    fortressEmergencyMonths = months,
+                    fortressManualTarget = 0.0
+                )
+            )
         }
     }
 
     fun updateFortressManualTarget(target: Double) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(current.copy(id = 1, fortressManualTarget = target))
+        }
+    }
+
+    fun updateFortressTarget(months: Int, manualTarget: Double = 0.0) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = dao.getUserProfileDirect() ?: userProfile.value
+            dao.saveUserProfile(
+                current.copy(
+                    id = 1,
+                    fortressEmergencyMonths = months,
+                    fortressManualTarget = manualTarget
+                )
+            )
         }
     }
 
@@ -1323,7 +1342,7 @@ class BudgetViewModel(
 
     fun updateOpeningCorporateFloat(initialClaim: Double, initialAdvance: Double) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(
                 current.copy(
                     id = 1,
@@ -1336,21 +1355,21 @@ class BudgetViewModel(
 
     fun updateBiometricEnabled(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(current.copy(id = 1, isBiometricEnabled = enabled))
         }
     }
 
     fun updateScreenCaptureAllowed(allowed: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(current.copy(id = 1, isScreenCaptureAllowed = allowed))
         }
     }
 
     fun updateReminderSettings(context: Context, enabled: Boolean, hour: Int, minute: Int) {
         viewModelScope.launch(Dispatchers.IO) {
-            val current = userProfile.value
+            val current = dao.getUserProfileDirect() ?: userProfile.value
             dao.saveUserProfile(
                 current.copy(
                     id = 1,
