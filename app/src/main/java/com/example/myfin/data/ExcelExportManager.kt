@@ -8,7 +8,6 @@ import kotlinx.coroutines.withContext
 import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
@@ -37,7 +36,7 @@ object ExcelExportManager {
                 // ============================================================
                 val totalLiquid = allAccounts.filter { !it.isArchived }.sumOf { it.currentBalance }
 
-                // Corporate float calculation supporting active and legacy classifications
+                // Corporate float calculation supporting active, legacy, and opening float balances
                 val isCorporateOutlay = { tx: TransactionEntity ->
                     (tx.type == TransactionType.CORPORATE && !tx.category.equals("Reimbursements & Claims", ignoreCase = true)) ||
                     (tx.type == TransactionType.EXPENSE && tx.category.equals("Work & Professional", ignoreCase = true))
@@ -47,8 +46,8 @@ object ExcelExportManager {
                     (tx.type == TransactionType.INCOME && tx.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true))
                 }
 
-                val totalWorkOutlays = allTransactions.filter(isCorporateOutlay).sumOf { it.amount }
-                val totalClaimsSettled = allTransactions.filter(isCorporateInflow).sumOf { it.amount }
+                val totalWorkOutlays = allTransactions.filter(isCorporateOutlay).sumOf { it.amount } + userProfile.initialReimbursementClaim
+                val totalClaimsSettled = allTransactions.filter(isCorporateInflow).sumOf { it.amount } + userProfile.initialCompanyAdvance
                 val netPendingClaim = (totalWorkOutlays - totalClaimsSettled).coerceAtLeast(0.0)
                 val excessAdvanceHeld = (totalClaimsSettled - totalWorkOutlays).coerceAtLeast(0.0)
 
@@ -67,7 +66,12 @@ object ExcelExportManager {
                     it.type == TransactionType.EXPENSE && !it.category.equals("Work & Professional", ignoreCase = true)
                 }
                 val monthlyBurnGroups = personalExpensesList.groupBy { "${it.year}-${it.month}" }.values.map { it.sumOf { tx -> tx.amount } }
-                val avgMonthlyBurn = if (monthlyBurnGroups.isNotEmpty()) monthlyBurnGroups.average() else 0.0
+                val avgMonthlyBurn = if (monthlyBurnGroups.isNotEmpty()) {
+                    monthlyBurnGroups.average()
+                } else {
+                    max(userProfile.baseMonthlyIncome, 1000.0)
+                }
+
                 val emergencyMonths = if (userProfile.fortressEmergencyMonths > 0) userProfile.fortressEmergencyMonths else 6
                 val emergencyTarget = if (userProfile.fortressManualTarget > 0.0) {
                     userProfile.fortressManualTarget
@@ -79,8 +83,8 @@ object ExcelExportManager {
                 writer.write("=== EXECUTIVE FINANCIAL AUDIT SUMMARY ===\n")
                 writer.write("Audit Category,Metric,Value ($currencySymbol),Status / Notes\n")
                 writer.write("\"Liquidity\",\"Total Active Liquid Reserves\",${String.format(Locale.US, "%.2f", totalLiquid)},\"Across all active vault accounts\"\n")
-                writer.write("\"Corporate Float\",\"Cumulative Outlays Incurred\",${String.format(Locale.US, "%.2f", totalWorkOutlays)},\"Isolated reimbursable work spend\"\n")
-                writer.write("\"Corporate Float\",\"Claims Settled by Employer\",${String.format(Locale.US, "%.2f", totalClaimsSettled)},\"Reimbursements received to date\"\n")
+                writer.write("\"Corporate Float\",\"Cumulative Outlays Incurred\",${String.format(Locale.US, "%.2f", totalWorkOutlays)},\"Isolated reimbursable work spend (includes opening float)\"\n")
+                writer.write("\"Corporate Float\",\"Claims Settled by Employer\",${String.format(Locale.US, "%.2f", totalClaimsSettled)},\"Reimbursements received to date (includes opening float)\"\n")
                 if (excessAdvanceHeld > 0.0) {
                     writer.write("\"Corporate Float\",\"Company Advance Held\",${String.format(Locale.US, "%.2f", excessAdvanceHeld)},\"Ring-fenced unspent employer advance\"\n")
                 } else {
@@ -246,9 +250,9 @@ object ExcelExportManager {
     }
 
     private fun sanitizeCsv(value: String): String {
-        var clean = value.replace("\"", "\"\"")
+        val clean = value.replace("\"", "\"\"")
         if (clean.startsWith("=") || clean.startsWith("+") || clean.startsWith("-") || clean.startsWith("@")) {
-            clean = "\t$clean"
+            return "\t$clean"
         }
         return clean
     }
