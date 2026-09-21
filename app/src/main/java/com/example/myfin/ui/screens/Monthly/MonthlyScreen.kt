@@ -489,7 +489,10 @@ fun MonthlyScreen(
                 accountList = accountsList,
                 masterCategories = uiState.masterCategories,
                 masterSubcategories = uiState.masterSubcategories,
-                onDismiss = { showAddSheet = false },
+                onDismiss = {
+                    showAddSheet = false
+                    editingTx = null
+                },
                 onSave = { id, title, amount, category, subcat, acc, toAcc, type, date, isRecurring, dueDay ->
                     val resolvedSubtype = if (type == TransactionType.TRANSFER) {
                         try {
@@ -534,6 +537,9 @@ fun MonthlyScreen(
                     if (txMonth != uiState.selectedMonth || txYear != uiState.selectedYear) {
                         Toast.makeText(context, "Logged to ${MONTH_NAMES[txMonth - 1]} $txYear ledger", Toast.LENGTH_SHORT).show()
                     }
+
+                    showAddSheet = false
+                    editingTx = null
                 }
             )
         }
@@ -557,6 +563,7 @@ fun MonthlyScreen(
                             Toast.makeText(context, "Settled in ${MONTH_NAMES[txMonth - 1]} $txYear ledger", Toast.LENGTH_SHORT).show()
                         }
                     }
+                    showAddFixedBill = false
                 }
             )
         }
@@ -576,6 +583,7 @@ fun MonthlyScreen(
                     if (isPaid != bill.isPaid) {
                         viewModel.toggleFixedBillPaid(bill.copy(amount = amt), amt, paidDate)
                     }
+                    editingFixedBill = null
                 }
             )
         }
