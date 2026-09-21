@@ -135,14 +135,29 @@ abstract class AppDatabase : RoomDatabase() {
                                     )
                                 }
 
-                                // 4. Initialize default user profile if absent and stamp transition window
+                                // 4. Initialize default user profile if absent with all required non-null fields
                                 val cal = Calendar.getInstance()
                                 val curMonth = cal.get(Calendar.MONTH) + 1
                                 val curYear = cal.get(Calendar.YEAR)
 
                                 db.execSQL("""
-                                    INSERT OR IGNORE INTO user_profile (id, displayName, taxonomyGraceMonth, taxonomyGraceYear)
-                                    VALUES (1, 'Admin Vault', $curMonth, $curYear)
+                                    INSERT OR IGNORE INTO user_profile (
+                                        id, displayName, email, dateOfBirth, baseMonthlyIncome, currencySymbol,
+                                        isOnboardingCompleted, isBiometricEnabled, isScreenCaptureAllowed,
+                                        isAutoPayReminderEnabled, isOverrunWarningEnabled, reminderEnabled,
+                                        reminderHour, reminderMinute, vaultMode, fortressSweepThreshold,
+                                        fortressEmergencyMonths, fortressManualTarget, taxonomyGraceMonth,
+                                        taxonomyGraceYear, isTaxonomyBannerDismissed, initialReimbursementClaim,
+                                        initialCompanyAdvance
+                                    ) VALUES (
+                                        1, 'Admin Vault', '', '', 0.0, '₹',
+                                        0, 0, 0,
+                                        1, 1, 0,
+                                        20, 30, '3-VAULT', 0.0,
+                                        6, 0.0, $curMonth,
+                                        $curYear, 0, 0.0,
+                                        0.0
+                                    )
                                 """)
 
                                 db.execSQL("""
