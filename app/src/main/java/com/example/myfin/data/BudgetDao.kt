@@ -196,6 +196,9 @@ interface BudgetDao {
     @Delete
     suspend fun deleteSubcategory(subcategory: SubcategoryEntity)
 
+    @Query("DELETE FROM subcategories WHERE parentCategory = :parentCategory AND type = :type")
+    suspend fun deleteSubcategoriesForParentAndType(parentCategory: String, type: TransactionType)
+
     @Query("DELETE FROM subcategories WHERE parentCategory = :parentCategory")
     suspend fun deleteSubcategoriesForParent(parentCategory: String)
 
@@ -382,8 +385,14 @@ interface BudgetDao {
             sortOrder = sortOrder
         )
 
-        if (cleanOldName == cleanNewName) {
+        if (cleanOldName.equals(cleanNewName, ignoreCase = true)) {
             insertAccount(updatedAccount)
+            if (cleanOldName != cleanNewName) {
+                cascadeRenameAccountInTransactions(cleanOldName, cleanNewName)
+                cascadeRenameToAccountInTransactions(cleanOldName, cleanNewName)
+                cascadeRenameAccountInFixedBills(cleanOldName, cleanNewName)
+                cascadeRenameToAccountInFixedBills(cleanOldName, cleanNewName)
+            }
         } else {
             insertAccount(updatedAccount)
             cascadeRenameAccountInTransactions(cleanOldName, cleanNewName)
@@ -401,12 +410,10 @@ interface BudgetDao {
     ) {
         val trimmedNew = newName.trim()
         if (oldCategory.name == trimmedNew) {
-            // Unset legacy flag if user re-saves/adopts the category
             updateCategory(oldCategory.copy(isLegacy = false, isNew = false))
             return
         }
 
-        // Converted to an active custom category
         insertCategory(CategoryEntity(name = trimmedNew, type = oldCategory.type, isLegacy = false, isNew = false))
         cascadeRenameCategoryInTransactions(oldCategory.name, trimmedNew)
         cascadeRenameCategoryInBudgetPlans(oldCategory.name, trimmedNew)
@@ -417,8 +424,7 @@ interface BudgetDao {
 
     @Transaction
     suspend fun deleteCategoryAndCascade(category: CategoryEntity) {
-        // Historical transactions retain category name so past monthly/yearly reports remain untouched
-        deleteSubcategoriesForParent(category.name)
+        deleteSubcategoriesForParentAndType(category.name, category.type)
         deleteBudgetPlansForCategory(category.name)
         deleteCategory(category)
     }
@@ -466,9 +472,9 @@ interface BudgetDao {
             COALESCE(SUM(CASE WHEN t.type = 'EXPENSE' THEN t.amount ELSE 0 END), 0.0) AS totalActualExpense,
             COALESCE(SUM(CASE WHEN t.type = 'ASSET' THEN t.amount ELSE 0 END), 0.0) AS totalAsset
         FROM (
-            SELECT 1 AS month UNION SELECT 2 UNION SELECT 3 UNION SELECT 4
-            UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8
-            UNION SELECT 9 UNION SELECT 10 UNION SELECT 11 UNION SELECT 12
+            SELECT 1 AS month UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+            UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8
+            UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12
         ) m
         LEFT JOIN transactions t ON m.month = t.month AND t.year = :year AND t.type != 'TRANSFER'
         GROUP BY m.month
