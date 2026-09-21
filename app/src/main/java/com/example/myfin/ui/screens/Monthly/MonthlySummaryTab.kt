@@ -430,7 +430,7 @@ fun MonthlySummaryTab(
             }
         }
 
-        // 3. HORIZONTAL PAGER: SAFE TO SPEND, 3-PILLAR TARGET, & FORTRESS CARDS (SUBTLE PEEK & COMPACT HEIGHT)
+        // 3. HORIZONTAL PAGER: SAFE TO SPEND, 3-PILLAR TARGET, & FORTRESS CARDS
         item {
             Column(modifier = Modifier.fillMaxWidth()) {
                 HorizontalPager(
@@ -907,13 +907,12 @@ fun MonthlySummaryTab(
                             }
                         }
 
-                        // Card 2: Fortress Vault Split (Adopted from Vault Strategy Screen)
+                        // Card 2: Fortress Vault Split (Strictly Filtered by accountType == "Fortress")
                         2 -> {
                             val fortTotal = remember(uiState.activeAccounts) {
-                                uiState.activeAccounts.filter { acc ->
-                                    acc.accountType.equals("Fortress", ignoreCase = true) ||
-                                    acc.accountName.contains("FORTRESS", ignoreCase = true)
-                                }.sumOf { it.currentBalance }
+                                uiState.activeAccounts
+                                    .filter { acc -> acc.accountType.equals("Fortress", ignoreCase = true) }
+                                    .sumOf { it.currentBalance }
                             }
                             val fortressFd = uiState.fortressFdBalance
                             val emergencyTarget = uiState.fortressTarget
@@ -921,13 +920,13 @@ fun MonthlySummaryTab(
                             val fortressSavings = remember(fortTotal, fortressFd) {
                                 (fortTotal - fortressFd).coerceAtLeast(0.0)
                             }
-                            val fortressSavingsFraction = if (sweepThreshold > 0.0) (fortressSavings / sweepThreshold).toFloat().coerceIn(0f, 1f) else 1f
                             val fortressCushionDeficit = remember(fortressSavings, sweepThreshold) {
                                 if (sweepThreshold > 0.0) (sweepThreshold - fortressSavings).coerceAtLeast(0.0) else 0.0
                             }
                             val fdDeficit = remember(fortressFd, emergencyTarget) {
                                 if (emergencyTarget > 0.0) (emergencyTarget - fortressFd).coerceAtLeast(0.0) else 0.0
                             }
+                            val targetLabel = if (userProfile.fortressManualTarget > 0.0) "Manual" else "${userProfile.fortressEmergencyMonths}M"
 
                             Surface(
                                 modifier = Modifier
@@ -1039,20 +1038,25 @@ fun MonthlySummaryTab(
                                                 .clip(RoundedCornerShape(3.dp))
                                                 .background(CanvasLight)
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .weight(fortressSavingsFraction.coerceAtLeast(0.02f))
-                                                    .fillMaxHeight()
-                                                    .background(SoftTeal)
-                                            )
-                                            if (fortressFd > 0) {
-                                                val fdFraction = (fortressFd / fortTotal.coerceAtLeast(1.0)).toFloat().coerceIn(0.05f, 0.95f)
-                                                Box(
-                                                    modifier = Modifier
-                                                        .weight(fdFraction)
-                                                        .fillMaxHeight()
-                                                        .background(Color(0xFF0D9488))
-                                                )
+                                            if (fortTotal > 0.0) {
+                                                val cushionRatio = (fortressSavings / fortTotal).toFloat().coerceIn(0f, 1f)
+                                                val fdRatio = (fortressFd / fortTotal).toFloat().coerceIn(0f, 1f)
+                                                if (cushionRatio > 0f) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .weight(cushionRatio.coerceAtLeast(0.01f))
+                                                            .fillMaxHeight()
+                                                            .background(SoftTeal)
+                                                    )
+                                                }
+                                                if (fdRatio > 0f) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .weight(fdRatio.coerceAtLeast(0.01f))
+                                                            .fillMaxHeight()
+                                                            .background(Color(0xFF0D9488))
+                                                    )
+                                                }
                                             }
                                         }
 
@@ -1108,7 +1112,7 @@ fun MonthlySummaryTab(
                                                     color = if (fortressFd > 0) Color(0xFF0D9488) else TextDark
                                                 )
                                                 Text(
-                                                    text = if (isDiscreetMode) "Goal: ••••" else if (emergencyTarget > 0.0) "Goal: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", emergencyTarget)} (${userProfile.fortressEmergencyMonths}M)" else "Target Unset",
+                                                    text = if (isDiscreetMode) "Goal: ••••" else if (emergencyTarget > 0.0) "Goal: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", emergencyTarget)} ($targetLabel)" else "Target Unset",
                                                     fontSize = 8.5.sp,
                                                     color = TextMuted
                                                 )
@@ -1121,13 +1125,14 @@ fun MonthlySummaryTab(
                                         color = if (fortressCushionDeficit > 0) SoftAmber.copy(alpha = 0.10f) else SoftTeal.copy(alpha = 0.10f),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
+                                        val targetDesc = if (userProfile.fortressManualTarget > 0.0) "manual" else "${userProfile.fortressEmergencyMonths}M"
                                         val statusNotice = when {
                                             fortressCushionDeficit > 0 ->
                                                 "• Needs ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressCushionDeficit)} to fill cushion before auto-booking FDs"
                                             emergencyTarget > 0.0 && fdDeficit > 0 ->
-                                                "• Cushion full. FDs need ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fdDeficit)} for ${userProfile.fortressEmergencyMonths}M target."
+                                                "• Cushion full. FDs need ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fdDeficit)} for $targetDesc target."
                                             emergencyTarget > 0.0 && fdDeficit <= 0 ->
-                                                "• Cushion full & ${userProfile.fortressEmergencyMonths}M Emergency FD target 100% funded!"
+                                                "• Cushion full & $targetDesc Emergency FD target 100% funded!"
                                             else ->
                                                 "• Liquid cushion full. Surplus actively sweeps to Emergency FDs."
                                         }
@@ -1176,7 +1181,7 @@ fun MonthlySummaryTab(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // 4. AUTO-SCROLLING BALANCE FLOW CAROUSEL (OPTION 2: ULTRA-COMPACT 2-ROW AT 108.dp)
+        // 4. AUTO-SCROLLING BALANCE FLOW CAROUSEL
         item {
             val startBalance = uiState.metrics.startLiquidBalance
             val endBalance = uiState.metrics.endLiquidBalance
@@ -1216,7 +1221,7 @@ fun MonthlySummaryTab(
                             verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             when (pageIndex) {
-                                // CARD 0: LIQUID BANK FLOW (PHYSICAL CASH DELTA)
+                                // CARD 0: LIQUID BANK FLOW
                                 0 -> {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -1284,7 +1289,7 @@ fun MonthlySummaryTab(
                                     }
                                 }
 
-                                // CARD 1: WEALTH RETENTION (PRE-SIP SAVINGS)
+                                // CARD 1: WEALTH RETENTION
                                 1 -> {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -1352,7 +1357,7 @@ fun MonthlySummaryTab(
                                     }
                                 }
 
-                                // CARD 2: UNALLOCATED SURPLUS (POST-SIP SURPLUS)
+                                // CARD 2: MONTHLY SURPLUS
                                 2 -> {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -1420,7 +1425,7 @@ fun MonthlySummaryTab(
                                     }
                                 }
 
-                                // CARD 3: CAPITAL RELOCATED (RESERVES & WORK FLOAT GAP)
+                                // CARD 3: CAPITAL RELOCATED
                                 3 -> {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
