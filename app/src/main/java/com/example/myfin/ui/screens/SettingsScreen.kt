@@ -3,6 +3,7 @@ package com.example.myfin.ui.screens
 import android.Manifest
 import android.app.AlarmManager
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -56,7 +57,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -91,8 +91,6 @@ enum class SettingsAccordionSection {
     BACKUP,
     REPORTS
 }
-
-private val SettingsTealColor = Color(0xFF0D9488)
 
 // ==========================================
 // BULLETPROOF SETTINGS INTENT LAUNCHERS
@@ -192,12 +190,18 @@ fun openNotificationSettings(context: Context) {
     }
 }
 
+private tailrec fun Context.findFragmentActivity(): FragmentActivity? = when (this) {
+    is FragmentActivity -> this
+    is ContextWrapper -> baseContext.findFragmentActivity()
+    else -> null
+}
+
 private fun triggerBiometricVerificationScan(
     context: Context,
     onSuccess: () -> Unit,
     onFailure: (String) -> Unit
 ) {
-    val activity = context as? FragmentActivity
+    val activity = context.findFragmentActivity()
     if (activity == null) {
         onSuccess()
         return
@@ -251,7 +255,6 @@ fun SettingsScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
     val userProfile by viewModel.userProfile.collectAsState()
-    val monthlyUiState by viewModel.monthlyUiState.collectAsState()
     val avgMonthlySpend by viewModel.averageMonthlySpend.collectAsState()
 
     var activeSheet by rememberSaveable { mutableStateOf(initialActiveSheet) }
@@ -445,7 +448,7 @@ fun SettingsScreen(
                                         colors = listOf(
                                             AccentPurple,
                                             AccentPurple.copy(alpha = 0.88f),
-                                            Color(0xFF6C5CE7).copy(alpha = 0.24f)
+                                            AccentPurple.copy(alpha = 0.24f)
                                         )
                                     )
                                 )
@@ -750,7 +753,7 @@ fun SettingsScreen(
                     )
                 }
 
-                // Reminders & Alerts (Live Re-armed & Fully Reactive)
+                // Reminders & Alerts
                 val reminderTime = String.format(Locale.US, "%02d:%02d", userProfile.reminderHour, userProfile.reminderMinute)
                 ExpandableSettingsCard(
                     icon = Icons.Outlined.Notifications,
@@ -1666,7 +1669,7 @@ fun SettingsScreen(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = SettingsTealColor,
+                            tint = AccentPurple,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1677,7 +1680,9 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         val targetMode = if (is3VaultActive) "SIMPLE" else "3-VAULT"
-                        viewModel.updateVaultMode(targetMode)
+                        val updated = userProfile.copy(id = 1, vaultMode = targetMode)
+                        viewModel.saveUserProfile(updated)
+                        try { viewModel.updateVaultMode(targetMode) } catch (_: Exception) {}
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, if (targetMode == "3-VAULT") "Switched to 3-Vault Strategy" else "Switched to Simple Mode", Toast.LENGTH_SHORT).show()
                     },
@@ -1747,7 +1752,9 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         val parsed = thresholdInput.toDoubleOrNull() ?: 0.0
-                        viewModel.updateFortressSweepThreshold(parsed)
+                        val updated = userProfile.copy(id = 1, fortressSweepThreshold = parsed)
+                        viewModel.saveUserProfile(updated)
+                        try { viewModel.updateFortressSweepThreshold(parsed) } catch (_: Exception) {}
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, "Fortress savings cap set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", parsed)}", Toast.LENGTH_SHORT).show()
                     },
@@ -1765,7 +1772,7 @@ fun SettingsScreen(
         }
     }
 
-    // Fortress Safety Net Target Sheet
+    // Fortress Safety Net Target Sheet (Fixed Single Atomic Save)
     if (activeSheet == SettingsActiveSheet.FORTRESS_SAFETY_NET) {
         var selectedMonths by remember(userProfile) { mutableIntStateOf(userProfile.fortressEmergencyMonths.takeIf { it > 0 } ?: 6) }
 
@@ -1805,7 +1812,7 @@ fun SettingsScreen(
                             text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)}",
                             fontSize = 26.sp,
                             fontWeight = FontWeight.Black,
-                            color = SettingsTealColor
+                            color = AccentPurple
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
@@ -1833,11 +1840,16 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isSel) SettingsTealColor.copy(alpha = 0.12f) else Color.Transparent
+                                containerColor = if (isSel) AccentPurple.copy(alpha = 0.12f) else Color.Transparent
                             ),
-                            border = BorderStroke(1.dp, if (isSel) SettingsTealColor else BorderLight)
+                            border = BorderStroke(1.dp, if (isSel) AccentPurple else BorderLight)
                         ) {
-                            Text("$months M", fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium, color = if (isSel) SettingsTealColor else TextDark)
+                            Text(
+                                text = "$months M",
+                                fontSize = 12.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel) AccentPurple else TextDark
+                            )
                         }
                     }
                 }
@@ -1846,8 +1858,16 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        viewModel.updateFortressEmergencyMonths(selectedMonths)
-                        viewModel.updateFortressManualTarget(0.0)
+                        // Perform an atomic update directly to userProfile to prevent asynchronous race condition overwrites
+                        val updated = userProfile.copy(
+                            id = 1,
+                            fortressEmergencyMonths = selectedMonths,
+                            fortressManualTarget = 0.0
+                        )
+                        viewModel.saveUserProfile(updated)
+                        try { viewModel.updateFortressEmergencyMonths(selectedMonths) } catch (_: Exception) {}
+                        try { viewModel.updateFortressManualTarget(0.0) } catch (_: Exception) {}
+
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, "Fortress target set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)} ($selectedMonths Months)", Toast.LENGTH_SHORT).show()
                     },
@@ -2009,7 +2029,14 @@ fun SettingsScreen(
                         val initialClaim = if (selectedFloatMode == "CLAIM_DUE") parsedAmt else 0.0
                         val initialAdvance = if (selectedFloatMode == "ADVANCE_HELD") parsedAmt else 0.0
 
-                        viewModel.updateOpeningCorporateFloat(initialClaim, initialAdvance)
+                        val updated = userProfile.copy(
+                            id = 1,
+                            initialReimbursementClaim = initialClaim,
+                            initialCompanyAdvance = initialAdvance
+                        )
+                        viewModel.saveUserProfile(updated)
+                        try { viewModel.updateOpeningCorporateFloat(initialClaim, initialAdvance) } catch (_: Exception) {}
+
                         showCorporateFloatSheet = false
                         Toast.makeText(context, "Opening float status updated", Toast.LENGTH_SHORT).show()
                     },
@@ -2117,7 +2144,7 @@ fun SettingsScreen(
         }
     }
 
-    // Currency & Country Sheet with Compact Single-Line Search Bar
+    // Currency & Country Sheet
     if (activeSheet == SettingsActiveSheet.COUNTRY_CURRENCY_PICKER || activeSheet == SettingsActiveSheet.CURRENCY) {
         var countrySearchQuery by remember { mutableStateOf("") }
         val filteredCountries = remember(countrySearchQuery) {
@@ -2148,7 +2175,6 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Compact Single-Line Search Bar
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = CanvasLight,
@@ -2236,7 +2262,10 @@ fun SettingsScreen(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
-                                        viewModel.updateCurrencySymbol(item.currencySymbol)
+                                        val updated = userProfile.copy(id = 1, currencySymbol = item.currencySymbol)
+                                        viewModel.saveUserProfile(updated)
+                                        try { viewModel.updateCurrencySymbol(item.currencySymbol) } catch (_: Exception) {}
+
                                         activeSheet = SettingsActiveSheet.NONE
                                         Toast.makeText(context, "Country set to ${item.countryName} (${item.currencySymbol})", Toast.LENGTH_SHORT).show()
                                     },
@@ -2273,7 +2302,7 @@ fun SettingsScreen(
         }
     }
 
-    // Reset Confirm Modal (With Strict Safeguard Input)
+    // Reset Confirm Modal
     if (activeSheet == SettingsActiveSheet.RESET_CONFIRM || activeSheet == SettingsActiveSheet.DATA_MANAGEMENT) {
         var resetKeywordInput by remember { mutableStateOf("") }
         val isConfirmed = resetKeywordInput.trim() == "RESET"
@@ -2529,7 +2558,7 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
         val lockH = 36.dp.toPx()
 
         drawArc(
-            color = SettingsTealColor,
+            color = AccentPurpleDark,
             startAngle = 180f,
             sweepAngle = 180f,
             useCenter = false,
@@ -2539,7 +2568,7 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
         )
 
         drawRoundRect(
-            color = SettingsTealColor,
+            color = AccentPurpleDark,
             topLeft = Offset(lockLeft, lockTop),
             size = Size(lockW, lockH),
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
@@ -2567,7 +2596,7 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
         )
         drawRoundRect(
-            color = SettingsTealColor.copy(alpha = 0.15f),
+            color = AccentPurpleDark.copy(alpha = 0.15f),
             topLeft = Offset(w * 0.52f, h * 0.50f),
             size = Size(w * 0.35f, h * 0.35f),
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
