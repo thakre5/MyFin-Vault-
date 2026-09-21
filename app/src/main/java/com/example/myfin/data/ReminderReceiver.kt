@@ -1,6 +1,7 @@
 package com.example.myfin.data
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -13,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.example.myfin.MainActivity
+import com.example.myfin.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -21,6 +23,7 @@ import java.util.Locale
 
 class ReminderReceiver : BroadcastReceiver() {
 
+    @SuppressLint("MissingPermission")
     override fun onReceive(context: Context, intent: Intent?) {
         val pendingResult = goAsync()
         val action = intent?.action
@@ -66,6 +69,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 val currentDay = cal.get(Calendar.DAY_OF_MONTH)
                 val currentMonth = cal.get(Calendar.MONTH) + 1
                 val currentYear = cal.get(Calendar.YEAR)
+                val maxDayThisMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
 
                 val fixedBills = dao.getFixedBillsForMonthDirect(currentMonth, currentYear)
                     .filter { !it.isPaid && 
@@ -75,8 +79,20 @@ class ReminderReceiver : BroadcastReceiver() {
                     }
 
                 val dueToday = fixedBills.filter { it.dueDay == currentDay }
+
+                // Check for bills due within 48h, handling end-of-month rollover to next month's 1st/2nd
                 val dueWithin48h = if (profile.isAutoPayReminderEnabled) {
-                    fixedBills.filter { it.dueDay in (currentDay + 1)..(currentDay + 2) }
+                    val withinCurrentMonth = fixedBills.filter { it.dueDay in (currentDay + 1)..(currentDay + 2) }
+                    if (currentDay >= maxDayThisMonth - 1) {
+                        val nextMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, 1) }
+                        val nextMonth = nextMonthCal.get(Calendar.MONTH) + 1
+                        val nextYear = nextMonthCal.get(Calendar.YEAR)
+                        val nextMonthBills = dao.getFixedBillsForMonthDirect(nextMonth, nextYear)
+                            .filter { !it.isPaid && it.dueDay != null && it.dueDay in 1..2 }
+                        withinCurrentMonth + nextMonthBills
+                    } else {
+                        withinCurrentMonth
+                    }
                 } else emptyList()
 
                 val currency = profile.currencySymbol
@@ -122,11 +138,16 @@ class ReminderReceiver : BroadcastReceiver() {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
 
-                val appIcon = context.applicationInfo.icon.takeIf { it != 0 } ?: android.R.drawable.ic_dialog_info
+                val smallIconRes = try {
+                    R.drawable.ic_launcher_foreground
+                } catch (_: Exception) {
+                    android.R.drawable.ic_dialog_info
+                }
+
                 val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
                 val builder = NotificationCompat.Builder(context.applicationContext, ReminderScheduler.CHANNEL_ID_REMINDERS)
-                    .setSmallIcon(appIcon)
+                    .setSmallIcon(smallIconRes)
                     .setContentTitle(notificationTitle)
                     .setContentText(contentText)
                     .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
