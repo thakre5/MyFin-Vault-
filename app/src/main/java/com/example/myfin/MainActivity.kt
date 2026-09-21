@@ -74,7 +74,7 @@ class MainActivity : FragmentActivity() {
 
                 val isFirstLaunch = !userProfile.isOnboardingCompleted
 
-                // Enforce FLAG_SECURE whenever app is locked
+                // Enforce FLAG_SECURE whenever app is locked or anti-spy is active
                 LaunchedEffect(userProfile.isScreenCaptureAllowed, isFirstLaunch, isUnlocked) {
                     val allowCapture = isFirstLaunch || (isUnlocked && userProfile.isScreenCaptureAllowed)
                     if (allowCapture) {
