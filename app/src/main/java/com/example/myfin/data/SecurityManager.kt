@@ -172,7 +172,6 @@ class SecurityManager(private val context: Context) {
         val trimmed = rawDob.trim()
         if (trimmed.isBlank()) return null
 
-        // Try standard date pattern formats first
         val dateFormats = listOf(
             "dd-MM-yyyy", "dd/MM/yyyy", "d/M/yyyy", "d-M-yyyy",
             "yyyy-MM-dd", "yyyy/MM/dd", "yyyyMMdd", "ddMMyyyy"
@@ -189,7 +188,6 @@ class SecurityManager(private val context: Context) {
             } catch (_: Exception) {}
         }
 
-        // Fallback for raw digits
         val digits = trimmed.replace("[^0-9]".toRegex(), "")
         if (digits.length != 8) return null
 
@@ -205,7 +203,7 @@ class SecurityManager(private val context: Context) {
 
         return when {
             isDmy -> digits
-            isYmd -> "%02d%02d%04d".format(ymdDay, ymdMonth, ymdYear)
+            isYmd -> String.format(Locale.US, "%02d%02d%04d", ymdDay, ymdMonth, ymdYear)
             else -> digits
         }
     }
@@ -251,7 +249,9 @@ class SecurityManager(private val context: Context) {
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 super.onAuthenticationError(errorCode, errString)
-                if (errorCode != BiometricPrompt.ERROR_USER_CANCELED && errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
+                    errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON &&
+                    errorCode != BiometricPrompt.ERROR_CANCELED) {
                     onError()
                 }
             }
@@ -275,6 +275,10 @@ class SecurityManager(private val context: Context) {
         sharedPreferences.edit()
             .putLong(KEY_LAST_BACKGROUND_TIME, System.currentTimeMillis())
             .apply()
+    }
+
+    fun recordAppForegrounded() {
+        clearSessionLock()
     }
 
     fun shouldLockOnResume(timeoutMillis: Long = DEFAULT_LOCK_TIMEOUT_MILLIS): Boolean {
