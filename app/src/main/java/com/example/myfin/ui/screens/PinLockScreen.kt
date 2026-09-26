@@ -1,12 +1,17 @@
 package com.example.myfin.ui.screens
 
+import android.content.Context
+import android.content.ContextWrapper
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,8 +44,35 @@ import coil.compose.SubcomposeAsyncImage
 import com.example.myfin.data.SecurityManager
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
 
+private tailrec fun Context.findFragmentActivity(): FragmentActivity? = when (this) {
+    is FragmentActivity -> this
+    is ContextWrapper -> baseContext.findFragmentActivity()
+    else -> null
+}
+
+private fun normalizeDobDigits(input: String): String {
+    val clean = input.trim()
+    val parts = clean.split('/', '-', '.')
+    if (parts.size == 3) {
+        if (parts[0].length == 4) { // YYYY-MM-DD
+            val y = parts[0]
+            val m = parts[1].padStart(2, '0')
+            val d = parts[2].padStart(2, '0')
+            return "$d$m$y"
+        } else if (parts[2].length == 4) { // DD-MM-YYYY
+            val d = parts[0].padStart(2, '0')
+            val m = parts[1].padStart(2, '0')
+            val y = parts[2]
+            return "$d$m$y"
+        }
+    }
+    return clean.filter { it.isDigit() }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PinLockScreen(
     profileName: String = "Vault User",
@@ -52,10 +84,12 @@ fun PinLockScreen(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    val activity = context as? FragmentActivity
+    val coroutineScope = rememberCoroutineScope()
+    val activity = remember(context) { context.findFragmentActivity() }
     val securityManager = remember { SecurityManager(context) }
 
     var enteredPin by remember { mutableStateOf("") }
+    var isPinError by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
 
     // Multi-Step In-Place Password Recovery State
@@ -131,7 +165,14 @@ fun PinLockScreen(
                     ) {
                         val imageModel = remember(profileImageUri) {
                             if (!profileImageUri.isNullOrBlank()) {
-                                File(profileImageUri).takeIf { it.exists() } ?: profileImageUri
+                                try {
+                                    if (profileImageUri.startsWith("/")) {
+                                        val file = File(profileImageUri)
+                                        if (file.exists()) file else profileImageUri
+                                    } else profileImageUri
+                                } catch (_: Exception) {
+                                    profileImageUri
+                                }
                             } else null
                         }
 
@@ -190,14 +231,15 @@ fun PinLockScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "Enter Master PIN to decrypt ledger",
+                    text = if (isPinError) "Incorrect Master PIN" else "Enter Master PIN to decrypt ledger",
                     fontSize = 12.5.sp,
-                    color = TextMuted
+                    fontWeight = if (isPinError) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isPinError) SoftRed else TextMuted
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Animated PIN Dot Indicators (Standard 4 to 6 dot layout)
+                // Animated PIN Dot Indicators
                 val dotCount = if (enteredPin.length > 4) 6 else 4
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -211,7 +253,11 @@ fun PinLockScreen(
                             label = "dotSize"
                         )
                         val dotColor by animateColorAsState(
-                            targetValue = if (isFilled) AccentPurple else BorderLight.copy(alpha = 0.9f),
+                            targetValue = when {
+                                isPinError -> SoftRed
+                                isFilled -> AccentPurple
+                                else -> BorderLight.copy(alpha = 0.9f)
+                            },
                             animationSpec = tween(150),
                             label = "dotColor"
                         )
@@ -247,18 +293,27 @@ fun PinLockScreen(
                         row.forEach { key ->
                             when (key) {
                                 "DEL" -> {
-                                    IconButton(
-                                        onClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            if (enteredPin.isNotEmpty()) enteredPin = enteredPin.dropLast(1)
-                                        },
+                                    Box(
                                         modifier = Modifier
                                             .size(64.dp)
                                             .clip(CircleShape)
+                                            .combinedClickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = ripple(),
+                                                onClick = {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    if (enteredPin.isNotEmpty()) enteredPin = enteredPin.dropLast(1)
+                                                },
+                                                onLongClick = {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    enteredPin = ""
+                                                }
+                                            ),
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.Backspace,
-                                            contentDescription = "Delete",
+                                            contentDescription = "Delete (Long-press to clear)",
                                             tint = TextDark,
                                             modifier = Modifier.size(22.dp)
                                         )
@@ -292,7 +347,9 @@ fun PinLockScreen(
                                             .size(64.dp)
                                             .shadow(2.dp, CircleShape)
                                             .clickable {
+                                                if (isPinError) return@clickable
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+
                                                 if (enteredPin.length < 6) {
                                                     val newPin = enteredPin + key
                                                     enteredPin = newPin
@@ -302,9 +359,14 @@ fun PinLockScreen(
                                                         enteredPin = ""
                                                         onUnlockSuccess()
                                                     } else if (newPin.length >= 6) {
-                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                        Toast.makeText(context, "Incorrect PIN", Toast.LENGTH_SHORT).show()
-                                                        enteredPin = ""
+                                                        coroutineScope.launch {
+                                                            isPinError = true
+                                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                            Toast.makeText(context, "Incorrect PIN", Toast.LENGTH_SHORT).show()
+                                                            delay(350L)
+                                                            enteredPin = ""
+                                                            isPinError = false
+                                                        }
                                                     }
                                                 }
                                             },
@@ -441,8 +503,11 @@ fun PinLockScreen(
                     Button(
                         onClick = {
                             if (recoveryStep == 1) {
+                                val inputNormalized = normalizeDobDigits(recoveryDobInput)
+                                val storedNormalized = normalizeDobDigits(recoveryDob)
+
                                 val isDobMatched = securityManager.verifyRecoveryDob(recoveryDobInput) ||
-                                        (recoveryDob.isNotBlank() && recoveryDobInput.replace("[^0-9]".toRegex(), "") == recoveryDob.replace("[^0-9]".toRegex(), ""))
+                                        (storedNormalized.isNotBlank() && inputNormalized == storedNormalized)
 
                                 if (isDobMatched) {
                                     recoveryStep = 2
