@@ -53,7 +53,7 @@ fun YearlyCashflowTab(
     val reimbursementStatus = yearlyState.reimbursementStatus
 
     val activeMonthsCount = remember(yearlyMonthsData) {
-        val count = yearlyMonthsData.count { !it.isFuture || it.lifestyleExpenses > 0.0 }
+        val count = yearlyMonthsData.count { !it.isFuture || it.lifestyleExpenses > 0.0 || it.personalIncome > 0.0 }
         count.coerceAtLeast(1)
     }
 
@@ -64,14 +64,14 @@ fun YearlyCashflowTab(
         (annualLifestyleExpenses - totalFixedObligations).coerceAtLeast(0.0)
     }
     val netCashRetained = remember(annualPersonalIncome, annualLifestyleExpenses, totalYearlyAssets) {
-        (annualPersonalIncome - annualLifestyleExpenses - totalYearlyAssets).coerceAtLeast(0.0)
+        annualPersonalIncome - annualLifestyleExpenses - totalYearlyAssets
     }
     val incomeBase = if (annualPersonalIncome > 0.0) annualPersonalIncome else 1.0
 
     val fixedRatio = (totalFixedObligations / incomeBase).toFloat().coerceIn(0f, 1f)
     val discretionaryRatio = (totalDiscretionaryBurn / incomeBase).toFloat().coerceIn(0f, 1f)
     val assetRatio = (totalYearlyAssets / incomeBase).toFloat().coerceIn(0f, 1f)
-    val retainedRatio = (netCashRetained / incomeBase).toFloat().coerceIn(0f, 1f)
+    val retainedRatio = (maxOf(0.0, netCashRetained) / incomeBase).toFloat().coerceIn(0f, 1f)
 
     val projectedInflow = remember(annualPersonalIncome, activeMonthsCount) {
         (annualPersonalIncome / activeMonthsCount) * 12.0
@@ -152,7 +152,7 @@ fun YearlyCashflowTab(
         }
 
         // 5. CORPORATE FLOAT & CLAIMS BANNER (Opens Outlay & Advance Ledger)
-        if (reimbursementStatus.cumulativeWorkExpenses > 0.0 || reimbursementStatus.excessAdvanceHeld > 0.0) {
+        if (reimbursementStatus.cumulativeWorkExpenses > 0.0 || reimbursementStatus.excessAdvanceHeld > 0.0 || reimbursementStatus.pendingReimbursement > 0.0) {
             item(key = "reimbursement_banner") {
                 Surface(
                     modifier = Modifier
@@ -370,8 +370,7 @@ private fun DualSmoothWaveCard(
             ) { scrubIdx ->
                 if (scrubIdx != null && scrubIdx in yearlyMonths.indices) {
                     val mData = yearlyMonths[scrubIdx]
-                    // Optimized: uses native personalIncome from YearlyMonthData
-                    val mInflow = if (mData.personalIncome > 0.0) mData.personalIncome else mData.income
+                    val mInflow = mData.personalIncome
                     val mBurn = mData.lifestyleExpenses
                     val mSurplus = mData.netSavings
                     val mRate = if (mInflow > 0) ((mSurplus / mInflow) * 100).toInt() else 0
@@ -389,12 +388,26 @@ private fun DualSmoothWaveCard(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "${mData.monthName} ${if (mData.isFuture) "(Plan)" else ""}",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.5.sp,
-                                color = AccentPurple
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "${mData.monthName} ${if (mData.isFuture) "(Plan)" else ""}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.5.sp,
+                                    color = AccentPurple
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(
+                                    onClick = { selectedMonthIndex = null },
+                                    modifier = Modifier.size(16.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear Selection",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
                                     text = if (isDiscreet) "••••" else "In: $currencySymbol${String.format(Locale.US, "%,.0f", mInflow)}",
@@ -420,7 +433,7 @@ private fun DualSmoothWaveCard(
                 } else {
                     Box(modifier = Modifier.height(20.dp), contentAlignment = Alignment.CenterStart) {
                         Text(
-                            text = "Slide across wave to scrub monthly cashflow",
+                            text = "Tap or drag across wave to inspect monthly cashflow",
                             fontSize = 9.5.sp,
                             color = TextMuted.copy(alpha = 0.75f)
                         )
@@ -656,8 +669,15 @@ private fun MonthlyCashflowPulseCard(
                                         .clip(CircleShape)
                                         .background(Color(0xFFCBD5E1))
                                 )
+                            } else if (abs(net) < 1.0) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(4.dp)
+                                        .clip(CircleShape)
+                                        .background(BorderLight)
+                                )
                             } else {
-                                val isPositive = net >= 0
+                                val isPositive = net > 0
                                 Box(
                                     modifier = Modifier
                                         .width(8.dp)
@@ -685,7 +705,7 @@ private fun MonthlyCashflowPulseCard(
                         fontWeight = FontWeight.Medium,
                         color = TextMuted,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.width(14.dp)
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -757,7 +777,7 @@ private fun AnnualThreePillarMatrixCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            val totalDeployment = (totalFixed + totalVariable + totalAssets + netRetained).coerceAtLeast(1.0)
+            val totalDeployment = (totalFixed + totalVariable + totalAssets + maxOf(0.0, netCashRetained)).coerceAtLeast(1.0)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -766,16 +786,16 @@ private fun AnnualThreePillarMatrixCard(
                     .background(BorderLight.copy(alpha = 0.4f))
             ) {
                 if (totalFixed > 0) {
-                    Box(modifier = Modifier.weight((totalFixed / totalDeployment).toFloat().coerceAtLeast(0.04f)).fillMaxHeight().background(Color(0xFF475569)))
+                    Box(modifier = Modifier.weight((totalFixed / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Color(0xFF475569)))
                 }
                 if (totalVariable > 0) {
-                    Box(modifier = Modifier.weight((totalVariable / totalDeployment).toFloat().coerceAtLeast(0.04f)).fillMaxHeight().background(Color(0xFF8B5CF6)))
+                    Box(modifier = Modifier.weight((totalVariable / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Color(0xFF8B5CF6)))
                 }
                 if (totalAssets > 0) {
-                    Box(modifier = Modifier.weight((totalAssets / totalDeployment).toFloat().coerceAtLeast(0.04f)).fillMaxHeight().background(Color(0xFF06B6D4)))
+                    Box(modifier = Modifier.weight((totalAssets / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Color(0xFF06B6D4)))
                 }
-                if (netRetained > 0) {
-                    Box(modifier = Modifier.weight((netRetained / totalDeployment).toFloat().coerceAtLeast(0.04f)).fillMaxHeight().background(Color(0xFF10B981)))
+                if (netCashRetained > 0) {
+                    Box(modifier = Modifier.weight((netCashRetained / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Color(0xFF10B981)))
                 }
             }
 
@@ -807,10 +827,10 @@ private fun AnnualThreePillarMatrixCard(
                     modifier = Modifier.weight(1f)
                 )
                 PillarAllocationPill(
-                    title = "Retained",
-                    amount = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", netRetained)}",
+                    title = if (netCashRetained >= 0) "Retained" else "Deficit",
+                    amount = if (isDiscreet) "••••" else "${if (netCashRetained < 0) "-" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", abs(netCashRetained))}",
                     percentage = "${(retainedRatio * 100).toInt()}%",
-                    color = Color(0xFF10B981),
+                    color = if (netCashRetained >= 0) Color(0xFF10B981) else SoftRed,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -981,25 +1001,23 @@ private fun DualWaveCanvas(
         modifier = modifier
             .pointerInput(yearlyMonths) {
                 detectTapGestures(
-                    onPress = { offset ->
-                        val stepX = size.width / (11f).coerceAtLeast(1f)
+                    onTap = { offset ->
+                        val stepX = size.width / 11f.coerceAtLeast(1f)
                         val idx = (offset.x / stepX).roundToInt().coerceIn(0, 11)
-                        onSelectMonth(idx)
+                        onSelectMonth(if (selectedMonthIndex == idx) null else idx)
                     }
                 )
             }
             .pointerInput(yearlyMonths) {
                 detectDragGestures(
                     onDragStart = { offset ->
-                        val stepX = size.width / (11f).coerceAtLeast(1f)
+                        val stepX = size.width / 11f.coerceAtLeast(1f)
                         val idx = (offset.x / stepX).roundToInt().coerceIn(0, 11)
                         onSelectMonth(idx)
                     },
-                    onDragEnd = { onSelectMonth(null) },
-                    onDragCancel = { onSelectMonth(null) },
                     onDrag = { change, _ ->
                         change.consume()
-                        val stepX = size.width / (11f).coerceAtLeast(1f)
+                        val stepX = size.width / 11f.coerceAtLeast(1f)
                         val idx = (change.position.x / stepX).roundToInt().coerceIn(0, 11)
                         onSelectMonth(idx)
                     }
@@ -1011,10 +1029,7 @@ private fun DualWaveCanvas(
         val count = 12
         val stepX = w / (count - 1).toFloat()
 
-        // Optimized: Uses direct personalIncome from YearlyMonthData
-        val personalInflows = yearlyMonths.map {
-            if (it.personalIncome > 0.0) it.personalIncome else it.income
-        }
+        val personalInflows = yearlyMonths.map { it.personalIncome }
         val personalBurns = yearlyMonths.map { it.lifestyleExpenses }
 
         val maxVal = (personalInflows + personalBurns).maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
