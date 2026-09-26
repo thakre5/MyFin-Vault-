@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.ui.AssetWealthMetrics
@@ -51,7 +53,7 @@ fun YearlyAssetsTab(
     val investedShare = (wealthMetrics.totalInvestments / totalKnownWealth).toFloat().coerceIn(0f, 1f)
     val completionPct = (goalCompletionPercentage * 100).toInt()
 
-    val targetBasisTag = "25% Savings Target"
+    val targetBasisTag = "Annual Wealth Target"
 
     LazyColumn(
         modifier = Modifier
@@ -295,6 +297,10 @@ private fun CompactSplitGoalHeartCard(
 ) {
     val remainingGap = (targetAmount - currentAmount).coerceAtLeast(0.0)
     val pct = (completionRatio * 100).toInt()
+    val safeRatio = remember(completionRatio) {
+        if (completionRatio.isNaN() || completionRatio.isInfinite()) 0.04f
+        else completionRatio.coerceIn(0.04f, 1f)
+    }
 
     Surface(
         modifier = Modifier
@@ -412,7 +418,7 @@ private fun CompactSplitGoalHeartCard(
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(completionRatio.coerceIn(0.04f, 1f))
+                                .fillMaxWidth(safeRatio)
                                 .fillMaxHeight()
                                 .background(
                                     Brush.horizontalGradient(
@@ -428,9 +434,9 @@ private fun CompactSplitGoalHeartCard(
                         text = if (isDiscreet) {
                             "Compounding active"
                         } else if (remainingGap == 0.0) {
-                            "Annual 25% benchmark reached!"
+                            "Annual wealth milestone reached!"
                         } else {
-                            "Need $currencySymbol${String.format(Locale.US, "%,.0f", remainingGap)} more (Target: 25% of Inflow)"
+                            "Need $currencySymbol${String.format(Locale.US, "%,.0f", remainingGap)} more to achieve milestone"
                         },
                         fontSize = 9.5.sp,
                         color = TextMuted
@@ -500,18 +506,6 @@ private fun CleanLivingHeartCanvas(
         val w = size.width
         val h = size.height
 
-        val gridStep = 16.dp.toPx()
-        var currentX = 0f
-        while (currentX < w) {
-            drawLine(color = Color(0xFFF3F4F6), start = Offset(currentX, 0f), end = Offset(currentX, h), strokeWidth = 0.8.dp.toPx())
-            currentX += gridStep
-        }
-        var currentY = 0f
-        while (currentY < h) {
-            drawLine(color = Color(0xFFF3F4F6), start = Offset(0f, currentY), end = Offset(w, currentY), strokeWidth = 0.8.dp.toPx())
-            currentY += gridStep
-        }
-
         val heartPath = Path().apply {
             moveTo(w / 2f, h * 0.28f)
             cubicTo(w * 0.28f, h * 0.04f, w * 0.02f, h * 0.22f, w * 0.02f, h * 0.48f)
@@ -525,7 +519,9 @@ private fun CleanLivingHeartCanvas(
         drawPath(path = heartPath, color = Color(0xFFF3E8FF).copy(alpha = 0.65f))
 
         clipPath(heartPath) {
-            val fillHeight = h * fillPercentage.coerceIn(0.06f, 0.96f)
+            val safeFill = if (fillPercentage.isNaN() || fillPercentage.isInfinite()) 0.04f
+            else fillPercentage.coerceIn(0.04f, 1.0f)
+            val fillHeight = h * safeFill
             val fillTop = (h * 0.98f) - fillHeight
             val amplitude = 4.dp.toPx()
             val wavelength = w * 0.85f
@@ -593,6 +589,52 @@ private fun CleanLivingHeartCanvas(
 }
 
 // =========================================================
+// 2. QUICK METRIC TILE
+// =========================================================
+
+@Composable
+private fun QuickMetricTile(
+    label: String,
+    value: String,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = CanvasLight,
+        border = BorderStroke(0.6.dp, BorderLight)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .clip(CircleShape)
+                        .background(tint)
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                    text = label,
+                    fontSize = 10.5.sp,
+                    color = TextMuted,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = value,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextDark
+            )
+        }
+    }
+}
+
+// =========================================================
 // 3. MULTI-YEAR COMPACT SEGMENTED PILLARS (WITH YEAR LABELS)
 // =========================================================
 
@@ -641,58 +683,85 @@ private fun MultiYearSegmentedPillarsCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            MultiYearSegmentedCanvas(
-                multiYearAssets = multiYearAssets,
-                selectedYear = selectedYear,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-            )
+            if (multiYearAssets.isEmpty()) {
+                Text(
+                    text = "No historical portfolio records available for comparison.",
+                    fontSize = 11.5.sp,
+                    color = TextMuted,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+            } else {
+                MultiYearSegmentedCanvas(
+                    multiYearAssets = multiYearAssets,
+                    selectedYear = selectedYear,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                )
 
-            Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                multiYearAssets.forEach { item ->
-                    val isCurrent = item.year == selectedYear
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isCurrent) AccentPurple.copy(alpha = 0.08f) else Color.Transparent)
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Year ${item.year}",
-                                fontWeight = if (isCurrent) FontWeight.Black else FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = if (isCurrent) AccentPurple else TextDark
-                            )
-                            if (item.growthPercent != 0.0) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(5.dp),
-                                    color = if (item.growthPercent >= 0) SoftGreen.copy(alpha = 0.12f) else SoftRed.copy(alpha = 0.12f)
-                                ) {
-                                    Text(
-                                        text = if (item.growthPercent >= 0) "+${item.growthPercent.toInt()}%" else "${item.growthPercent.toInt()}%",
-                                        fontSize = 8.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (item.growthPercent >= 0) SoftGreen else SoftRed,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
-                                    )
+                // Aligned Year Labels underneath pillars
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    multiYearAssets.forEach { item ->
+                        val isCurrent = item.year == selectedYear
+                        Text(
+                            text = "'${item.year.toString().takeLast(2)}",
+                            fontSize = 10.sp,
+                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isCurrent) AccentPurple else TextMuted
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    multiYearAssets.forEach { item ->
+                        val isCurrent = item.year == selectedYear
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isCurrent) AccentPurple.copy(alpha = 0.08f) else Color.Transparent)
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Year ${item.year}",
+                                    fontWeight = if (isCurrent) FontWeight.Black else FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (isCurrent) AccentPurple else TextDark
+                                )
+                                if (item.growthPercent != 0.0) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(5.dp),
+                                        color = if (item.growthPercent >= 0) SoftGreen.copy(alpha = 0.12f) else SoftRed.copy(alpha = 0.12f)
+                                    ) {
+                                        Text(
+                                            text = if (item.growthPercent >= 0) "+${item.growthPercent.toInt()}%" else "${item.growthPercent.toInt()}%",
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (item.growthPercent >= 0) SoftGreen else SoftRed,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
+                                        )
+                                    }
                                 }
                             }
-                        }
 
-                        Text(
-                            text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.totalAssets)}",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
-                            color = if (isCurrent) AccentPurple else TextDark
-                        )
+                            Text(
+                                text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.totalAssets)}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.5.sp,
+                                color = if (isCurrent) AccentPurple else TextDark
+                            )
+                        }
                     }
                 }
             }
@@ -720,7 +789,7 @@ private fun MultiYearSegmentedCanvas(
             val ratio = (item.totalAssets / maxVal).toFloat().coerceIn(0.06f, 0.90f)
             val barH = (h * 0.70f) * ratio
             val isCurrent = item.year == selectedYear
-            val baseY = h - 18.dp.toPx()
+            val baseY = h - 6.dp.toPx()
 
             drawRoundRect(
                 brush = if (isCurrent) {
@@ -744,8 +813,8 @@ private fun MultiYearSegmentedCanvas(
 
         drawLine(
             color = Color(0xFFE5E7EB),
-            start = Offset(0f, h - 18.dp.toPx()),
-            end = Offset(w, h - 18.dp.toPx()),
+            start = Offset(0f, h - 6.dp.toPx()),
+            end = Offset(w, h - 6.dp.toPx()),
             strokeWidth = 1.dp.toPx()
         )
     }
