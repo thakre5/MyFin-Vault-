@@ -67,10 +67,16 @@ fun FilterBottomSheet(
     }
 
     val activeRangeText = remember(filterStartDate, filterEndDate) {
-        if (filterStartDate != null && filterEndDate != null) {
-            val sdf = SimpleDateFormat("dd MMM yyyy", Locale.US)
-            "${sdf.format(Date(filterStartDate!!))} – ${sdf.format(Date(filterEndDate!!))}"
-        } else null
+        val sdf = SimpleDateFormat("dd MMM yyyy", Locale.US)
+        when {
+            filterStartDate != null && filterEndDate != null ->
+                "${sdf.format(Date(filterStartDate!!))} – ${sdf.format(Date(filterEndDate!!))}"
+            filterStartDate != null ->
+                "From ${sdf.format(Date(filterStartDate!!))}"
+            filterEndDate != null ->
+                "Until ${sdf.format(Date(filterEndDate!!))}"
+            else -> null
+        }
     }
 
     ModalBottomSheet(
@@ -116,7 +122,7 @@ fun FilterBottomSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Flow Type Filter (Now includes Corporate)
+            // Flow Type Filter
             Text("Flow Type", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
             Spacer(modifier = Modifier.height(6.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -362,9 +368,30 @@ fun FilterBottomSheet(
 
     // Material 3 Date Range Picker Dialog
     if (showDateRangePicker) {
+        val initialUtcStart = remember(filterStartDate) {
+            filterStartDate?.let { localMillis ->
+                val localCal = Calendar.getInstance().apply { timeInMillis = localMillis }
+                val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                    set(localCal.get(Calendar.YEAR), localCal.get(Calendar.MONTH), localCal.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                utcCal.timeInMillis
+            }
+        }
+        val initialUtcEnd = remember(filterEndDate) {
+            filterEndDate?.let { localMillis ->
+                val localCal = Calendar.getInstance().apply { timeInMillis = localMillis }
+                val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                    set(localCal.get(Calendar.YEAR), localCal.get(Calendar.MONTH), localCal.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                utcCal.timeInMillis
+            }
+        }
+
         val dateRangePickerState = rememberDateRangePickerState(
-            initialSelectedStartDateMillis = filterStartDate,
-            initialSelectedEndDateMillis = filterEndDate
+            initialSelectedStartDateMillis = initialUtcStart,
+            initialSelectedEndDateMillis = initialUtcEnd
         )
 
         DatePickerDialog(
@@ -465,8 +492,8 @@ private fun calculatePresetRange(preset: DatePreset): Pair<Long, Long> {
             Pair(start, cal.timeInMillis)
         }
         DatePreset.LAST_MONTH -> {
-            cal.add(Calendar.MONTH, -1)
             cal.set(Calendar.DAY_OF_MONTH, 1)
+            cal.add(Calendar.MONTH, -1)
             cal.set(Calendar.HOUR_OF_DAY, 0)
             cal.set(Calendar.MINUTE, 0)
             cal.set(Calendar.SECOND, 0)
