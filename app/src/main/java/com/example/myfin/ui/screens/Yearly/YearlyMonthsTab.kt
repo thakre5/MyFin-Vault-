@@ -35,6 +35,8 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+private val YEARLY_MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
 private enum class OutflowLayerFilter(val label: String) {
     ALL("All Layers"),
     FIXED("Fixed Bills"),
@@ -51,7 +53,7 @@ fun YearlyMonthsTab(
     onInspectMonth: (YearlyMonthData) -> Unit
 ) {
     val activeMonths = remember(yearlyMonthsData) {
-        yearlyMonthsData.filter { !it.isFuture && (it.lifestyleExpenses > 0.0 || it.income > 0.0) }
+        yearlyMonthsData.filter { !it.isFuture && (it.lifestyleExpenses > 0.0 || it.personalIncome > 0.0) }
     }
 
     val monthsWithBurn = remember(activeMonths) {
@@ -265,7 +267,7 @@ private fun CompactLayeredMountainCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Compact Canvas (118.dp) with true layer isolation
+            // Compact Canvas with Dynamic Layer Scaling
             FilteredMountainCanvas(
                 yearlyMonths = yearlyMonths,
                 activeFilter = selectedFilter,
@@ -308,7 +310,12 @@ private fun FilteredMountainCanvas(
         val count = 12
         val stepX = w / (count - 1).toFloat()
 
-        val maxOutflow = yearlyMonths.maxOfOrNull { it.lifestyleExpenses + it.assets }?.coerceAtLeast(100.0) ?: 100.0
+        val maxOutflow = when (activeFilter) {
+            OutflowLayerFilter.ALL -> yearlyMonths.maxOfOrNull { it.lifestyleExpenses + it.assets }
+            OutflowLayerFilter.FIXED -> yearlyMonths.maxOfOrNull { it.fixedExpenses }
+            OutflowLayerFilter.LIFESTYLE -> yearlyMonths.maxOfOrNull { it.lifestyleExpenses }
+            OutflowLayerFilter.ASSETS -> yearlyMonths.maxOfOrNull { it.assets }
+        }?.coerceAtLeast(100.0) ?: 100.0
 
         // Background reference gridlines
         for (i in 1..2) {
@@ -370,7 +377,8 @@ private fun FilteredMountainCanvas(
                 }
                 val ptsFixed = yearlyMonths.mapIndexed { idx, m ->
                     val x = idx * stepX
-                    val r = (m.fixedExpenses / maxOutflow).toFloat().coerceIn(0.04f, 0.92f)
+                    val fixedVal = minOf(m.fixedExpenses, m.lifestyleExpenses)
+                    val r = (fixedVal / maxOutflow).toFloat().coerceIn(0.04f, 0.92f)
                     Offset(x, h * (1f - r))
                 }
 
@@ -419,7 +427,7 @@ private fun FilteredMountainCanvas(
                 )
             }
 
-            // ISOLATED ASSETS SIP STREAM (True standalone from 0)
+            // ISOLATED ASSETS SIP STREAM
             OutflowLayerFilter.ASSETS -> {
                 val ptsIsolatedAssets = yearlyMonths.mapIndexed { idx, m ->
                     val x = idx * stepX
@@ -623,7 +631,7 @@ private fun TimelineMonthRow(
     onTapMonth: () -> Unit
 ) {
     val isSurplus = data.netSavings >= 0
-    val hasActivity = data.income > 0 || data.lifestyleExpenses > 0 || data.assets > 0
+    val hasActivity = data.personalIncome > 0 || data.lifestyleExpenses > 0 || data.assets > 0
     val statusColor = if (data.isFuture) TextMuted else if (isSurplus) SoftGreen else SoftRed
 
     val absSavings = abs(data.netSavings)
@@ -745,8 +753,13 @@ private fun TimelineMonthRow(
                             )
                             if (data.workExpenses > 0.0) {
                                 Spacer(modifier = Modifier.width(4.dp))
+                                val floatLabel = if (data.workExpenses >= 1000.0) {
+                                    "+${(data.workExpenses / 1000).toInt()}k float"
+                                } else {
+                                    "+${data.workExpenses.toInt()} float"
+                                }
                                 Text(
-                                    text = "+${(data.workExpenses / 1000).toInt()}k float",
+                                    text = floatLabel,
                                     fontSize = 8.5.sp,
                                     color = Color(0xFFE57A28),
                                     fontWeight = FontWeight.Bold
