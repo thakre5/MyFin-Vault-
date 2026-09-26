@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,6 +45,9 @@ fun FloatingPagerIndicator(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
+
+    val slideOffsetPx = with(density) { 36.dp.toPx() }
 
     val animAlpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
@@ -52,10 +56,12 @@ fun FloatingPagerIndicator(
     )
 
     val animTranslationY by animateFloatAsState(
-        targetValue = if (isVisible) 0f else 28f,
+        targetValue = if (isVisible) 0f else slideOffsetPx,
         animationSpec = spring(dampingRatio = 0.85f, stiffness = 400f),
         label = "indicatorSlide"
     )
+
+    val isInteractive = isVisible && animAlpha > 0.5f
 
     if (animAlpha > 0.01f) {
         Surface(
@@ -98,7 +104,7 @@ fun FloatingPagerIndicator(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.5.dp),
@@ -112,14 +118,11 @@ fun FloatingPagerIndicator(
                             label = "dashWidth"
                         )
 
+                        // Touch-friendly outer wrapper with 3dp inner visual indicator
                         Box(
                             modifier = Modifier
-                                .width(dashWidth)
-                                .height(3.dp)
-                                .clip(CircleShape)
-                                .background(if (isSelected) activeColor else inactiveColor)
                                 .clickable(
-                                    enabled = isVisible,
+                                    enabled = isInteractive,
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) {
@@ -130,7 +133,17 @@ fun FloatingPagerIndicator(
                                         }
                                     }
                                 }
-                        )
+                                .padding(vertical = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(dashWidth)
+                                    .height(3.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isSelected) activeColor else inactiveColor)
+                            )
+                        }
                     }
                 }
             }
