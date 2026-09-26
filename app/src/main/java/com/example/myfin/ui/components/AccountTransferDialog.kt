@@ -38,6 +38,7 @@ import java.util.*
 @Composable
 fun AccountTransferDialog(
     accounts: List<String>,
+    accountTypes: Map<String, String> = emptyMap(),
     currencySymbol: String = "₹",
     onDismiss: () -> Unit,
     onTransfer: (
@@ -66,17 +67,22 @@ fun AccountTransferDialog(
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
 
+    val resolveSubtypeForAccount = { accName: String ->
+        val type = accountTypes[accName]?.lowercase(Locale.ROOT)
+        when {
+            type == "fortress" || accName.contains("FORTRESS", ignoreCase = true) || accName.contains("TERTIARY", ignoreCase = true) ->
+                TransferSubtype.WEALTH_ALLOCATION
+            type == "commitments" || accName.contains("COMMITMENT", ignoreCase = true) || accName.contains("SECONDARY", ignoreCase = true) ->
+                TransferSubtype.BILL_FUNDING
+            type == "cash" || accName.contains("CASH", ignoreCase = true) ->
+                TransferSubtype.CASH_WITHDRAWAL
+            else -> TransferSubtype.REBALANCE
+        }
+    }
+
     // Auto-resolve initial strategic subtype based on destination vault
     var selectedSubtype by remember(toAccount) {
-        mutableStateOf(
-            when {
-                toAccount.contains("FORTRESS", ignoreCase = true) || toAccount.contains("TERTIARY", ignoreCase = true) ->
-                    TransferSubtype.WEALTH_ALLOCATION
-                toAccount.contains("COMMITMENT", ignoreCase = true) || toAccount.contains("SECONDARY", ignoreCase = true) ->
-                    TransferSubtype.BILL_FUNDING
-                else -> TransferSubtype.REBALANCE
-            }
-        )
+        mutableStateOf(resolveSubtypeForAccount(toAccount))
     }
 
     // Recurring Monthly Sweep Toggle States
@@ -116,6 +122,7 @@ fun AccountTransferDialog(
     val notePlaceholder = when (selectedSubtype) {
         TransferSubtype.WEALTH_ALLOCATION -> "e.g., Operating Surplus Sweep into Fortress FDs"
         TransferSubtype.BILL_FUNDING -> "e.g., Payday Funding for Scheduled AutoPay"
+        TransferSubtype.CASH_WITHDRAWAL -> "e.g., ATM Cash Withdrawal for Pocket Expenses"
         TransferSubtype.REBALANCE -> "e.g., Liquidity Rebalance for Everyday Burn"
         else -> "e.g., Internal Liquidity Move"
     }
@@ -189,6 +196,7 @@ fun AccountTransferDialog(
                                 fromAccount = acc
                                 if (toAccount.equals(acc, ignoreCase = true)) {
                                     toAccount = accounts.firstOrNull { !it.equals(acc, ignoreCase = true) }.orEmpty()
+                                    selectedSubtype = resolveSubtypeForAccount(toAccount)
                                 }
                             },
                         shape = RoundedCornerShape(8.dp),
@@ -222,14 +230,7 @@ fun AccountTransferDialog(
                                 if (fromAccount.equals(acc, ignoreCase = true)) {
                                     fromAccount = accounts.firstOrNull { !it.equals(acc, ignoreCase = true) }.orEmpty()
                                 }
-                                // Auto-switch subtype to match destination tier
-                                selectedSubtype = when {
-                                    acc.contains("FORTRESS", ignoreCase = true) || acc.contains("TERTIARY", ignoreCase = true) ->
-                                        TransferSubtype.WEALTH_ALLOCATION
-                                    acc.contains("COMMITMENT", ignoreCase = true) || acc.contains("SECONDARY", ignoreCase = true) ->
-                                        TransferSubtype.BILL_FUNDING
-                                    else -> TransferSubtype.REBALANCE
-                                }
+                                selectedSubtype = resolveSubtypeForAccount(acc)
                             },
                         shape = RoundedCornerShape(8.dp),
                         color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
@@ -257,22 +258,23 @@ fun AccountTransferDialog(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Strategic Subtype Classification
+            // Strategic Subtype Classification Selector
             Text("Transfer Classification Subtype", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
             Spacer(modifier = Modifier.height(4.dp))
-            Row(
+            LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                listOf(
+                val subtypes = listOf(
                     TransferSubtype.BILL_FUNDING to "Bill Funding",
                     TransferSubtype.WEALTH_ALLOCATION to "Fortress Sweep",
-                    TransferSubtype.REBALANCE to "Rebalance"
-                ).forEach { (subtype, label) ->
+                    TransferSubtype.REBALANCE to "Rebalance",
+                    TransferSubtype.CASH_WITHDRAWAL to "Cash ATM"
+                )
+                items(subtypes) { (subtype, label) ->
                     val isSel = selectedSubtype == subtype
                     Surface(
                         modifier = Modifier
-                            .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
                             .clickable { selectedSubtype = subtype },
                         shape = RoundedCornerShape(8.dp),
@@ -281,11 +283,11 @@ fun AccountTransferDialog(
                     ) {
                         Text(
                             text = label,
-                            fontSize = 10.5.sp,
+                            fontSize = 11.sp,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                             color = if (isSel) AccentPurple else TextDark,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 7.dp)
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                         )
                     }
                 }
@@ -467,8 +469,14 @@ fun AccountTransferDialog(
                             OutlinedTextField(
                                 value = dueDayText,
                                 onValueChange = { input ->
-                                    if (input.length <= 2) {
-                                        dueDayText = input.filter { it.isDigit() }
+                                    val digits = input.filter { it.isDigit() }
+                                    if (digits.isEmpty()) {
+                                        dueDayText = ""
+                                    } else if (digits.length <= 2) {
+                                        val num = digits.toIntOrNull() ?: 0
+                                        if (num in 1..31) {
+                                            dueDayText = digits
+                                        }
                                     }
                                 },
                                 placeholder = { Text("Day", fontSize = 11.sp) },
@@ -513,6 +521,7 @@ fun AccountTransferDialog(
                                 when (selectedSubtype) {
                                     TransferSubtype.WEALTH_ALLOCATION -> "Fortress Sweep ($fromAccount ➔ $toAccount)"
                                     TransferSubtype.BILL_FUNDING -> "Bill Funding ($fromAccount ➔ $toAccount)"
+                                    TransferSubtype.CASH_WITHDRAWAL -> "Cash ATM Withdrawal ($fromAccount ➔ $toAccount)"
                                     TransferSubtype.REBALANCE -> "Vault Rebalance ($fromAccount ➔ $toAccount)"
                                     else -> "Vault Transfer ($fromAccount ➔ $toAccount)"
                                 }
