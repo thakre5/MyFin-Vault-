@@ -18,8 +18,9 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import com.example.myfin.ui.theme.CanvasLight
 
-// Deep soft purple background for the drawer canvas
+// Deep soft purple background for the perspective drawer canvas
 private val SoftPurpleDrawerBg = Color(0xFF231B38)
 
 @Composable
@@ -49,7 +50,7 @@ fun PerspectiveDrawer(
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(250.dp)
+                    .width(260.dp)
                     .graphicsLayer {
                         alpha = transitionProgress
                         translationX = (1f - transitionProgress) * menuEntranceOffsetPx
@@ -63,6 +64,7 @@ fun PerspectiveDrawer(
         val scale = 1f - (transitionProgress * 0.15f)
         val translationX = transitionProgress * shiftPx
         val cornerRadius = (transitionProgress * 28).dp
+        val cornerShape = RoundedCornerShape(cornerRadius)
 
         Box(
             modifier = Modifier
@@ -72,10 +74,12 @@ fun PerspectiveDrawer(
                     this.scaleX = scale
                     this.scaleY = scale
                     this.translationX = translationX
-                    this.shadowElevation = if (isDrawerOpen) 30f else 0f
+                    this.shadowElevation = transitionProgress * 32f
+                    this.shape = cornerShape
+                    this.clip = true
                 }
-                .clip(RoundedCornerShape(cornerRadius))
-                .background(Color.White)
+                .clip(cornerShape)
+                .background(CanvasLight)
         ) {
             mainContent()
 
