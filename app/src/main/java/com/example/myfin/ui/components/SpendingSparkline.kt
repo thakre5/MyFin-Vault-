@@ -34,34 +34,41 @@ fun SpendingSparkline(
         val minVal = 0f
         val range = (maxVal - minVal).coerceAtLeast(1f)
 
-        // Draw faint dashed baseline grid
-        val midY = size.height * 0.5f
-        drawLine(
-            color = Color(0xFFE2E8F0).copy(alpha = 0.7f),
-            start = Offset(0f, midY),
-            end = Offset(size.width, midY),
-            strokeWidth = 1.dp.toPx(),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
-        )
+        // Pre-compute pixel dimensions
+        val paddingTopPx = 6.dp.toPx()
+        val paddingBottomPx = 14.dp.toPx()
+        val paddingStartPx = 4.dp.toPx()
+        val paddingEndPx = 8.dp.toPx()
 
-        // Pre-compute pixel values outside the drawing loop
-        val paddingTopPx = 8.dp.toPx()
-        val paddingBottomPx = 18.dp.toPx()
-        val usableHeightPx = size.height - paddingBottomPx
+        val usableHeightPx = (size.height - paddingTopPx - paddingBottomPx).coerceAtLeast(1f)
+        val usableWidthPx = (size.width - paddingStartPx - paddingEndPx).coerceAtLeast(1f)
+
         val strokeWidthPx = 3.dp.toPx()
         val haloRadiusPx = 8.dp.toPx()
         val nodeRadiusPx = 4.dp.toPx()
         val coreRadiusPx = 2.dp.toPx()
 
+        // Draw faint dashed 50% capacity reference line
+        val midY = paddingTopPx + (usableHeightPx * 0.5f)
+        drawLine(
+            color = Color(0xFFE2E8F0).copy(alpha = 0.75f),
+            start = Offset(paddingStartPx, midY),
+            end = Offset(size.width - paddingEndPx, midY),
+            strokeWidth = 1.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+        )
+
         // Handle single-point edge case
         if (points.size == 1) {
-            val y = (1f - ((points[0] - minVal) / range)) * usableHeightPx + paddingTopPx
+            val pointVal = points[0].coerceAtLeast(0f)
+            val normalizedY = 1f - ((pointVal - minVal) / range)
+            val y = paddingTopPx + (normalizedY * usableHeightPx)
             val centerPoint = Offset(size.width * 0.5f, y)
 
             drawLine(
                 color = lineColor,
-                start = Offset(0f, y),
-                end = Offset(size.width, y),
+                start = Offset(paddingStartPx, y),
+                end = Offset(size.width - paddingEndPx, y),
                 strokeWidth = strokeWidthPx,
                 cap = StrokeCap.Round
             )
@@ -71,27 +78,27 @@ fun SpendingSparkline(
             return@Canvas
         }
 
-        val stepX = size.width / (points.size - 1)
+        val stepX = usableWidthPx / (points.size - 1)
         val strokePath = Path()
         val fillPath = Path()
 
-        var lastPoint = Offset(0f, size.height)
+        var lastPoint = Offset(size.width - paddingEndPx, size.height)
 
         points.forEachIndexed { i, rawValue ->
             val value = rawValue.coerceAtLeast(0f)
-            val x = i * stepX
+            val x = paddingStartPx + (i * stepX)
             val normalizedY = 1f - ((value - minVal) / range)
-            val y = normalizedY * usableHeightPx + paddingTopPx
+            val y = paddingTopPx + (normalizedY * usableHeightPx)
 
             if (i == 0) {
                 strokePath.moveTo(x, y)
                 fillPath.moveTo(x, size.height)
                 fillPath.lineTo(x, y)
             } else {
-                val prevX = (i - 1) * stepX
+                val prevX = paddingStartPx + ((i - 1) * stepX)
                 val prevValue = points[i - 1].coerceAtLeast(0f)
                 val prevNormY = 1f - ((prevValue - minVal) / range)
-                val prevY = prevNormY * usableHeightPx + paddingTopPx
+                val prevY = paddingTopPx + (prevNormY * usableHeightPx)
 
                 val controlPoint1 = Offset(prevX + (x - prevX) / 2f, prevY)
                 val controlPoint2 = Offset(prevX + (x - prevX) / 2f, y)
@@ -120,7 +127,7 @@ fun SpendingSparkline(
             path = fillPath,
             brush = Brush.verticalGradient(
                 colors = listOf(gradientStartColor, gradientEndColor),
-                startY = 0f,
+                startY = paddingTopPx,
                 endY = size.height
             )
         )
@@ -132,7 +139,7 @@ fun SpendingSparkline(
             style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
         )
 
-        // Endpoint nodes
+        // Endpoint nodes with halo glow
         drawCircle(color = lineColor.copy(alpha = 0.18f), radius = haloRadiusPx, center = lastPoint)
         drawCircle(color = lineColor, radius = nodeRadiusPx, center = lastPoint)
         drawCircle(color = Color.White, radius = coreRadiusPx, center = lastPoint)
