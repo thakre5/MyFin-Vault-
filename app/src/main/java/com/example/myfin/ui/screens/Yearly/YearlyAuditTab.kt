@@ -37,6 +37,8 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
+private val YEARLY_MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
 private val RADAR_PALETTE = listOf(
     Color(0xFF8B5CF6), // Purple
     Color(0xFF06B6D4), // Cyan
@@ -79,14 +81,14 @@ fun YearlyAuditTab(
 
     val overrunCategories = remember(categoryTrajectories, plannedCategoryCeilings) {
         categoryTrajectories.filter { cat ->
-            val ceiling = plannedCategoryCeilings[cat.categoryName] ?: 0.0
+            val ceiling = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
             ceiling > 0.0 && cat.annualTotal > ceiling
         }
     }
 
     val totalOverrunAmount = remember(overrunCategories, plannedCategoryCeilings) {
         overrunCategories.sumOf { cat ->
-            val ceiling = plannedCategoryCeilings[cat.categoryName] ?: 0.0
+            val ceiling = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
             cat.annualTotal - ceiling
         }
     }
@@ -200,7 +202,7 @@ fun YearlyAuditTab(
                 val isLegacy = remember(isCategoryLegacy, item.categoryName) {
                     isCategoryLegacy(item.categoryName)
                 }
-                val plannedCeiling = plannedCategoryCeilings[item.categoryName] ?: 0.0
+                val plannedCeiling = plannedCategoryCeilings[item.categoryName.trim()] ?: 0.0
 
                 PolishedCategoryTrajectoryRow(
                     item = item,
@@ -329,7 +331,7 @@ private fun CompactParetoRadarCard(
                     }
                 }
             } else if (topCategories.isNotEmpty()) {
-                // Adaptive Split Bar for 1 or 2 categories (Clean, avoids empty polygon)
+                // Adaptive Split Bar for 1 or 2 categories
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -500,13 +502,12 @@ private fun CompactBudgetVsActualCard(
     isDiscreet: Boolean,
     onInfoClick: () -> Unit
 ) {
-    // Overrun-prioritized sort: Overrun categories take slots 1..N, remaining filled by top spenders
     val displayList = remember(categoryTrajectories, plannedCategoryCeilings) {
         val overruns = categoryTrajectories.filter { cat ->
-            val planned = plannedCategoryCeilings[cat.categoryName] ?: 0.0
+            val planned = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
             planned > 0.0 && cat.annualTotal > planned
         }.sortedByDescending { cat ->
-            cat.annualTotal - (plannedCategoryCeilings[cat.categoryName] ?: 0.0)
+            cat.annualTotal - (plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0)
         }
         val others = categoryTrajectories.filter { it !in overruns }
             .sortedByDescending { it.annualTotal }
@@ -582,58 +583,69 @@ private fun CompactBudgetVsActualCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            val maxBurn = displayList.maxOfOrNull { cat ->
-                max(cat.annualTotal, plannedCategoryCeilings[cat.categoryName] ?: 0.0)
-            }?.coerceAtLeast(100.0) ?: 100.0
+            if (displayList.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No planned or realized category data available", fontSize = 11.5.sp, color = TextMuted)
+                }
+            } else {
+                val maxBurn = displayList.maxOfOrNull { cat ->
+                    max(cat.annualTotal, plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0)
+                }?.coerceAtLeast(100.0) ?: 100.0
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(105.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                displayList.forEach { cat ->
-                    val actualRatio = (cat.annualTotal / maxBurn).toFloat().coerceIn(0.10f, 1f)
-                    val plannedAmt = plannedCategoryCeilings[cat.categoryName] ?: 0.0
-                    val plannedRatio = if (plannedAmt > 0) (plannedAmt / maxBurn).toFloat().coerceIn(0.08f, 1f) else 0.04f
-                    val isOverrun = plannedAmt > 0 && cat.annualTotal > plannedAmt
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(105.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    displayList.forEach { cat ->
+                        val actualRatio = (cat.annualTotal / maxBurn).toFloat().coerceIn(0.10f, 1f)
+                        val plannedAmt = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
+                        val plannedRatio = if (plannedAmt > 0) (plannedAmt / maxBurn).toFloat().coerceIn(0.08f, 1f) else 0.04f
+                        val isOverrun = plannedAmt > 0 && cat.annualTotal > plannedAmt
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Bottom,
-                        modifier = Modifier.fillMaxHeight()
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.Bottom
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Bottom,
+                            modifier = Modifier.fillMaxHeight()
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(13.dp)
-                                    .height((76 * plannedRatio).dp)
-                                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                    .background(if (plannedAmt > 0) Color(0xFFCBD5E1) else Color(0xFFE2E8F0))
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .width(13.dp)
-                                    .height((76 * actualRatio).dp)
-                                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                    .background(if (isOverrun) SoftRed else Color(0xFF8B5CF6))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(13.dp)
+                                        .height((76 * plannedRatio).dp)
+                                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                        .background(if (plannedAmt > 0) Color(0xFFCBD5E1) else Color(0xFFE2E8F0))
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .width(13.dp)
+                                        .height((76 * actualRatio).dp)
+                                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                        .background(if (isOverrun) SoftRed else Color(0xFF8B5CF6))
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(5.dp))
+                            Text(
+                                text = cat.categoryName,
+                                fontSize = 9.sp,
+                                color = if (isOverrun) SoftRed else TextMuted,
+                                fontWeight = if (isOverrun) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.width(48.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.height(5.dp))
-                        Text(
-                            text = cat.categoryName,
-                            fontSize = 9.sp,
-                            color = if (isOverrun) SoftRed else TextMuted,
-                            fontWeight = if (isOverrun) FontWeight.Bold else FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.width(48.dp)
-                        )
                     }
                 }
             }
@@ -781,26 +793,33 @@ private fun PolishedCategoryTrajectoryRow(
                     .fillMaxWidth()
                     .height(26.dp)
             ) {
-                val maxMonth = item.monthlyAmounts.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
-                val pts = item.monthlyAmounts.mapIndexed { idx, amt ->
-                    val x = (idx.toFloat() / 11f) * size.width
-                    val y = size.height * (1f - (amt / maxMonth).toFloat().coerceIn(0.12f, 0.88f))
-                    Offset(x, y)
-                }
+                if (item.monthlyAmounts.isNotEmpty()) {
+                    val maxMonth = item.monthlyAmounts.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+                    val count = item.monthlyAmounts.size.coerceAtLeast(2)
+                    val pts = item.monthlyAmounts.mapIndexed { idx, amt ->
+                        val x = (idx.toFloat() / (count - 1).toFloat()) * size.width
+                        val y = size.height * (1f - (amt / maxMonth).toFloat().coerceIn(0.12f, 0.88f))
+                        Offset(x, y)
+                    }
 
-                val path = Path()
-                pts.forEachIndexed { idx, pt ->
-                    if (idx == 0) path.moveTo(pt.x, pt.y) else path.lineTo(pt.x, pt.y)
-                }
-                drawPath(
-                    path = path,
-                    color = if (isOverrun) SoftRed else AccentPurple,
-                    style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
-                )
+                    val path = Path()
+                    pts.forEachIndexed { idx, pt ->
+                        if (idx == 0) path.moveTo(pt.x, pt.y) else path.lineTo(pt.x, pt.y)
+                    }
+                    drawPath(
+                        path = path,
+                        color = if (isOverrun) SoftRed else if (item.annualTotal <= 0.0) BorderLight else AccentPurple,
+                        style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
+                    )
 
-                val peakPt = pts[item.peakMonthIndex]
-                drawCircle(color = Color.White, radius = 4.dp.toPx(), center = peakPt)
-                drawCircle(color = if (isOverrun) SoftRed else AccentPurple, radius = 2.6.dp.toPx(), center = peakPt)
+                    if (item.annualTotal > 0.0) {
+                        val peakPt = pts.getOrNull(item.peakMonthIndex.coerceIn(0, (pts.size - 1).coerceAtLeast(0)))
+                        if (peakPt != null) {
+                            drawCircle(color = Color.White, radius = 4.dp.toPx(), center = peakPt)
+                            drawCircle(color = if (isOverrun) SoftRed else AccentPurple, radius = 2.6.dp.toPx(), center = peakPt)
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -810,13 +829,14 @@ private fun PolishedCategoryTrajectoryRow(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("Jan", fontSize = 8.5.sp, color = TextMuted)
+                val peakMonthName = YEARLY_MONTH_NAMES.getOrNull(item.peakMonthIndex.coerceIn(0, 11)) ?: "Jan"
                 Text(
                     text = if (item.annualTotal <= 0.0) {
                         "No spend recorded"
                     } else if (isDiscreet) {
-                        "Peak: ${YEARLY_MONTH_NAMES[item.peakMonthIndex]}"
+                        "Peak: $peakMonthName"
                     } else {
-                        "Peak: ${YEARLY_MONTH_NAMES[item.peakMonthIndex]} ($currencySymbol${String.format(Locale.US, "%,.0f", item.peakMonthAmount)})"
+                        "Peak: $peakMonthName ($currencySymbol${String.format(Locale.US, "%,.0f", item.peakMonthAmount)})"
                     },
                     fontSize = 9.sp,
                     color = if (isOverrun) SoftRed else AccentPurple,
