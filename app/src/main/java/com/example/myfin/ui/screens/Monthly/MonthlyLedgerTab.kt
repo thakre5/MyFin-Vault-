@@ -52,6 +52,7 @@ fun MonthlyLedgerTab(
     onDeleteTx: (TransactionEntity) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
+        // 1. SEARCH BAR WITH FILTER LAUNCHER
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -66,35 +67,65 @@ fun MonthlyLedgerTab(
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Search, contentDescription = "Search", tint = TextMuted, modifier = Modifier.size(18.dp))
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = TextMuted,
+                    modifier = Modifier.size(18.dp)
+                )
                 Spacer(modifier = Modifier.width(8.dp))
 
-                Box(modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterStart
+                ) {
                     if (filterCriteria.query.isEmpty()) {
-                        Text(text = "Search ledger...", color = TextMuted, fontSize = 13.sp, maxLines = 1)
+                        Text(
+                            text = "Search ledger...",
+                            color = TextMuted,
+                            fontSize = 13.sp,
+                            maxLines = 1
+                        )
                     }
                     BasicTextField(
                         value = filterCriteria.query,
                         onValueChange = { viewModel.updateSearchQuery(it) },
                         singleLine = true,
-                        textStyle = TextStyle(fontSize = 13.sp, color = TextDark, fontWeight = FontWeight.Medium),
+                        textStyle = TextStyle(
+                            fontSize = 13.sp,
+                            color = TextDark,
+                            fontWeight = FontWeight.Medium
+                        ),
                         cursorBrush = SolidColor(AccentPurple),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
 
                 if (filterCriteria.query.isNotBlank()) {
-                    IconButton(onClick = { viewModel.updateSearchQuery("") }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextMuted, modifier = Modifier.size(16.dp))
+                    IconButton(
+                        onClick = { viewModel.updateSearchQuery("") },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear",
+                            tint = TextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(4.dp))
                 }
 
+                val hasActiveCustomFilters = filterCriteria.type != null ||
+                        filterCriteria.account != "ALL" ||
+                        filterCriteria.startDate != null ||
+                        filterCriteria.endDate != null
+
                 IconButton(onClick = onOpenFilterSheet, modifier = Modifier.size(28.dp)) {
                     Icon(
-                        Icons.Default.Tune,
+                        imageVector = Icons.Default.Tune,
                         contentDescription = "Filter",
-                        tint = if (filterCriteria.type != null || filterCriteria.account != "ALL" || filterCriteria.startDate != null) AccentPurple else TextMuted,
+                        tint = if (hasActiveCustomFilters) AccentPurple else TextMuted,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -103,8 +134,18 @@ fun MonthlyLedgerTab(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        if (filterCriteria.startDate != null && filterCriteria.endDate != null) {
+        // 2. ACTIVE DATE RANGE CHIP (IF CONFIGURED)
+        if (filterCriteria.startDate != null || filterCriteria.endDate != null) {
             val sdf = remember { SimpleDateFormat("dd MMM", Locale.US) }
+            val startStr = filterCriteria.startDate?.let { sdf.format(Date(it)) }
+            val endStr = filterCriteria.endDate?.let { sdf.format(Date(it)) }
+
+            val dateRangeLabel = when {
+                startStr != null && endStr != null -> "$startStr – $endStr"
+                startStr != null -> "From $startStr"
+                else -> "Until $endStr"
+            }
+
             Surface(
                 shape = RoundedCornerShape(8.dp),
                 color = AccentPurple.copy(alpha = 0.12f),
@@ -117,10 +158,15 @@ fun MonthlyLedgerTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.DateRange, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(14.dp))
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = null,
+                            tint = AccentPurple,
+                            modifier = Modifier.size(14.dp)
+                        )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Date Filter: ${sdf.format(Date(filterCriteria.startDate!!))} – ${sdf.format(Date(filterCriteria.endDate!!))}",
+                            text = "Date Filter: $dateRangeLabel",
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = AccentPurple
@@ -130,13 +176,19 @@ fun MonthlyLedgerTab(
                         onClick = { viewModel.updateFilter(filterCriteria.type, filterCriteria.account, null, null) },
                         modifier = Modifier.size(20.dp)
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear Date Filter", tint = AccentPurple, modifier = Modifier.size(13.dp))
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear Date Filter",
+                            tint = AccentPurple,
+                            modifier = Modifier.size(13.dp)
+                        )
                     }
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
 
+        // 3. SEGMENTED TRANSACTION TYPE SELECTOR
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -146,11 +198,11 @@ fun MonthlyLedgerTab(
         ) {
             listOf(
                 null to "All",
-                TransactionType.EXPENSE to "Expenses",
+                TransactionType.EXPENSE to "Expense",
                 TransactionType.INCOME to "Income",
-                TransactionType.ASSET to "Assets",
-                TransactionType.CORPORATE to "Corporate",
-                TransactionType.TRANSFER to "Transfers"
+                TransactionType.ASSET to "Asset",
+                TransactionType.CORPORATE to "Corp",
+                TransactionType.TRANSFER to "Transfer"
             ).forEach { (type, label) ->
                 val isSelected = filterCriteria.type == type
                 Box(
@@ -187,6 +239,7 @@ fun MonthlyLedgerTab(
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        // 4. HORIZONTAL VAULT ACCOUNT CHIPS
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
                 FilterChip(
@@ -229,6 +282,7 @@ fun MonthlyLedgerTab(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // 5. GROUPED TRANSACTION LIST WITH STICKY HEADERS
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -244,15 +298,34 @@ fun MonthlyLedgerTab(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "No transactions recorded", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                            Text(
+                                text = "No transactions recorded",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = TextDark
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = "Try clearing filters or log a new entry", fontSize = 12.sp, color = TextMuted)
+                            Text(
+                                text = "Try clearing filters or log a new entry",
+                                fontSize = 12.sp,
+                                color = TextMuted
+                            )
                             if (filterCriteria.query.isNotBlank() || filterCriteria.type != null || filterCriteria.account != "ALL" || filterCriteria.startDate != null) {
                                 Spacer(modifier = Modifier.height(10.dp))
                                 TextButton(onClick = { viewModel.resetFilters() }) {
-                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp), tint = AccentPurple)
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp),
+                                        tint = AccentPurple
+                                    )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Reset Filters", color = AccentPurple, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text(
+                                        text = "Reset Filters",
+                                        color = AccentPurple,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
                                 }
                             }
                         }
@@ -260,8 +333,20 @@ fun MonthlyLedgerTab(
                 }
             } else {
                 uiState.groupedTransactions.forEach { (dateHeader, txList) ->
-                    val dailyExpenseTotal = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-                    val dailyIncomeTotal = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+                    // Comprehensive daily inflows (Personal income + Corporate reimbursements)
+                    val dailyInflow = txList.filter {
+                        it.type == TransactionType.INCOME ||
+                        (it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true))
+                    }.sumOf { it.amount }
+
+                    // Comprehensive daily outflows (Living expenses + SIP/Assets + Corporate outlays)
+                    val dailyOutflow = txList.filter {
+                        it.type == TransactionType.EXPENSE ||
+                        it.type == TransactionType.ASSET ||
+                        (it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true))
+                    }.sumOf { it.amount }
+
+                    val dailyTransferVolume = txList.filter { it.type == TransactionType.TRANSFER }.sumOf { it.amount }
                     val sortedTxList = txList.sortedByDescending { it.date }
 
                     stickyHeader(key = "header_$dateHeader") {
@@ -306,20 +391,28 @@ fun MonthlyLedgerTab(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        if (dailyIncomeTotal > 0.0) {
+                                        if (dailyInflow > 0.0) {
                                             Text(
-                                                text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyIncomeTotal)}",
+                                                text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyInflow)}",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 11.5.sp,
                                                 color = SoftGreen
                                             )
                                         }
-                                        if (dailyExpenseTotal > 0.0) {
+                                        if (dailyOutflow > 0.0) {
                                             Text(
-                                                text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyExpenseTotal)}",
+                                                text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyOutflow)}",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 11.5.sp,
                                                 color = TextDark
+                                            )
+                                        }
+                                        if (filterCriteria.type == TransactionType.TRANSFER && dailyTransferVolume > 0.0) {
+                                            Text(
+                                                text = if (isDiscreetMode) "••••" else "⇄ ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyTransferVolume)}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.5.sp,
+                                                color = AccentPurple
                                             )
                                         }
                                     }
