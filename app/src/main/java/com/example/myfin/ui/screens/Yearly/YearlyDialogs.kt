@@ -111,7 +111,7 @@ fun CashflowActiveMatrixSheet(
     val netRetained = annualIncome - annualExpenses - annualAssets
 
     val activeMonths = remember(yearlyMonths) {
-        yearlyMonths.count { !it.isFuture || it.lifestyleExpenses > 0.0 }.coerceAtLeast(1)
+        yearlyMonths.count { !it.isFuture || it.lifestyleExpenses > 0.0 || it.personalIncome > 0.0 }.coerceAtLeast(1)
     }
 
     ModalBottomSheet(
@@ -137,7 +137,7 @@ fun CashflowActiveMatrixSheet(
                     SheetHeader(
                         title = "Cashflow Dynamics Matrix",
                         subtitle = "Personal Inflow vs Lifestyle Burn Audit",
-                        badge = "$retentionPct% Retained",
+                        badge = if (retentionPct >= 0) "$retentionPct% Retained" else "${abs(retentionPct)}% Deficit",
                         badgeColor = if (retentionPct >= 20) SoftTeal else SoftRed
                     )
 
@@ -166,7 +166,7 @@ fun CashflowActiveMatrixSheet(
                         MatrixDataRow(
                             label = "Net Operating Surplus Retained",
                             value = if (isDiscreetMode) "••••" else "${if (annualIncome >= annualExpenses) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", annualIncome - annualExpenses)}",
-                            subtext = "$retentionPct% of personal earnings preserved",
+                            subtext = if (retentionPct >= 0) "$retentionPct% of personal earnings preserved" else "${abs(retentionPct)}% net operating deficit",
                             tint = if (annualIncome >= annualExpenses) SoftTeal else SoftRed,
                             isBold = true
                         )
@@ -199,7 +199,7 @@ fun CashflowActiveMatrixSheet(
                         items(yearlyMonths) { m ->
                             val isSurplus = m.netSavings >= 0
                             val statusColor = if (m.isFuture) TextMuted else if (isSurplus) SoftGreen else SoftRed
-                            val mInflow = if (m.personalIncome > 0.0) m.personalIncome else m.income
+                            val mInflow = m.personalIncome
 
                             Surface(
                                 modifier = Modifier
@@ -294,12 +294,12 @@ fun CashflowActiveMatrixSheet(
                             color = Color(0xFF06B6D4)
                         )
                         PillarDetailedRow(
-                            pillarName = "Pillar 4: Liquid Vault Buffer",
-                            amount = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", netRetained.coerceAtLeast(0.0))}",
+                            pillarName = if (netRetained >= 0) "Pillar 4: Liquid Vault Buffer" else "Pillar 4: Net Capital Deficit",
+                            amount = if (isDiscreetMode) "••••" else "${if (netRetained < 0) "-" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", abs(netRetained))}",
                             percentage = "$retainedPct%",
-                            benchmark = "Operating Cushion",
+                            benchmark = if (netRetained >= 0) "Operating Cushion" else "Outflows Exceed Inflow",
                             isHealthy = netRetained >= 0,
-                            color = Color(0xFF10B981)
+                            color = if (netRetained >= 0) Color(0xFF10B981) else SoftRed
                         )
                     }
 
@@ -365,7 +365,7 @@ fun CashflowActiveMatrixSheet(
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         quarterlyData.forEach { q ->
-                            val hasData = q.totalIncome > 0 || q.totalExpenses > 0
+                            val hasData = q.totalIncome > 0 || q.totalExpenses > 0 || q.totalAssets > 0
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
@@ -712,8 +712,7 @@ fun InspectedMonthBottomSheet(
     onDismiss: () -> Unit,
     onOpenMonth: (Int) -> Unit
 ) {
-    // Fixed: Native personalIncome read ensures loans are not double counted
-    val monthPersonalIncome = if (mData.personalIncome > 0.0) mData.personalIncome else mData.income
+    val monthPersonalIncome = mData.personalIncome
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -812,7 +811,7 @@ fun InspectedMonthBottomSheet(
 
             val topMonthCategories = mData.transactions
                 .filter { it.type == TransactionType.EXPENSE }
-                .groupBy { it.category }
+                .groupBy { it.category.trim() }
                 .mapValues { it.value.sumOf { tx -> tx.amount } }
                 .toList()
                 .sortedByDescending { it.second }
