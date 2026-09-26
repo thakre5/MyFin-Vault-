@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -84,9 +85,11 @@ fun YearlyScreen(
         if (target > 0.0) target else 1.0
     }
     val currentWealthAccumulated = (annualAssets + annualNetSurplus).coerceAtLeast(0.0)
-    val goalCompletionPercentage = if (annualTargetGoal > 0.0) (currentWealthAccumulated / annualTargetGoal).toFloat().coerceIn(0f, 1f) else 0f
+    val goalCompletionPercentage = if (annualTargetGoal > 0.0) {
+        (currentWealthAccumulated / annualTargetGoal).toFloat().coerceIn(0f, 1f)
+    } else 0f
 
-    // Optimized: uses native personalIncome from YearlyMonthData
+    // Standardized: Uses pure personalIncome from YearlyMonthData
     val quarterlyData = remember(yearlyMonthsData) {
         if (yearlyMonthsData.size >= 12) {
             listOf(
@@ -95,7 +98,7 @@ fun YearlyScreen(
                 "Q3" to yearlyMonthsData.subList(6, 9),
                 "Q4" to yearlyMonthsData.subList(9, 12)
             ).mapIndexed { qIdx, (label, months) ->
-                val qInc = months.sumOf { if (it.personalIncome > 0.0) it.personalIncome else it.income }
+                val qInc = months.sumOf { it.personalIncome }
                 val qExp = months.sumOf { it.lifestyleExpenses }
                 val qAst = months.sumOf { it.assets }
                 val qNet = months.sumOf { it.netSavings }
@@ -113,10 +116,10 @@ fun YearlyScreen(
         } else emptyList()
     }
 
-    // Optimized: directly index with (tx.month - 1) instead of re-allocating Calendar
+    // Direct index allocation with (tx.month - 1)
     val categoryTrajectories = remember(allYearTransactions, annualExpenses) {
         val expenseTxs = allYearTransactions.filter { it.type == TransactionType.EXPENSE }
-        val grouped = expenseTxs.groupBy { it.category }
+        val grouped = expenseTxs.groupBy { it.category.trim() }
 
         grouped.map { (cat, txs) ->
             val total = txs.sumOf { it.amount }
@@ -138,7 +141,7 @@ fun YearlyScreen(
     }
 
     val plannedCategoryCeilings = remember(uiState.categories) {
-        uiState.categories.associate { it.category to (it.plannedAmount * 12.0) }
+        uiState.categories.associate { it.category.trim() to (it.plannedAmount * 12.0) }
     }
 
     val xlsxExportLauncher = rememberLauncherForActivityResult(
