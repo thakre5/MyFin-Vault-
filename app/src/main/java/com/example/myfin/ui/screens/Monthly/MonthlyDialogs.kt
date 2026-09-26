@@ -745,6 +745,12 @@ fun FortressInfoBottomSheet(
     userProfile: UserProfile,
     onDismiss: () -> Unit
 ) {
+    val goalLabel = if (userProfile.fortressManualTarget > 0.0) {
+        "Emergency Goal (Manual Target)"
+    } else {
+        "Emergency Goal (${userProfile.fortressEmergencyMonths} Mos Runway)"
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = CardWhite,
@@ -831,7 +837,7 @@ fun FortressInfoBottomSheet(
                     }
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Emergency Goal (${userProfile.fortressEmergencyMonths} Mos Runway)", fontSize = 11.5.sp, color = TextDark)
+                        Text(goalLabel, fontSize = 11.5.sp, color = TextDark)
                         Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.fortressTarget)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
                     }
 
@@ -1060,10 +1066,9 @@ fun BalanceFlowInfoBottomSheet(
             val capitalRelocation = endBal - expectedCash
             val retentionPct = if (incomeBase > 0) round((preSipSaved / incomeBase) * 100.0).toInt() else 0
 
+            // Strict accountType check adhering to system architecture
             val isFortressAccount = { acc: AccountBalanceResult ->
-                acc.accountType.equals("Fortress", ignoreCase = true) ||
-                acc.accountName.contains("FORTRESS", ignoreCase = true) ||
-                acc.accountName.contains("TERTIARY", ignoreCase = true)
+                acc.accountType.equals("Fortress", ignoreCase = true)
             }
             val liquidAccounts = uiState.activeAccounts.filter { !isFortressAccount(it) }
 
