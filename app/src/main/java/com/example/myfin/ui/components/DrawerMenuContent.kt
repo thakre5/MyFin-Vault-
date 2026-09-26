@@ -14,6 +14,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,10 +43,17 @@ fun DrawerMenuContent(
 ) {
     val scrollState = rememberScrollState()
 
+    val imageModel = remember(profileImageUri) {
+        if (!profileImageUri.isNullOrBlank()) {
+            val file = File(profileImageUri)
+            if (file.exists()) file else profileImageUri
+        } else null
+    }
+
     Column(
         modifier = Modifier
             .fillMaxHeight()
-            .width(245.dp)
+            .fillMaxWidth()
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 18.dp),
@@ -72,10 +80,6 @@ fun DrawerMenuContent(
                         .background(AccentPurple),
                     contentAlignment = Alignment.Center
                 ) {
-                    val imageModel = if (!profileImageUri.isNullOrBlank()) {
-                        File(profileImageUri).takeIf { it.exists() } ?: profileImageUri
-                    } else null
-
                     if (imageModel != null) {
                         SubcomposeAsyncImage(
                             model = imageModel,
@@ -274,7 +278,7 @@ private fun DrawerNavItem(
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) AccentPurple.copy(alpha = 0.28f) else Color.Transparent,
+        color = if (isSelected) AccentPurple.copy(alpha = 0.35f) else Color.Transparent,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
@@ -288,7 +292,7 @@ private fun DrawerNavItem(
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = if (isSelected) AccentPurple else Color.White.copy(alpha = 0.82f),
+                tint = if (isSelected) Color(0xFFD0BCFF) else Color.White.copy(alpha = 0.82f),
                 modifier = Modifier.size(19.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
