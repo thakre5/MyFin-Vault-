@@ -569,9 +569,7 @@ class BudgetViewModel(
             val runwayProtectionUntilSalary = dailyBurnVelocity * daysUntilUpcomingSalary
 
             val isFortressAccount = { acc: AccountBalanceResult ->
-                acc.accountType.equals("Fortress", ignoreCase = true) ||
-                acc.accountName.contains("FORTRESS", ignoreCase = true) ||
-                acc.accountName.contains("TERTIARY", ignoreCase = true)
+                acc.accountType.equals("Fortress", ignoreCase = true)
             }
 
             val liquidPoolAccounts = activeAccounts.filter { !isFortressAccount(it) }
@@ -706,10 +704,15 @@ class BudgetViewModel(
                 val toCommitments = min(remainingAfterOperating, totalCommitmentsShortfall)
                 val remainingAfterCommitments = max(0.0, remainingAfterOperating - toCommitments)
 
+                val fortressAccountNames = activeAccounts
+                    .filter { isFortressAccount(it) }
+                    .map { it.accountName.lowercase() }
+                    .toSet()
+
                 val transferredToFortressThisMonth = transactions.filter { tx ->
                     tx.type == TransactionType.TRANSFER &&
                     (tx.transferSubtype == TransferSubtype.WEALTH_ALLOCATION ||
-                     tx.toAccountName?.contains("Fortress", ignoreCase = true) == true) &&
+                     (tx.toAccountName != null && fortressAccountNames.contains(tx.toAccountName.lowercase()))) &&
                     tx.month == month && tx.year == year
                 }.sumOf { it.amount }
 
@@ -738,10 +741,7 @@ class BudgetViewModel(
 
             val isOperatingOrCashAccount = { acc: AccountBalanceResult ->
                 acc.accountType.equals("Operating", ignoreCase = true) ||
-                acc.accountType.equals("Cash", ignoreCase = true) ||
-                acc.accountName.contains("OPERATING", ignoreCase = true) ||
-                acc.accountName.contains("PRIMARY", ignoreCase = true) ||
-                acc.accountName.contains("CASH", ignoreCase = true)
+                acc.accountType.equals("Cash", ignoreCase = true)
             }
 
             val operatingAccountsList = activeAccounts.filter(isOperatingOrCashAccount)
@@ -789,8 +789,10 @@ class BudgetViewModel(
                 )
             } else null
 
-            val fortressVaultAccount = allAccounts.find { isFortressAccount(it) }
-            val fortressTotalBalance = fortressVaultAccount?.currentBalance ?: 0.0
+            val fortressTotalBalance = activeAccounts
+                .filter { isFortressAccount(it) }
+                .sumOf { it.currentBalance }
+
             val currentFdReserve = max(0.0, fortressTotalBalance - profile.fortressSweepThreshold)
 
             val computedFortressTarget = if (profile.fortressManualTarget > 0.0) {
@@ -1300,9 +1302,6 @@ class BudgetViewModel(
         }
     }
 
-    /**
-     * Atomically sets target runway months and clears any manual numeric target override.
-     */
     fun updateFortressEmergencyMonths(months: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = dao.getUserProfileDirect() ?: userProfile.value
