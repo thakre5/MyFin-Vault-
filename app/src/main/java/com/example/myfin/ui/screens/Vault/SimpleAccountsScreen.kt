@@ -61,21 +61,13 @@ data class SimplePendingEditConfirmation(
     val isArchived: Boolean = false
 )
 
-private fun getAccountTier(accountType: String, accountName: String): VaultTier {
+private fun getAccountTier(accountType: String): VaultTier {
     return when {
         accountType.equals("Operating", ignoreCase = true) -> VaultTier.OPERATING
         accountType.equals("Commitments", ignoreCase = true) -> VaultTier.COMMITMENTS
         accountType.equals("Fortress", ignoreCase = true) -> VaultTier.FORTRESS
         accountType.equals("Cash", ignoreCase = true) -> VaultTier.CASH
-        else -> {
-            val name = accountName.uppercase()
-            when {
-                name.contains("CASH") || name.contains("WALLET") -> VaultTier.CASH
-                name.contains("COMMITMENT") || name.contains("BILL") || name.contains("BOM") || name.contains("EMI") -> VaultTier.COMMITMENTS
-                name.contains("FORTRESS") || name.contains("EMERGENCY") || name.contains("FD") || name.contains("RESERVE") || name.contains("INDUSIND") -> VaultTier.FORTRESS
-                else -> VaultTier.OPERATING
-            }
-        }
+        else -> VaultTier.OPERATING
     }
 }
 
@@ -475,7 +467,7 @@ fun SimpleAccountsScreen(
                                 items = displayAccounts,
                                 key = { _, acc -> acc.accountName }
                             ) { idx, acc ->
-                                val tier = getAccountTier(acc.accountType, acc.accountName)
+                                val tier = getAccountTier(acc.accountType)
                                 val isSelected = activeSelectedCardIndex == idx
 
                                 BankAccountPhysicalCard(
@@ -484,6 +476,7 @@ fun SimpleAccountsScreen(
                                     tier = tier,
                                     isSelected = isSelected,
                                     showRole = true,
+                                    isDiscreetMode = isDiscreetMode,
                                     onSelect = {
                                         activeSelectedCardIndex = idx
                                         coroutineScope.launch {
@@ -493,6 +486,8 @@ fun SimpleAccountsScreen(
                                                 val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
                                                 val itemCenter = itemInfo.offset + itemInfo.size / 2
                                                 bankCardsListState.animateScrollBy((itemCenter - viewportCenter).toFloat())
+                                            } else {
+                                                bankCardsListState.animateScrollToItem(idx)
                                             }
                                         }
                                     },
@@ -507,7 +502,7 @@ fun SimpleAccountsScreen(
                 // Focused Account Snapshot Card
                 activeAccount?.let { acc ->
                     item(key = "focused_account_${acc.accountName}") {
-                        val tier = getAccountTier(acc.accountType, acc.accountName)
+                        val tier = getAccountTier(acc.accountType)
                         val pendingBills = remember(uiState.fixedBills, acc.accountName) {
                             uiState.fixedBills.filter {
                                 !it.isPaid &&
@@ -732,7 +727,7 @@ fun SimpleAccountsScreen(
         // Edit Account Bottom Sheet with 4-Tier Grid
         editingAccount?.let { acc ->
             var nameText by remember(acc) { mutableStateOf(acc.accountName) }
-            var selectedRole by remember(acc) { mutableStateOf(getAccountTier(acc.accountType, acc.accountName)) }
+            var selectedRole by remember(acc) { mutableStateOf(getAccountTier(acc.accountType)) }
             var balanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%.2f", acc.currentBalance)) }
             val formattedMab = remember(acc.minBalance) {
                 if (acc.minBalance % 1.0 == 0.0) acc.minBalance.toLong().toString() else acc.minBalance.toString()
@@ -875,6 +870,30 @@ fun SimpleAccountsScreen(
                             onCheckedChange = { isArchivedState = it },
                             colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = AccentPurple)
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = CanvasLight,
+                        border = BorderStroke(0.7.dp, BorderLight)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Info, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Modification Impact", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "• Renaming will automatically update all linked transactions and fixed bills.\n• Role changes reallocate this balance in your asset allocation chart.\n• Balance adjustments create an automated ledger entry for the difference.",
+                                fontSize = 10.5.sp,
+                                color = TextMuted,
+                                lineHeight = 15.sp
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -1128,8 +1147,12 @@ fun SimpleAccountsScreen(
 
         // Instant Transfer Bottom Sheet
         if (showTransferSheet) {
+            val accountTypesMap = remember(displayAccounts) {
+                displayAccounts.associate { it.accountName to it.accountType }
+            }
             AccountTransferDialog(
                 accounts = accountNames,
+                accountTypes = accountTypesMap,
                 currencySymbol = userProfile.currencySymbol,
                 onDismiss = { showTransferSheet = false },
                 onTransfer = { from, to, amount, note, subtype, date, isRecurring, dueDay ->
@@ -1326,6 +1349,7 @@ private fun BankAccountPhysicalCard(
     tier: VaultTier,
     isSelected: Boolean,
     showRole: Boolean,
+    isDiscreetMode: Boolean = false,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
@@ -1461,7 +1485,7 @@ private fun BankAccountPhysicalCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
+                text = if (isDiscreetMode) "••••••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
                 color = if (account.currentBalance >= 0) TextDark else SoftRed
