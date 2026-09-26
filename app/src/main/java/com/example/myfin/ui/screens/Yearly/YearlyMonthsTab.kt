@@ -35,8 +35,6 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private val YEARLY_MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-
 private enum class OutflowLayerFilter(val label: String) {
     ALL("All Layers"),
     FIXED("Fixed Bills"),
