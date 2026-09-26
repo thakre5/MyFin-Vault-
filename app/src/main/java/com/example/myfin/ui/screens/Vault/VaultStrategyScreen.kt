@@ -84,21 +84,13 @@ data class PendingEditConfirmation(
     val isArchived: Boolean
 )
 
-private fun getVaultTier(accountType: String, accountName: String): VaultTier {
+private fun getVaultTier(accountType: String): VaultTier {
     return when {
         accountType.equals("Operating", ignoreCase = true) -> VaultTier.OPERATING
         accountType.equals("Commitments", ignoreCase = true) -> VaultTier.COMMITMENTS
         accountType.equals("Fortress", ignoreCase = true) -> VaultTier.FORTRESS
         accountType.equals("Cash", ignoreCase = true) -> VaultTier.CASH
-        else -> {
-            val name = accountName.uppercase()
-            when {
-                name.contains("CASH") || name.contains("WALLET") -> VaultTier.CASH
-                name.contains("COMMITMENT") || name.contains("BILL") || name.contains("EMI") -> VaultTier.COMMITMENTS
-                name.contains("FORTRESS") || name.contains("EMERGENCY") || name.contains("FD") || name.contains("RESERVE") -> VaultTier.FORTRESS
-                else -> VaultTier.OPERATING
-            }
-        }
+        else -> VaultTier.OPERATING
     }
 }
 
@@ -182,19 +174,19 @@ fun VaultStrategyScreen(
 
     val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
 
-    // Net Vault Capital scope (All 4 Tiers)
+    // Net Vault Capital scope (All 4 Tiers strictly mapped by accountType)
     val netVaultCapital = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
     val opTotal = remember(displayAccounts) {
-        displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.OPERATING }.sumOf { it.currentBalance }
+        displayAccounts.filter { getVaultTier(it.accountType) == VaultTier.OPERATING }.sumOf { it.currentBalance }
     }
     val comTotal = remember(displayAccounts) {
-        displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.COMMITMENTS }.sumOf { it.currentBalance }
+        displayAccounts.filter { getVaultTier(it.accountType) == VaultTier.COMMITMENTS }.sumOf { it.currentBalance }
     }
     val fortTotal = remember(displayAccounts) {
-        displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.FORTRESS }.sumOf { it.currentBalance }
+        displayAccounts.filter { getVaultTier(it.accountType) == VaultTier.FORTRESS }.sumOf { it.currentBalance }
     }
     val cashTotal = remember(displayAccounts) {
-        displayAccounts.filter { getVaultTier(it.accountType, it.accountName) == VaultTier.CASH }.sumOf { it.currentBalance }
+        displayAccounts.filter { getVaultTier(it.accountType) == VaultTier.CASH }.sumOf { it.currentBalance }
     }
 
     // Unified Fortress split tied directly to ViewModel metrics
@@ -204,13 +196,13 @@ fun VaultStrategyScreen(
     val fortressSavings = remember(fortTotal, fortressFd) {
         (fortTotal - fortressFd).coerceAtLeast(0.0)
     }
-    val fortressSavingsFraction = if (sweepThreshold > 0.0) (fortressSavings / sweepThreshold).toFloat().coerceIn(0f, 1f) else 1f
     val fortressCushionDeficit = remember(fortressSavings, sweepThreshold) {
         if (sweepThreshold > 0.0) (sweepThreshold - fortressSavings).coerceAtLeast(0.0) else 0.0
     }
     val fdDeficit = remember(fortressFd, emergencyTarget) {
         if (emergencyTarget > 0.0) (emergencyTarget - fortressFd).coerceAtLeast(0.0) else 0.0
     }
+    val targetLabel = if (userProfile.fortressManualTarget > 0.0) "Manual" else "${userProfile.fortressEmergencyMonths}M"
 
     // Complete transaction stream for the active account
     val activeAccountTxs = remember(uiState.groupedTransactions, activeAccount?.accountName) {
@@ -683,20 +675,25 @@ fun VaultStrategyScreen(
                                                 .clip(RoundedCornerShape(3.5.dp))
                                                 .background(CanvasLight)
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .weight(fortressSavingsFraction.coerceAtLeast(0.02f))
-                                                    .fillMaxHeight()
-                                                    .background(SoftTeal)
-                                            )
-                                            if (fortressFd > 0) {
-                                                val fdFraction = (fortressFd / fortTotal.coerceAtLeast(1.0)).toFloat().coerceIn(0.05f, 0.95f)
-                                                Box(
-                                                    modifier = Modifier
-                                                        .weight(fdFraction)
-                                                        .fillMaxHeight()
-                                                        .background(Color(0xFF0D9488))
-                                                )
+                                            if (fortTotal > 0.0) {
+                                                val cushionRatio = (fortressSavings / fortTotal).toFloat().coerceIn(0f, 1f)
+                                                val fdRatio = (fortressFd / fortTotal).toFloat().coerceIn(0f, 1f)
+                                                if (cushionRatio > 0f) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .weight(cushionRatio.coerceAtLeast(0.01f))
+                                                            .fillMaxHeight()
+                                                            .background(SoftTeal)
+                                                    )
+                                                }
+                                                if (fdRatio > 0f) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .weight(fdRatio.coerceAtLeast(0.01f))
+                                                            .fillMaxHeight()
+                                                            .background(Color(0xFF0D9488))
+                                                    )
+                                                }
                                             }
                                         }
 
@@ -752,7 +749,7 @@ fun VaultStrategyScreen(
                                                     color = if (fortressFd > 0) Color(0xFF0D9488) else TextMuted
                                                 )
                                                 Text(
-                                                    text = if (emergencyTarget > 0.0) "Goal: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", emergencyTarget)} (${userProfile.fortressEmergencyMonths}M)" else "Target Unset",
+                                                    text = if (emergencyTarget > 0.0) "Goal: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", emergencyTarget)} ($targetLabel)" else "Target Unset",
                                                     fontSize = 9.sp,
                                                     color = TextMuted
                                                 )
@@ -765,13 +762,14 @@ fun VaultStrategyScreen(
                                         color = if (fortressCushionDeficit > 0) SoftAmber.copy(alpha = 0.10f) else SoftTeal.copy(alpha = 0.10f),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
+                                        val targetDesc = if (userProfile.fortressManualTarget > 0.0) "manual" else "${userProfile.fortressEmergencyMonths}M"
                                         val statusNotice = when {
                                             fortressCushionDeficit > 0 ->
                                                 "• Needs ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressCushionDeficit)} to fill cushion before auto-booking FDs"
                                             emergencyTarget > 0.0 && fdDeficit > 0 ->
-                                                "• Cushion full. FDs need ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fdDeficit)} for ${userProfile.fortressEmergencyMonths}M target."
+                                                "• Cushion full. FDs need ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fdDeficit)} for $targetDesc target."
                                             emergencyTarget > 0.0 && fdDeficit <= 0 ->
-                                                "• Cushion full & ${userProfile.fortressEmergencyMonths}M Emergency FD target 100% funded!"
+                                                "• Cushion full & $targetDesc Emergency FD target 100% funded!"
                                             else ->
                                                 "• Liquid cushion full. Surplus actively sweeps to Emergency FDs."
                                         }
@@ -853,7 +851,7 @@ fun VaultStrategyScreen(
                                 items = displayAccounts,
                                 key = { _, acc -> acc.accountName }
                             ) { idx, acc ->
-                                val tier = getVaultTier(acc.accountType, acc.accountName)
+                                val tier = getVaultTier(acc.accountType)
                                 val isSelected = activeSelectedCardIndex == idx
 
                                 BankAccountPhysicalCard(
@@ -871,6 +869,8 @@ fun VaultStrategyScreen(
                                                 val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
                                                 val itemCenter = itemInfo.offset + itemInfo.size / 2
                                                 bankCardsListState.animateScrollBy((itemCenter - viewportCenter).toFloat())
+                                            } else {
+                                                bankCardsListState.animateScrollToItem(idx)
                                             }
                                         }
                                     },
@@ -886,7 +886,7 @@ fun VaultStrategyScreen(
                 // Focused Account Cashflow Matrix & MAB Protection
                 activeAccount?.let { acc ->
                     item(key = "focused_account_${acc.accountName}") {
-                        val activeTier = getVaultTier(acc.accountType, acc.accountName)
+                        val activeTier = getVaultTier(acc.accountType)
                         val effectiveAvailableBalance = acc.currentBalance - totalPendingBillsAmount
                         val isMabBreached = acc.minBalance > 0 && effectiveAvailableBalance < acc.minBalance
                         val deficit = (acc.minBalance - effectiveAvailableBalance).coerceAtLeast(0.0)
@@ -1219,7 +1219,7 @@ fun VaultStrategyScreen(
         // Edit Account Sheet
         editingAccount?.let { acc ->
             var nameText by remember(acc) { mutableStateOf(acc.accountName) }
-            var selectedRole by remember(acc) { mutableStateOf(getVaultTier(acc.accountType, acc.accountName)) }
+            var selectedRole by remember(acc) { mutableStateOf(getVaultTier(acc.accountType)) }
             var balanceText by remember(acc) { mutableStateOf(String.format(Locale.US, "%.2f", acc.currentBalance)) }
             var minBalanceText by remember(acc) { mutableStateOf(if (acc.minBalance % 1.0 == 0.0) acc.minBalance.toLong().toString() else acc.minBalance.toString()) }
             var isArchivedState by remember(acc) { mutableStateOf(acc.isArchived) }
@@ -1606,7 +1606,7 @@ fun VaultStrategyScreen(
         // Routing & Shield Details Sheet
         if (showRoutingDetailsSheet) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            val activeTier = activeAccount?.let { getVaultTier(it.accountType, it.accountName) } ?: VaultTier.OPERATING
+            val activeTier = activeAccount?.let { getVaultTier(it.accountType) } ?: VaultTier.OPERATING
 
             ModalBottomSheet(
                 onDismissRequest = { showRoutingDetailsSheet = false },
@@ -1792,7 +1792,7 @@ fun VaultStrategyScreen(
                                     Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", fortressFd)}", fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = SoftTeal)
                                 }
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Safety Net Runway Goal (${userProfile.fortressEmergencyMonths}M)", fontSize = 12.sp, color = TextMuted)
+                                    Text("Safety Net Runway Goal ($targetLabel)", fontSize = 12.sp, color = TextMuted)
                                     Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", emergencyTarget)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                 }
                             }
@@ -1859,8 +1859,12 @@ fun VaultStrategyScreen(
 
         // Transfer Bottom Sheet
         if (showTransferSheet) {
+            val accountTypesMap = remember(displayAccounts) {
+                displayAccounts.associate { it.accountName to it.accountType }
+            }
             AccountTransferDialog(
                 accounts = accountNames,
+                accountTypes = accountTypesMap,
                 currencySymbol = userProfile.currencySymbol,
                 onDismiss = { showTransferSheet = false },
                 onTransfer = { from, to, amount, note, subtype, date, isRecurring, dueDay ->
@@ -2317,7 +2321,7 @@ private fun FourWayDonutAllocationChart(
         }
 
         var startAngle = -90f
-        val gap = if (slices.size > 1) 4f else 0f
+        val gap = if (slices.size > 1) 3f else 0f
 
         slices.forEach { (color, fraction, _) ->
             val angle = (fraction / total) * 360f
@@ -2329,7 +2333,7 @@ private fun FourWayDonutAllocationChart(
                 useCenter = false,
                 topLeft = topLeft,
                 size = arcSize,
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                style = Stroke(width = strokeWidth, cap = if (slices.size == 1) StrokeCap.Round else StrokeCap.Butt)
             )
             startAngle += angle
         }
