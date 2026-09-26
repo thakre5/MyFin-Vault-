@@ -37,8 +37,6 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-private val YEARLY_MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-
 private val RADAR_PALETTE = listOf(
     Color(0xFF8B5CF6), // Purple
     Color(0xFF06B6D4), // Cyan
