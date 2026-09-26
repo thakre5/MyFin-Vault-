@@ -28,6 +28,8 @@ import com.example.myfin.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
+private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionDetailBottomSheet(
@@ -39,11 +41,10 @@ fun TransactionDetailBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val dateFormatter = remember { SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale.US) }
-    val monthNameFormatter = remember { SimpleDateFormat("MMMM yyyy", Locale.US) }
 
     val isCorporateInflow = remember(transaction.type, transaction.category) {
-        transaction.type == TransactionType.CORPORATE &&
-        transaction.category.equals("Reimbursements & Claims", ignoreCase = true)
+        (transaction.type == TransactionType.CORPORATE && transaction.category.equals("Reimbursements & Claims", ignoreCase = true)) ||
+        (transaction.type == TransactionType.INCOME && transaction.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true))
     }
 
     val typeColor = when (transaction.type) {
@@ -70,13 +71,14 @@ fun TransactionDetailBottomSheet(
         TransactionType.TRANSFER -> "⇄"
     }
 
-    // Map transfer enums to user-friendly titles
+    // Map transfer enums and strings to user-friendly titles
     val friendlySubcategory = remember(transaction.subcategory, transaction.type) {
         if (transaction.type == TransactionType.TRANSFER) {
             when (transaction.subcategory.trim()) {
                 "WEALTH_ALLOCATION" -> "Fortress Sweep"
                 "BILL_FUNDING" -> "Bill Funding"
                 "REBALANCE" -> "Vault Rebalance"
+                "CASH_WITHDRAWAL" -> "Cash ATM Withdrawal"
                 else -> transaction.subcategory.trim().ifBlank { "Vault Sweep" }
             }
         } else {
@@ -115,7 +117,7 @@ fun TransactionDetailBottomSheet(
         }
     }
 
-    // Relative Day Label (Today, Yesterday, or Past Ledger)
+    // Relative Day Label (Today, Yesterday, Future, or Past Entry)
     val relativeDateTag = remember(transaction.date) {
         val txCal = Calendar.getInstance().apply { timeInMillis = transaction.date }
         val nowCal = Calendar.getInstance()
@@ -126,11 +128,31 @@ fun TransactionDetailBottomSheet(
         val isYesterday = txCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
                 txCal.get(Calendar.DAY_OF_YEAR) == (nowCal.get(Calendar.DAY_OF_YEAR) - 1)
 
+        val isFuture = txCal.after(nowCal) && !isToday
+
         when {
             isToday -> "Today"
             isYesterday -> "Yesterday"
-            else -> "Logged Past Date"
+            isFuture -> "Scheduled"
+            else -> "Past Entry"
         }
+    }
+
+    // Resolve transfer subtype across active properties and legacy subcategory strings
+    val resolvedTransferSubtype = remember(transaction) {
+        if (transaction.type == TransactionType.TRANSFER) {
+            if (transaction.transferSubtype != TransferSubtype.NONE) {
+                transaction.transferSubtype
+            } else {
+                when (transaction.subcategory.trim()) {
+                    "WEALTH_ALLOCATION" -> TransferSubtype.WEALTH_ALLOCATION
+                    "BILL_FUNDING" -> TransferSubtype.BILL_FUNDING
+                    "REBALANCE" -> TransferSubtype.REBALANCE
+                    "CASH_WITHDRAWAL" -> TransferSubtype.CASH_WITHDRAWAL
+                    else -> TransferSubtype.NONE
+                }
+            }
+        } else TransferSubtype.NONE
     }
 
     ModalBottomSheet(
@@ -293,8 +315,8 @@ fun TransactionDetailBottomSheet(
                     )
                     HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
 
-                    if (transaction.type == TransactionType.TRANSFER && transaction.transferSubtype != TransferSubtype.NONE) {
-                        val subtypeLabel = when (transaction.transferSubtype) {
+                    if (transaction.type == TransactionType.TRANSFER && resolvedTransferSubtype != TransferSubtype.NONE) {
+                        val subtypeLabel = when (resolvedTransferSubtype) {
                             TransferSubtype.BILL_FUNDING -> "Bill Funding"
                             TransferSubtype.WEALTH_ALLOCATION -> "Fortress Sweep"
                             TransferSubtype.REBALANCE -> "Vault Rebalance"
@@ -316,12 +338,12 @@ fun TransactionDetailBottomSheet(
                     )
                     HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
 
-                    // Target Accounting Ledger Cycle
-                    val calTx = Calendar.getInstance().apply { timeInMillis = transaction.date }
+                    // Target Accounting Ledger Cycle directly from Room partition
+                    val monthName = MONTH_NAMES.getOrNull(transaction.month - 1) ?: "Month ${transaction.month}"
                     DetailInfoRow(
                         icon = Icons.Default.CalendarMonth,
                         label = "Accounting Cycle",
-                        value = monthNameFormatter.format(calTx.time)
+                        value = "$monthName ${transaction.year}"
                     )
                     HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
 
