@@ -83,18 +83,28 @@ fun AddTransactionBottomSheet(
         )
     }
 
-    var amountText by remember { mutableStateOf(editingTransaction?.amount?.let { if (it > 0) it.toString() else "" }.orEmpty()) }
+    var amountText by remember {
+        mutableStateOf(
+            editingTransaction?.amount?.let {
+                if (it > 0) {
+                    if (it % 1.0 == 0.0) it.toLong().toString() else it.toString()
+                } else ""
+            }.orEmpty()
+        )
+    }
 
     var isRecurringCommitment by remember { mutableStateOf(false) }
     var dueDayText by remember { mutableStateOf("") }
 
     var selectedTransferSubtype by remember {
         mutableStateOf(
-            when (editingTransaction?.subcategory) {
-                TransferSubtype.WEALTH_ALLOCATION.name, "Fortress Sweep" -> TransferSubtype.WEALTH_ALLOCATION
-                TransferSubtype.REBALANCE.name, "Rebalance" -> TransferSubtype.REBALANCE
-                else -> TransferSubtype.BILL_FUNDING
-            }
+            editingTransaction?.transferSubtype?.takeIf { it != TransferSubtype.NONE }
+                ?: when (editingTransaction?.subcategory?.trim()) {
+                    TransferSubtype.WEALTH_ALLOCATION.name, "Fortress Sweep" -> TransferSubtype.WEALTH_ALLOCATION
+                    TransferSubtype.CASH_WITHDRAWAL.name, "Cash ATM Withdrawal" -> TransferSubtype.CASH_WITHDRAWAL
+                    TransferSubtype.REBALANCE.name, "Rebalance", "Vault Rebalance" -> TransferSubtype.REBALANCE
+                    else -> TransferSubtype.BILL_FUNDING
+                }
         )
     }
 
@@ -104,7 +114,9 @@ fun AddTransactionBottomSheet(
 
     var selectedToAccount by remember(accountList, selectedAccount) {
         mutableStateOf(
-            editingTransaction?.toAccountName ?: accountList.firstOrNull { !it.equals(selectedAccount, ignoreCase = true) } ?: accountList.firstOrNull().orEmpty()
+            editingTransaction?.toAccountName
+                ?: accountList.firstOrNull { !it.equals(selectedAccount, ignoreCase = true) }
+                ?: accountList.firstOrNull().orEmpty()
         )
     }
 
@@ -189,8 +201,14 @@ fun AddTransactionBottomSheet(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
-    val isSelfTransfer = selectedType == TransactionType.TRANSFER && selectedAccount.isNotBlank() && selectedToAccount.isNotBlank() && selectedAccount.equals(selectedToAccount, ignoreCase = true)
-    val isInputValid = parsedAmount > 0.0 && selectedAccount.isNotBlank() && !isSelfTransfer
+    val isSelfTransfer = selectedType == TransactionType.TRANSFER &&
+            selectedAccount.isNotBlank() &&
+            selectedToAccount.isNotBlank() &&
+            selectedAccount.equals(selectedToAccount, ignoreCase = true)
+    val isInputValid = parsedAmount > 0.0 &&
+            selectedAccount.isNotBlank() &&
+            (selectedType != TransactionType.TRANSFER || selectedToAccount.isNotBlank()) &&
+            !isSelfTransfer
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -415,19 +433,20 @@ fun AddTransactionBottomSheet(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
+                LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf(
+                    val subtypes = listOf(
                         TransferSubtype.BILL_FUNDING to "Bill Funding",
                         TransferSubtype.WEALTH_ALLOCATION to "Fortress Sweep",
-                        TransferSubtype.REBALANCE to "Rebalance"
-                    ).forEach { (subtype, label) ->
+                        TransferSubtype.REBALANCE to "Rebalance",
+                        TransferSubtype.CASH_WITHDRAWAL to "Cash ATM"
+                    )
+                    items(subtypes) { (subtype, label) ->
                         val isSelected = selectedTransferSubtype == subtype
                         Surface(
                             modifier = Modifier
-                                .weight(1f)
                                 .height(38.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .clickable { selectedTransferSubtype = subtype },
@@ -435,7 +454,10 @@ fun AddTransactionBottomSheet(
                             color = if (isSelected) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
                             border = BorderStroke(0.8.dp, if (isSelected) AccentPurple else BorderLight)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier.padding(horizontal = 14.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Text(
                                     text = label,
                                     fontSize = 11.5.sp,
@@ -702,8 +724,14 @@ fun AddTransactionBottomSheet(
                                 OutlinedTextField(
                                     value = dueDayText,
                                     onValueChange = { input ->
-                                        if (input.length <= 2) {
-                                            dueDayText = input.filter { it.isDigit() }
+                                        val digits = input.filter { it.isDigit() }
+                                        if (digits.isEmpty()) {
+                                            dueDayText = ""
+                                        } else if (digits.length <= 2) {
+                                            val num = digits.toIntOrNull() ?: 0
+                                            if (num in 1..31) {
+                                                dueDayText = digits
+                                            }
                                         }
                                     },
                                     placeholder = { Text("Day", fontSize = 11.sp) },
