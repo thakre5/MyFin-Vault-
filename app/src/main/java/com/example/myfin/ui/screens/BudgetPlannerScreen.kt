@@ -128,7 +128,7 @@ fun BudgetPlannerScreen(
         val masterList = uiState.masterCategories.filter { it.type == selectedSegment }
         val performanceMap = uiState.categories
             .filter { it.type == selectedSegment }
-            .associateBy { it.category }
+            .associateBy { it.category.trim().lowercase(Locale.ROOT) }
 
         val priorityList = when (selectedSegment) {
             TransactionType.EXPENSE -> EXPENSE_PRIORITY
@@ -138,16 +138,16 @@ fun BudgetPlannerScreen(
             TransactionType.TRANSFER -> emptyList()
         }
 
-        val masterNames = masterList.map { it.name.trim().lowercase() }.toSet()
+        val masterNames = masterList.map { it.name.trim().lowercase(Locale.ROOT) }.toSet()
         val allResolved = masterList.map { masterCat ->
-            performanceMap[masterCat.name] ?: CategoryPerformance(
+            performanceMap[masterCat.name.trim().lowercase(Locale.ROOT)] ?: CategoryPerformance(
                 category = masterCat.name,
                 type = selectedSegment,
                 plannedAmount = 0.0,
                 actualAmount = 0.0
             )
         } + uiState.categories.filter {
-            it.type == selectedSegment && it.category.trim().lowercase() !in masterNames
+            it.type == selectedSegment && it.category.trim().lowercase(Locale.ROOT) !in masterNames
         }
 
         allResolved.sortedWith(
@@ -442,24 +442,24 @@ fun BudgetPlannerScreen(
                                     .clip(RoundedCornerShape(3.dp))
                                     .background(BorderLight.copy(alpha = 0.6f))
                             ) {
-                                if (expenseFraction > 0f) {
+                                if (expenseFraction >= 0.005f) {
                                     Box(
                                         modifier = Modifier
-                                            .weight(expenseFraction.coerceAtLeast(0.001f))
+                                            .weight(expenseFraction)
                                             .fillMaxHeight()
                                             .background(SoftRed)
                                     )
                                 }
-                                if (assetFraction > 0f) {
+                                if (assetFraction >= 0.005f) {
                                     Box(
                                         modifier = Modifier
-                                            .weight(assetFraction.coerceAtLeast(0.001f))
+                                            .weight(assetFraction)
                                             .fillMaxHeight()
                                             .background(SoftTeal)
                                     )
                                 }
                                 val remainder = (1f - (expenseFraction + assetFraction)).coerceAtLeast(0f)
-                                if (remainder > 0f) {
+                                if (remainder >= 0.005f) {
                                     Box(
                                         modifier = Modifier
                                             .weight(remainder)
@@ -1046,7 +1046,9 @@ private fun BudgetCategoryCleanCard(
         (category.actualAmount / category.plannedAmount).toFloat().coerceIn(0f, 1f)
     } else 0f
 
-    val isOverBudget = category.isOverBudget
+    val isOverBudget = category.isOverBudget && (category.type == TransactionType.EXPENSE || category.type == TransactionType.CORPORATE)
+    val isGoalAchieved = (category.type == TransactionType.INCOME || category.type == TransactionType.ASSET) &&
+            category.plannedAmount > 0.0 && category.actualAmount >= category.plannedAmount
 
     Surface(
         modifier = Modifier
@@ -1060,6 +1062,7 @@ private fun BudgetCategoryCleanCard(
             when {
                 isOverBudget -> SoftRed.copy(alpha = 0.5f)
                 isLegacy -> Color(0xFFFFB74D).copy(alpha = 0.8f)
+                isGoalAchieved -> typeColor.copy(alpha = 0.4f)
                 else -> BorderLight.copy(alpha = 0.6f)
             }
         )
@@ -1156,6 +1159,20 @@ private fun BudgetCategoryCleanCard(
                                         fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = SoftRed,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                    )
+                                }
+                            } else if (isGoalAchieved) {
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = typeColor.copy(alpha = 0.14f)
+                                ) {
+                                    Text(
+                                        text = if (category.type == TransactionType.ASSET) "Funded" else "Achieved",
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = typeColor,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                                     )
                                 }
