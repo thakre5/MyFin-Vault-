@@ -35,6 +35,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -815,12 +816,15 @@ private fun GuideSymbolRow(symbol: String, meaning: String, formula: String) {
                     color = TextMuted
                 )
             }
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = formula,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
-                color = TextDark
+                color = TextDark,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1.3f)
             )
         }
     }
