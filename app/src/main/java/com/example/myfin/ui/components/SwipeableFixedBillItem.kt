@@ -70,11 +70,22 @@ fun SwipeableFixedBillItem(
     val billAmount = currentBill.amount
     val billDueDay = currentBill.dueDay
     val billIsPaid = currentBill.isPaid
+    val billMonth = currentBill.month
+    val billYear = currentBill.year
 
-    // Dynamic Overdue Calculation
-    val currentDayOfMonth = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH) }
-    val isOverdue = remember(billIsPaid, billDueDay, currentDayOfMonth) {
-        !billIsPaid && billDueDay != null && currentDayOfMonth > billDueDay
+    // Dynamic Overdue Calculation (Safe across Past, Present, and Future Months)
+    val currentCal = remember { Calendar.getInstance() }
+    val currentDayOfMonth = currentCal.get(Calendar.DAY_OF_MONTH)
+    val currentSysMonth = currentCal.get(Calendar.MONTH) + 1
+    val currentSysYear = currentCal.get(Calendar.YEAR)
+
+    val isOverdue = remember(billIsPaid, billDueDay, billMonth, billYear, currentDayOfMonth, currentSysMonth, currentSysYear) {
+        if (billIsPaid || billDueDay == null) false
+        else {
+            val isPastMonth = (billYear < currentSysYear) || (billYear == currentSysYear && billMonth < currentSysMonth)
+            val isCurrentMonth = (billYear == currentSysYear && billMonth == currentSysMonth)
+            isPastMonth || (isCurrentMonth && currentDayOfMonth > billDueDay)
+        }
     }
 
     val dismissState = rememberSwipeToDismissBoxState(
@@ -204,7 +215,7 @@ fun SwipeableFixedBillItem(
 
         val typeTagText = when (billType) {
             TransactionType.EXPENSE -> "DUE"
-            TransactionType.INCOME -> "RECEIVABLE"
+            TransactionType.INCOME -> "INFLOW"
             TransactionType.ASSET -> "SIP"
             TransactionType.CORPORATE -> "CORP"
             TransactionType.TRANSFER -> "SWEEP"
@@ -216,6 +227,7 @@ fun SwipeableFixedBillItem(
                 "WEALTH_ALLOCATION" -> "Fortress Sweep"
                 "BILL_FUNDING" -> "Bill Funding"
                 "REBALANCE" -> "Rebalance"
+                "CASH_WITHDRAWAL" -> "Cash ATM"
                 else -> billSubcategory.trim()
             }
         }
@@ -254,7 +266,7 @@ fun SwipeableFixedBillItem(
                 .border(
                     BorderStroke(
                         0.8.dp,
-                        if (isOverdue) SoftRed.copy(alpha = 0.4f) else BorderLight.copy(alpha = 0.6f)
+                        if (isOverdue) SoftRed.copy(alpha = 0.5f) else BorderLight.copy(alpha = 0.6f)
                     ),
                     RoundedCornerShape(18.dp)
                 )
@@ -408,11 +420,12 @@ fun SwipeableFixedBillItem(
                                     }
                                 )
                             ) {
+                                val duePrefix = if (billType == TransactionType.INCOME) "Exp" else "Due"
                                 Text(
                                     text = when {
                                         billIsPaid -> "Settled"
-                                        isOverdue -> "Overdue (Due $billDueDay)"
-                                        else -> "Due $billDueDay"
+                                        isOverdue -> "Overdue ($duePrefix $billDueDay)"
+                                        else -> "$duePrefix $billDueDay"
                                     },
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
@@ -435,18 +448,32 @@ fun SwipeableFixedBillItem(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.Center
                 ) {
+                    val formattedAmount = if (billAmount % 1.0 == 0.0) {
+                        String.format(Locale.US, "%,.0f", billAmount)
+                    } else {
+                        String.format(Locale.US, "%,.2f", billAmount)
+                    }
+
                     Text(
-                        text = "$currencySymbol${String.format(Locale.US, "%,.0f", billAmount)}",
+                        text = "$currencySymbol$formattedAmount",
                         fontWeight = FontWeight.Black,
                         fontSize = 15.sp,
                         color = if (billIsPaid) TextDark.copy(alpha = 0.5f) else typeTagColor
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (billIsPaid) "Settled" else "Pending",
+                        text = when {
+                            billIsPaid -> "Settled"
+                            isOverdue -> "Overdue"
+                            else -> "Pending"
+                        },
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (billIsPaid) SoftGreen else SoftAmber
+                        color = when {
+                            billIsPaid -> SoftGreen
+                            isOverdue -> SoftRed
+                            else -> SoftAmber
+                        }
                     )
                 }
             }
@@ -455,7 +482,12 @@ fun SwipeableFixedBillItem(
 
     // Interactive Settle Dialog
     if (showSettleDialog) {
-        var customAmountText by remember { mutableStateOf(billAmount.toString()) }
+        val initialFormattedAmount = if (billAmount % 1.0 == 0.0) {
+            billAmount.toLong().toString()
+        } else {
+            billAmount.toString()
+        }
+        var customAmountText by remember { mutableStateOf(initialFormattedAmount) }
         var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
         var showCalendarPicker by remember { mutableStateOf(false) }
 
@@ -485,7 +517,7 @@ fun SwipeableFixedBillItem(
             onDismissRequest = { showSettleDialog = false },
             title = {
                 Text(
-                    text = "Settle $billTitle",
+                    text = "Settle $displayPrimaryTitle",
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp,
                     color = TextDark
@@ -494,7 +526,7 @@ fun SwipeableFixedBillItem(
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "From Vault: $billAccountName",
+                        text = if (billType == TransactionType.TRANSFER) "Vault Route: $routeText" else "From Vault: $billAccountName",
                         fontSize = 12.sp,
                         color = TextMuted
                     )
@@ -503,7 +535,9 @@ fun SwipeableFixedBillItem(
                     OutlinedTextField(
                         value = customAmountText,
                         onValueChange = { input ->
-                            customAmountText = input.filter { it.isDigit() || it == '.' }
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            customAmountText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
                         },
                         label = { Text("Amount Paid ($currencySymbol)", fontSize = 12.sp) },
                         singleLine = true,
@@ -586,7 +620,8 @@ fun SwipeableFixedBillItem(
                         showSettleDialog = false
                     }
                 ) {
-                    Text("Confirm Paid", color = AccentPurple, fontWeight = FontWeight.Bold)
+                    val confirmLabel = if (billType == TransactionType.INCOME) "Confirm Received" else "Confirm Paid"
+                    Text(confirmLabel, color = AccentPurple, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
