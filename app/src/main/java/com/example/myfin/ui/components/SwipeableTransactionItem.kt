@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
+import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -62,6 +63,7 @@ fun SwipeableTransactionItem(
     val txAmount = currentTx.amount
     val txDate = currentTx.date
     val txLinkedFixedBillId = currentTx.linkedFixedBillId
+    val txSubtype = currentTx.transferSubtype
 
     var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
 
@@ -182,18 +184,33 @@ fun SwipeableTransactionItem(
             }
         }
     ) {
-        // Row 1 Title: Format as Subcategory (Title) if title is distinct, otherwise Subcategory
-        val displayTitle = remember(txTitle, txSubcategory) {
-            val isRedundant = txTitle.isBlank() ||
-                txTitle.equals(txSubcategory, ignoreCase = true) ||
-                txTitle.startsWith("Vault Transfer", ignoreCase = true) ||
-                (txSubcategory.isNotBlank() && txSubcategory.contains(txTitle, ignoreCase = true) && txSubcategory.length - txTitle.length <= 4) ||
-                (txTitle.isNotBlank() && txTitle.contains(txSubcategory, ignoreCase = true) && txTitle.length - txSubcategory.length <= 4)
-
-            if (!isRedundant && txSubcategory.isNotBlank()) {
-                "$txSubcategory ($txTitle)"
+        // Friendly mapping for transfer subtypes
+        val friendlySubcategory = remember(txSubcategory, txType, txSubtype) {
+            if (txType == TransactionType.TRANSFER) {
+                when {
+                    txSubtype == TransferSubtype.WEALTH_ALLOCATION || txSubcategory.equals("WEALTH_ALLOCATION", ignoreCase = true) -> "Fortress Sweep"
+                    txSubtype == TransferSubtype.BILL_FUNDING || txSubcategory.equals("BILL_FUNDING", ignoreCase = true) -> "Bill Funding"
+                    txSubtype == TransferSubtype.REBALANCE || txSubcategory.equals("REBALANCE", ignoreCase = true) -> "Vault Rebalance"
+                    txSubtype == TransferSubtype.CASH_WITHDRAWAL || txSubcategory.equals("CASH_WITHDRAWAL", ignoreCase = true) -> "Cash ATM Withdrawal"
+                    else -> txSubcategory.trim().ifBlank { "Vault Sweep" }
+                }
             } else {
-                txSubcategory.ifBlank { txTitle.ifBlank { "Transaction" } }
+                txSubcategory.trim()
+            }
+        }
+
+        // Row 1 Title: Format as Subcategory (Title) if title is distinct, otherwise Subcategory
+        val displayTitle = remember(txTitle, friendlySubcategory) {
+            val isRedundant = txTitle.isBlank() ||
+                txTitle.equals(friendlySubcategory, ignoreCase = true) ||
+                txTitle.startsWith("Vault Transfer", ignoreCase = true) ||
+                (friendlySubcategory.isNotBlank() && friendlySubcategory.contains(txTitle, ignoreCase = true) && friendlySubcategory.length - txTitle.length <= 4) ||
+                (txTitle.isNotBlank() && txTitle.contains(friendlySubcategory, ignoreCase = true) && txTitle.length - friendlySubcategory.length <= 4)
+
+            if (!isRedundant && friendlySubcategory.isNotBlank()) {
+                "$friendlySubcategory ($txTitle)"
+            } else {
+                friendlySubcategory.ifBlank { txTitle.ifBlank { "Transaction" } }
             }
         }
 
@@ -206,7 +223,7 @@ fun SwipeableTransactionItem(
             }
         }
 
-        val categoryIcon = getCategoryIcon(txCategory, txType)
+        val categoryIcon = getCategoryIcon(txCategory, txType, txSubtype, txSubcategory)
         val iconTint = when (txType) {
             TransactionType.INCOME -> SoftGreen
             TransactionType.EXPENSE -> SoftRed
@@ -416,11 +433,22 @@ private fun formatContextualDateTime(timestamp: Long): String {
     }
 }
 
-private fun getCategoryIcon(category: String, type: TransactionType): ImageVector {
+private fun getCategoryIcon(
+    category: String,
+    type: TransactionType,
+    transferSubtype: TransferSubtype = TransferSubtype.NONE,
+    subcategory: String = ""
+): ImageVector {
     return when (type) {
         TransactionType.INCOME -> Icons.AutoMirrored.Filled.TrendingUp
         TransactionType.ASSET -> Icons.Default.Savings
-        TransactionType.TRANSFER -> Icons.Default.SyncAlt
+        TransactionType.TRANSFER -> {
+            if (transferSubtype == TransferSubtype.CASH_WITHDRAWAL || subcategory.equals("CASH_WITHDRAWAL", ignoreCase = true)) {
+                Icons.Default.AccountBalanceWallet
+            } else {
+                Icons.Default.SyncAlt
+            }
+        }
         TransactionType.CORPORATE -> when {
             category.equals("Reimbursements & Claims", ignoreCase = true) -> Icons.Default.AccountBalance
             else -> Icons.Default.Work
