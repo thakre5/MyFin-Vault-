@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,6 +72,7 @@ fun AppBottomDock(
     isVisible: Boolean = true
 ) {
     val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
     var isFabMenuExpanded by remember { mutableStateOf(false) }
 
     // Intercept hardware back button to dismiss expanded FAB actions menu
@@ -84,6 +86,8 @@ fun AppBottomDock(
         }
     }
 
+    val hideOffsetPx = with(density) { 140.dp.toPx() }
+
     val animAlpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
         animationSpec = tween(durationMillis = if (isVisible) 220 else 180),
@@ -91,7 +95,7 @@ fun AppBottomDock(
     )
 
     val animTranslationY by animateFloatAsState(
-        targetValue = if (isVisible) 0f else 80f,
+        targetValue = if (isVisible) 0f else hideOffsetPx,
         animationSpec = spring(dampingRatio = 0.85f, stiffness = 400f),
         label = "dockSlide"
     )
@@ -101,6 +105,8 @@ fun AppBottomDock(
         animationSpec = spring(dampingRatio = 0.75f, stiffness = 500f),
         label = "fabRotation"
     )
+
+    val areControlsInteractive = isVisible && animAlpha > 0.5f
 
     Box(modifier = modifier) {
         // 1. Scrim Backdrop
@@ -200,7 +206,7 @@ fun AppBottomDock(
             }
         }
 
-        // 3. Synchronized Bottom Gradient Scrim (Hides & Shows with Dock)
+        // 3. Synchronized Bottom Gradient Scrim
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -259,14 +265,20 @@ fun AppBottomDock(
                 ) {
                     navItems.forEach { item ->
                         val isSelected = currentSelection == item.target
+                        val pillWeight by animateFloatAsState(
+                            targetValue = if (isSelected) 1.85f else 1.0f,
+                            animationSpec = spring(dampingRatio = 0.8f, stiffness = 450f),
+                            label = "dockPillWeight"
+                        )
 
                         Box(
                             modifier = Modifier
-                                .weight(if (isSelected) 1.85f else 1.0f)
+                                .weight(pillWeight)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(25.dp))
                                 .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
                                 .clickable(
+                                    enabled = areControlsInteractive,
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) {
@@ -321,6 +333,7 @@ fun AppBottomDock(
                     )
                     .clip(CircleShape)
                     .clickable(
+                        enabled = areControlsInteractive,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {
