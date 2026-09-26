@@ -88,6 +88,59 @@ fun SwipeableFixedBillItem(
         }
     }
 
+    // Map enum string to friendly name (Scoped at top level for both Card and Settle Dialog)
+    val friendlySubcategory = remember(billSubcategory) {
+        when (billSubcategory.trim()) {
+            "WEALTH_ALLOCATION" -> "Fortress Sweep"
+            "BILL_FUNDING" -> "Bill Funding"
+            "REBALANCE" -> "Rebalance"
+            "CASH_WITHDRAWAL" -> "Cash ATM"
+            else -> billSubcategory.trim()
+        }
+    }
+
+    // Row 1 Title Formatting
+    val displayPrimaryTitle = remember(billTitle, friendlySubcategory) {
+        val cleanTitle = billTitle.trim()
+        val cleanSubcat = friendlySubcategory.trim()
+        val isRedundant = cleanTitle.isBlank() ||
+            cleanTitle.equals(cleanSubcat, ignoreCase = true) ||
+            cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
+            (cleanSubcat.isNotBlank() && cleanSubcat.contains(cleanTitle, ignoreCase = true) && cleanSubcat.length - cleanTitle.length <= 4) ||
+            (cleanTitle.isNotBlank() && cleanTitle.contains(cleanSubcat, ignoreCase = true) && cleanTitle.length - cleanSubcat.length <= 4)
+
+        if (!isRedundant && cleanSubcat.isNotBlank()) {
+            "$cleanSubcat ($cleanTitle)"
+        } else {
+            cleanSubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
+        }
+    }
+
+    // Row 3 Route Text
+    val routeText = remember(billAccountName, billToAccountName, billType) {
+        if (billType == TransactionType.TRANSFER && !billToAccountName.isNullOrBlank()) {
+            "${billAccountName.uppercase()} ➔ ${billToAccountName.uppercase()}"
+        } else {
+            billAccountName.uppercase()
+        }
+    }
+
+    val typeTagColor = when (billType) {
+        TransactionType.EXPENSE -> SoftRed
+        TransactionType.INCOME -> SoftGreen
+        TransactionType.ASSET -> SoftTeal
+        TransactionType.CORPORATE -> Color(0xFFE57A28)
+        TransactionType.TRANSFER -> AccentPurple
+    }
+
+    val typeTagText = when (billType) {
+        TransactionType.EXPENSE -> "DUE"
+        TransactionType.INCOME -> "INFLOW"
+        TransactionType.ASSET -> "SIP"
+        TransactionType.CORPORATE -> "CORP"
+        TransactionType.TRANSFER -> "SWEEP"
+    }
+
     val dismissState = rememberSwipeToDismissBoxState(
         positionalThreshold = { totalDistance -> totalDistance * 0.35f },
         confirmValueChange = { value ->
@@ -205,59 +258,6 @@ fun SwipeableFixedBillItem(
             }
         }
     ) {
-        val typeTagColor = when (billType) {
-            TransactionType.EXPENSE -> SoftRed
-            TransactionType.INCOME -> SoftGreen
-            TransactionType.ASSET -> SoftTeal
-            TransactionType.CORPORATE -> Color(0xFFE57A28)
-            TransactionType.TRANSFER -> AccentPurple
-        }
-
-        val typeTagText = when (billType) {
-            TransactionType.EXPENSE -> "DUE"
-            TransactionType.INCOME -> "INFLOW"
-            TransactionType.ASSET -> "SIP"
-            TransactionType.CORPORATE -> "CORP"
-            TransactionType.TRANSFER -> "SWEEP"
-        }
-
-        // Map enum string to friendly name
-        val friendlySubcategory = remember(billSubcategory) {
-            when (billSubcategory.trim()) {
-                "WEALTH_ALLOCATION" -> "Fortress Sweep"
-                "BILL_FUNDING" -> "Bill Funding"
-                "REBALANCE" -> "Rebalance"
-                "CASH_WITHDRAWAL" -> "Cash ATM"
-                else -> billSubcategory.trim()
-            }
-        }
-
-        // Row 1 Title Formatting
-        val displayPrimaryTitle = remember(billTitle, friendlySubcategory) {
-            val cleanTitle = billTitle.trim()
-            val cleanSubcat = friendlySubcategory.trim()
-            val isRedundant = cleanTitle.isBlank() ||
-                cleanTitle.equals(cleanSubcat, ignoreCase = true) ||
-                cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
-                (cleanSubcat.isNotBlank() && cleanSubcat.contains(cleanTitle, ignoreCase = true) && cleanSubcat.length - cleanTitle.length <= 4) ||
-                (cleanTitle.isNotBlank() && cleanTitle.contains(cleanSubcat, ignoreCase = true) && cleanTitle.length - cleanSubcat.length <= 4)
-
-            if (!isRedundant && cleanSubcat.isNotBlank()) {
-                "$cleanSubcat ($cleanTitle)"
-            } else {
-                cleanSubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
-            }
-        }
-
-        // Row 3 Route Text
-        val routeText = remember(billAccountName, billToAccountName, billType) {
-            if (billType == TransactionType.TRANSFER && !billToAccountName.isNullOrBlank()) {
-                "${billAccountName.uppercase()} ➔ ${billToAccountName.uppercase()}"
-            } else {
-                billAccountName.uppercase()
-            }
-        }
-
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -341,7 +341,7 @@ fun SwipeableFixedBillItem(
                         )
                     )
 
-                    // Row 2: [TYPE TAG]  Category
+                    // Row 2: [TYPE TAG] Category
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
