@@ -82,7 +82,15 @@ fun AddEditFixedBillDialog(
         )
     }
 
-    var amountText by remember { mutableStateOf(initialBill?.amount?.let { if (it > 0) it.toString() else "" } ?: "") }
+    var amountText by remember {
+        mutableStateOf(
+            initialBill?.amount?.let {
+                if (it > 0) {
+                    if (it % 1.0 == 0.0) it.toLong().toString() else it.toString()
+                } else ""
+            } ?: ""
+        )
+    }
     var dueDayText by remember { mutableStateOf(initialBill?.dueDay?.toString() ?: "") }
 
     var selectedTransferSubtype by remember {
@@ -92,7 +100,8 @@ fun AddEditFixedBillDialog(
             } catch (_: Exception) {
                 when (initialBill?.subcategory) {
                     "Fortress Sweep" -> TransferSubtype.WEALTH_ALLOCATION
-                    "Rebalance" -> TransferSubtype.REBALANCE
+                    "Cash ATM", "Cash ATM Withdrawal" -> TransferSubtype.CASH_WITHDRAWAL
+                    "Rebalance", "Vault Rebalance" -> TransferSubtype.REBALANCE
                     else -> TransferSubtype.BILL_FUNDING
                 }
             }
@@ -316,7 +325,17 @@ fun AddEditFixedBillDialog(
 
                 OutlinedTextField(
                     value = dueDayText,
-                    onValueChange = { if (it.length <= 2) dueDayText = it.filter { ch -> ch.isDigit() } },
+                    onValueChange = { input ->
+                        val digits = input.filter { it.isDigit() }
+                        if (digits.isEmpty()) {
+                            dueDayText = ""
+                        } else if (digits.length <= 2) {
+                            val num = digits.toIntOrNull() ?: 0
+                            if (num in 1..31) {
+                                dueDayText = digits
+                            }
+                        }
+                    },
                     label = { Text("Due Day (1-31)", fontSize = 12.sp) },
                     placeholder = { Text("Opt", fontSize = 12.sp) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -357,19 +376,20 @@ fun AddEditFixedBillDialog(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
+                LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf(
+                    val subtypes = listOf(
                         TransferSubtype.BILL_FUNDING to "Bill Funding",
                         TransferSubtype.WEALTH_ALLOCATION to "Fortress Sweep",
-                        TransferSubtype.REBALANCE to "Rebalance"
-                    ).forEach { (subtype, label) ->
+                        TransferSubtype.REBALANCE to "Rebalance",
+                        TransferSubtype.CASH_WITHDRAWAL to "Cash ATM"
+                    )
+                    items(subtypes) { (subtype, label) ->
                         val isSelected = selectedTransferSubtype == subtype
                         Surface(
                             modifier = Modifier
-                                .weight(1f)
                                 .height(38.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .clickable { selectedTransferSubtype = subtype },
@@ -377,7 +397,10 @@ fun AddEditFixedBillDialog(
                             color = if (isSelected) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
                             border = BorderStroke(0.8.dp, if (isSelected) AccentPurple else BorderLight)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier.padding(horizontal = 14.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Text(
                                     text = label,
                                     fontSize = 11.5.sp,
@@ -735,6 +758,10 @@ fun AddEditFixedBillDialog(
                         val amt = amountText.toDoubleOrNull() ?: 0.0
                         if (amt <= 0.0) {
                             Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (selectedType == TransactionType.TRANSFER && selectedToAccount.isBlank()) {
+                            Toast.makeText(context, "Please select a destination vault.", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         if (isSelfTransfer) {
