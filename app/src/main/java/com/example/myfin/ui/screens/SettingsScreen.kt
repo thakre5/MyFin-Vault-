@@ -57,6 +57,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -79,8 +81,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import java.util.*
 import kotlin.math.max
 
@@ -205,7 +205,7 @@ private fun triggerBiometricVerificationScan(
 ) {
     val activity = context.findFragmentActivity()
     if (activity == null) {
-        onSuccess()
+        onFailure("Host window unavailable for biometric verification")
         return
     }
 
@@ -234,7 +234,7 @@ private fun triggerBiometricVerificationScan(
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Confirm Biometric Identity")
-            .setSubtitle("Scan fingerprint or face to enable biometric vault lock")
+            .setSubtitle("Scan fingerprint or face to authenticate")
             .setNegativeButtonText("Cancel")
             .build()
 
@@ -510,7 +510,14 @@ fun SettingsScreen(
                                 val profileUri = userProfile.profileImageUri
                                 val imageModel = remember(profileUri, avatarRefreshKey) {
                                     if (!profileUri.isNullOrBlank()) {
-                                        File(profileUri).takeIf { it.exists() } ?: profileUri
+                                        try {
+                                            if (profileUri.startsWith("/")) {
+                                                val file = File(profileUri)
+                                                if (file.exists()) file else profileUri
+                                            } else profileUri
+                                        } catch (_: Exception) {
+                                            profileUri
+                                        }
                                     } else null
                                 }
 
@@ -661,6 +668,8 @@ fun SettingsScreen(
                 } else {
                     baselineBurn * fortressMonths
                 }
+                val fortressTargetLabel = if (userProfile.fortressManualTarget > 0.0) "Manual" else "${fortressMonths}M"
+
                 val floatSummary = when {
                     userProfile.initialCompanyAdvance > 0.0 ->
                         "Advance: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", userProfile.initialCompanyAdvance)}"
@@ -690,7 +699,7 @@ fun SettingsScreen(
                     )
                     SettingsChildNavRow(
                         title = "Fortress Safety Net Target",
-                        value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressTarget)} (${fortressMonths}M)",
+                        value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressTarget)} ($fortressTargetLabel)",
                         onClick = { activeSheet = SettingsActiveSheet.FORTRESS_SAFETY_NET }
                     )
                     SettingsChildNavRow(
@@ -1774,9 +1783,23 @@ fun SettingsScreen(
         }
     }
 
-    // Fortress Safety Net Target Sheet (Fixed Single Atomic Save)
+    // Fortress Safety Net Target Sheet (Dynamic Months or Manual Fixed Target)
     if (activeSheet == SettingsActiveSheet.FORTRESS_SAFETY_NET) {
+        var isManualMode by remember(userProfile) { mutableStateOf(userProfile.fortressManualTarget > 0.0) }
         var selectedMonths by remember(userProfile) { mutableIntStateOf(userProfile.fortressEmergencyMonths.takeIf { it > 0 } ?: 6) }
+        var manualTargetInput by remember(userProfile) {
+            mutableStateOf(
+                if (userProfile.fortressManualTarget > 0.0) {
+                    if (userProfile.fortressManualTarget % 1.0 == 0.0) userProfile.fortressManualTarget.toLong().toString()
+                    else userProfile.fortressManualTarget.toString()
+                } else ""
+            )
+        }
+
+        val baselineBurn = if (avgMonthlySpend > 0.0) avgMonthlySpend else max(userProfile.baseMonthlyIncome, 1000.0)
+        val computedDynamicTarget = baselineBurn * selectedMonths
+        val parsedManualTarget = manualTargetInput.toDoubleOrNull() ?: 0.0
+        val effectiveGoalAmount = if (isManualMode) parsedManualTarget else computedDynamicTarget
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
@@ -1791,12 +1814,54 @@ fun SettingsScreen(
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("Fortress Safety Net Target", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-                Text("Represents your target Emergency Reserve in sweep-in FDs, calculated from your average monthly living spend.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
+                Text("Configure your emergency reserve goal in sweep-in FDs to protect against unforeseen interruptions.", fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp)
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                val baselineBurn = if (avgMonthlySpend > 0.0) avgMonthlySpend else max(userProfile.baseMonthlyIncome, 1000.0)
-                val computedTarget = baselineBurn * selectedMonths
+                // Mode Selector
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(BorderLight.copy(alpha = 0.5f))
+                        .padding(3.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(if (!isManualMode) CardWhite else Color.Transparent)
+                            .clickable { isManualMode = false }
+                            .padding(vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Runway Months",
+                            fontWeight = if (!isManualMode) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 11.5.sp,
+                            color = if (!isManualMode) AccentPurple else TextMuted
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(if (isManualMode) CardWhite else Color.Transparent)
+                            .clickable { isManualMode = true }
+                            .padding(vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Fixed Target Amount",
+                            fontWeight = if (isManualMode) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 11.5.sp,
+                            color = if (isManualMode) AccentPurple else TextMuted
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -1811,67 +1876,99 @@ fun SettingsScreen(
                         Text("Emergency Fund Goal (Sweep FDs)", fontSize = 11.5.sp, color = TextMuted)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)}",
+                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", effectiveGoalAmount)}",
                             fontSize = 26.sp,
                             fontWeight = FontWeight.Black,
                             color = AccentPurple
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "$selectedMonths Months × ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", baselineBurn)}/mo (Baseline spend)",
+                            text = if (!isManualMode) {
+                                "$selectedMonths Months × ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", baselineBurn)}/mo (Baseline spend)"
+                            } else {
+                                val coverageMonths = if (baselineBurn > 0.0) String.format(Locale.US, "%.1f", parsedManualTarget / baselineBurn) else "0"
+                                "Provides approx. $coverageMonths Months living coverage"
+                            },
                             fontSize = 11.sp,
                             color = TextMuted
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                Text("Select Runway Target:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                Spacer(modifier = Modifier.height(8.dp))
+                if (!isManualMode) {
+                    Text("Select Runway Target:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(3, 6, 9, 12).forEach { months ->
-                        val isSel = selectedMonths == months
-                        OutlinedButton(
-                            onClick = { selectedMonths = months },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isSel) AccentPurple.copy(alpha = 0.12f) else Color.Transparent
-                            ),
-                            border = BorderStroke(1.dp, if (isSel) AccentPurple else BorderLight)
-                        ) {
-                            Text(
-                                text = "$months M",
-                                fontSize = 12.sp,
-                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSel) AccentPurple else TextDark
-                            )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(3, 6, 9, 12).forEach { months ->
+                            val isSel = selectedMonths == months
+                            OutlinedButton(
+                                onClick = { selectedMonths = months },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (isSel) AccentPurple.copy(alpha = 0.12f) else Color.Transparent
+                                ),
+                                border = BorderStroke(1.dp, if (isSel) AccentPurple else BorderLight)
+                            ) {
+                                Text(
+                                    text = "$months M",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSel) AccentPurple else TextDark
+                                )
+                            }
                         }
                     }
+                } else {
+                    OutlinedTextField(
+                        value = manualTargetInput,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            manualTargetInput = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
+                        label = { Text("Fixed Emergency Goal (${userProfile.currencySymbol})") },
+                        placeholder = { Text("e.g. 150000") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Button(
                     onClick = {
-                        // Perform an atomic update directly to userProfile to prevent asynchronous race condition overwrites
-                        val updated = userProfile.copy(
-                            id = 1,
-                            fortressEmergencyMonths = selectedMonths,
-                            fortressManualTarget = 0.0
-                        )
+                        val updated = if (isManualMode) {
+                            val manualAmt = manualTargetInput.toDoubleOrNull() ?: 0.0
+                            val derivedMonths = if (baselineBurn > 0.0) (manualAmt / baselineBurn).toInt().coerceAtLeast(1) else 6
+                            userProfile.copy(
+                                id = 1,
+                                fortressManualTarget = manualAmt,
+                                fortressEmergencyMonths = derivedMonths
+                            )
+                        } else {
+                            userProfile.copy(
+                                id = 1,
+                                fortressEmergencyMonths = selectedMonths,
+                                fortressManualTarget = 0.0
+                            )
+                        }
+
                         viewModel.saveUserProfile(updated)
-                        try { viewModel.updateFortressEmergencyMonths(selectedMonths) } catch (_: Exception) {}
-                        try { viewModel.updateFortressManualTarget(0.0) } catch (_: Exception) {}
+                        try { viewModel.updateFortressEmergencyMonths(updated.fortressEmergencyMonths) } catch (_: Exception) {}
+                        try { viewModel.updateFortressManualTarget(updated.fortressManualTarget) } catch (_: Exception) {}
 
                         activeSheet = SettingsActiveSheet.NONE
-                        Toast.makeText(context, "Fortress target set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", computedTarget)} ($selectedMonths Months)", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Fortress target set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", effectiveGoalAmount)}", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1879,7 +1976,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
-                    Text("Apply Target Runway", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Apply Target Goal", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -2481,7 +2578,7 @@ private fun SettingsChildNavRow(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = BorderLight,
+                tint = TextMuted.copy(alpha = 0.7f),
                 modifier = Modifier.size(15.dp)
             )
         }
@@ -2498,7 +2595,9 @@ private fun SettingsChildSwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = onClick != null) { onClick?.invoke() }
+            .clickable {
+                if (onClick != null) onClick() else onToggle(!isChecked)
+            }
             .padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
