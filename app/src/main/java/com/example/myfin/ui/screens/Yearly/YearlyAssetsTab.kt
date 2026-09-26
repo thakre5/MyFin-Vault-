@@ -589,52 +589,6 @@ private fun CleanLivingHeartCanvas(
 }
 
 // =========================================================
-// 2. QUICK METRIC TILE
-// =========================================================
-
-@Composable
-private fun QuickMetricTile(
-    label: String,
-    value: String,
-    tint: Color,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = CanvasLight,
-        border = BorderStroke(0.6.dp, BorderLight)
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(5.dp)
-                        .clip(CircleShape)
-                        .background(tint)
-                )
-                Spacer(modifier = Modifier.width(5.dp))
-                Text(
-                    text = label,
-                    fontSize = 10.5.sp,
-                    color = TextMuted,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(modifier = Modifier.height(3.dp))
-            Text(
-                text = value,
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextDark
-            )
-        }
-    }
-}
-
-// =========================================================
 // 3. MULTI-YEAR COMPACT SEGMENTED PILLARS (WITH YEAR LABELS)
 // =========================================================
 
