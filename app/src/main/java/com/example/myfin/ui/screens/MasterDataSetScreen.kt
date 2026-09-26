@@ -90,11 +90,11 @@ fun MasterDataSetScreen(
         } else {
             val matchingSubParents = segmentSubcategories
                 .filter { it.name.contains(searchQuery, ignoreCase = true) }
-                .map { it.parentCategory }
+                .map { it.parentCategory.trim().lowercase() }
                 .toSet()
 
             segmentCategories.filter {
-                it.name.contains(searchQuery, ignoreCase = true) || matchingSubParents.contains(it.name)
+                it.name.contains(searchQuery, ignoreCase = true) || matchingSubParents.contains(it.name.trim().lowercase())
             }
         }
     }
@@ -466,8 +466,16 @@ fun MasterDataSetScreen(
                 } else {
                     items(filteredCategories, key = { "${it.type.name}_${it.name}_${it.isLegacy}" }) { cat ->
                         val isProtected = viewModel.protectedCategories.contains(cat.name) && !cat.isLegacy
-                        val subList = segmentSubcategories.filter { it.parentCategory == cat.name }
-                        val isExpanded = expandedCategories[cat.name] ?: false
+                        val isExpanded = if (searchQuery.isNotBlank()) true else (expandedCategories[cat.name] ?: false)
+
+                        val subList = remember(segmentSubcategories, cat.name, searchQuery) {
+                            val allSubs = segmentSubcategories.filter { it.parentCategory.equals(cat.name, ignoreCase = true) }
+                            if (searchQuery.isBlank() || cat.name.contains(searchQuery, ignoreCase = true)) {
+                                allSubs
+                            } else {
+                                allSubs.filter { it.name.contains(searchQuery, ignoreCase = true) }
+                            }
+                        }
 
                         IntegratedCategoryTreeCard(
                             category = cat,
@@ -478,7 +486,7 @@ fun MasterDataSetScreen(
                             onSwipeEditCategory = { categoryToEdit = cat },
                             onSwipeDeleteCategory = {
                                 if (isProtected) {
-                                    alertNoticeMessage = "'${cat.name}' is an active core category and cannot be deleted."
+                                    alertNoticeMessage = "'${cat.name}' is an active core system category and cannot be deleted."
                                 } else {
                                     categoryToDelete = cat
                                 }
@@ -595,7 +603,7 @@ fun MasterDataSetScreen(
 
         // Sheet: Add Category
         if (showAddCategorySheet) {
-            var newCategoryName by remember { mutableStateOf("") }
+            var newCategoryName by remember(showAddCategorySheet) { mutableStateOf("") }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -670,7 +678,7 @@ fun MasterDataSetScreen(
             var selectedParent by remember(showAddSubcategorySheet, selectedSegment) {
                 mutableStateOf(segmentCategories.firstOrNull()?.name.orEmpty())
             }
-            var newSubName by remember { mutableStateOf("") }
+            var newSubName by remember(showAddSubcategorySheet) { mutableStateOf("") }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
             ModalBottomSheet(
@@ -699,30 +707,46 @@ fun MasterDataSetScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    Text("Select Parent Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                    Spacer(modifier = Modifier.height(6.dp))
+                    if (segmentCategories.isEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = CanvasLight,
+                            border = BorderStroke(0.6.dp, BorderLight)
+                        ) {
+                            Text(
+                                text = "No categories available under ${selectedSegment.name}. Please create a parent category first.",
+                                fontSize = 11.5.sp,
+                                color = TextMuted,
+                                modifier = Modifier.padding(14.dp)
+                            )
+                        }
+                    } else {
+                        Text("Select Parent Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                    LazyColumn(modifier = Modifier.heightIn(max = 140.dp)) {
-                        items(segmentCategories, key = { it.name }) { cat ->
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp)
-                                    .clickable { selectedParent = cat.name },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (selectedParent == cat.name) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                                border = BorderStroke(0.6.dp, if (selectedParent == cat.name) AccentPurple else BorderLight)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                        LazyColumn(modifier = Modifier.heightIn(max = 140.dp)) {
+                            items(segmentCategories, key = { it.name }) { cat ->
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp)
+                                        .clickable { selectedParent = cat.name },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (selectedParent.equals(cat.name, ignoreCase = true)) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
+                                    border = BorderStroke(0.6.dp, if (selectedParent.equals(cat.name, ignoreCase = true)) AccentPurple else BorderLight)
                                 ) {
-                                    Text(
-                                        text = cat.name,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = if (selectedParent == cat.name) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (selectedParent == cat.name) AccentPurple else TextDark
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = cat.name,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = if (selectedParent.equals(cat.name, ignoreCase = true)) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (selectedParent.equals(cat.name, ignoreCase = true)) AccentPurple else TextDark
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -751,7 +775,7 @@ fun MasterDataSetScreen(
                             val trimmedSub = newSubName.trim()
                             if (trimmedSub.isNotBlank() && selectedParent.isNotBlank()) {
                                 val alreadyExists = segmentSubcategories.any {
-                                    it.parentCategory == selectedParent && it.name.equals(trimmedSub, ignoreCase = true)
+                                    it.parentCategory.equals(selectedParent, ignoreCase = true) && it.name.equals(trimmedSub, ignoreCase = true)
                                 }
                                 if (alreadyExists) {
                                     Toast.makeText(context, "Subcategory '$trimmedSub' already exists under $selectedParent", Toast.LENGTH_SHORT).show()
@@ -914,7 +938,7 @@ fun MasterDataSetScreen(
                                     subcategoryToEdit = null
                                 } else {
                                     val alreadyExists = segmentSubcategories.any {
-                                        it.parentCategory == sub.parentCategory &&
+                                        it.parentCategory.equals(sub.parentCategory, ignoreCase = true) &&
                                                 it.name.equals(trimmedNew, ignoreCase = true) &&
                                                 !it.name.equals(sub.name, ignoreCase = true)
                                     }
@@ -1012,13 +1036,14 @@ private fun IntegratedCategoryTreeCard(
             SwipeToDismissBox(
                 state = dismissState,
                 enableDismissFromStartToEnd = true,
-                enableDismissFromEndToStart = !isProtected || category.isLegacy,
+                enableDismissFromEndToStart = true,
                 backgroundContent = {
                     val direction = dismissState.dismissDirection
+                    val isLockedCore = isProtected && !category.isLegacy
                     val backgroundColor by animateColorAsState(
                         targetValue = when (dismissState.targetValue) {
                             SwipeToDismissBoxValue.StartToEnd -> AccentPurple
-                            SwipeToDismissBoxValue.EndToStart -> if (!isProtected || category.isLegacy) SoftRed else Color.Transparent
+                            SwipeToDismissBoxValue.EndToStart -> if (isLockedCore) Color(0xFF9E9E9E) else SoftRed
                             SwipeToDismissBoxValue.Settled -> Color.Transparent
                         },
                         animationSpec = tween(200),
@@ -1038,11 +1063,21 @@ private fun IntegratedCategoryTreeCard(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(if (category.isLegacy) "Adopt" else "Rename", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
-                        } else if (direction == SwipeToDismissBoxValue.EndToStart && (!isProtected || category.isLegacy)) {
+                        } else if (direction == SwipeToDismissBoxValue.EndToStart) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (category.isLegacy) "Retire" else "Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(
+                                    text = if (category.isLegacy) "Retire" else if (isLockedCore) "Locked Core" else "Delete",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(18.dp))
+                                Icon(
+                                    imageVector = if (isLockedCore) Icons.Default.Lock else Icons.Default.Delete,
+                                    contentDescription = "Delete or Lock",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
                     }
