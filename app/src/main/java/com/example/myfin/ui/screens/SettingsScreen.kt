@@ -257,6 +257,7 @@ fun SettingsScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
     val userProfile by viewModel.userProfile.collectAsState()
+    val uiState by viewModel.monthlyUiState.collectAsState()
     val avgMonthlySpend by viewModel.averageMonthlySpend.collectAsState()
 
     var activeSheet by rememberSaveable { mutableStateOf(initialActiveSheet) }
@@ -661,12 +662,20 @@ fun SettingsScreen(
 
                 // Strategy & Architecture
                 val autoSweepLimit = userProfile.fortressSweepThreshold
-                val baselineBurn = if (avgMonthlySpend > 0.0) avgMonthlySpend else max(userProfile.baseMonthlyIncome, 1000.0)
                 val fortressMonths = userProfile.fortressEmergencyMonths.takeIf { it > 0 } ?: 6
+                val baselineBurn = if (fortressMonths > 0 && uiState.fortressTarget > 0.0 && userProfile.fortressManualTarget <= 0.0) {
+                    uiState.fortressTarget / fortressMonths
+                } else if (avgMonthlySpend > 0.0) {
+                    avgMonthlySpend
+                } else if (userProfile.baseMonthlyIncome > 0.0) {
+                    userProfile.baseMonthlyIncome
+                } else {
+                    1000.0
+                }
                 val fortressTarget = if (userProfile.fortressManualTarget > 0.0) {
                     userProfile.fortressManualTarget
                 } else {
-                    baselineBurn * fortressMonths
+                    uiState.fortressTarget.takeIf { it > 0.0 } ?: (baselineBurn * fortressMonths)
                 }
                 val fortressTargetLabel = if (userProfile.fortressManualTarget > 0.0) "Manual" else "${fortressMonths}M"
 
@@ -1796,7 +1805,15 @@ fun SettingsScreen(
             )
         }
 
-        val baselineBurn = if (avgMonthlySpend > 0.0) avgMonthlySpend else max(userProfile.baseMonthlyIncome, 1000.0)
+        val baselineBurn = if (userProfile.fortressEmergencyMonths > 0 && uiState.fortressTarget > 0.0 && userProfile.fortressManualTarget <= 0.0) {
+            uiState.fortressTarget / userProfile.fortressEmergencyMonths
+        } else if (avgMonthlySpend > 0.0) {
+            avgMonthlySpend
+        } else if (userProfile.baseMonthlyIncome > 0.0) {
+            userProfile.baseMonthlyIncome
+        } else {
+            1000.0
+        }
         val computedDynamicTarget = baselineBurn * selectedMonths
         val parsedManualTarget = manualTargetInput.toDoubleOrNull() ?: 0.0
         val effectiveGoalAmount = if (isManualMode) parsedManualTarget else computedDynamicTarget
