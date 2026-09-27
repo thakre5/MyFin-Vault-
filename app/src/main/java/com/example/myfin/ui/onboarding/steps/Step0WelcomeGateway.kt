@@ -42,6 +42,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -217,25 +218,47 @@ fun OnboardingStep0WelcomeGateway(
     }
 
     val isCompactHero = currentStage == GatewayStage.ACCOUNTS || currentStage == GatewayStage.COMMITMENTS
+    
+    // Collapse hero completely when keyboard is active to eliminate header collision
+    val isHeroVisible = !isImeVisible || currentStage == GatewayStage.CAROUSEL
+
+    val heroAlpha by animateFloatAsState(
+        targetValue = if (isHeroVisible) 1f else 0f,
+        animationSpec = tween(280, easing = FastOutSlowInEasing),
+        label = "heroAlpha"
+    )
+
     val heroScale by animateFloatAsState(
         targetValue = when {
-            isImeVisible && currentStage != GatewayStage.CAROUSEL -> 0.52f
+            !isHeroVisible -> 0f
             isCompactHero -> 0.54f
             currentStage != GatewayStage.CAROUSEL -> 0.88f
             else -> 1.0f
         },
-        animationSpec = tween(350, easing = FastOutSlowInEasing),
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
         label = "heroScale"
     )
+
     val heroHeight by animateDpAsState(
         targetValue = when {
-            isImeVisible && currentStage != GatewayStage.CAROUSEL -> 95.dp
+            !isHeroVisible -> 0.dp
             isCompactHero -> 95.dp
             currentStage != GatewayStage.CAROUSEL -> 195.dp
             else -> 235.dp
         },
-        animationSpec = tween(350, easing = FastOutSlowInEasing),
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
         label = "heroHeight"
+    )
+
+    // Dynamic top clearance spacer below the pinned brand header
+    val topSpacerHeight by animateDpAsState(
+        targetValue = when {
+            !isHeroVisible -> 64.dp
+            isCompactHero -> 48.dp
+            else -> 56.dp
+        },
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
+        label = "topSpacerHeight"
     )
 
     val primaryButtonWidthFraction by animateFloatAsState(
@@ -308,24 +331,29 @@ fun OnboardingStep0WelcomeGateway(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Spacer(modifier = Modifier.height(if (isCompactHero) 48.dp else 56.dp))
+                // Dynamic spacing ensuring title never collides with MyFinBrandHeader
+                Spacer(modifier = Modifier.height(topSpacerHeight))
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(heroHeight),
-                    contentAlignment = Alignment.Center
-                ) {
-                    MyFinTiltedCardsHero(
-                        currencySymbol = selectedCountry.currencySymbol,
-                        modifier = Modifier.graphicsLayer {
-                            scaleX = heroScale
-                            scaleY = heroScale
-                        }
-                    )
+                if (heroHeight > 0.dp) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(heroHeight)
+                            .clipToBounds()
+                            .graphicsLayer { alpha = heroAlpha },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        MyFinTiltedCardsHero(
+                            currencySymbol = selectedCountry.currencySymbol,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = heroScale
+                                scaleY = heroScale
+                            }
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(if (isCompactHero) 8.dp else 16.dp))
+                Spacer(modifier = Modifier.height(if (!isHeroVisible) 6.dp else if (isCompactHero) 8.dp else 16.dp))
 
                 AnimatedContent(
                     targetState = currentStage,
@@ -568,7 +596,6 @@ fun OnboardingStep0WelcomeGateway(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    // Security Fix: Enforce strictly numeric PIN (digits only, max 6) to prevent lockouts on PinLockScreen
                                     OutlinedTextField(
                                         value = masterPin,
                                         onValueChange = { input ->
@@ -1592,8 +1619,8 @@ fun OnboardingStep0WelcomeGateway(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFFF3E8FF).copy(alpha = 0.95f),
-                            Color(0xFFF3E8FF).copy(alpha = 0.60f),
+                            Color(0xFFF3E8FF).copy(alpha = 0.98f),
+                            Color(0xFFF3E8FF).copy(alpha = 0.85f),
                             Color.Transparent
                         )
                     )
