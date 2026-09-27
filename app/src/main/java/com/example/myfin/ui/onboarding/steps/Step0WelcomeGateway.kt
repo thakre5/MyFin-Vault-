@@ -71,8 +71,9 @@ import com.example.myfin.ui.onboarding.InitialAccountSetup
 import com.example.myfin.ui.onboarding.InitialCommitmentPreset
 import com.example.myfin.ui.onboarding.SupportedCountries
 import com.example.myfin.ui.onboarding.WelcomeCarouselSlides
+import com.example.myfin.ui.onboarding.components.MyFinTiltedCardsHero
 import com.example.myfin.ui.onboarding.components.OnboardingDateVisualTransformation
-import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
+import com.example.myfin.ui.onboarding.components.sanitizeDobDigits
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import java.util.Calendar
@@ -162,11 +163,12 @@ fun OnboardingStep0WelcomeGateway(
     val strategySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val mabSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val formattedDob = remember(rawDobDigits) {
-        if (rawDobDigits.length == 8) {
-            "${rawDobDigits.substring(0, 2)}/${rawDobDigits.substring(2, 4)}/${rawDobDigits.substring(4, 8)}"
-        } else if (rawDobDigits.isNotBlank()) {
-            rawDobDigits
+    val cleanDob = remember(rawDobDigits) { sanitizeDobDigits(rawDobDigits) }
+    val formattedDob = remember(cleanDob) {
+        if (cleanDob.length == 8) {
+            "${cleanDob.substring(0, 2)}/${cleanDob.substring(2, 4)}/${cleanDob.substring(4, 8)}"
+        } else if (cleanDob.isNotBlank()) {
+            cleanDob
         } else {
             "DD/MM/YYYY"
         }
@@ -193,10 +195,11 @@ fun OnboardingStep0WelcomeGateway(
         pageCount = { virtualPageCount }
     )
 
+    // Gesture-safe automated carousel cycling
     LaunchedEffect(currentStage) {
         while (currentStage == GatewayStage.CAROUSEL) {
             delay(3500L)
-            if (carouselPagerState.pageCount > 0) {
+            if (carouselPagerState.pageCount > 0 && !carouselPagerState.isScrollInProgress) {
                 val nextPage = (carouselPagerState.currentPage + 1) % virtualPageCount
                 carouselPagerState.animateScrollToPage(
                     page = nextPage,
@@ -246,7 +249,7 @@ fun OnboardingStep0WelcomeGateway(
         label = "restoreWidth"
     )
     val restoreButtonHeight by animateDpAsState(
-        targetValue = if (currentStage == GatewayStage.IDENTITY) 42.dp else 52.dp,
+        targetValue = if (currentStage == GatewayStage.IDENTITY) 44.dp else 52.dp,
         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
         label = "restoreHeight"
     )
@@ -313,7 +316,7 @@ fun OnboardingStep0WelcomeGateway(
                         .height(heroHeight),
                     contentAlignment = Alignment.Center
                 ) {
-                    SolnexTiltedCardsHero(
+                    MyFinTiltedCardsHero(
                         currencySymbol = selectedCountry.currencySymbol,
                         modifier = Modifier.graphicsLayer {
                             scaleX = heroScale
@@ -430,7 +433,7 @@ fun OnboardingStep0WelcomeGateway(
 
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     OutlinedTextField(
                                         value = displayName,
@@ -442,7 +445,7 @@ fun OnboardingStep0WelcomeGateway(
                                         singleLine = true,
                                         textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                         shape = RoundedCornerShape(26.dp),
-                                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
                                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
@@ -462,7 +465,7 @@ fun OnboardingStep0WelcomeGateway(
                                         singleLine = true,
                                         textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                         shape = RoundedCornerShape(26.dp),
-                                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
@@ -477,8 +480,8 @@ fun OnboardingStep0WelcomeGateway(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         OutlinedTextField(
-                                            value = rawDobDigits,
-                                            onValueChange = { input -> onDobChange(input.filter { it.isDigit() }.take(8)) },
+                                            value = cleanDob,
+                                            onValueChange = { onDobChange(sanitizeDobDigits(it)) },
                                             placeholder = { Text("DD/MM/YYYY", fontSize = 12.sp, color = TextMuted) },
                                             leadingIcon = {
                                                 Icon(Icons.Default.CalendarToday, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(15.dp))
@@ -487,7 +490,7 @@ fun OnboardingStep0WelcomeGateway(
                                             singleLine = true,
                                             textStyle = TextStyle(fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = TextDark, letterSpacing = 0.5.sp),
                                             shape = RoundedCornerShape(26.dp),
-                                            modifier = Modifier.weight(1f).height(50.dp),
+                                            modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedContainerColor = CardWhite,
@@ -500,7 +503,7 @@ fun OnboardingStep0WelcomeGateway(
                                         Surface(
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .height(50.dp)
+                                                .height(52.dp)
                                                 .clip(RoundedCornerShape(26.dp))
                                                 .clickable {
                                                     focusManager.clearFocus()
@@ -552,7 +555,7 @@ fun OnboardingStep0WelcomeGateway(
                                 if (!isImeVisible) {
                                     Spacer(modifier = Modifier.height(3.dp))
                                     Text(
-                                        text = "Set your offline access & recovery keys",
+                                        text = "Create your 4 to 6-digit numeric Vault PIN",
                                         fontSize = 12.sp,
                                         color = TextMuted,
                                         textAlign = TextAlign.Center
@@ -563,12 +566,16 @@ fun OnboardingStep0WelcomeGateway(
 
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
+                                    // Security Fix: Enforce strictly numeric PIN (digits only, max 6) to prevent lockouts on PinLockScreen
                                     OutlinedTextField(
                                         value = masterPin,
-                                        onValueChange = onMasterPinChange,
-                                        placeholder = { Text("Create Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
+                                        onValueChange = { input ->
+                                            val digits = input.filter { it.isDigit() }.take(6)
+                                            onMasterPinChange(digits)
+                                        },
+                                        placeholder = { Text("Master PIN (4-6 digits)", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
                                             Icon(Icons.Outlined.Lock, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                                         },
@@ -586,8 +593,8 @@ fun OnboardingStep0WelcomeGateway(
                                         singleLine = true,
                                         textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                         shape = RoundedCornerShape(26.dp),
-                                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
                                             unfocusedContainerColor = CardWhite,
@@ -599,15 +606,18 @@ fun OnboardingStep0WelcomeGateway(
                                     val isPinMatching = confirmPin.isNotEmpty() && confirmPin == masterPin
                                     OutlinedTextField(
                                         value = confirmPin,
-                                        onValueChange = onConfirmPinChange,
-                                        placeholder = { Text("Confirm Master PIN / Password", fontSize = 13.sp, color = TextMuted) },
+                                        onValueChange = { input ->
+                                            val digits = input.filter { it.isDigit() }.take(6)
+                                            onConfirmPinChange(digits)
+                                        },
+                                        placeholder = { Text("Confirm Master PIN", fontSize = 13.sp, color = TextMuted) },
                                         leadingIcon = {
-                                            Icon(Icons.Outlined.Lock, contentDescription = null, tint = if (isPinMatching) AccentPurple else AccentPurple, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Outlined.Lock, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                                         },
                                         trailingIcon = {
                                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp)) {
                                                 if (isPinMatching) {
-                                                    Icon(Icons.Default.CheckCircle, contentDescription = "Matched", tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                                    Icon(Icons.Default.CheckCircle, contentDescription = "Matched", tint = SoftGreen, modifier = Modifier.size(18.dp))
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                 }
                                                 IconButton(onClick = { showConfirmPassword = !showConfirmPassword }) {
@@ -624,12 +634,12 @@ fun OnboardingStep0WelcomeGateway(
                                         singleLine = true,
                                         textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
                                         shape = RoundedCornerShape(26.dp),
-                                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = CardWhite,
                                             unfocusedContainerColor = CardWhite,
-                                            focusedBorderColor = if (isPinMatching) AccentPurple else AccentPurple,
+                                            focusedBorderColor = if (isPinMatching) SoftGreen else AccentPurple,
                                             unfocusedBorderColor = BorderLight.copy(alpha = 0.9f)
                                         )
                                     )
@@ -639,7 +649,7 @@ fun OnboardingStep0WelcomeGateway(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Surface(
-                                            modifier = Modifier.weight(1f).height(50.dp),
+                                            modifier = Modifier.weight(1f).height(52.dp),
                                             shape = RoundedCornerShape(26.dp),
                                             color = CardWhite,
                                             border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
@@ -660,7 +670,7 @@ fun OnboardingStep0WelcomeGateway(
                                         Surface(
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .height(50.dp)
+                                                .height(52.dp)
                                                 .clip(RoundedCornerShape(26.dp))
                                                 .clickable {
                                                     focusManager.clearFocus()
@@ -966,7 +976,7 @@ fun OnboardingStep0WelcomeGateway(
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
                                                         )
-                                                        
+
                                                         Row(
                                                             verticalAlignment = Alignment.CenterVertically,
                                                             modifier = Modifier.fillMaxWidth()
@@ -1181,6 +1191,7 @@ fun OnboardingStep0WelcomeGateway(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceEvenly
                                     ) {
+                                        // Standardized Inflow (SoftGreen)
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1190,7 +1201,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 modifier = Modifier
                                                     .size(6.dp)
                                                     .clip(CircleShape)
-                                                    .background(AccentPurple)
+                                                    .background(SoftGreen)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Column(verticalArrangement = Arrangement.Center) {
@@ -1199,7 +1210,7 @@ fun OnboardingStep0WelcomeGateway(
                                                     text = "${selectedCountry.currencySymbol} ${String.format(Locale.US, "%,.0f", totalIncome)}",
                                                     fontSize = 11.5.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = AccentPurple,
+                                                    color = SoftGreen,
                                                     lineHeight = 13.sp
                                                 )
                                             }
@@ -1207,6 +1218,7 @@ fun OnboardingStep0WelcomeGateway(
 
                                         Box(modifier = Modifier.width(1.dp).height(18.dp).background(BorderLight))
 
+                                        // Standardized Outflow (SoftRed)
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1216,7 +1228,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 modifier = Modifier
                                                     .size(6.dp)
                                                     .clip(CircleShape)
-                                                    .background(Color(0xFFF43F5E))
+                                                    .background(SoftRed)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Column(verticalArrangement = Arrangement.Center) {
@@ -1225,7 +1237,7 @@ fun OnboardingStep0WelcomeGateway(
                                                     text = "${selectedCountry.currencySymbol} ${String.format(Locale.US, "%,.0f", totalExpenses)}",
                                                     fontSize = 11.5.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFFF43F5E),
+                                                    color = SoftRed,
                                                     lineHeight = 13.sp
                                                 )
                                             }
@@ -1233,6 +1245,7 @@ fun OnboardingStep0WelcomeGateway(
 
                                         Box(modifier = Modifier.width(1.dp).height(18.dp).background(BorderLight))
 
+                                        // Standardized Assets (SoftTeal)
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1241,9 +1254,8 @@ fun OnboardingStep0WelcomeGateway(
                                             Box(
                                                 modifier = Modifier
                                                     .size(6.dp)
-                                                    .clip(CircleShape,
-                                                )
-                                                    .background(Color(0xFF0284C7))
+                                                    .clip(CircleShape)
+                                                    .background(SoftTeal)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Column(verticalArrangement = Arrangement.Center) {
@@ -1252,7 +1264,7 @@ fun OnboardingStep0WelcomeGateway(
                                                     text = "${selectedCountry.currencySymbol} ${String.format(Locale.US, "%,.0f", totalAssets)}",
                                                     fontSize = 11.5.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF0284C7),
+                                                    color = SoftTeal,
                                                     lineHeight = 13.sp
                                                 )
                                             }
@@ -1269,15 +1281,15 @@ fun OnboardingStep0WelcomeGateway(
                                     commitments.forEachIndexed { index, item ->
                                         val isSelected = item.isSelected
                                         val typeColor = when (item.type) {
-                                            TransactionType.INCOME -> AccentPurple
-                                            TransactionType.EXPENSE -> Color(0xFFF43F5E)
-                                            TransactionType.ASSET -> Color(0xFF0284C7)
+                                            TransactionType.INCOME -> SoftGreen
+                                            TransactionType.EXPENSE -> SoftRed
+                                            TransactionType.ASSET -> SoftTeal
                                             else -> TextDark
                                         }
                                         val typeBg = when (item.type) {
-                                            TransactionType.INCOME -> AccentPurple.copy(alpha = 0.12f)
-                                            TransactionType.EXPENSE -> Color(0xFFF43F5E).copy(alpha = 0.12f)
-                                            TransactionType.ASSET -> Color(0xFF0284C7).copy(alpha = 0.12f)
+                                            TransactionType.INCOME -> SoftGreen.copy(alpha = 0.12f)
+                                            TransactionType.EXPENSE -> SoftRed.copy(alpha = 0.12f)
+                                            TransactionType.ASSET -> SoftTeal.copy(alpha = 0.12f)
                                             else -> CanvasLight
                                         }
 
@@ -1468,13 +1480,14 @@ fun OnboardingStep0WelcomeGateway(
                                     currentStage = GatewayStage.IDENTITY
                                 }
                                 GatewayStage.IDENTITY -> {
-                                    val day = if (rawDobDigits.length >= 2) rawDobDigits.substring(0, 2).toIntOrNull() ?: 0 else 0
-                                    val month = if (rawDobDigits.length >= 4) rawDobDigits.substring(2, 4).toIntOrNull() ?: 0 else 0
-                                    val year = if (rawDobDigits.length == 8) rawDobDigits.substring(4, 8).toIntOrNull() ?: 0 else 0
+                                    val clean = sanitizeDobDigits(rawDobDigits)
+                                    val day = if (clean.length >= 2) clean.substring(0, 2).toIntOrNull() ?: 0 else 0
+                                    val month = if (clean.length >= 4) clean.substring(2, 4).toIntOrNull() ?: 0 else 0
+                                    val year = if (clean.length == 8) clean.substring(4, 8).toIntOrNull() ?: 0 else 0
 
                                     if (displayName.trim().isEmpty()) {
                                         Toast.makeText(context, "Please enter your username", Toast.LENGTH_SHORT).show()
-                                    } else if (rawDobDigits.length < 8 || !isValidCalendarDate(day, month, year)) {
+                                    } else if (clean.length < 8 || !isValidCalendarDate(day, month, year)) {
                                         Toast.makeText(context, "Enter a valid calendar date (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
                                     } else {
                                         focusManager.clearFocus()
@@ -1484,9 +1497,9 @@ fun OnboardingStep0WelcomeGateway(
                                 }
                                 GatewayStage.SECURITY -> {
                                     if (masterPin.trim().length < 4) {
-                                        Toast.makeText(context, "Password/PIN must be at least 4 characters", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "PIN must be between 4 and 6 numeric digits", Toast.LENGTH_SHORT).show()
                                     } else if (confirmPin != masterPin) {
-                                        Toast.makeText(context, "Passwords do not match. Please re-enter.", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "PINs do not match. Please re-enter.", Toast.LENGTH_SHORT).show()
                                     } else {
                                         focusManager.clearFocus()
                                         keyboardController?.hide()
