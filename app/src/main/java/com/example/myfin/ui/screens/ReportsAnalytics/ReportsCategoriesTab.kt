@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -100,10 +101,7 @@ fun ReportsCategoriesTab(
         max(0.0, totalExpenses - needsSum)
     }
 
-    // =========================================================
-    // CANONICAL UNIFIED METRIC DEFINITIONS (GRAPH & TITLE SYNC)
-    // =========================================================
-
+    // Canonical Unified Metric Definitions
     val corporateFloatInfo = remember(userProfileCurrency, corporateOutlays, corporateReimbursements) {
         ChartMetricInfo(
             title = "Corporate Outlays & Claims",
@@ -190,76 +188,102 @@ fun ReportsCategoriesTab(
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Corporate Float Active Banner
+        // Corporate Float Active Banner (Redesigned with Full-Width Notice Pill)
         if (corporateOutlays > 0.0 || corporateReimbursements > 0.0) {
             val netFloat = corporateOutlays - corporateReimbursements
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .shadow(2.dp, RoundedCornerShape(16.dp))
                     .clickable { onOpenMetricInfo(corporateFloatInfo) },
                 shape = RoundedCornerShape(16.dp),
                 color = CardWhite,
                 border = BorderStroke(0.8.dp, Color(0xFFE57A28).copy(alpha = 0.35f))
             ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(14.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFE57A28).copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.WorkOutline,
-                            contentDescription = null,
-                            tint = Color(0xFFE57A28),
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Corporate Float Active", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = Color(0xFFE57A28).copy(alpha = 0.14f)
-                            ) {
-                                Text(
-                                    text = "Excluded from Burn",
-                                    fontSize = 8.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFE57A28),
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                )
-                            }
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFE57A28).copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.WorkOutline,
+                                contentDescription = null,
+                                tint = Color(0xFFE57A28),
+                                modifier = Modifier.size(19.dp)
+                            )
                         }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (isDiscreet) "••••" else "Outlays: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateOutlays)} | Settled: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateReimbursements)}",
-                            fontSize = 11.sp,
-                            color = TextMuted
-                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Corporate Float Active",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = TextDark
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (isDiscreet) "••••" else "Outlays: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateOutlays)} | Settled: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateReimbursements)}",
+                                fontSize = 11.sp,
+                                color = TextMuted
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = if (isDiscreet) "••••" else "${if (netFloat > 0) "+" else ""}$userProfileCurrency${String.format(Locale.US, "%,.0f", abs(netFloat))}",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 14.sp,
+                                color = if (netFloat <= 0) SoftGreen else Color(0xFFE57A28)
+                            )
+                            Text(
+                                text = if (netFloat > 0) "Claim Due" else if (netFloat < 0) "Advance Held" else "Settled",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (netFloat <= 0) SoftGreen else Color(0xFFE57A28)
+                            )
+                        }
                     }
 
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = if (isDiscreet) "••••" else "${if (netFloat >= 0) "+" else ""}$userProfileCurrency${String.format(Locale.US, "%,.0f", abs(netFloat))}",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 13.5.sp,
-                            color = if (netFloat <= 0) SoftGreen else Color(0xFFE57A28)
-                        )
-                        Text(
-                            text = if (netFloat > 0) "Claim Due" else if (netFloat < 0) "Advance Held" else "Settled",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (netFloat <= 0) SoftGreen else Color(0xFFE57A28)
-                        )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFE57A28).copy(alpha = 0.08f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFE57A28))
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Ring-Fenced: Excluded from personal living burn calculations",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFE57A28),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
