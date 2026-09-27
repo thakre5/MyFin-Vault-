@@ -549,7 +549,7 @@ class BudgetViewModel(
             val completedHistoricalMonthsSpend = allTimeTxs.filter { tx ->
                 tx.type == TransactionType.EXPENSE &&
                 ((tx.year < sysYear) || (tx.year == sysYear && tx.month < sysMonth))
-            }.groupBy { "${tx.year}-${tx.month}" }
+            }.groupBy { "${it.year}-${it.month}" }
              .values
              .map { it.sumOf { tx -> tx.amount } }
              .filter { it > 0.0 }
