@@ -1,0 +1,42 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+
+    <!-- Outer Shield Outline -->
+    <path
+        android:name="shield"
+        android:pathData="M 32,7.68
+                          L 55.04,14.08
+                          C 55.04,34.56 46.08,49.92 32,57.6
+                          C 17.92,49.92 8.96,34.56 8.96,14.08
+                          Z"
+        android:strokeColor="#6C5CE7"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Growth Trendline -->
+    <path
+        android:name="trendline"
+        android:pathData="M 16.64,37.12
+                          L 27.52,26.88
+                          L 33.92,33.28
+                          L 46.08,21.12"
+        android:strokeColor="#6C5CE7"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Arrowhead Wings -->
+    <path
+        android:name="arrowhead"
+        android:pathData="M 37.12,20.48
+                          L 46.72,20.48
+                          L 46.72,30.08"
+        android:strokeColor="#6C5CE7"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>
