@@ -72,15 +72,12 @@ fun ReportsCategoriesTab(
         val prevM = now.get(Calendar.MONTH) + 1
         val prevY = now.get(Calendar.YEAR)
 
-        val txCal = Calendar.getInstance()
         val curMap = allTransactions.filter {
-            txCal.timeInMillis = it.date
-            (txCal.get(Calendar.MONTH) + 1) == curM && txCal.get(Calendar.YEAR) == curY && isPersonalExpense(it)
+            it.month == curM && it.year == curY && isPersonalExpense(it)
         }.groupBy { it.category }.mapValues { it.value.sumOf { tx -> tx.amount } }
 
         val prevMap = allTransactions.filter {
-            txCal.timeInMillis = it.date
-            (txCal.get(Calendar.MONTH) + 1) == prevM && txCal.get(Calendar.YEAR) == prevY && isPersonalExpense(it)
+            it.month == prevM && it.year == prevY && isPersonalExpense(it)
         }.groupBy { it.category }.mapValues { it.value.sumOf { tx -> tx.amount } }
 
         curMap.mapNotNull { (cat, curAmt) ->
@@ -103,6 +100,87 @@ fun ReportsCategoriesTab(
         max(0.0, totalExpenses - needsSum)
     }
 
+    // =========================================================
+    // CANONICAL UNIFIED METRIC DEFINITIONS (GRAPH & TITLE SYNC)
+    // =========================================================
+
+    val corporateFloatInfo = remember(userProfileCurrency, corporateOutlays, corporateReimbursements) {
+        ChartMetricInfo(
+            title = "Corporate Outlays & Claims",
+            subtitle = "Business Travel & Advance Ring-Fence",
+            formula = "Net Float = Business Outlays Paid - Reimbursements Received",
+            breakdown = "Total Business Outlays: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateOutlays)}\nSettled Company Claims: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateReimbursements)}",
+            visualElements = listOf(
+                "Claim Due" to "Money you paid out-of-pocket that the company owes back to your personal vault.",
+                "Advance Held" to "Company capital held in your accounts, strictly ring-fenced from your living burn."
+            ),
+            advice = "Corporate expenses are ring-fenced from personal living burn so business travel never distorts your true living budget."
+        )
+    }
+
+    val spendingMatrixRadarInfo = remember(userProfileCurrency, categoryExpenses, selectedTimeRange) {
+        val topList = categoryExpenses.take(3).joinToString { "${it.first} ($userProfileCurrency${String.format(Locale.US, "%,.0f", it.second)})" }
+        ChartMetricInfo(
+            title = "Spending Matrix Radar",
+            subtitle = "Multi-Axis Category Allocation (${selectedTimeRange.label})",
+            formula = "Spoke Length = (Category Spend / Max Category Spend) * Max Radius",
+            breakdown = "Evaluates personal expense density across your top categories in ${selectedTimeRange.label}.\nTop categories: ${topList.ifBlank { "None" }}",
+            visualElements = listOf(
+                "Radial Vertices" to "Protruding spikes represent categories absorbing the largest share of capital.",
+                "Concentric Hexagons" to "Reference thresholds at 33%, 66%, and 100% of maximum category burn.",
+                "Polygon Web" to "Your realized lifestyle expenditure footprint."
+            ),
+            advice = "A balanced hexagonal web prevents unmanaged spikes in any single category."
+        )
+    }
+
+    val cashflowStreamSplitInfo = remember(userProfileCurrency, needsSum, wantsSum, totalAssets) {
+        val grandTotal = (needsSum + wantsSum + totalAssets).coerceAtLeast(1.0)
+        val needsPct = ((needsSum / grandTotal) * 100).toInt()
+        val wantsPct = ((wantsSum / grandTotal) * 100).toInt()
+        val assetPct = ((totalAssets / grandTotal) * 100).toInt()
+
+        ChartMetricInfo(
+            title = "50 / 30 / 20 Cashflow Stream Split",
+            subtitle = "Macro Budget Health & Funnel Proportions",
+            formula = "Needs (50%) + Wants (30%) + SIP Wealth (20%)",
+            breakdown = "Needs: $userProfileCurrency${String.format(Locale.US, "%,.0f", needsSum)} ($needsPct%)\nWants: $userProfileCurrency${String.format(Locale.US, "%,.0f", wantsSum)} ($wantsPct%)\nAssets / SIPs: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalAssets)} ($assetPct%)",
+            visualElements = listOf(
+                "Red Top Band" to "Needs (Contractual rent, bills, groceries, non-negotiable living).",
+                "Purple Middle Band" to "Wants (Dining, leisure, discretionary shopping).",
+                "Teal Lower Band" to "Wealth SIPs (Compounding investment assets and mutual funds)."
+            ),
+            advice = "Aim to contain essential survival costs within 50% to maximize monthly wealth compounding."
+        )
+    }
+
+    val budgetConsumptionInfo = remember(userProfileCurrency, totalExpenses, categoryExpenses.size, selectedTimeRange) {
+        ChartMetricInfo(
+            title = "Budget Consumption",
+            subtitle = "Category Share of Outflow (${selectedTimeRange.label})",
+            formula = "Category Share % = (Category Spend / Total Expenses) * 100",
+            breakdown = "Total Outflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalExpenses)} across ${categoryExpenses.size} categories in ${selectedTimeRange.label}.",
+            visualElements = listOf(
+                "Horizontal Gradient Bars" to "Visual proportion of budget absorbed by each category."
+            ),
+            advice = "Focus optimization on your top 2 categories to produce the highest capital retention impact."
+        )
+    }
+
+    val categoryRosterInfo = remember(userProfileCurrency, totalExpenses, categoryExpenses.size, selectedTimeRange) {
+        ChartMetricInfo(
+            title = "Itemized Category Roster",
+            subtitle = "Detailed Spend & Transaction History",
+            formula = "Category Total = Sum of all transactions in category",
+            breakdown = "Tracking ${categoryExpenses.size} active categories totaling $userProfileCurrency${String.format(Locale.US, "%,.0f", totalExpenses)} in ${selectedTimeRange.label}.",
+            visualElements = listOf(
+                "Mini Sparkline" to "Visual trajectory of transaction sizes within this category.",
+                "Outflow Share" to "Percentage contribution to overall expenses."
+            ),
+            advice = "Watch out for frequent small-ticket transactions that quietly accumulate over time."
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -118,21 +196,7 @@ fun ReportsCategoriesTab(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
-                        onOpenMetricInfo(
-                            ChartMetricInfo(
-                                title = "Corporate Outlays & Claims",
-                                subtitle = "Business Travel Float Reconciler",
-                                formula = "Net_Float = Work_Expenses_Paid - Claims_Received",
-                                breakdown = "Total Outlays: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateOutlays)} | Company Refunds: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateReimbursements)}.",
-                                visualElements = listOf(
-                                    "Pending Claim" to "Money you paid out-of-pocket that the company owes back to you.",
-                                    "Advance Held" to "Company capital sitting in your accounts, strictly ring-fenced from your living burn."
-                                ),
-                                advice = "Corporate expenses are ring-fenced from personal living costs so business travel never distorts your true burn rate."
-                            )
-                        )
-                    },
+                    .clickable { onOpenMetricInfo(corporateFloatInfo) },
                 shape = RoundedCornerShape(16.dp),
                 color = CardWhite,
                 border = BorderStroke(0.8.dp, Color(0xFFE57A28).copy(alpha = 0.35f))
@@ -206,21 +270,7 @@ fun ReportsCategoriesTab(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {
-                    onOpenMetricInfo(
-                        ChartMetricInfo(
-                            title = "Spending Matrix Radar",
-                            subtitle = "Multi-Axis Category Allocation",
-                            formula = "Axis_Ratio = (Category_Total / Max_Category_Sum) * 100",
-                            breakdown = "Evaluates personal expense density across your top 6 categories in $selectedTimeRange.",
-                            visualElements = listOf(
-                                "Radial Crests" to "Protruding spikes represent categories absorbing the largest share of capital.",
-                                "Concentric Rings" to "Reference thresholds at 33%, 66%, and 100% of maximum spend."
-                            ),
-                            advice = "A balanced hexagonal shape prevents unmanaged spikes in any single category."
-                        )
-                    )
-                },
+                .clickable { onOpenMetricInfo(spendingMatrixRadarInfo) },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -249,26 +299,63 @@ fun ReportsCategoriesTab(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(210.dp)
-                .clickable {
-                    onOpenMetricInfo(
-                        ChartMetricInfo(
-                            title = "Spending Matrix Radar",
-                            subtitle = "Multi-Axis Category Allocation",
-                            formula = "Radius = (Cat_Spend / Max_Spend) * Max_Radius",
-                            breakdown = "Top categories: ${categoryExpenses.take(3).joinToString { "${it.first} ($userProfileCurrency${it.second.toInt()})" }}",
-                            visualElements = listOf(
-                                "Labeled Vertices" to "Top spending lifestyle categories.",
-                                "Violet Web" to "Your realized expenditure footprint."
-                            ),
-                            advice = "An elongated spike on a single spoke indicates disproportionate outflow."
-                        )
-                    )
-                },
+                .clickable { onOpenMetricInfo(spendingMatrixRadarInfo) },
             contentAlignment = Alignment.Center
         ) {
-            CategoryRadarWebCanvas(
-                categoryExpenses = categoryExpenses.take(6)
-            )
+            if (categoryExpenses.isEmpty()) {
+                Text("No categorized expenses in this cycle", fontSize = 12.sp, color = TextMuted)
+            } else {
+                CategoryRadarWebCanvas(
+                    categoryExpenses = categoryExpenses.take(6)
+                )
+            }
+        }
+
+        // Compact category legend below radar
+        if (categoryExpenses.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                categoryExpenses.take(6).chunked(2).forEach { rowPair ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowPair.forEach { (cat, amt) ->
+                            val catRatio = if (totalExpenses > 0) ((amt / totalExpenses) * 100).toInt() else 0
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(CanvasLight)
+                                    .clickable { onOpenMetricInfo(spendingMatrixRadarInfo) }
+                                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextDark,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "$catRatio%",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AccentPurple
+                                )
+                            }
+                        }
+                        if (rowPair.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(26.dp))
@@ -277,22 +364,7 @@ fun ReportsCategoriesTab(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {
-                    onOpenMetricInfo(
-                        ChartMetricInfo(
-                            title = "50 / 30 / 20 Cashflow Split",
-                            subtitle = "Macro Budget Health Model",
-                            formula = "Needs (50%) + Wants (30%) + SIP Wealth (20%)",
-                            breakdown = "Needs: $userProfileCurrency${String.format(Locale.US, "%,.0f", needsSum)} | Wants: $userProfileCurrency${String.format(Locale.US, "%,.0f", wantsSum)} | Assets: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalAssets)}.",
-                            visualElements = listOf(
-                                "Red Band" to "Needs (Contractual rent, bills, groceries).",
-                                "Violet Band" to "Wants (Dining, leisure, discretionary shopping).",
-                                "Teal Band" to "Wealth SIPs (Mutual funds, gold, compounding assets)."
-                            ),
-                            advice = "Aim to contain essential survival costs within 50% to maximize monthly wealth compounding."
-                        )
-                    )
-                },
+                .clickable { onOpenMetricInfo(cashflowStreamSplitInfo) },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -323,44 +395,29 @@ fun ReportsCategoriesTab(
             assetAmount = totalAssets,
             currency = userProfileCurrency,
             isDiscreet = isDiscreet,
-            onOpenInfo = {
-                onOpenMetricInfo(
-                    ChartMetricInfo(
-                        title = "50 / 30 / 20 Ribbon Funnel",
-                        subtitle = "Relative Proportion Distribution",
-                        formula = "Total = Needs + Wants + Assets",
-                        breakdown = "Needs: $userProfileCurrency${String.format(Locale.US, "%,.0f", needsSum)} | Wants: $userProfileCurrency${String.format(Locale.US, "%,.0f", wantsSum)} | Assets: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalAssets)}",
-                        visualElements = listOf(
-                            "Red Top Band" to "Essential survival commitments.",
-                            "Purple Middle Band" to "Variable discretionary living.",
-                            "Teal Lower Band" to "Compounding investment assets."
-                        ),
-                        advice = "Keep essential needs at or below 50% to ensure enough cash is available for investing."
-                    )
-                )
-            }
+            onOpenInfo = { onOpenMetricInfo(cashflowStreamSplitInfo) }
         )
 
         if (categorySurges.isNotEmpty()) {
             Spacer(modifier = Modifier.height(24.dp))
+            val topSurge = categorySurges.first()
+            val surgeMetricInfo = remember(topSurge) {
+                ChartMetricInfo(
+                    title = "Velocity Surge Analysis",
+                    subtitle = "Month-over-Month Category Inflation",
+                    formula = "Surge % = ((This Month - Last Month) / Last Month) * 100",
+                    breakdown = "${topSurge.first} spiked by +${topSurge.second}% compared to the prior calendar month.",
+                    visualElements = listOf(
+                        "Amber Badge" to "Alerts when any category grows by more than 15% in a single cycle."
+                    ),
+                    advice = "Audit subcategories under ${topSurge.first} to check for one-time spikes versus recurring subscription price hikes."
+                )
+            }
+
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
-                        val top = categorySurges.first()
-                        onOpenMetricInfo(
-                            ChartMetricInfo(
-                                title = "Velocity Surge Analysis",
-                                subtitle = "Month-over-Month Category Inflation",
-                                formula = "Surge % = ((This_Month - Last_Month) / Last_Month) * 100",
-                                breakdown = "${top.first} spiked by +${top.second}% compared to the prior calendar month.",
-                                visualElements = listOf(
-                                    "Amber Badge" to "Alerts when any category grows by more than 15% in a single cycle."
-                                ),
-                                advice = "Audit subcategories under ${top.first} to check for one-time spikes versus recurring subscription price hikes."
-                            )
-                        )
-                    },
+                    .clickable { onOpenMetricInfo(surgeMetricInfo) },
                 shape = RoundedCornerShape(14.dp),
                 color = SoftAmber.copy(alpha = 0.12f),
                 border = BorderStroke(0.7.dp, SoftAmber.copy(alpha = 0.35f))
@@ -370,8 +427,7 @@ fun ReportsCategoriesTab(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text("Month-over-Month Velocity Surge", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
-                        val top = categorySurges.first()
-                        Text("${top.first} increased by +${top.second}% vs last cycle", fontSize = 11.sp, color = TextMuted)
+                        Text("${topSurge.first} increased by +${topSurge.second}% vs last cycle", fontSize = 11.sp, color = TextMuted)
                     }
                 }
             }
@@ -379,12 +435,25 @@ fun ReportsCategoriesTab(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        Text(
-            text = "Budget Consumption",
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            color = TextDark
-        )
+        // Budget Consumption Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenMetricInfo(budgetConsumptionInfo) },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Budget Consumption",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = TextDark
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+            }
+        }
         Spacer(modifier = Modifier.height(12.dp))
 
         if (categoryExpenses.isEmpty()) {
@@ -407,8 +476,8 @@ fun ReportsCategoriesTab(
                                 ChartMetricInfo(
                                     title = "$cat Consumption",
                                     subtitle = "Share of Total Outflow",
-                                    formula = "Share % = (Category_Total / Total_Expenses) * 100",
-                                    breakdown = "Realized spend of $userProfileCurrency${String.format(Locale.US, "%,.0f", amount)}, absorbing ${(ratio * 100).toInt()}% of total expenses in $selectedTimeRange.",
+                                    formula = "Share % = (Category Spend / Total Expenses) * 100",
+                                    breakdown = "Realized spend of $userProfileCurrency${String.format(Locale.US, "%,.0f", amount)}, absorbing ${(ratio * 100).toInt()}% of total expenses in ${selectedTimeRange.label}.",
                                     advice = "Target reducing variable expenses in your top 2 categories to free up cash for emergency reserves."
                                 )
                             )
@@ -457,12 +526,25 @@ fun ReportsCategoriesTab(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        Text(
-            text = "Itemized Category Roster",
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            color = TextDark
-        )
+        // Itemized Category Roster Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenMetricInfo(categoryRosterInfo) },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Itemized Category Roster",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = TextDark
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+            }
+        }
         Spacer(modifier = Modifier.height(10.dp))
 
         categoryExpenses.forEach { (cat, amount) ->
@@ -478,7 +560,7 @@ fun ReportsCategoriesTab(
                                 title = "$cat Audit",
                                 subtitle = "Category Breakdown & Sparkline",
                                 formula = "Total = Σ Transactions($cat)",
-                                breakdown = "Total spent: $userProfileCurrency${String.format(Locale.US, "%,.0f", amount)} across ${catTxs.size} transactions in $selectedTimeRange.",
+                                breakdown = "Total spent: $userProfileCurrency${String.format(Locale.US, "%,.0f", amount)} across ${catTxs.size} transactions in ${selectedTimeRange.label}.",
                                 visualElements = listOf(
                                     "Mini Sparkline" to "Visual trajectory of transaction sizes within this category."
                                 ),
@@ -570,6 +652,8 @@ private fun CategoryRadarWebCanvas(
 
         val maxAmount = categoryExpenses.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0
         val polyPath = Path()
+        val vertexPoints = mutableListOf<Offset>()
+
         for (i in 0 until numAxes) {
             val amt = categoryExpenses.getOrNull(i)?.second ?: 0.0
             val ratio = if (categoryExpenses.isNotEmpty()) (amt / maxAmount).toFloat().coerceIn(0.15f, 0.95f) else 0.2f
@@ -577,12 +661,19 @@ private fun CategoryRadarWebCanvas(
             val angle = (i * 2 * Math.PI / numAxes) - Math.PI / 2
             val x = c.x + (r * cos(angle)).toFloat()
             val y = c.y + (r * sin(angle)).toFloat()
+            val pt = Offset(x, y)
+            vertexPoints.add(pt)
             if (i == 0) polyPath.moveTo(x, y) else polyPath.lineTo(x, y)
         }
         polyPath.close()
 
         drawPath(polyPath, color = AccentPurple.copy(alpha = 0.22f))
         drawPath(polyPath, color = AccentPurple, style = Stroke(width = 2.dp.toPx()))
+
+        for (pt in vertexPoints) {
+            drawCircle(color = Color.White, radius = 4.dp.toPx(), center = pt)
+            drawCircle(color = AccentPurple, radius = 2.5.dp.toPx(), center = pt)
+        }
     }
 }
 
