@@ -545,24 +545,27 @@ class BudgetViewModel(
                 }
             }
 
+            // UNIFIED BASELINE MONTHLY BURN (OPTION A: Actual Living Expenses)
+            val completedHistoricalMonthsSpend = allTimeTxs.filter { tx ->
+                tx.type == TransactionType.EXPENSE &&
+                ((tx.year < sysYear) || (tx.year == sysYear && tx.month < sysMonth))
+            }.groupBy { "${tx.year}-${tx.month}" }
+             .values
+             .map { it.sumOf { tx -> tx.amount } }
+             .filter { it > 0.0 }
+
             val historicalMonthsSpend = allTimeTxs.filter { it.type == TransactionType.EXPENSE }
                 .groupBy { "${it.year}-${it.month}" }
                 .values
                 .map { it.sumOf { tx -> tx.amount } }
                 .filter { it > 0.0 }
 
-            val historicalAvgSpend = if (historicalMonthsSpend.isNotEmpty()) {
-                historicalMonthsSpend.average()
-            } else {
-                if (plannedExpenses > 0.0) plannedExpenses else profile.baseMonthlyIncome.coerceAtLeast(0.0)
-            }
-
-            val livingBufferTarget = if (plannedExpenses > 0.0) {
-                plannedExpenses
-            } else if (historicalAvgSpend > 0.0) {
-                historicalAvgSpend
-            } else {
-                profile.baseMonthlyIncome.coerceAtLeast(0.0)
+            val livingBufferTarget = when {
+                completedHistoricalMonthsSpend.isNotEmpty() -> completedHistoricalMonthsSpend.average()
+                historicalMonthsSpend.isNotEmpty() -> historicalMonthsSpend.average()
+                plannedExpenses > 0.0 -> plannedExpenses
+                profile.baseMonthlyIncome > 0.0 -> profile.baseMonthlyIncome
+                else -> fixedExpenseTotal.coerceAtLeast(1000.0)
             }
 
             val dailyBurnVelocity = livingBufferTarget / 30.0
@@ -1123,8 +1126,13 @@ class BudgetViewModel(
         } else {
             val curActual = monthly.metrics.lifestyleExpenses
             val planned = monthly.metrics.plannedExpenses
-            val fixed = monthly.metrics.fixedCommitmentsTotal
-            max(curActual, max(planned, fixed))
+            val fixedLiving = monthly.categories.filter { it.type == TransactionType.EXPENSE }.sumOf { it.plannedAmount }
+            when {
+                curActual > 0.0 -> curActual
+                planned > 0.0 -> planned
+                fixedLiving > 0.0 -> fixedLiving
+                else -> 0.0
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
