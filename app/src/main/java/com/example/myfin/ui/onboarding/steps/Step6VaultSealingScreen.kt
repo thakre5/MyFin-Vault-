@@ -36,7 +36,7 @@ import androidx.compose.ui.zIndex
 import coil.compose.SubcomposeAsyncImage
 import com.example.myfin.ui.components.MyFinBrandHeader
 import com.example.myfin.ui.onboarding.CountryCurrencyMapping
-import com.example.myfin.ui.onboarding.components.SolnexTiltedCardsHero
+import com.example.myfin.ui.onboarding.components.MyFinTiltedCardsHero
 import com.example.myfin.ui.theme.*
 import java.io.File
 import java.util.Locale
@@ -66,6 +66,13 @@ fun OnboardingStep6VaultSealing(
         ),
         label = "pulseAlpha"
     )
+
+    val formattedLiquidity = remember(totalLiquidity) {
+        String.format(Locale.US, "%,.2f", totalLiquidity)
+    }
+    val formattedCommitments = remember(totalCommitments) {
+        String.format(Locale.US, "%,.2f", totalCommitments)
+    }
 
     Box(
         modifier = Modifier
@@ -97,14 +104,19 @@ fun OnboardingStep6VaultSealing(
             ) {
                 Spacer(modifier = Modifier.height(48.dp))
 
+                // Hero Cards with User's Real Balances
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(95.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    SolnexTiltedCardsHero(
+                    MyFinTiltedCardsHero(
                         currencySymbol = country.currencySymbol,
+                        primaryCardLabel = "Total Net Balance",
+                        primaryBalance = formattedLiquidity,
+                        secondaryCardLabel = if (strategy == "3-VAULT") "Monthly AutoPay" else "Monthly Outflow",
+                        secondaryBalance = formattedCommitments,
                         modifier = Modifier.graphicsLayer {
                             scaleX = 0.54f
                             scaleY = 0.54f
@@ -138,6 +150,7 @@ fun OnboardingStep6VaultSealing(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    // Auto-Sealing Countdown Progress Bar
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -198,10 +211,12 @@ fun OnboardingStep6VaultSealing(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    // Configuration Summary Cards
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // 1. User & Currency Setup
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -223,17 +238,17 @@ fun OnboardingStep6VaultSealing(
                                         .weight(1f)
                                         .padding(end = 8.dp)
                                 ) {
+                                    val imageModel = remember(profileImageUri) {
+                                        if (!profileImageUri.isNullOrBlank()) {
+                                            File(profileImageUri).takeIf { it.exists() } ?: profileImageUri
+                                        } else null
+                                    }
+
                                     Surface(
                                         modifier = Modifier.size(32.dp),
                                         shape = CircleShape,
-                                        color = CanvasLight
+                                        color = AccentPurple
                                     ) {
-                                        val imageModel = remember(profileImageUri) {
-                                            if (!profileImageUri.isNullOrBlank()) {
-                                                File(profileImageUri).takeIf { it.exists() } ?: profileImageUri
-                                            } else null
-                                        }
-
                                         Box(contentAlignment = Alignment.Center) {
                                             if (imageModel != null) {
                                                 SubcomposeAsyncImage(
@@ -242,20 +257,21 @@ fun OnboardingStep6VaultSealing(
                                                     modifier = Modifier.fillMaxSize(),
                                                     contentScale = ContentScale.Crop,
                                                     error = {
-                                                        Icon(
-                                                            imageVector = Icons.Outlined.Person,
-                                                            contentDescription = null,
-                                                            tint = AccentPurple,
-                                                            modifier = Modifier.size(16.dp)
+                                                        Text(
+                                                            text = displayName.take(1).uppercase().ifBlank { "V" },
+                                                            fontWeight = FontWeight.Black,
+                                                            fontSize = 14.sp,
+                                                            color = Color.White
                                                         )
                                                     }
                                                 )
                                             } else {
-                                                Icon(
-                                                    imageVector = Icons.Outlined.Person,
-                                                    contentDescription = null,
-                                                    tint = AccentPurple,
-                                                    modifier = Modifier.size(16.dp)
+                                                // Design System Monogram Initial Fallback
+                                                Text(
+                                                    text = displayName.take(1).uppercase().ifBlank { "V" },
+                                                    fontWeight = FontWeight.Black,
+                                                    fontSize = 14.sp,
+                                                    color = Color.White
                                                 )
                                             }
                                         }
@@ -310,6 +326,7 @@ fun OnboardingStep6VaultSealing(
                             }
                         }
 
+                        // 2. Vault Architecture Setup
                         val is3Tier = strategy == "3-VAULT"
                         Surface(
                             modifier = Modifier
@@ -384,7 +401,7 @@ fun OnboardingStep6VaultSealing(
                                         Icon(
                                             imageVector = Icons.Default.CheckCircle,
                                             contentDescription = "Active",
-                                            tint = AccentPurple,
+                                            tint = SoftGreen,
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
@@ -400,6 +417,7 @@ fun OnboardingStep6VaultSealing(
                             }
                         }
 
+                        // 3. Opening Liquidity & Scheduled Commitments
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -444,7 +462,7 @@ fun OnboardingStep6VaultSealing(
                                             color = TextDark
                                         )
                                         Text(
-                                            text = String.format(Locale.US, "%s %,.0f Initial", country.currencySymbol, totalLiquidity),
+                                            text = "${country.currencySymbol} $formattedLiquidity Initial",
                                             fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = AccentPurple,
@@ -476,7 +494,7 @@ fun OnboardingStep6VaultSealing(
                                             lineHeight = 9.sp
                                         )
                                         Text(
-                                            text = String.format(Locale.US, "%s %,.0f", country.currencySymbol, totalCommitments),
+                                            text = "${country.currencySymbol} $formattedCommitments",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = AccentPurple,
@@ -504,7 +522,7 @@ fun OnboardingStep6VaultSealing(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Note: Air-gapped active. Zero network calls or cloud telemetry leaves this device.",
+                            text = "Air-gapped security active. Zero network calls or cloud telemetry leave this device.",
                             fontSize = 10.sp,
                             color = TextMuted,
                             lineHeight = 13.sp
@@ -542,6 +560,7 @@ fun OnboardingStep6VaultSealing(
             }
         }
 
+        // Pinned Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
