@@ -50,6 +50,73 @@ fun ReportsWealthTab(
     }
     val is3Vault = !vaultMode.equals("SIMPLE", ignoreCase = true)
 
+    val bankAmount = remember(accounts) {
+        accounts.filter { !it.accountType.equals("Cash", true) }.sumOf { it.currentBalance }
+    }
+    val cashAmount = remember(accounts) {
+        accounts.filter { it.accountType.equals("Cash", true) }.sumOf { it.currentBalance }
+    }
+
+    // =========================================================
+    // CANONICAL UNIFIED METRIC DEFINITIONS (GRAPH & TITLE SYNC)
+    // =========================================================
+
+    val netCapitalTrajectoryInfo = remember(userProfileCurrency, totalLiquid, totalInvestments, realizableNetWorth) {
+        ChartMetricInfo(
+            title = "Net Capital Trajectory & Silhouette",
+            subtitle = "Liquid Reserves vs. Compounding Wealth Assets",
+            formula = "Realizable Net Worth = Liquid Reserves + Active Investments + Receivables",
+            breakdown = "Liquid Vaults: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)}\nInvested Portfolio: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)}\nRealizable Net Worth: $userProfileCurrency${String.format(Locale.US, "%,.0f", realizableNetWorth)}",
+            visualElements = listOf(
+                "Violet Silhouette Layer" to "Liquid defensive buffer held across bank and cash accounts.",
+                "Teal Silhouette Layer" to "Compounding market portfolio stock (Mutual funds, gold, SIPs)."
+            ),
+            advice = "Visualizes your liquid defensive buffer alongside appreciating capital. Aim to grow the teal compounding layer faster than the liquid baseline."
+        )
+    }
+
+    val capitalDistributionInfo = remember(userProfileCurrency, bankAmount, cashAmount, totalInvestments) {
+        ChartMetricInfo(
+            title = "Capital Allocation Bubbles",
+            subtitle = "Three-Tier Wealth Balance Distribution",
+            formula = "Total Capital = Bank Reserves + Cash Buffer + Invested Assets",
+            breakdown = "Bank Reserves: $userProfileCurrency${String.format(Locale.US, "%,.0f", bankAmount)}\nCash Buffer: $userProfileCurrency${String.format(Locale.US, "%,.0f", cashAmount)}\nInvested Portfolio: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)}",
+            visualElements = listOf(
+                "Purple Bubble" to "Bank balances held in operating and commitments accounts.",
+                "Teal Bubble" to "Long-term investment assets, mutual funds, and wealth accounts.",
+                "Green Bubble" to "Physical cash and petty expense buffers."
+            ),
+            advice = "Maintain small, focused cash reserves while routing excess bank liquidity into compounding investments."
+        )
+    }
+
+    val emergencyRunwayInfo = remember(userProfileCurrency, totalLiquid, monthlyBurnRate, runwayMonths) {
+        ChartMetricInfo(
+            title = "Emergency Buffer Runway",
+            subtitle = "Financial Survival Duration at Baseline Burn",
+            formula = "Runway Months = Liquid Vaults ÷ Average Monthly Burn",
+            breakdown = "Liquid Reserves: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)}\nMonthly Burn Rate: $userProfileCurrency${String.format(Locale.US, "%,.0f", monthlyBurnRate)}/mo\nRunway Buffer: ${String.format(Locale.US, "%.1f", runwayMonths)} Months",
+            visualElements = listOf(
+                "Runway Counter" to "Months your liquid reserves can fund full living expenses without any new income."
+            ),
+            advice = "Maintaining at least a 6-month buffer covers unexpected career or business interruptions without forcing distress asset liquidations."
+        )
+    }
+
+    val vaultsStatusInfo = remember(accounts.size, is3Vault) {
+        ChartMetricInfo(
+            title = if (is3Vault) "Strategic Vault Architecture" else "Vaults Liquidity Status",
+            subtitle = if (is3Vault) "Operating, Commitments & Fortress Tiers" else "Universal Account Balances",
+            formula = "Spendable Surplus = Current Balance - MAB Buffer",
+            breakdown = "Monitoring ${accounts.size} active accounts across all liquidity tiers.",
+            visualElements = listOf(
+                "Tier Badge" to "Indicates whether the account funds daily living, bills, or emergency reserves.",
+                "MAB Buffer" to "Minimum required account balance protected against overdraft charges."
+            ),
+            advice = "Keep minimum balance floors protected and sweep uncommitted surpluses to your Fortress tier."
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -59,24 +126,11 @@ fun ReportsWealthTab(
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
+        // 1. Net Capital Trajectory Header & Area Chart
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {
-                    onOpenMetricInfo(
-                        ChartMetricInfo(
-                            title = "Net Capital Trajectory",
-                            subtitle = "Liquid Reserves vs. Wealth Assets",
-                            formula = "Realizable_Net_Worth = Liquid_Reserves + Active_Investments + Receivables",
-                            breakdown = "Liquid Vaults: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)} | Invested Portfolio: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)} | Realizable Net Worth: $userProfileCurrency${String.format(Locale.US, "%,.0f", realizableNetWorth)}.",
-                            visualElements = listOf(
-                                "Violet Layer" to "Liquid capital held in banks and cash accounts.",
-                                "Teal Layer" to "Compounding market portfolio stock (Mutual funds, gold, SIPs)."
-                            ),
-                            advice = "Visualizes your liquid defensive buffer alongside appreciating capital."
-                        )
-                    )
-                },
+                .clickable { onOpenMetricInfo(netCapitalTrajectoryInfo) },
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -134,35 +188,31 @@ fun ReportsWealthTab(
             assetTotal = totalInvestments,
             currencySymbol = userProfileCurrency,
             isDiscreet = isDiscreet,
-            onOpenInfo = {
-                onOpenMetricInfo(
-                    ChartMetricInfo(
-                        title = "Net Capital Silhouette",
-                        subtitle = "Liquid vs Compounding Balance Sheet",
-                        formula = "Net_Worth = Liquid_Cash + Total_Investments",
-                        breakdown = "Liquid: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)} | Invested: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)}",
-                        visualElements = listOf(
-                            "Violet Silhouette" to "Liquid bank and cash reserves.",
-                            "Teal Silhouette" to "Long-term compounding investments."
-                        ),
-                        advice = "Aim to grow the teal investment silhouette faster than the liquid baseline."
-                    )
-                )
-            }
+            onOpenInfo = { onOpenMetricInfo(netCapitalTrajectoryInfo) }
         )
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        Text(
-            text = "Capital Distribution",
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            color = TextDark
-        )
+        // 2. Capital Distribution Header & Bubbles
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenMetricInfo(capitalDistributionInfo) },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Capital Distribution",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = TextDark
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+            }
+        }
         Spacer(modifier = Modifier.height(14.dp))
-
-        val bankAmount = accounts.filter { !it.accountType.equals("Cash", true) }.sumOf { it.currentBalance }
-        val cashAmount = accounts.filter { it.accountType.equals("Cash", true) }.sumOf { it.currentBalance }
 
         ThreeBubbleAllocationCanvas(
             bankAmount = bankAmount,
@@ -170,63 +220,38 @@ fun ReportsWealthTab(
             assetAmount = totalInvestments,
             currency = userProfileCurrency,
             isDiscreet = isDiscreet,
-            onOpenInfo = {
-                onOpenMetricInfo(
-                    ChartMetricInfo(
-                        title = "Capital Allocation Bubbles",
-                        subtitle = "Three-Tier Wealth Balance",
-                        formula = "Total = Bank_Reserves + Cash_Buffer + Invested_Assets",
-                        breakdown = "Banks: $userProfileCurrency${String.format(Locale.US, "%,.0f", bankAmount)} | Cash: $userProfileCurrency${String.format(Locale.US, "%,.0f", cashAmount)} | Portfolio: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)}.",
-                        visualElements = listOf(
-                            "Purple Bubble" to "Bank balances held in primary and commitments accounts.",
-                            "Teal Bubble" to "Long-term investment assets and mutual funds.",
-                            "Green Bubble" to "Physical cash and petty expense buffers."
-                        ),
-                        advice = "Maintain small, focused cash reserves while routing excess bank liquidity to the portfolio bubble."
-                    )
-                )
-            }
+            onOpenInfo = { onOpenMetricInfo(capitalDistributionInfo) }
         )
 
         Spacer(modifier = Modifier.height(28.dp))
 
+        // 3. Emergency Buffer Runway Header & Metric
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {
-                    onOpenMetricInfo(
-                        ChartMetricInfo(
-                            title = "Emergency Buffer Runway",
-                            subtitle = "Financial Survival Duration",
-                            formula = "Runway_Months = Liquid_Vaults / max(1.0, Average_Monthly_Spend)",
-                            breakdown = "Liquid Reserves: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)} | Monthly Burn: $userProfileCurrency${String.format(Locale.US, "%,.0f", monthlyBurnRate)}/mo.",
-                            visualElements = listOf(
-                                "Runway Counter" to "Months your liquid reserves can fund full living expenses without any new income."
-                            ),
-                            advice = "Maintaining a 6-month buffer covers unexpected emergencies without forcing investment liquidations."
-                        )
-                    )
-                },
+                .clickable { onOpenMetricInfo(emergencyRunwayInfo) },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Emergency Buffer Runway",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = TextDark
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Emergency Buffer Runway",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = TextDark
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
             }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .clickable { onOpenMetricInfo(emergencyRunwayInfo) }
+                .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -256,12 +281,25 @@ fun ReportsWealthTab(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        Text(
-            text = if (is3Vault) "Strategic Vaults Status" else "Vaults Liquidity Status",
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            color = TextDark
-        )
+        // 4. Strategic Vaults Status Header & Itemized List
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenMetricInfo(vaultsStatusInfo) },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (is3Vault) "Strategic Vaults Status" else "Vaults Liquidity Status",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = TextDark
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+            }
+        }
         Spacer(modifier = Modifier.height(10.dp))
 
         accounts.forEach { acc ->
@@ -275,12 +313,13 @@ fun ReportsWealthTab(
                             ChartMetricInfo(
                                 title = "${acc.accountName} Vault Audit",
                                 subtitle = "${acc.accountType} Tier Account Details",
-                                formula = "Spendable_Surplus = Current_Balance - Minimum_Account_Balance",
-                                breakdown = "Current Balance: $userProfileCurrency${String.format(Locale.US, "%,.0f", acc.currentBalance)} | MAB Buffer: $userProfileCurrency${String.format(Locale.US, "%,.0f", acc.minBalance)} | Free Surplus: $userProfileCurrency${String.format(Locale.US, "%,.0f", spendableSurplus)}.",
+                                formula = "Spendable Surplus = Current Balance - Minimum Account Balance",
+                                breakdown = "Current Balance: $userProfileCurrency${String.format(Locale.US, "%,.0f", acc.currentBalance)}\nMAB Protected Buffer: $userProfileCurrency${String.format(Locale.US, "%,.0f", acc.minBalance)}\nFree Spendable Surplus: $userProfileCurrency${String.format(Locale.US, "%,.0f", spendableSurplus)}",
                                 visualElements = listOf(
-                                    "MAB Flag" to "Required minimum balance protected against overdraft charges."
+                                    "MAB Buffer" to "Required minimum balance protected against overdraft charges.",
+                                    "Free Surplus" to "Liquid funds freely available for safe spending or sweeping."
                                 ),
-                                advice = "Only spendable surplus is counted in Safe-to-Spend algorithms."
+                                advice = "Only spendable surplus above the MAB floor is factored into Safe-to-Spend algorithms."
                             )
                         )
                     }
