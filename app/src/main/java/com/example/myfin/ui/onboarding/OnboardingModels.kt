@@ -2,8 +2,9 @@ package com.example.myfin.ui.onboarding
 
 import androidx.compose.ui.graphics.Color
 import com.example.myfin.data.TransactionType
+import com.example.myfin.ui.theme.*
 
-// MyFin Vault Emerald & Obsidian Palette
+// Canonical Onboarding Obsidian & Emerald Accents
 val VaultPrimaryEmerald = Color(0xFF10B981)
 val VaultMintHighlight = Color(0xFF34D399)
 val VaultDarkSurface = Color(0xFF131522)
