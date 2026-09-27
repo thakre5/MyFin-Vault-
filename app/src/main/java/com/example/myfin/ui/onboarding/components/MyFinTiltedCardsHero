@@ -17,13 +17,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.ui.components.MyFinAppLogo
 import com.example.myfin.ui.theme.*
 
-// Backwards compatibility alias for existing callers
 @Composable
 fun SolnexTiltedCardsHero(
     currencySymbol: String,
@@ -58,7 +56,7 @@ fun MyFinTiltedCardsHero(
             .height(235.dp),
         contentAlignment = Alignment.Center
     ) {
-        // 1. Back Card: Secondary Vault / Fortress Reserve (Dark Purple Velvet)
+        // Back Card
         Box(
             modifier = Modifier
                 .offset(x = (-32).dp, y = (-10).dp)
@@ -102,7 +100,7 @@ fun MyFinTiltedCardsHero(
             }
         }
 
-        // 2. Front Card: Primary Operating Balance (AccentPurple to Vibrant Violet)
+        // Front Card
         Box(
             modifier = Modifier
                 .offset(x = 14.dp, y = 16.dp)
@@ -150,7 +148,7 @@ fun MyFinTiltedCardsHero(
             }
         }
 
-        // 3. Top Vault Badge: MyFinAppLogo Vector
+        // Top Shield Badge
         Box(
             modifier = Modifier
                 .size(56.dp)
@@ -179,7 +177,7 @@ fun MyFinTiltedCardsHero(
             )
         }
 
-        // 4. Bottom Vault Currency Badge
+        // Bottom Currency Badge
         Box(
             modifier = Modifier
                 .size(68.dp)
@@ -209,16 +207,6 @@ fun MyFinTiltedCardsHero(
                 fontFamily = FontFamily.Monospace,
                 color = Color(0xFFD0BCFF)
             )
-        }
-    }
-}
-
-@Preview(name = "Tilted Cards Hero Preview", showBackground = true, backgroundColor = 0xFFF7F8FA)
-@Composable
-private fun PreviewTiltedCardsHero() {
-    MyfinTheme {
-        Box(modifier = Modifier.padding(20.dp)) {
-            MyFinTiltedCardsHero(currencySymbol = "₹")
         }
     }
 }
