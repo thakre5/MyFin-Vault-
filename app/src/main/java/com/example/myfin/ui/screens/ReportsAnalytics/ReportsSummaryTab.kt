@@ -25,9 +25,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,6 +79,86 @@ fun ReportsSummaryTab(
     val totalBudget = if (scaledPeriodBudget > 0) scaledPeriodBudget else (totalIncome.takeIf { it > 0 } ?: (totalOutflow * 1.25).coerceAtLeast(1.0))
     val retentionRate = if (totalIncome > 0) ((netSurplus / totalIncome) * 100).coerceIn(-100.0, 100.0) else 0.0
     val commitmentLoad = if (totalBudget > 0) ((fixedOutflow / totalBudget) * 100).coerceIn(0.0, 100.0) else 0.0
+    val finalTarget = trajectoryData.lastOrNull()?.targetCumulative ?: scaledPeriodBudget
+
+    // =========================================================
+    // CANONICAL UNIFIED METRIC DEFINITIONS (GRAPH & TITLE SYNC)
+    // =========================================================
+
+    val capitalRetentionInfo = remember(userProfileCurrency, totalIncome, netSurplus, retentionRate, spendData.size, selectedTimeRange) {
+        ChartMetricInfo(
+            title = "Capital Retention & Flow Waves",
+            subtitle = "Net Saved vs. Verified Outflow Silhouette",
+            formula = "Retention % = ((Personal Inflow - Lifestyle Burn - Assets) / Personal Inflow) * 100",
+            breakdown = "Personal Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome)} | Net Retained: $userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} (${String.format(Locale.US, "%,.1f", retentionRate)}%)\nMeasured across ${spendData.size} active segments in ${selectedTimeRange.label}.",
+            visualElements = listOf(
+                "Cyan/Blue Top Wave" to "Total daily/weekly outflow volume trajectory.",
+                "Rose/Violet Lower Wave" to "Essential fixed non-negotiable commitments baseline.",
+                "Wave Spread" to "Distance between ribbons represents variable lifestyle burn.",
+                "Retained Badge" to "Total liquid and invested capital preserved in this cycle."
+            ),
+            advice = "A retention rate above 20% indicates healthy financial compounding. Keeping the spread between waves narrow prevents lifestyle creep."
+        )
+    }
+
+    val allocationBreakdownInfo = remember(userProfileCurrency, fixedOutflow, variableOutflow, totalBudget, commitmentLoad, retentionRate) {
+        ChartMetricInfo(
+            title = "Allocation Breakdown & Rings",
+            subtitle = "Fixed Obligations vs. Discretionary Living",
+            formula = "Commitment Load % = (Fixed Outflow / Total Budget) * 100",
+            breakdown = "Fixed AutoPay: $userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)} (${commitmentLoad.toInt()}% of budget)\nVariable Spend: $userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}\nBudget Protected: ${retentionRate.coerceAtLeast(0.0).toInt()}%",
+            visualElements = listOf(
+                "Outer Violet Ring" to "Variable discretionary living spend volume.",
+                "Inner Red Ring" to "Fixed non-negotiable AutoPay obligations and bills.",
+                "Center Percentage" to "Share of budget retained after all expenses."
+            ),
+            advice = "Keeping Fixed AutoPay commitments under 50% guarantees an ample safe-to-spend buffer for unpredicted costs."
+        )
+    }
+
+    val outflowVelocityInfo = remember(userProfileCurrency, dailyBurn, selectedTimeRange) {
+        ChartMetricInfo(
+            title = "Outflow Velocity Stack",
+            subtitle = "Burn Rate Distribution (${selectedTimeRange.label})",
+            formula = "Daily Burn = Total Outflow / Elapsed Days",
+            breakdown = "Active cycle burn velocity: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}/day across ${selectedTimeRange.label}.",
+            visualElements = listOf(
+                "Red Base Segment" to "Essential fixed bill proportion.",
+                "Violet Top Segment" to "Variable discretionary spend proportion.",
+                "Bar Height" to "Total daily or weekly cash outflow."
+            ),
+            advice = "Track spike intervals to isolate whether fixed bills or discretionary surges caused the surge."
+        )
+    }
+
+    val velocityDensityInfo = remember(allTransactions.size) {
+        ChartMetricInfo(
+            title = "Velocity Density",
+            subtitle = "28-Day Transaction Impulse Frequency",
+            formula = "Density = Count(Transactions per Day) over 28 Days",
+            breakdown = "Tracks purchasing friction and how frequently transactions are logged across consecutive days.",
+            visualElements = listOf(
+                "Taller Bars" to "Days with high transaction frequency (>4 purchases).",
+                "Muted Slate Bars" to "Zero-spend or low-frequency recovery days."
+            ),
+            advice = "Cluster spending into fewer days to cultivate 'no-spend' buffer days and reduce emotional micro-burn."
+        )
+    }
+
+    val cumulativeTrajectoryInfo = remember(userProfileCurrency, selectedVelocityRange, finalTarget) {
+        ChartMetricInfo(
+            title = "Cumulative Burn Trajectory",
+            subtitle = "Pacing vs. Target Allowance (${selectedVelocityRange.label})",
+            formula = "Variance = Target Linear Line - Actual Cumulative Curve",
+            breakdown = "Target budget ceiling: $userProfileCurrency${String.format(Locale.US, "%,.0f", finalTarget)} across ${selectedVelocityRange.label}.",
+            visualElements = listOf(
+                "Teal Straight Line" to "Linear target pace limit.",
+                "Purple Curved Line" to "Your actual cumulative spending burn-down curve.",
+                "Final End Point" to "Total realized burn at the latest measured interval."
+            ),
+            advice = "If the purple curve stays below the teal line, you are operating strictly within your planned budget allowance."
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -92,22 +172,7 @@ fun ReportsSummaryTab(
             modifier = Modifier
                 .fillMaxWidth()
                 .shadow(3.dp, RoundedCornerShape(24.dp))
-                .clickable {
-                    onOpenMetricInfo(
-                        ChartMetricInfo(
-                            title = "Capital Retention Rate",
-                            subtitle = "Net Saved vs. Verified Inflow",
-                            formula = "Retention % = ((Income - Expenses - Assets) / Income) * 100",
-                            breakdown = "Personal Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome)} | Net Retained: $userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} (${String.format(Locale.US, "%,.1f", retentionRate)}%).",
-                            visualElements = listOf(
-                                "Cyan/Blue Top Wave" to "Total daily/weekly outflow volume trajectory.",
-                                "Rose/Violet Lower Wave" to "Essential fixed commitments baseline.",
-                                "Retained Badge" to "Total liquid and invested capital preserved in this cycle."
-                            ),
-                            advice = "A retention rate above 20% indicates healthy financial compounding."
-                        )
-                    )
-                },
+                .clickable { onOpenMetricInfo(capitalRetentionInfo) },
             shape = RoundedCornerShape(24.dp),
             color = CardWhite,
             border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
@@ -157,22 +222,7 @@ fun ReportsSummaryTab(
                         spendData = spendData,
                         currencySymbol = userProfileCurrency,
                         isDiscreet = isDiscreet,
-                        onOpenInfo = {
-                            onOpenMetricInfo(
-                                ChartMetricInfo(
-                                    title = "Dual Inflow & Burn Waves",
-                                    subtitle = "Flow Silhouette Breakdown",
-                                    formula = "Burn_Spread = Total_Spent - Essential_Fixed",
-                                    breakdown = "Displays active spend across ${spendData.size} time segments in $selectedTimeRange.",
-                                    visualElements = listOf(
-                                        "Blue Ribbon" to "Total outflow volume across the time interval.",
-                                        "Rose Ribbon" to "Essential fixed bills volume.",
-                                        "Touch Marker" to "Tap to scrub individual day/week expenditure."
-                                    ),
-                                    advice = "Keep the distance between the two ribbons narrow to prevent discretionary bloat."
-                                )
-                            )
-                        },
+                        onOpenInfo = { onOpenMetricInfo(capitalRetentionInfo) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(64.dp)
@@ -203,22 +253,7 @@ fun ReportsSummaryTab(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {
-                    onOpenMetricInfo(
-                        ChartMetricInfo(
-                            title = "Allocation Breakdown",
-                            subtitle = "Fixed Obligations vs Discretionary Pacing",
-                            formula = "Commitment_Load % = (Fixed_Outflow / Total_Budget) * 100",
-                            breakdown = "Fixed AutoPay: $userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)} | Variable spent: $userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}.",
-                            visualElements = listOf(
-                                "Outer Violet Ring" to "Variable discretionary living spend.",
-                                "Inner Red Ring" to "Fixed non-negotiable AutoPay obligations.",
-                                "Center Percentage" to "Share of budget retained after all expenses."
-                            ),
-                            advice = "Keeping Fixed AutoPay commitments under 50% guarantees ample safe-to-spend buffer for unpredicted costs."
-                        )
-                    )
-                },
+                .clickable { onOpenMetricInfo(allocationBreakdownInfo) },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -251,21 +286,7 @@ fun ReportsSummaryTab(
             Box(
                 modifier = Modifier
                     .size(148.dp)
-                    .clickable {
-                        onOpenMetricInfo(
-                            ChartMetricInfo(
-                                title = "Concentric Allocation Rings",
-                                subtitle = "Fixed vs Variable Budget Geometry",
-                                formula = "Load = Fixed ÷ (Fixed + Variable)",
-                                breakdown = "Fixed: $userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)} | Variable: $userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}",
-                                visualElements = listOf(
-                                    "Outer Ring (Violet)" to "Discretionary variable expenses.",
-                                    "Inner Ring (Red)" to "Contractual bills and fixed debt obligations."
-                                ),
-                                advice = "If the inner red ring is larger than the outer ring, fixed costs dominate your cashflow."
-                            )
-                        )
-                    },
+                    .clickable { onOpenMetricInfo(allocationBreakdownInfo) },
                 contentAlignment = Alignment.Center
             ) {
                 ConcentricRingsDonutCanvas(
@@ -298,7 +319,9 @@ fun ReportsSummaryTab(
                     shape = RoundedCornerShape(14.dp),
                     color = CardWhite,
                     border = BorderStroke(0.7.dp, BorderLight),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenMetricInfo(allocationBreakdownInfo) }
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -327,7 +350,9 @@ fun ReportsSummaryTab(
                     shape = RoundedCornerShape(14.dp),
                     color = CardWhite,
                     border = BorderStroke(0.7.dp, BorderLight),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenMetricInfo(allocationBreakdownInfo) }
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -363,21 +388,7 @@ fun ReportsSummaryTab(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
-                modifier = Modifier.clickable {
-                    onOpenMetricInfo(
-                        ChartMetricInfo(
-                            title = "Outflow Velocity",
-                            subtitle = "Daily & Weekly Burn Rates",
-                            formula = "Daily_Burn = (Total Period Spend) / Total Days",
-                            breakdown = "Active cycle burn: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}/day across $selectedTimeRange.",
-                            visualElements = listOf(
-                                "Red Base" to "Essential fixed bill proportion.",
-                                "Violet Top" to "Variable discretionary spend proportion."
-                            ),
-                            advice = "Track spike days to isolate discretionary surges before they exceed planned thresholds."
-                        )
-                    )
-                }
+                modifier = Modifier.clickable { onOpenMetricInfo(outflowVelocityInfo) }
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -445,21 +456,7 @@ fun ReportsSummaryTab(
             spendData = spendData,
             currencySymbol = userProfileCurrency,
             isDiscreet = isDiscreet,
-            onOpenInfo = {
-                onOpenMetricInfo(
-                    ChartMetricInfo(
-                        title = "Outflow Velocity Bars",
-                        subtitle = "Segmented Daily/Weekly Stack",
-                        formula = "Stack = Essential_Amt + Discretionary_Amt",
-                        breakdown = "Shows exact spending composition per interval in $selectedTimeRange.",
-                        visualElements = listOf(
-                            "Violet Segment" to "Discretionary lifestyle spending.",
-                            "Red Segment" to "Essential living and fixed bill payments."
-                        ),
-                        advice = "Taller bars indicate high-burn days. Aim to level out peaks."
-                    )
-                )
-            }
+            onOpenInfo = { onOpenMetricInfo(outflowVelocityInfo) }
         )
 
         Spacer(modifier = Modifier.height(26.dp))
@@ -468,21 +465,7 @@ fun ReportsSummaryTab(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {
-                    onOpenMetricInfo(
-                        ChartMetricInfo(
-                            title = "Velocity Density",
-                            subtitle = "28-Day Transaction Impulse Frequency",
-                            formula = "Density = Count(Transactions per Day) over 28 Days",
-                            breakdown = "Tracks purchasing friction and how frequently transactions are logged across consecutive days.",
-                            visualElements = listOf(
-                                "Taller Bars" to "Days with high transaction frequency (>4 purchases).",
-                                "Shaded Slate" to "Zero-spend or low-frequency recovery days."
-                            ),
-                            advice = "Cluster spending into fewer days to cultivate 'no-spend' buffer days and reduce emotional micro-burn."
-                        )
-                    )
-                },
+                .clickable { onOpenMetricInfo(velocityDensityInfo) },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -495,11 +478,42 @@ fun ReportsSummaryTab(
             Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(12.dp))
         }
         Spacer(modifier = Modifier.height(10.dp))
-        MicroFrequencyStripCanvas(transactions = allTransactions)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .clickable { onOpenMetricInfo(velocityDensityInfo) }
+        ) {
+            MicroFrequencyStripCanvas(transactions = allTransactions)
+        }
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        // 5. CUMULATIVE TRAJECTORY (REACTIVE TO VELOCITY RANGE)
+        // 5. CUMULATIVE TRAJECTORY HEADER & RANGE SELECTOR
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenMetricInfo(cumulativeTrajectoryInfo) },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Cumulative Burn Trajectory",
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = TextDark
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(Icons.Default.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.size(13.dp))
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = "Pacing vs. planned budget ceiling curve",
+            fontSize = 11.5.sp,
+            color = TextMuted
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -530,7 +544,6 @@ fun ReportsSummaryTab(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        val finalTarget = trajectoryData.lastOrNull()?.targetCumulative ?: scaledPeriodBudget
         Text(
             text = if (isDiscreet) "Velocity Target: ••••" else "${selectedVelocityRange.label} Target: $userProfileCurrency${String.format(Locale.US, "%,.0f", finalTarget)}",
             fontSize = 11.sp,
@@ -545,21 +558,7 @@ fun ReportsSummaryTab(
             trajectoryData = trajectoryData,
             currencySymbol = userProfileCurrency,
             isDiscreet = isDiscreet,
-            onOpenInfo = {
-                onOpenMetricInfo(
-                    ChartMetricInfo(
-                        title = "Cumulative Burn Trajectory",
-                        subtitle = "Pacing vs Target Allowance (${selectedVelocityRange.label})",
-                        formula = "Variance = Target_Line - Actual_Cumulative_Curve",
-                        breakdown = "Target budget: $userProfileCurrency${String.format(Locale.US, "%,.0f", finalTarget)} over ${selectedVelocityRange.label}.",
-                        visualElements = listOf(
-                            "Teal Line" to "Linear target pace limit.",
-                            "Purple Line" to "Your actual cumulative spending burn-down curve."
-                        ),
-                        advice = "If the purple line stays below the teal line, you are operating strictly under your planned budget."
-                    )
-                )
-            }
+            onOpenInfo = { onOpenMetricInfo(cumulativeTrajectoryInfo) }
         )
 
         Spacer(modifier = Modifier.height(26.dp))
