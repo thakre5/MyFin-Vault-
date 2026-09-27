@@ -3,8 +3,10 @@ package com.example.myfin.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
@@ -67,13 +69,24 @@ fun ChartMetricInfoBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = CardWhite,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Surface(
+                modifier = Modifier
+                    .padding(vertical = 10.dp)
+                    .width(40.dp)
+                    .height(4.dp),
+                shape = CircleShape,
+                color = BorderLight
+            ) {}
+        }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp)
+                .padding(bottom = 36.dp)
                 .navigationBarsPadding()
         ) {
             Row(
@@ -92,28 +105,31 @@ fun ChartMetricInfoBottomSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Text("Active Reading & Contribution", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(info.breakdown, fontSize = 12.5.sp, color = TextDark, lineHeight = 17.sp)
+            if (info.breakdown.isNotBlank()) {
+                Text("Active Reading & Contribution", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(info.breakdown, fontSize = 12.5.sp, color = TextDark, lineHeight = 17.sp)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text("Mathematical Formula", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-            Spacer(modifier = Modifier.height(4.dp))
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                color = AccentPurple.copy(alpha = 0.08f),
-                border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.25f))
-            ) {
-                Text(
-                    text = info.formula,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.5.sp,
-                    color = AccentPurple,
-                    modifier = Modifier.padding(10.dp)
-                )
+            if (info.formula.isNotBlank()) {
+                Text("Mathematical Formula", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                Spacer(modifier = Modifier.height(4.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = AccentPurple.copy(alpha = 0.08f),
+                    border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.25f))
+                ) {
+                    Text(
+                        text = info.formula,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.5.sp,
+                        color = AccentPurple,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
             }
 
             if (info.visualElements.isNotEmpty()) {
@@ -134,18 +150,19 @@ fun ChartMetricInfoBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = CanvasLight,
-                border = BorderStroke(0.6.dp, BorderLight),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(info.advice, fontSize = 11.sp, color = TextDark, lineHeight = 15.sp)
+            if (info.advice.isNotBlank()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = CanvasLight,
+                    border = BorderStroke(0.6.dp, BorderLight),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(info.advice, fontSize = 11.sp, color = TextDark, lineHeight = 15.sp)
+                    }
                 }
             }
         }
@@ -163,13 +180,24 @@ fun StrategyArchitectureBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = CardWhite,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Surface(
+                modifier = Modifier
+                    .padding(vertical = 10.dp)
+                    .width(40.dp)
+                    .height(4.dp),
+                shape = CircleShape,
+                color = BorderLight
+            ) {}
+        }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp)
+                .padding(bottom = 36.dp)
                 .navigationBarsPadding()
         ) {
             Row(
@@ -210,25 +238,25 @@ fun StrategyArchitectureBottomSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     StrategyTierInfoRow(
                         icon = Icons.Default.AccountBalance,
-                        color = AccentPurple,
+                        color = Color(0xFFE57A28), // Aligned with Operating tier
                         title = "Operating Vault Tier",
                         desc = "Covers everyday groceries and variable daily lifestyle spend."
                     )
                     StrategyTierInfoRow(
                         icon = Icons.Default.CreditCard,
-                        color = SoftRed,
+                        color = AccentPurple, // Aligned with Commitments tier
                         title = "Commitments Vault Tier",
                         desc = "Dedicated lockbox protecting AutoPay bills and EMI obligations."
                     )
                     StrategyTierInfoRow(
                         icon = Icons.Default.Security,
-                        color = SoftTeal,
+                        color = SoftTeal, // Aligned with Fortress tier
                         title = "Fortress Vault Tier",
                         desc = "Liquid emergency reserve safeguarding against unforeseen life events."
                     )
                     StrategyTierInfoRow(
                         icon = Icons.Default.Payments,
-                        color = SoftGreen,
+                        color = SoftGreen, // Aligned with Cash tier
                         title = "Physical Cash Tier",
                         desc = "Physical wallet buffer for cash transactions and petty expenses."
                     )
