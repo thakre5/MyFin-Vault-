@@ -155,7 +155,6 @@ fun VaultStrategyScreen(
 
     var activeSelectedCardIndex by remember { mutableIntStateOf(0) }
 
-    // Synchronize selected card with whichever card is currently scrolled into focus
     LaunchedEffect(focusedCardIndex) {
         if (displayAccounts.isNotEmpty()) {
             activeSelectedCardIndex = focusedCardIndex.coerceIn(0, displayAccounts.size - 1)
@@ -174,7 +173,7 @@ fun VaultStrategyScreen(
 
     val accountNames = remember(displayAccounts) { displayAccounts.map { it.accountName } }
 
-    // Net Vault Capital scope (All 4 Tiers strictly mapped by accountType)
+    // Net Vault Capital scope
     val netVaultCapital = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
     val opTotal = remember(displayAccounts) {
         displayAccounts.filter { getVaultTier(it.accountType) == VaultTier.OPERATING }.sumOf { it.currentBalance }
@@ -228,7 +227,6 @@ fun VaultStrategyScreen(
             .sumOf { it.amount }
     }
 
-    // Decoupled transfer subtypes
     val activeTransfersOut = remember(activeAccountTxs, activeAccount?.accountName) {
         val name = activeAccount?.accountName.orEmpty()
         activeAccountTxs.filter { it.type == TransactionType.TRANSFER && it.accountName.equals(name, ignoreCase = true) }
@@ -277,7 +275,6 @@ fun VaultStrategyScreen(
         }.sumOf { it.amount }
     }
 
-    // Unified Runway Timeline (Using Payday Days Remaining)
     val daysRemaining = remember(uiState.metrics.daysUntilPayday) {
         uiState.metrics.daysUntilPayday.coerceAtLeast(1)
     }
@@ -307,7 +304,6 @@ fun VaultStrategyScreen(
     val mabBuffer = remember(activeAccount) { activeAccount?.minBalance ?: 0.0 }
     val excessCompanyAdvance = uiState.reimbursementStatus.excessAdvanceHeld
 
-    // Unified Sweep Surplus (Synchronized with ViewModel Month-End Suggestion)
     val calculatedSweepSurplus = remember(
         uiState.monthEndSweepSuggestion,
         activeAccount?.currentBalance,
@@ -825,7 +821,7 @@ fun VaultStrategyScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // Physical Bank Cards Horizontal Carousel (Auto-Centering & Snapping)
+                // Physical Bank Cards Horizontal Carousel
                 if (displayAccounts.isEmpty()) {
                     item(key = "empty_accounts") {
                         Surface(
@@ -891,34 +887,44 @@ fun VaultStrategyScreen(
                         val isMabBreached = acc.minBalance > 0 && effectiveAvailableBalance < acc.minBalance
                         val deficit = (acc.minBalance - effectiveAvailableBalance).coerceAtLeast(0.0)
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Account Cashflow Matrix (${acc.accountName})",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.5.sp,
-                                color = TextDark
-                            )
+                        // Title on Line 1
+                        Text(
+                            text = "Account Cashflow Matrix (${acc.accountName})",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.5.sp,
+                            color = TextDark
+                        )
 
-                            if (isMabBreached) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = SoftRed.copy(alpha = 0.12f),
-                                    border = BorderStroke(0.6.dp, SoftRed.copy(alpha = 0.4f))
+                        // Dedicated Alert Banner on Line 2 (Fixes Vertical Letter Stacking)
+                        if (isMabBreached) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                color = SoftRed.copy(alpha = 0.10f),
+                                border = BorderStroke(0.7.dp, SoftRed.copy(alpha = 0.4f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = SoftRed,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "! MAB Shortfall (-${userProfile.currencySymbol}${deficit.toInt()})",
-                                        fontSize = 10.sp,
+                                        text = "MAB Shortfall: -${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", deficit)} below minimum required balance",
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = SoftRed,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        color = SoftRed
                                     )
                                 }
                             }
                         }
+
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Surface(
@@ -1623,40 +1629,48 @@ fun VaultStrategyScreen(
                         .navigationBarsPadding()
                         .padding(horizontal = 22.dp, vertical = 8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    // Option A: 3-Vault Guard Chip placed above the title
+                    Surface(
+                        shape = RoundedCornerShape(7.dp),
+                        color = activeTier.color.copy(alpha = 0.12f),
+                        modifier = Modifier.padding(bottom = 6.dp)
                     ) {
-                        Column {
-                            Text(
-                                text = when (activeTier) {
-                                    VaultTier.OPERATING -> "Surplus Engine Breakdown"
-                                    VaultTier.COMMITMENTS -> "AutoPay Shield Math"
-                                    VaultTier.FORTRESS -> "Emergency Cushion & Sweep Breakdown"
-                                    VaultTier.CASH -> "Wallet Cash Reserve"
-                                },
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                color = TextDark
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = activeTier.color,
+                                modifier = Modifier.size(12.dp)
                             )
-                            Text(
-                                text = "${activeAccount?.accountName} (${activeTier.title} Tier)",
-                                fontSize = 11.5.sp,
-                                color = TextMuted
-                            )
-                        }
-
-                        Surface(shape = RoundedCornerShape(8.dp), color = activeTier.color.copy(alpha = 0.12f)) {
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "3-Vault Guard",
-                                fontSize = 11.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = activeTier.color,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                color = activeTier.color
                             )
                         }
                     }
+
+                    Text(
+                        text = when (activeTier) {
+                            VaultTier.OPERATING -> "Surplus Engine Breakdown"
+                            VaultTier.COMMITMENTS -> "AutoPay Shield Math"
+                            VaultTier.FORTRESS -> "Emergency Cushion & Sweep Breakdown"
+                            VaultTier.CASH -> "Wallet Cash Reserve"
+                        },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = TextDark
+                    )
+                    Text(
+                        text = "${activeAccount?.accountName} (${activeTier.title} Tier)",
+                        fontSize = 11.5.sp,
+                        color = TextMuted
+                    )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
