@@ -15,7 +15,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,7 +33,9 @@ import androidx.compose.ui.zIndex
 import com.example.myfin.R
 import com.example.myfin.data.AccountEntity
 import com.example.myfin.data.TransactionType
+import com.example.myfin.data.UserProfile
 import com.example.myfin.ui.BudgetViewModel
+import com.example.myfin.ui.components.MyFinAppLogo
 import com.example.myfin.ui.onboarding.steps.*
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
@@ -54,14 +55,12 @@ fun MultiStepOnboardingFlow(
 
     var showSplashReveal by remember { mutableStateOf(true) }
 
-    // Animated Vector Drawable Painter for Shield Growth Logo
-    val animatedLogo = AnimatedImageVector.animatedVectorResource(R.drawable.avd_logo_shield_growth)
+    // Splash Logo Animation State
     var isLogoAtEnd by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        // Run continuous loop of the logo draw & pulse animation
         launch {
-            while (true) {
+            while (showSplashReveal) {
                 isLogoAtEnd = !isLogoAtEnd
                 delay(1200L)
             }
@@ -90,30 +89,37 @@ fun MultiStepOnboardingFlow(
         )
     }
 
+    // Preservation Fix: Updates account types in-place without erasing custom added accounts
     fun syncAccountsForStrategy(strategy: String) {
-        val existingBalances = initialAccounts.associate { it.name to it.initialBalanceText }
-        val existingMinBalances = initialAccounts.associate { it.name to it.minBalanceText }
-
-        val primaryBal = existingBalances["Primary Bank"] ?: "50000"
-        val secondaryBal = existingBalances["Secondary Bank"] ?: "25000"
-        val tertiaryBal = existingBalances["Tertiary Bank"] ?: "5000"
-        val cashBal = initialAccounts.firstOrNull { it.defaultType == "Cash" }?.initialBalanceText ?: "0"
-
-        val primaryMin = existingMinBalances["Primary Bank"] ?: "0"
-        val secondaryMin = if (strategy == "3-VAULT") (existingMinBalances["Secondary Bank"] ?: "10000") else "0"
-        val tertiaryMin = existingMinBalances["Tertiary Bank"] ?: "0"
-
-        initialAccounts.clear()
-        if (strategy == "3-VAULT") {
-            initialAccounts.add(InitialAccountSetup("Primary Bank", "Operating", primaryBal, primaryMin))
-            initialAccounts.add(InitialAccountSetup("Secondary Bank", "Commitments", secondaryBal, secondaryMin))
-            initialAccounts.add(InitialAccountSetup("Tertiary Bank", "Fortress", tertiaryBal, tertiaryMin))
-            initialAccounts.add(InitialAccountSetup("Cash Wallet", "Cash", cashBal, "0"))
-        } else {
-            initialAccounts.add(InitialAccountSetup("Primary Bank", "Operating", primaryBal, primaryMin))
-            initialAccounts.add(InitialAccountSetup("Secondary Bank", "Operating", secondaryBal, "0"))
-            initialAccounts.add(InitialAccountSetup("Tertiary Bank", "Operating", tertiaryBal, "0"))
-            initialAccounts.add(InitialAccountSetup("Cash Wallet", "Cash", cashBal, "0"))
+        val is3Vault = strategy.equals("3-VAULT", ignoreCase = true)
+        for (i in initialAccounts.indices) {
+            val acc = initialAccounts[i]
+            when {
+                acc.name.equals("Primary Bank", ignoreCase = true) -> {
+                    initialAccounts[i] = acc.copy(defaultType = "Operating")
+                }
+                acc.name.equals("Secondary Bank", ignoreCase = true) -> {
+                    initialAccounts[i] = acc.copy(
+                        defaultType = if (is3Vault) "Commitments" else "Operating",
+                        minBalanceText = if (is3Vault) acc.minBalanceText.ifBlank { "10000" } else "0"
+                    )
+                }
+                acc.name.equals("Tertiary Bank", ignoreCase = true) -> {
+                    initialAccounts[i] = acc.copy(
+                        defaultType = if (is3Vault) "Fortress" else "Operating",
+                        minBalanceText = "0"
+                    )
+                }
+                acc.defaultType.equals("Cash", ignoreCase = true) -> {
+                    initialAccounts[i] = acc.copy(defaultType = "Cash", minBalanceText = "0")
+                }
+                else -> {
+                    // Custom bank: adjust type only if switching to simple mode
+                    if (!is3Vault && !acc.defaultType.equals("Cash", ignoreCase = true)) {
+                        initialAccounts[i] = acc.copy(defaultType = "Operating", minBalanceText = "0")
+                    }
+                }
+            }
         }
     }
 
@@ -132,7 +138,7 @@ fun MultiStepOnboardingFlow(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let {
-            viewModel.restoreVaultFromUri(context, it) { success: Boolean, msg: String ->
+            viewModel.restoreVaultFromEncryptedJson(context, it) { success: Boolean, msg: String ->
                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                 if (success) {
                     onComplete()
@@ -148,40 +154,34 @@ fun MultiStepOnboardingFlow(
         if (hasSealedAndLaunched) return
         hasSealedAndLaunched = true
 
-        val formattedDob = if (rawDobDigits.length == 8) {
-            "${rawDobDigits.substring(0, 2)}/${rawDobDigits.substring(2, 4)}/${rawDobDigits.substring(4, 8)}"
+        // Clean and format DOB digits (DD/MM/YYYY)
+        val cleanDigits = rawDobDigits.filter { it.isDigit() }
+        val formattedDob = if (cleanDigits.length == 8) {
+            "${cleanDigits.substring(0, 2)}/${cleanDigits.substring(2, 4)}/${cleanDigits.substring(4, 8)}"
         } else ""
 
         val salaryCommitment = initialCommitments.find { it.type == TransactionType.INCOME && it.isSelected }
         val parsedSalary = salaryCommitment?.amountText?.toDoubleOrNull() ?: 0.0
 
-        // 1. Atomic Profile & Security Persistence
-        viewModel.finalizeOnboardingProfile(
-            displayName = displayName,
-            email = emailAddress,
-            dob = formattedDob,
+        // 1. Single Atomic Profile & Security Persistence
+        val finalProfile = UserProfile(
+            id = 1,
+            displayName = displayName.trim().ifEmpty { "Vault User" },
+            email = emailAddress.trim(),
+            dateOfBirth = formattedDob,
             currencySymbol = selectedCountry.currencySymbol,
             vaultMode = selectedStrategy,
-            masterPin = masterPin.ifEmpty { "1234" },
-            isBiometricEnabled = isBiometricEnabled
+            isBiometricEnabled = isBiometricEnabled,
+            baseMonthlyIncome = parsedSalary,
+            isOnboardingCompleted = true
         )
 
-        // Sync Monthly Base Salary to profile without state wipe
-        if (parsedSalary > 0.0) {
-            viewModel.saveUserProfile(
-                viewModel.userProfile.value.copy(
-                    id = 1,
-                    displayName = displayName.trim().ifEmpty { "Vault User" },
-                    email = emailAddress.trim(),
-                    dateOfBirth = formattedDob,
-                    currencySymbol = selectedCountry.currencySymbol,
-                    vaultMode = selectedStrategy,
-                    isBiometricEnabled = isBiometricEnabled,
-                    baseMonthlyIncome = parsedSalary,
-                    isOnboardingCompleted = true
-                )
-            )
+        // Bind recovery keys and credentials
+        if (formattedDob.isNotBlank()) {
+            viewModel.securityManager.setRecoveryDob(formattedDob)
         }
+        viewModel.saveMasterPin(masterPin.ifEmpty { "1234" })
+        viewModel.saveUserProfile(finalProfile)
 
         // 2. Set Up Accounts with User-Defined MAB Floored Values
         val accountEntities = initialAccounts.mapIndexed { index, acc ->
@@ -197,11 +197,12 @@ fun MultiStepOnboardingFlow(
         }
         viewModel.replaceAllAccounts(accountEntities)
 
-        // 3. Set Up Commitments
-        val commitmentsAccountName = initialAccounts.firstOrNull { it.defaultType == "Commitments" }?.name?.trim()?.uppercase()
-            ?: initialAccounts.first().name.trim().uppercase()
-        val operatingAccountName = initialAccounts.firstOrNull { it.defaultType == "Operating" }?.name?.trim()?.uppercase()
-            ?: initialAccounts.first().name.trim().uppercase()
+        // 3. Set Up Commitments (Safe Fallback to avoid NoSuchElementException)
+        val defaultAccountName = initialAccounts.firstOrNull()?.name?.trim()?.uppercase() ?: "PRIMARY BANK"
+        val commitmentsAccountName = initialAccounts.firstOrNull { it.defaultType.equals("Commitments", ignoreCase = true) }?.name?.trim()?.uppercase()
+            ?: defaultAccountName
+        val operatingAccountName = initialAccounts.firstOrNull { it.defaultType.equals("Operating", ignoreCase = true) }?.name?.trim()?.uppercase()
+            ?: defaultAccountName
 
         initialCommitments.filter { it.isSelected }.forEach { bill ->
             val amt = bill.amountText.toDoubleOrNull() ?: 0.0
@@ -225,11 +226,13 @@ fun MultiStepOnboardingFlow(
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == 1) {
             remainingSeconds = 10
-            while (remainingSeconds > 0) {
+            while (remainingSeconds > 0 && !hasSealedAndLaunched) {
                 delay(1000L)
                 remainingSeconds -= 1
             }
-            finalizeAndLaunchVault()
+            if (!hasSealedAndLaunched) {
+                finalizeAndLaunchVault()
+            }
         }
     }
 
@@ -238,6 +241,7 @@ fun MultiStepOnboardingFlow(
             .fillMaxSize()
             .background(CanvasLight)
     ) {
+        // Splash Transition
         AnimatedVisibility(
             visible = showSplashReveal,
             enter = fadeIn(),
@@ -265,14 +269,40 @@ fun MultiStepOnboardingFlow(
                     verticalArrangement = Arrangement.Center,
                     modifier = Modifier.padding(horizontal = 32.dp)
                 ) {
-                    Image(
-                        painter = rememberAnimatedVectorPainter(
-                            animatedImageVector = animatedLogo,
+                    val animatedLogoPainter = runCatching {
+                        rememberAnimatedVectorPainter(
+                            animatedImageVector = AnimatedImageVector.animatedVectorResource(R.drawable.avd_logo_shield_growth),
                             atEnd = isLogoAtEnd
-                        ),
-                        contentDescription = "MyFin Vault Shield Logo",
-                        modifier = Modifier.size(100.dp)
-                    )
+                        )
+                    }.getOrNull()
+
+                    if (animatedLogoPainter != null) {
+                        Image(
+                            painter = animatedLogoPainter,
+                            contentDescription = "MyFin Vault Shield Logo",
+                            modifier = Modifier.size(100.dp)
+                        )
+                    } else {
+                        // Outline Vector Logo Fallback
+                        val infiniteTransition = rememberInfiniteTransition(label = "SplashLogoPulse")
+                        val pulseScale by infiniteTransition.animateFloat(
+                            initialValue = 0.94f,
+                            targetValue = 1.06f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1200, easing = FastOutSlowInEasing),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "PulseScale"
+                        )
+                        MyFinAppLogo(
+                            size = 96.dp,
+                            tint = Color.White,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = pulseScale
+                                scaleY = pulseScale
+                            }
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(20.dp))
 
@@ -342,13 +372,19 @@ fun MultiStepOnboardingFlow(
                                 syncAccountsForStrategy(newStrategy)
                             },
                             onUpdateAccountBalance = { idx, newBal ->
-                                initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
+                                if (idx in initialAccounts.indices) {
+                                    initialAccounts[idx] = initialAccounts[idx].copy(initialBalanceText = newBal)
+                                }
                             },
                             onUpdateAccountMinBalance = { idx, newMin ->
-                                initialAccounts[idx] = initialAccounts[idx].copy(minBalanceText = newMin)
+                                if (idx in initialAccounts.indices) {
+                                    initialAccounts[idx] = initialAccounts[idx].copy(minBalanceText = newMin)
+                                }
                             },
                             onRemoveAccount = { idx ->
-                                initialAccounts.removeAt(idx)
+                                if (idx in initialAccounts.indices) {
+                                    initialAccounts.removeAt(idx)
+                                }
                             },
                             onAddAccount = {
                                 val existingNames = initialAccounts.map { it.name }
@@ -366,10 +402,14 @@ fun MultiStepOnboardingFlow(
                                 }
                             },
                             onToggleCommitment = { idx ->
-                                initialCommitments[idx] = initialCommitments[idx].copy(isSelected = !initialCommitments[idx].isSelected)
+                                if (idx in initialCommitments.indices) {
+                                    initialCommitments[idx] = initialCommitments[idx].copy(isSelected = !initialCommitments[idx].isSelected)
+                                }
                             },
                             onUpdateCommitmentAmount = { idx, amt ->
-                                initialCommitments[idx] = initialCommitments[idx].copy(amountText = amt)
+                                if (idx in initialCommitments.indices) {
+                                    initialCommitments[idx] = initialCommitments[idx].copy(amountText = amt)
+                                }
                             },
                             onProceedToNextStep = {
                                 coroutineScope.launch {
