@@ -2208,64 +2208,6 @@ class BudgetViewModel(
         }
     }
 
-    suspend fun exportCsvToUri(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val transactions = dao.getAllTransactions()
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-            val builder = StringBuilder()
-
-            builder.append('\uFEFF')
-            builder.append("Date,Title,Flow Type,Category,Subcategory,Amount,Source Vault,Destination Vault\n")
-
-            transactions.forEach { tx ->
-                val escapedTitle = tx.title.replace("\"", "\"\"")
-                val escapedCat = tx.category.replace("\"", "\"\"")
-                val escapedSub = tx.subcategory.replace("\"", "\"\"")
-                val dateStr = dateFormat.format(Date(tx.date))
-                val toAcc = tx.toAccountName ?: ""
-
-                builder.append("\"$dateStr\",")
-                builder.append("\"$escapedTitle\",")
-                builder.append("\"${tx.type.name}\",")
-                builder.append("\"$escapedCat\",")
-                builder.append("\"$escapedSub\",")
-                builder.append("${tx.amount},")
-                builder.append("\"${tx.accountName}\",")
-                builder.append("\"$toAcc\"\n")
-            }
-
-            context.contentResolver.openOutputStream(uri)?.use { os ->
-                os.write(builder.toString().toByteArray(Charsets.UTF_8))
-            }
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    suspend fun seedFullExcelTaxonomyIfEmpty() = withContext(Dispatchers.IO) {
-        val existingCats = dao.getAllCategoriesDirect()
-        if (existingCats.isEmpty()) {
-            dao.insertCategories(CategoryEntity.defaultCategories)
-            dao.insertSubcategories(SubcategoryEntity.defaultSubcategories)
-        }
-    }
-
-    suspend fun seedDefaultAccountsIfEmpty() = withContext(Dispatchers.IO) {
-        val isCompleted = dao.getUserProfileDirect()?.isOnboardingCompleted ?: false
-        val count = dao.getAccountCount()
-        if (count == 0 && isCompleted) {
-            dao.insertAccounts(
-                listOf(
-                    AccountEntity(accountName = "PRIMARY BANK", startingBalance = 0.0, accountType = "Operating", minBalance = 0.0, sortOrder = 0),
-                    AccountEntity(accountName = "SECONDARY BANK", startingBalance = 0.0, accountType = "Commitments", minBalance = 0.0, sortOrder = 1),
-                    AccountEntity(accountName = "TERTIARY BANK", startingBalance = 0.0, accountType = "Fortress", minBalance = 0.0, sortOrder = 2),
-                    AccountEntity(accountName = "CASH WALLET", startingBalance = 0.0, accountType = "Cash", minBalance = 0.0, sortOrder = 3)
-                )
-            )
-        }
-    }
-
     suspend fun exportJsonBackupToUri(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
         try {
             val root = JSONObject()
