@@ -1,6 +1,6 @@
 package com.example.myfin.ui.components
 
-import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -62,20 +62,23 @@ fun VaultNowBar(
                 delay(4500L)
                 if (!pagerState.isScrollInProgress) {
                     val next = (pagerState.currentPage + 1) % alerts.size
-                    pagerState.animateScrollToPage(next, animationSpec = tween(550))
+                    pagerState.animateScrollToPage(
+                        page = next,
+                        animationSpec = tween(550, easing = FastOutSlowInEasing)
+                    )
                 }
             }
         }
     }
 
     val barHeight by animateDpAsState(
-        targetValue = if (isExpanded) 124.dp else 50.dp,
+        targetValue = if (isExpanded) 136.dp else 58.dp,
         animationSpec = tween(300),
         label = "nowBarHeight"
     )
 
     val cornerRadius by animateDpAsState(
-        targetValue = if (isExpanded) 18.dp else 25.dp,
+        targetValue = if (isExpanded) 20.dp else 29.dp,
         animationSpec = tween(300),
         label = "nowBarCorner"
     )
@@ -89,7 +92,7 @@ fun VaultNowBar(
         color = CardWhite,
         border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
-        // Vertical Pager: Swiping Up & Down transitions between cards
+        // Vertical Pager: Swiping Up & Down rolls between cards
         VerticalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
@@ -98,7 +101,7 @@ fun VaultNowBar(
             val alert = alerts.getOrNull(page) ?: return@VerticalPager
 
             if (!isExpanded) {
-                // COLLAPSED: Single-line Samsung Now Bar Live Pill
+                // COLLAPSED: Single-line Samsung Now Bar Capsule (58dp)
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -106,18 +109,18 @@ fun VaultNowBar(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { isExpanded = true }
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Left Status Badge + Headline (Single line, strictly no clipping)
+                    // Left Status Badge + 2-Line Text with full vertical headroom
                     Row(
                         modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
                                 .background(alert.iconBg),
                             contentAlignment = Alignment.Center
@@ -132,27 +135,43 @@ fun VaultNowBar(
 
                         Spacer(modifier = Modifier.width(9.dp))
 
-                        Text(
-                            text = alert.title,
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = alert.title,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark,
+                                lineHeight = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = alert.subtitle,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = TextMuted,
+                                lineHeight = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(6.dp))
 
-                    // Right Side: Samsung Micro-Dots + Action Button + Expand Arrow
+                    // Right Side: Samsung Vertical Indicator Dots + Action Pill + Arrow
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.End
                     ) {
-                        // Samsung Vertical Micro-dots indicator
+                        // Samsung Vertical Indicator Dots
                         if (alerts.size > 1) {
                             Column(
-                                modifier = Modifier.padding(end = 8.dp),
+                                modifier = Modifier.padding(end = 6.dp),
                                 verticalArrangement = Arrangement.spacedBy(2.5.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
@@ -160,21 +179,21 @@ fun VaultNowBar(
                                     val isCurrent = pagerState.currentPage == idx
                                     Box(
                                         modifier = Modifier
-                                            .size(if (isCurrent) 4.5.dp else 3.dp)
+                                            .size(width = 3.5.dp, height = if (isCurrent) 8.dp else 3.5.dp)
                                             .clip(CircleShape)
-                                            .background(if (isCurrent) AccentPurple else BorderLight)
+                                            .background(if (isCurrent) alert.actionColor else BorderLight)
                                     )
                                 }
                             }
                         }
 
-                        // Compact Action Pill
+                        // Compact Action Button
                         Button(
                             onClick = alert.onAction,
-                            shape = RoundedCornerShape(15.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = alert.actionColor),
-                            contentPadding = PaddingValues(horizontal = 13.dp, vertical = 0.dp),
-                            modifier = Modifier.height(30.dp)
+                            contentPadding = PaddingValues(horizontal = 11.dp, vertical = 0.dp),
+                            modifier = Modifier.height(28.dp)
                         ) {
                             Text(
                                 text = alert.actionLabel,
@@ -189,17 +208,17 @@ fun VaultNowBar(
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
                             contentDescription = "Expand",
-                            tint = TextMuted,
-                            modifier = Modifier.size(18.dp)
+                            tint = TextMuted.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
             } else {
-                // EXPANDED: Detailed One UI Card (Revealed on Tap)
+                // EXPANDED: Full One UI Card (Revealed on Tap)
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = 14.dp, vertical = 11.dp),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
                     // Header Row
@@ -214,7 +233,7 @@ fun VaultNowBar(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(28.dp)
+                                    .size(30.dp)
                                     .clip(CircleShape)
                                     .background(alert.iconBg),
                                 contentAlignment = Alignment.Center
@@ -269,13 +288,13 @@ fun VaultNowBar(
                         }
                     }
 
-                    // Full description text with room to breathe
+                    // Full description text
                     if (alert.subtitle.isNotBlank()) {
                         Text(
                             text = alert.subtitle,
                             fontSize = 11.5.sp,
                             color = TextMuted,
-                            lineHeight = 15.sp,
+                            lineHeight = 16.sp,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
