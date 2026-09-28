@@ -37,7 +37,9 @@ import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.CategoryPerformance
 import com.example.myfin.ui.FilterCriteria
 import com.example.myfin.ui.MonthlyUiState
+import com.example.myfin.ui.components.NowBarAlert
 import com.example.myfin.ui.components.SpendingSparkline
+import com.example.myfin.ui.components.VaultNowBar
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.delay
 import java.util.Locale
@@ -85,6 +87,113 @@ fun MonthlySummaryTab(
         isCurrentMonth && monthEndSweepPlan != null && monthEndSweepPlan.sweepAmount > 0.0 && dismissedSweepMonth != uiState.selectedMonth
     }
 
+    // Consolidated Samsung Now Bar Alerts (Shortfall, Rollover, Waterfall, Month-End Sweep)
+    val nowBarAlerts = remember(
+        uiState.commitmentsShortfall,
+        uiState.isRolloverBannerVisible,
+        uiState.rolloverBannerMessage,
+        showWaterfallPrompt,
+        paydayPlan,
+        showMonthEndSweepPrompt,
+        monthEndSweepPlan,
+        userProfile.currencySymbol
+    ) {
+        buildList {
+            // 1. Critical: Commitments Shortfall
+            if (uiState.commitmentsShortfall.isShortfall) {
+                val shortfall = uiState.commitmentsShortfall
+                val dueText = if (shortfall.earliestDueDay != null) " by ${shortfall.earliestDueDay}th" else ""
+                add(
+                    NowBarAlert(
+                        id = "shortfall",
+                        icon = Icons.Default.WarningAmber,
+                        iconTint = SoftRed,
+                        iconBg = SoftRed.copy(alpha = 0.12f),
+                        title = "Shortfall: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", shortfall.shortfallAmount)}",
+                        subtitle = "Transfer to ${shortfall.affectedAccountName}$dueText to protect MAB",
+                        actionLabel = "Transfer",
+                        actionColor = SoftRed,
+                        onAction = onOpenTransferSheet
+                    )
+                )
+            }
+
+            // 2. High: Scheduled Recurring Commitments
+            if (uiState.isRolloverBannerVisible) {
+                add(
+                    NowBarAlert(
+                        id = "rollover",
+                        icon = Icons.Default.SyncAlt,
+                        iconTint = AccentPurple,
+                        iconBg = AccentPurple.copy(alpha = 0.12f),
+                        title = "Commitments Scheduled",
+                        subtitle = uiState.rolloverBannerMessage.ifBlank { "Recurring AutoPay bills scheduled." },
+                        actionLabel = "Dismiss",
+                        actionColor = AccentPurple,
+                        onAction = { viewModel.dismissRolloverBanner() }
+                    )
+                )
+            }
+
+            // 3. Medium: Payday Allocation
+            if (showWaterfallPrompt && paydayPlan != null) {
+                val parts = buildList {
+                    if (paydayPlan.toCommitments > 0.0) add("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toCommitments)} to Bills")
+                    if (paydayPlan.totalToFortress > 0.0) add("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.totalToFortress)} to Fortress")
+                }.joinToString(" & ")
+                add(
+                    NowBarAlert(
+                        id = "payday",
+                        icon = Icons.Default.AccountBalanceWallet,
+                        iconTint = SoftTeal,
+                        iconBg = SoftTeal.copy(alpha = 0.12f),
+                        title = "Payday Allocation Ready",
+                        subtitle = parts.ifBlank { "Living cushion preserved in Operating." },
+                        actionLabel = "Allocate",
+                        actionColor = SoftTeal,
+                        onAction = {
+                            viewModel.applyPaydayAllocation(
+                                plan = paydayPlan,
+                                operatingAccount = operatingAccountName,
+                                commitmentsAccount = commitmentsAccountName,
+                                fortressAccount = fortressAccountName
+                            )
+                            onDismissWaterfall()
+                            Toast.makeText(context, "Payday allocation executed!", Toast.LENGTH_SHORT).show()
+                        },
+                        onDismiss = onDismissWaterfall
+                    )
+                )
+            }
+
+            // 4. Low: Month-End Wealth Sweep
+            if (showMonthEndSweepPrompt && monthEndSweepPlan != null) {
+                add(
+                    NowBarAlert(
+                        id = "sweep",
+                        icon = Icons.Default.Savings,
+                        iconTint = SoftGreen,
+                        iconBg = SoftGreen.copy(alpha = 0.12f),
+                        title = "Wealth Sweep: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthEndSweepPlan.sweepAmount)}",
+                        subtitle = "Sweep unspent surplus to Fortress Extra",
+                        actionLabel = "Sweep",
+                        actionColor = SoftGreen,
+                        onAction = {
+                            viewModel.applyMonthEndSweep(
+                                plan = monthEndSweepPlan,
+                                operatingAccount = operatingAccountName,
+                                fortressAccount = fortressAccountName
+                            )
+                            onDismissSweep()
+                            Toast.makeText(context, "Surplus swept to Fortress Extra!", Toast.LENGTH_SHORT).show()
+                        },
+                        onDismiss = onDismissSweep
+                    )
+                )
+            }
+        }
+    }
+
     val activeMatrix = remember(uiState.categories, selectedMatrixType) {
         uiState.categories.filter { it.type == selectedMatrixType && it.category.isNotBlank() }
     }
@@ -109,333 +218,22 @@ fun MonthlySummaryTab(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
     ) {
-        if (uiState.isRolloverBannerVisible || showWaterfallPrompt || showMonthEndSweepPrompt || uiState.commitmentsShortfall.isShortfall) {
-            item {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    if (uiState.commitmentsShortfall.isShortfall) {
-                        val shortfall = uiState.commitmentsShortfall
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(2.dp, RoundedCornerShape(16.dp)),
-                            shape = RoundedCornerShape(16.dp),
-                            color = CardWhite,
-                            border = BorderStroke(1.dp, SoftRed.copy(alpha = 0.35f))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(SoftRed.copy(alpha = 0.12f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.WarningAmber,
-                                        contentDescription = null,
-                                        tint = SoftRed,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Commitments Shortfall Warning",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = TextDark
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    val dueText = if (shortfall.earliestDueDay != null) " by ${shortfall.earliestDueDay}th" else ""
-                                    Text(
-                                        text = "Transfer ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", shortfall.shortfallAmount)}$dueText to ${shortfall.affectedAccountName} to protect MAB & avoid bill bounce.",
-                                        fontSize = 11.sp,
-                                        color = TextMuted,
-                                        lineHeight = 15.sp,
-                                        maxLines = 2
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(10.dp))
-
-                                Button(
-                                    onClick = onOpenTransferSheet,
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = SoftRed),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(32.dp)
-                                ) {
-                                    Text(text = "Transfer", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-
-                    if (uiState.isRolloverBannerVisible) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(2.dp, RoundedCornerShape(16.dp)),
-                            shape = RoundedCornerShape(16.dp),
-                            color = CardWhite,
-                            border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.28f))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(AccentPurple.copy(alpha = 0.12f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.SyncAlt,
-                                        contentDescription = null,
-                                        tint = AccentPurple,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Recurring Commitments Scheduled",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = TextDark
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = uiState.rolloverBannerMessage.ifBlank {
-                                            "Recurring AutoPay bills and budget limits have been scheduled for next cycle."
-                                        },
-                                        fontSize = 11.sp,
-                                        color = TextMuted,
-                                        lineHeight = 15.sp,
-                                        maxLines = 2
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(10.dp))
-
-                                Button(
-                                    onClick = { viewModel.dismissRolloverBanner() },
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(32.dp)
-                                ) {
-                                    Text(text = "Dismiss", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-
-                    if (showWaterfallPrompt && paydayPlan != null) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(2.dp, RoundedCornerShape(16.dp)),
-                            shape = RoundedCornerShape(16.dp),
-                            color = CardWhite,
-                            border = BorderStroke(1.dp, SoftTeal.copy(alpha = 0.35f))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(SoftTeal.copy(alpha = 0.12f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AccountBalanceWallet,
-                                        contentDescription = null,
-                                        tint = SoftTeal,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Payday Allocation Ready",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = TextDark
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    val planParts = buildList {
-                                        if (paydayPlan.toCommitments > 0.0) {
-                                            add("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toCommitments)} to Commitments")
-                                        }
-                                        if (paydayPlan.totalToFortress > 0.0) {
-                                            add("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.totalToFortress)} to Fortress")
-                                        }
-                                    }
-                                    Text(
-                                        text = if (planParts.isNotEmpty()) "Allocate ${planParts.joinToString(" & ")}." else "Living cushion preserved in Operating.",
-                                        fontSize = 11.sp,
-                                        color = TextMuted,
-                                        lineHeight = 15.sp,
-                                        maxLines = 2
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(10.dp))
-
-                                Column(
-                                    horizontalAlignment = Alignment.End,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Button(
-                                        onClick = {
-                                            viewModel.applyPaydayAllocation(
-                                                plan = paydayPlan,
-                                                operatingAccount = operatingAccountName,
-                                                commitmentsAccount = commitmentsAccountName,
-                                                fortressAccount = fortressAccountName
-                                            )
-                                            onDismissWaterfall()
-                                            Toast.makeText(context, "Payday allocation executed!", Toast.LENGTH_SHORT).show()
-                                        },
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = SoftTeal),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                        modifier = Modifier.height(32.dp)
-                                    ) {
-                                        Text(text = "Allocate", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    TextButton(
-                                        onClick = onDismissWaterfall,
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(22.dp)
-                                    ) {
-                                        Text(text = "Dismiss", fontSize = 10.sp, color = TextMuted)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (showMonthEndSweepPrompt && monthEndSweepPlan != null) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(2.dp, RoundedCornerShape(16.dp)),
-                            shape = RoundedCornerShape(16.dp),
-                            color = CardWhite,
-                            border = BorderStroke(1.dp, SoftGreen.copy(alpha = 0.35f))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(SoftGreen.copy(alpha = 0.12f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Savings,
-                                        contentDescription = null,
-                                        tint = SoftGreen,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Month-End Wealth Sweep",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = TextDark
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "Sweep ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthEndSweepPlan.sweepAmount)} unspent surplus into Fortress Extra.",
-                                        fontSize = 11.sp,
-                                        color = TextMuted,
-                                        lineHeight = 15.sp,
-                                        maxLines = 2
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(10.dp))
-
-                                Column(
-                                    horizontalAlignment = Alignment.End,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Button(
-                                        onClick = {
-                                            viewModel.applyMonthEndSweep(
-                                                plan = monthEndSweepPlan,
-                                                operatingAccount = operatingAccountName,
-                                                fortressAccount = fortressAccountName
-                                            )
-                                            onDismissSweep()
-                                            Toast.makeText(context, "Surplus swept to Fortress Extra!", Toast.LENGTH_SHORT).show()
-                                        },
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = SoftGreen),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                        modifier = Modifier.height(32.dp)
-                                    ) {
-                                        Text(text = "Sweep", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    TextButton(
-                                        onClick = onDismissSweep,
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(22.dp)
-                                    ) {
-                                        Text(text = "Dismiss", fontSize = 10.sp, color = TextMuted)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(14.dp))
+        // 1. SAMSUNG NOW BAR CAPSULE (Sits cleanly right above the Hero card)
+        if (nowBarAlerts.isNotEmpty()) {
+            item(key = "now_bar_capsule") {
+                VaultNowBar(
+                    alerts = nowBarAlerts,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
             }
         }
 
-        // 3. HORIZONTAL PAGER: SAFE TO SPEND, 3-PILLAR TARGET, & FORTRESS CARDS
+        // 2. HORIZONTAL PAGER: SAFE TO SPEND, 3-PILLAR TARGET, & FORTRESS CARDS
         item {
             Column(modifier = Modifier.fillMaxWidth()) {
                 HorizontalPager(
                     state = topCardsPagerState,
-                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    contentPadding = PaddingValues(horizontal = 0.dp),
                     pageSpacing = 10.dp,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -907,7 +705,7 @@ fun MonthlySummaryTab(
                             }
                         }
 
-                        // Card 2: Fortress Vault Split (Strictly Filtered by accountType == "Fortress")
+                        // Card 2: Fortress Vault Split
                         2 -> {
                             val fortTotal = remember(uiState.activeAccounts) {
                                 uiState.activeAccounts
@@ -1181,7 +979,7 @@ fun MonthlySummaryTab(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // 4. AUTO-SCROLLING BALANCE FLOW CAROUSEL
+        // 3. AUTO-SCROLLING BALANCE FLOW CAROUSEL
         item {
             val startBalance = uiState.metrics.startLiquidBalance
             val endBalance = uiState.metrics.endLiquidBalance
@@ -1527,7 +1325,7 @@ fun MonthlySummaryTab(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // 5. Category Matrix Header & Switcher
+        // 4. Category Matrix Header & Switcher
         item {
             Text(text = "Category Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
             Spacer(modifier = Modifier.height(8.dp))
