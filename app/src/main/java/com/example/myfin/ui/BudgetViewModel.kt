@@ -33,7 +33,8 @@ data class CategoryPerformance(
     val plannedAmount: Double,
     val actualAmount: Double,
     val activeSubcategories: List<SubcategoryPerformance> = emptyList(),
-    val isReimbursableFloat: Boolean = false
+    val isReimbursableFloat: Boolean = false,
+    val averageMonthlySpend: Double = 0.0
 ) {
     val variance: Double get() = plannedAmount - actualAmount
     val isOverBudget: Boolean get() = !isReimbursableFloat && type == TransactionType.EXPENSE && actualAmount > plannedAmount && plannedAmount > 0
@@ -42,6 +43,7 @@ data class CategoryPerformance(
     val categoryName: String get() = category
     val spentAmount: Double get() = actualAmount
     val budgetedAmount: Double get() = plannedAmount
+    val averageSpent: Double get() = averageMonthlySpend
 }
 
 data class CommitmentsShortfallStatus(
@@ -185,7 +187,8 @@ data class MonthlyUiState(
     val isTaxonomyBannerVisible: Boolean = false,
     val fortressTarget: Double = 0.0,
     val fortressFdBalance: Double = 0.0,
-    val fortressProgressPercentage: Int = 0
+    val fortressProgressPercentage: Int = 0,
+    val category3MonthAverages: Map<String, Double> = emptyMap()
 ) {
     val categoryBreakdowns: List<CategoryPerformance> get() = categories
     val accountList: List<String> get() = frequentAccounts.ifEmpty { activeAccounts.map { it.accountName } }
@@ -274,6 +277,12 @@ class BudgetViewModel(
     ) { month, year, filter, profile ->
         Tuple4(month, year, filter, profile)
     }.flatMapLatest { (month, year, filter, profile) ->
+        val targetMonthKey = year * 12 + month
+        val earliestKey = withContext(Dispatchers.IO) {
+            try { dao.getEarliestTransactionMonthKey() ?: targetMonthKey } catch (_: Exception) { targetMonthKey }
+        }
+        val completedMonths = (targetMonthKey - earliestKey).coerceIn(1, 3)
+
         val coreDataFlow = combine(
             dao.getTransactionsForMonth(month, year),
             dao.getFixedBillsForMonth(month, year),
@@ -285,9 +294,10 @@ class BudgetViewModel(
         val metadataFlow = combine(
             dao.getBudgetPlansForMonth(month, year),
             dao.getAllCategories(),
-            dao.getAllSubcategories()
-        ) { plans, masterCats, masterSubcats ->
-            Triple(plans, masterCats, masterSubcats)
+            dao.getAllSubcategories(),
+            dao.getTrailing3MonthCategoryTotals(targetMonthKey)
+        ) { plans, masterCats, masterSubcats, trailingRollups ->
+            Tuple4(plans, masterCats, masterSubcats, trailingRollups)
         }
 
         val globalHistoryFlow = flow {
@@ -298,8 +308,13 @@ class BudgetViewModel(
 
         combine(coreDataFlow, metadataFlow, globalHistoryFlow, bannerFlow) { coreData, metaData, allTimeTxs, bannerInfo ->
             val (transactions, fixedBills, allAccounts) = coreData
-            val (plans, masterCats, masterSubcats) = metaData
+            val (plans, masterCats, masterSubcats, trailingRollups) = metaData
             val (isBannerVisible, bannerMsg) = bannerInfo
+
+            // Compute trailing average spending per expense category
+            val averagesMap = trailingRollups
+                .filter { it.type == TransactionType.EXPENSE }
+                .associate { it.category to (it.totalAmount / completedMonths.toDouble()) }
 
             val todayCal = Calendar.getInstance()
             val sysMonth = todayCal.get(Calendar.MONTH) + 1
@@ -461,13 +476,18 @@ class BudgetViewModel(
                     .map { (subName, txs) -> SubcategoryPerformance(subName, txs.sumOf { it.amount }) }
                     .filter { it.amount != 0.0 }
 
+                val catAvg = if (catType == TransactionType.EXPENSE) {
+                    averagesMap.entries.firstOrNull { it.key.equals(catName, ignoreCase = true) }?.value ?: 0.0
+                } else 0.0
+
                 CategoryPerformance(
                     category = catName,
                     type = catType,
                     plannedAmount = effectivePlanned,
                     actualAmount = actualTotal,
                     activeSubcategories = activeSubs,
-                    isReimbursableFloat = isCorporateCat
+                    isReimbursableFloat = isCorporateCat,
+                    averageMonthlySpend = catAvg
                 )
             }
 
@@ -877,10 +897,15 @@ class BudgetViewModel(
                 isTaxonomyBannerVisible = isTaxonomyBannerVisible,
                 fortressTarget = computedFortressTarget,
                 fortressFdBalance = currentFdReserve,
-                fortressProgressPercentage = fortressProgress
+                fortressProgressPercentage = fortressProgress,
+                category3MonthAverages = averagesMap
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthlyUiState())
+
+    val category3MonthAverages: StateFlow<Map<String, Double>> = monthlyUiState
+        .map { it.category3MonthAverages }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val yearlyUiState: StateFlow<YearlyUiState> = combine(
         currentYear,
@@ -1480,6 +1505,709 @@ class BudgetViewModel(
 
     fun restoreVaultFromEncryptedJson(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
         restoreVaultFromUri(context, uri, onResult)
+    }
+
+    suspend fun exportCsvToUri(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val transactions = dao.getAllTransactions()
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+            val builder = StringBuilder()
+
+            builder.append('\uFEFF')
+            builder.append("Date,Title,Flow Type,Category,Subcategory,Amount,Source Vault,Destination Vault\n")
+
+            transactions.forEach { tx ->
+                val escapedTitle = tx.title.replace("\"", "\"\"")
+                val escapedCat = tx.category.replace("\"", "\"\"")
+                val escapedSub = tx.subcategory.replace("\"", "\"\"")
+                val dateStr = dateFormat.format(Date(tx.date))
+                val toAcc = tx.toAccountName ?: ""
+
+                builder.append("\"$dateStr\",")
+                builder.append("\"$escapedTitle\",")
+                builder.append("\"${tx.type.name}\",")
+                builder.append("\"$escapedCat\",")
+                builder.append("\"$escapedSub\",")
+                builder.append("${tx.amount},")
+                builder.append("\"${tx.accountName}\",")
+                builder.append("\"$toAcc\"\n")
+            }
+
+            context.contentResolver.openOutputStream(uri)?.use { os ->
+                os.write(builder.toString().toByteArray(Charsets.UTF_8))
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun seedFullExcelTaxonomyIfEmpty() = withContext(Dispatchers.IO) {
+        val existingCats = dao.getAllCategoriesDirect()
+        if (existingCats.isEmpty()) {
+            dao.insertCategories(CategoryEntity.defaultCategories)
+            dao.insertSubcategories(SubcategoryEntity.defaultSubcategories)
+        }
+    }
+
+    suspend fun seedDefaultAccountsIfEmpty() = withContext(Dispatchers.IO) {
+        val isCompleted = dao.getUserProfileDirect()?.isOnboardingCompleted ?: false
+        val count = dao.getAccountCount()
+        if (count == 0 && isCompleted) {
+            dao.insertAccounts(
+                listOf(
+                    AccountEntity(accountName = "PRIMARY BANK", startingBalance = 0.0, accountType = "Operating", minBalance = 0.0, sortOrder = 0),
+                    AccountEntity(accountName = "SECONDARY BANK", startingBalance = 0.0, accountType = "Commitments", minBalance = 0.0, sortOrder = 1),
+                    AccountEntity(accountName = "TERTIARY BANK", startingBalance = 0.0, accountType = "Fortress", minBalance = 0.0, sortOrder = 2),
+                    AccountEntity(accountName = "CASH WALLET", startingBalance = 0.0, accountType = "Cash", minBalance = 0.0, sortOrder = 3)
+                )
+            )
+        }
+    }
+
+    fun resetEntireVault(onComplete: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.clearAllTransactions()
+            dao.clearAllFixedBills()
+            dao.clearAllBudgetPlans()
+            dao.clearAllAccounts()
+            dao.clearUserProfile()
+            dao.clearAllCategories()
+            dao.clearAllSubcategories()
+            seedFullExcelTaxonomyIfEmpty()
+            seedDefaultAccountsIfEmpty()
+            securityManager.clearAll()
+            isAppUnlocked.value = false
+            withContext(Dispatchers.Main) {
+                onComplete()
+            }
+        }
+    }
+
+    fun copyPreviousMonthBudget(onComplete: (Int) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val prevMonth = if (currentMonth.value == 1) 12 else currentMonth.value - 1
+            val prevYear = if (currentMonth.value == 1) currentYear.value - 1 else currentYear.value
+            val previousPlans = dao.getBudgetPlansForMonthDirect(prevMonth, prevYear)
+
+            val activeCategories = dao.getAllCategoriesDirect().filter { !it.isLegacy }.map { it.name }.toSet()
+
+            val clonedPlans = previousPlans.filter { activeCategories.contains(it.category) }.map { plan ->
+                BudgetPlanEntity(
+                    category = plan.category,
+                    plannedAmount = plan.plannedAmount,
+                    type = plan.type,
+                    month = currentMonth.value,
+                    year = currentYear.value
+                )
+            }
+            dao.insertBudgetPlans(clonedPlans)
+            withContext(Dispatchers.Main) {
+                onComplete(clonedPlans.size)
+            }
+        }
+    }
+
+    fun updateCategoryBudget(category: String, amount: Double, type: TransactionType) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val currentPlans = dao.getBudgetPlansForMonthDirect(currentMonth.value, currentYear.value)
+            val existing = currentPlans.find { it.category == category && it.type == type }
+            if (existing != null) {
+                dao.insertBudgetPlan(existing.copy(plannedAmount = amount))
+            } else {
+                dao.insertBudgetPlan(
+                    BudgetPlanEntity(
+                        category = category,
+                        plannedAmount = amount,
+                        type = type,
+                        month = currentMonth.value,
+                        year = currentYear.value
+                    )
+                )
+            }
+        }
+    }
+
+    private suspend fun findMatchingUnpaidBill(
+        txMonth: Int,
+        txYear: Int,
+        resolvedTitle: String,
+        amount: Double,
+        category: String,
+        subcategory: String,
+        accountName: String,
+        toAccountName: String?,
+        type: TransactionType
+    ): FixedBillEntity? {
+        if (type == TransactionType.INCOME) return null
+
+        val unpaidBills = dao.getFixedBillsForMonthDirect(txMonth, txYear).filter { !it.isPaid }
+
+        val candidates = unpaidBills.filter { bill ->
+            if (bill.type != type) return@filter false
+
+            if (type == TransactionType.TRANSFER) {
+                val matchesSubtype = bill.subcategory.equals(subcategory, ignoreCase = true)
+                val matchesDestination = !toAccountName.isNullOrBlank() &&
+                        !bill.toAccountName.isNullOrBlank() &&
+                        bill.toAccountName.equals(toAccountName, ignoreCase = true)
+                val matchesTitle = bill.title.isNotBlank() && (
+                        resolvedTitle.contains(bill.title, ignoreCase = true) ||
+                        bill.title.contains(resolvedTitle, ignoreCase = true)
+                )
+                matchesSubtype && (matchesDestination || matchesTitle)
+            } else {
+                bill.category.equals(category, ignoreCase = true) &&
+                bill.subcategory.equals(subcategory, ignoreCase = true)
+            }
+        }
+
+        return candidates.map { bill ->
+            var score = 0
+            val billTitleClean = bill.title.trim()
+            val hasDistinctBillTitle = billTitleClean.isNotBlank() && !billTitleClean.equals(bill.subcategory, ignoreCase = true)
+            val hasDistinctTxTitle = resolvedTitle.isNotBlank() && !resolvedTitle.equals(subcategory, ignoreCase = true)
+
+            if (hasDistinctBillTitle && hasDistinctTxTitle) {
+                if (resolvedTitle.equals(billTitleClean, ignoreCase = true)) {
+                    score += 100
+                } else if (resolvedTitle.contains(billTitleClean, ignoreCase = true) || billTitleClean.contains(resolvedTitle, ignoreCase = true)) {
+                    score += 50
+                }
+            }
+
+            if (bill.accountName.equals(accountName, ignoreCase = true)) {
+                score += 20
+            }
+            if (type == TransactionType.TRANSFER && !toAccountName.isNullOrBlank() && toAccountName.equals(bill.toAccountName, ignoreCase = true)) {
+                score += 20
+            }
+
+            val diff = abs(bill.amount - amount)
+            if (diff < 0.01) {
+                score += 30
+            } else if (diff <= bill.amount * 0.1) {
+                score += 10
+            }
+
+            bill to score
+        }.filter { it.second >= 50 }
+         .maxByOrNull { it.second }
+         ?.first
+    }
+
+    fun saveTransaction(
+        id: Long = 0,
+        title: String,
+        amount: Double,
+        category: String,
+        subcategory: String,
+        accountName: String,
+        type: TransactionType,
+        date: Long = System.currentTimeMillis(),
+        toAccountName: String? = null,
+        transferSubtype: TransferSubtype = TransferSubtype.NONE
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val cleanTitle = title.trim()
+            val cleanSubcat = subcategory.trim()
+            val resolvedTitle = if (cleanTitle.isBlank()) cleanSubcat else cleanTitle
+
+            val calTx = Calendar.getInstance().apply { timeInMillis = date }
+            val txMonth = calTx.get(Calendar.MONTH) + 1
+            val txYear = calTx.get(Calendar.YEAR)
+
+            var resolvedLinkedBillId: Long? = null
+
+            if (id == 0L) {
+                val matchingBill = findMatchingUnpaidBill(
+                    txMonth, txYear, resolvedTitle, amount, category, subcategory, accountName, toAccountName, type
+                )
+                if (matchingBill != null) {
+                    resolvedLinkedBillId = matchingBill.id
+                    dao.updateFixedBill(matchingBill.copy(isPaid = true, amount = amount))
+                }
+            } else {
+                val existingTx = dao.getTransactionById(id)
+                resolvedLinkedBillId = existingTx?.linkedFixedBillId
+
+                if (resolvedLinkedBillId != null) {
+                    val linkedBill = dao.getFixedBillById(resolvedLinkedBillId)
+                    if (linkedBill != null) {
+                        val stillMatches = if (type == TransactionType.TRANSFER) {
+                            linkedBill.type == TransactionType.TRANSFER &&
+                            linkedBill.subcategory.equals(subcategory, ignoreCase = true)
+                        } else {
+                            linkedBill.type == type &&
+                            linkedBill.category.equals(category, ignoreCase = true)
+                        }
+
+                        if (stillMatches) {
+                            dao.updateFixedBill(
+                                linkedBill.copy(
+                                    title = resolvedTitle,
+                                    amount = amount
+                                )
+                            )
+                        } else {
+                            dao.updateFixedBill(linkedBill.copy(isPaid = false))
+                            resolvedLinkedBillId = null
+
+                            val newMatchingBill = findMatchingUnpaidBill(
+                                txMonth, txYear, resolvedTitle, amount, category, subcategory, accountName, toAccountName, type
+                            )
+                            if (newMatchingBill != null) {
+                                resolvedLinkedBillId = newMatchingBill.id
+                                dao.updateFixedBill(newMatchingBill.copy(isPaid = true, amount = amount))
+                            }
+                        }
+                    }
+                } else if (type != TransactionType.INCOME) {
+                    val matchingBill = findMatchingUnpaidBill(
+                        txMonth, txYear, resolvedTitle, amount, category, subcategory, accountName, toAccountName, type
+                    )
+                    if (matchingBill != null) {
+                        resolvedLinkedBillId = matchingBill.id
+                        dao.updateFixedBill(matchingBill.copy(isPaid = true, amount = amount))
+                    }
+                }
+            }
+
+            val entity = TransactionEntity(
+                id = id,
+                title = resolvedTitle,
+                amount = amount,
+                category = category,
+                subcategory = subcategory,
+                accountName = accountName,
+                toAccountName = toAccountName,
+                type = type,
+                date = date,
+                month = txMonth,
+                year = txYear,
+                linkedFixedBillId = resolvedLinkedBillId,
+                transferSubtype = transferSubtype
+            )
+            if (id == 0L) dao.insertTransaction(entity) else dao.updateTransaction(entity)
+        }
+    }
+
+    fun executeInstantTransfer(
+        fromAccount: String,
+        toAccount: String,
+        amount: Double,
+        note: String = "",
+        subtype: TransferSubtype = TransferSubtype.NONE,
+        date: Long = System.currentTimeMillis()
+    ) {
+        val resolvedNote = if (note.isBlank()) "Vault Transfer ($fromAccount ➔ $toAccount)" else note.trim()
+        saveTransaction(
+            title = resolvedNote,
+            amount = amount,
+            category = "Transfer",
+            subcategory = subtype.name,
+            accountName = fromAccount,
+            toAccountName = toAccount,
+            type = TransactionType.TRANSFER,
+            date = date,
+            transferSubtype = subtype
+        )
+    }
+
+    fun applyPaydayAllocation(
+        plan: PaydayAllocationPlan,
+        operatingAccount: String,
+        commitmentsAccount: String,
+        fortressAccount: String
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (plan.toCommitments > 0.0) {
+                executeInstantTransfer(
+                    fromAccount = operatingAccount,
+                    toAccount = commitmentsAccount,
+                    amount = plan.toCommitments,
+                    note = "Payday Allocation ➔ Commitments Bill Funding",
+                    subtype = TransferSubtype.BILL_FUNDING
+                )
+            }
+            if (plan.totalToFortress > 0.0) {
+                executeInstantTransfer(
+                    fromAccount = operatingAccount,
+                    toAccount = fortressAccount,
+                    amount = plan.totalToFortress,
+                    note = "Payday Allocation ➔ Fortress Emergency Base",
+                    subtype = TransferSubtype.WEALTH_ALLOCATION
+                )
+            }
+        }
+    }
+
+    fun applyMonthEndSweep(
+        plan: MonthEndSweepPlan,
+        operatingAccount: String,
+        fortressAccount: String
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (plan.sweepAmount > 0.0) {
+                executeInstantTransfer(
+                    fromAccount = operatingAccount,
+                    toAccount = fortressAccount,
+                    amount = plan.sweepAmount,
+                    note = "Month-End Wealth Sweep ➔ Fortress Extra",
+                    subtype = TransferSubtype.WEALTH_ALLOCATION
+                )
+            }
+        }
+    }
+
+    fun deleteTransaction(transaction: TransactionEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.deleteTransaction(transaction)
+            transaction.linkedFixedBillId?.let { billId ->
+                val linkedBill = dao.getFixedBillById(billId)
+                if (linkedBill != null) {
+                    dao.updateFixedBill(linkedBill.copy(isPaid = false))
+                }
+            }
+        }
+    }
+
+    fun addCategory(name: String, type: TransactionType) {
+        viewModelScope.launch(Dispatchers.IO) { dao.insertCategory(CategoryEntity(name = name.trim(), type = type, isLegacy = false, isNew = false)) }
+    }
+
+    fun updateCategory(category: CategoryEntity, newName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.updateCategoryAndCascade(category, newName)
+        }
+    }
+
+    fun deleteCategory(category: CategoryEntity, onResult: (Boolean, String) -> Unit) {
+        if (!category.isLegacy && protectedCategories.contains(category.name)) {
+            onResult(false, "'${category.name}' is an active system default and cannot be deleted.")
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.deleteCategoryAndCascade(category)
+            dao.deleteFutureUnpaidFixedBillsByCategory(category.name, currentMonth.value, currentYear.value)
+            withContext(Dispatchers.Main) {
+                onResult(true, "Category deleted. Historical logs safely preserved.")
+            }
+        }
+    }
+
+    fun addSubcategory(parentCategory: String, name: String, type: TransactionType = TransactionType.EXPENSE) {
+        viewModelScope.launch(Dispatchers.IO) { dao.insertSubcategory(SubcategoryEntity(parentCategory = parentCategory, name = name.trim(), type = type, isLegacy = false, isNew = false)) }
+    }
+
+    fun updateSubcategory(sub: SubcategoryEntity, newName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.updateSubcategoryAndCascade(sub, newName)
+        }
+    }
+
+    fun deleteSubcategory(sub: SubcategoryEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.deleteSubcategory(sub)
+            dao.deleteFutureUnpaidFixedBillsBySubcategory(sub.parentCategory, sub.name, currentMonth.value, currentYear.value)
+        }
+    }
+
+    fun addFixedBill(
+        title: String,
+        amount: Double,
+        category: String,
+        subcategory: String,
+        account: String = "Primary Bank",
+        toAccount: String? = null,
+        type: TransactionType = TransactionType.EXPENSE,
+        dueDay: Int? = null,
+        isPaid: Boolean = false,
+        paidDateMillis: Long = System.currentTimeMillis()
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val cleanTitle = title.trim()
+            val cleanSubcat = subcategory.trim()
+            val finalTitle = if (cleanTitle.isBlank()) cleanSubcat else cleanTitle
+
+            val calTx = Calendar.getInstance().apply { timeInMillis = paidDateMillis }
+            val targetMonth = if (isPaid) calTx.get(Calendar.MONTH) + 1 else currentMonth.value
+            val targetYear = if (isPaid) calTx.get(Calendar.YEAR) else currentYear.value
+
+            val bill = FixedBillEntity(
+                title = finalTitle,
+                amount = amount,
+                category = category,
+                subcategory = subcategory,
+                accountName = account,
+                toAccountName = toAccount,
+                type = type,
+                isPaid = isPaid,
+                dueDay = dueDay,
+                month = targetMonth,
+                year = targetYear
+            )
+            val insertedId = dao.insertFixedBill(bill)
+
+            if (isPaid) {
+                val subtype = if (type == TransactionType.TRANSFER) {
+                    try {
+                        TransferSubtype.valueOf(subcategory)
+                    } catch (_: Exception) {
+                        TransferSubtype.BILL_FUNDING
+                    }
+                } else TransferSubtype.NONE
+
+                dao.insertTransaction(
+                    TransactionEntity(
+                        title = bill.title.ifBlank { subcategory },
+                        amount = amount,
+                        category = category,
+                        subcategory = subcategory.ifBlank { bill.title },
+                        accountName = account,
+                        toAccountName = toAccount,
+                        type = type,
+                        date = paidDateMillis,
+                        month = targetMonth,
+                        year = targetYear,
+                        linkedFixedBillId = insertedId,
+                        transferSubtype = subtype
+                    )
+                )
+            }
+        }
+    }
+
+    fun updateFixedBill(
+        id: Long,
+        title: String,
+        amount: Double,
+        category: String,
+        subcategory: String,
+        account: String,
+        toAccount: String?,
+        type: TransactionType,
+        dueDay: Int?
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = dao.getFixedBillById(id)
+            if (existing != null) {
+                val cleanTitle = title.trim()
+                val cleanSubcat = subcategory.trim()
+                val finalTitle = if (cleanTitle.isBlank()) cleanSubcat else cleanTitle
+
+                val updatedBill = existing.copy(
+                    title = finalTitle,
+                    amount = amount,
+                    category = category,
+                    subcategory = subcategory,
+                    accountName = account,
+                    toAccountName = toAccount,
+                    type = type,
+                    dueDay = dueDay
+                )
+                dao.updateFixedBill(updatedBill)
+
+                val linkedTx = dao.getTransactionByLinkedBill(id)
+                if (linkedTx != null) {
+                    dao.updateTransaction(
+                        linkedTx.copy(
+                            title = finalTitle.ifBlank { subcategory },
+                            amount = amount,
+                            category = category,
+                            subcategory = subcategory,
+                            accountName = account,
+                            toAccountName = toAccount,
+                            type = type
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun toggleFixedBillPaid(bill: FixedBillEntity, customAmount: Double = bill.amount, customDateMillis: Long = System.currentTimeMillis()) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updatedStatus = !bill.isPaid
+
+            if (updatedStatus) {
+                val calTx = Calendar.getInstance().apply { timeInMillis = customDateMillis }
+                val txMonth = calTx.get(Calendar.MONTH) + 1
+                val txYear = calTx.get(Calendar.YEAR)
+
+                val alignedBill = if (bill.month != txMonth || bill.year != txYear) {
+                    val targetMonthBills = dao.getFixedBillsForMonthDirect(txMonth, txYear)
+                    val existingInTarget = targetMonthBills.firstOrNull { it.id == bill.id }
+                        ?: targetMonthBills.firstOrNull { candidate ->
+                            val bTitle = bill.title.trim()
+                            val cTitle = candidate.title.trim()
+                            val isTitleMatch = bTitle.equals(cTitle, ignoreCase = true) ||
+                                ((bTitle.isBlank() || bTitle.equals(bill.subcategory, ignoreCase = true)) &&
+                                 (cTitle.isBlank() || cTitle.equals(candidate.subcategory, ignoreCase = true)))
+
+                            candidate.type == bill.type &&
+                            candidate.category.equals(bill.category, ignoreCase = true) &&
+                            candidate.subcategory.equals(bill.subcategory, ignoreCase = true) &&
+                            isTitleMatch &&
+                            candidate.accountName.equals(bill.accountName, ignoreCase = true)
+                        }
+
+                    if (existingInTarget != null) {
+                        existingInTarget.copy(isPaid = true, amount = customAmount)
+                    } else {
+                        bill.copy(month = txMonth, year = txYear, isPaid = true, amount = customAmount)
+                    }
+                } else {
+                    bill.copy(isPaid = true, amount = customAmount)
+                }
+
+                dao.updateFixedBill(alignedBill)
+
+                val subtype = if (alignedBill.type == TransactionType.TRANSFER) {
+                    try {
+                        TransferSubtype.valueOf(alignedBill.subcategory)
+                    } catch (_: Exception) {
+                        TransferSubtype.BILL_FUNDING
+                    }
+                } else TransferSubtype.NONE
+
+                dao.insertTransaction(
+                    TransactionEntity(
+                        title = alignedBill.title.ifBlank { alignedBill.subcategory },
+                        amount = customAmount,
+                        category = alignedBill.category,
+                        subcategory = alignedBill.subcategory.ifBlank { alignedBill.title },
+                        accountName = alignedBill.accountName,
+                        toAccountName = alignedBill.toAccountName,
+                        type = alignedBill.type,
+                        date = customDateMillis,
+                        month = txMonth,
+                        year = txYear,
+                        linkedFixedBillId = alignedBill.id,
+                        transferSubtype = subtype
+                    )
+                )
+            } else {
+                dao.updateFixedBill(bill.copy(isPaid = false))
+                dao.deleteTransactionByLinkedBill(bill.id)
+            }
+        }
+    }
+
+    fun deleteFixedBill(bill: FixedBillEntity, cascadeFuture: Boolean = true) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.deleteFixedBill(bill)
+            dao.deleteTransactionByLinkedBill(bill.id)
+
+            if (cascadeFuture) {
+                val sig = getBillSignature(bill)
+                val allBills = dao.getAllFixedBills()
+                val futureBills = allBills.filter { candidate ->
+                    !candidate.isPaid &&
+                    (candidate.year > bill.year || (candidate.year == bill.year && candidate.month > bill.month)) &&
+                    getBillSignature(candidate) == sig
+                }
+                futureBills.forEach { futureBill ->
+                    dao.deleteFixedBill(futureBill)
+                    dao.deleteTransactionByLinkedBill(futureBill.id)
+                }
+            }
+        }
+    }
+
+    fun addAccount(
+        name: String,
+        startingBalance: Double,
+        type: String = "Operating",
+        minBalance: Double = 0.0,
+        sortOrder: Int = 0
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existingAccounts = dao.getAllAccountsDirect()
+            val effectiveOrder = if (sortOrder == 0 && existingAccounts.isNotEmpty()) {
+                existingAccounts.maxOf { it.sortOrder } + 1
+            } else sortOrder
+
+            dao.insertAccount(
+                AccountEntity(
+                    accountName = name.trim().uppercase(),
+                    startingBalance = startingBalance,
+                    accountType = type,
+                    minBalance = minBalance,
+                    isArchived = false,
+                    sortOrder = effectiveOrder
+                )
+            )
+        }
+    }
+
+    fun updateAccountDetails(
+        oldName: String,
+        newName: String,
+        startingBalance: Double,
+        accountType: String,
+        minBalance: Double? = null,
+        isArchived: Boolean? = null,
+        sortOrder: Int? = null
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = dao.getAccountByName(oldName)
+            val resolvedMinBal = minBalance ?: existing?.minBalance ?: 0.0
+            val resolvedArchived = isArchived ?: existing?.isArchived ?: false
+            val resolvedSortOrder = sortOrder ?: existing?.sortOrder ?: 0
+
+            dao.updateAccountAndCascade(
+                oldName = oldName,
+                newName = newName,
+                startingBalance = startingBalance,
+                accountType = accountType,
+                minBalance = resolvedMinBal,
+                isArchived = resolvedArchived,
+                sortOrder = resolvedSortOrder
+            )
+        }
+    }
+
+    fun archiveAccount(accountName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.archiveAccount(accountName)
+        }
+    }
+
+    fun unarchiveAccount(accountName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.unarchiveAccount(accountName)
+        }
+    }
+
+    fun reorderAccounts(orderedAccounts: List<AccountEntity>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.reorderAccounts(orderedAccounts)
+        }
+    }
+
+    fun deleteAccount(account: AccountEntity, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val txCount = dao.getTransactionCountForAccount(account.accountName)
+            val billCount = dao.getAllFixedBills().count {
+                it.accountName.equals(account.accountName, ignoreCase = true) ||
+                it.toAccountName.equals(account.accountName, ignoreCase = true)
+            }
+
+            if (txCount > 0 || billCount > 0) {
+                val reasons = mutableListOf<String>()
+                if (txCount > 0) reasons.add("$txCount linked transactions")
+                if (billCount > 0) reasons.add("$billCount scheduled bills")
+                withContext(Dispatchers.Main) {
+                    onResult(false, "Cannot delete account with ${reasons.joinToString(" and ")}. Archive it instead.")
+                }
+            } else {
+                dao.deleteAccount(account)
+                withContext(Dispatchers.Main) {
+                    onResult(true, "Account removed successfully.")
+                }
+            }
+        }
     }
 
     suspend fun exportCsvToUri(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
