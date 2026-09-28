@@ -1142,26 +1142,26 @@ private fun BudgetCategoryCleanCard(
 
     val subtitleText = when (category.type) {
         TransactionType.EXPENSE -> when {
-            committedAutoPay > 0.0 -> "AutoPay committed: $currencySymbol${String.format(Locale.US, "%,.0f", committedAutoPay)}"
-            category.plannedAmount > 0.0 -> "Actual spent: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}"
+            committedAutoPay > 0.0 -> "AutoPay committed: ${currencySymbol}${String.format(Locale.US, "%,.0f", committedAutoPay)}"
+            category.plannedAmount > 0.0 -> "Actual spent: ${currencySymbol}${String.format(Locale.US, "%,.0f", category.actualAmount)}"
             isLegacy -> "Legacy category (retiring next month)"
             else -> "Tap to set budget target"
         }
         TransactionType.INCOME -> when {
-            committedAutoPay > 0.0 -> "Recurring inflow: $currencySymbol${String.format(Locale.US, "%,.0f", committedAutoPay)}"
-            category.plannedAmount > 0.0 -> "Actual received: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}"
+            committedAutoPay > 0.0 -> "Recurring inflow: ${currencySymbol}${String.format(Locale.US, "%,.0f", committedAutoPay)}"
+            category.plannedAmount > 0.0 -> "Actual received: ${currencySymbol}${String.format(Locale.US, "%,.0f", category.actualAmount)}"
             isLegacy -> "Legacy category (retiring next month)"
             else -> "Tap to set income target"
         }
         TransactionType.ASSET -> when {
-            committedAutoPay > 0.0 -> "Recurring SIP: $currencySymbol${String.format(Locale.US, "%,.0f", committedAutoPay)}"
-            category.plannedAmount > 0.0 -> "Actual invested: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}"
+            committedAutoPay > 0.0 -> "Recurring SIP: ${currencySymbol}${String.format(Locale.US, "%,.0f", committedAutoPay)}"
+            category.plannedAmount > 0.0 -> "Actual invested: ${currencySymbol}${String.format(Locale.US, "%,.0f", category.actualAmount)}"
             isLegacy -> "Legacy category (retiring next month)"
             else -> "Tap to set asset target"
         }
         TransactionType.CORPORATE -> when {
-            committedAutoPay > 0.0 -> "Committed: $currencySymbol${String.format(Locale.US, "%,.0f", committedAutoPay)}"
-            category.plannedAmount > 0.0 -> "Actual: $currencySymbol${String.format(Locale.US, "%,.0f", category.actualAmount)}"
+            committedAutoPay > 0.0 -> "Committed: ${currencySymbol}${String.format(Locale.US, "%,.0f", committedAutoPay)}"
+            category.plannedAmount > 0.0 -> "Actual: ${currencySymbol}${String.format(Locale.US, "%,.0f", category.actualAmount)}"
             isLegacy -> "Legacy category (retiring next month)"
             else -> "Tap to set corporate float ceiling"
         }
@@ -1326,7 +1326,7 @@ private fun BudgetCategoryCleanCard(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = "$currencySymbol${String.format(Locale.US, "%,.0f", category.plannedAmount)}",
+                        text = "${currencySymbol}${String.format(Locale.US, "%,.0f", category.plannedAmount)}",
                         fontWeight = FontWeight.Black,
                         fontSize = 14.5.sp,
                         color = if (category.plannedAmount > 0) TextDark else TextMuted
@@ -1336,9 +1336,9 @@ private fun BudgetCategoryCleanCard(
                         Spacer(modifier = Modifier.height(1.5.dp))
                         Text(
                             text = if (category.averageMonthlySpend > 0.0) {
-                                "avg $currencySymbol${String.format(Locale.US, "%,.0f", category.averageMonthlySpend)}"
+                                "avg ${currencySymbol}${String.format(Locale.US, "%,.0f", category.averageMonthlySpend)}"
                             } else {
-                                "avg $currencySymbol0"
+                                "avg ${currencySymbol}0"
                             },
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
