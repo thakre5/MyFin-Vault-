@@ -124,7 +124,7 @@ fun BudgetPlannerScreen(
     val isBalancedBudget = effectiveIncomeBaseline > 0 && abs(unallocatedBuffer) < 1.0
 
     // Prioritized Category Resolution with Type Isolation & Orphan Safety
-    val displayedCategories = remember(uiState.masterCategories, uiState.categories, selectedSegment) {
+    val displayedCategories = remember(uiState.masterCategories, uiState.categories, uiState.category3MonthAverages, selectedSegment) {
         val masterList = uiState.masterCategories.filter { it.type == selectedSegment }
         val performanceMap = uiState.categories
             .filter { it.type == selectedSegment }
@@ -144,7 +144,11 @@ fun BudgetPlannerScreen(
                 category = masterCat.name,
                 type = selectedSegment,
                 plannedAmount = 0.0,
-                actualAmount = 0.0
+                actualAmount = 0.0,
+                averageMonthlySpend = if (selectedSegment == TransactionType.EXPENSE) {
+                    uiState.category3MonthAverages.entries
+                        .firstOrNull { it.key.equals(masterCat.name, ignoreCase = true) }?.value ?: 0.0
+                } else 0.0
             )
         } + uiState.categories.filter {
             it.type == selectedSegment && it.category.trim().lowercase(Locale.ROOT) !in masterNames
@@ -811,12 +815,21 @@ fun BudgetPlannerScreen(
                                             Text("Frozen", fontSize = 11.sp, color = TextMuted)
                                         }
                                     } else {
-                                        Text(
-                                            text = if (cat.plannedAmount > 0) "${userProfile.currencySymbol}${cat.plannedAmount.toInt()}" else "Unset",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = if (cat.plannedAmount > 0) AccentPurple else TextMuted
-                                        )
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                text = if (cat.plannedAmount > 0) "${userProfile.currencySymbol}${cat.plannedAmount.toInt()}" else "Unset",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = if (cat.plannedAmount > 0) AccentPurple else TextMuted
+                                            )
+                                            if (cat.type == TransactionType.EXPENSE && cat.averageMonthlySpend > 0.0) {
+                                                Text(
+                                                    text = "avg ${userProfile.currencySymbol}${cat.averageMonthlySpend.toInt()}",
+                                                    fontSize = 9.5.sp,
+                                                    color = TextMuted
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -834,6 +847,7 @@ fun BudgetPlannerScreen(
                     it.category.equals(cat.category, ignoreCase = true) && it.type == cat.type
                 }.sumOf { it.amount }
             }
+            val avgSpend = cat.averageMonthlySpend
             var customAmountText by remember(cat) {
                 mutableStateOf(
                     if (cat.plannedAmount > 0) {
@@ -843,6 +857,10 @@ fun BudgetPlannerScreen(
                 )
             }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+            val parsedCustomAmt = customAmountText.toDoubleOrNull() ?: 0.0
+            val isSignificantlyUnderBudget = cat.type == TransactionType.EXPENSE &&
+                    avgSpend > 0.0 && parsedCustomAmt > 0.0 && parsedCustomAmt < (avgSpend * 0.75)
 
             ModalBottomSheet(
                 onDismissRequest = { editingCategory = null },
@@ -887,10 +905,20 @@ fun BudgetPlannerScreen(
                     }
 
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = if (committedAutoPay > 0 && (cat.type == TransactionType.EXPENSE || cat.type == TransactionType.ASSET))
+
+                    val infoSubtitle = when {
+                        committedAutoPay > 0 && avgSpend > 0.0 ->
+                            "AutoPay Floor: ${userProfile.currencySymbol}${committedAutoPay.toInt()}  •  3M Avg: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgSpend)}"
+                        committedAutoPay > 0 ->
                             "Committed AutoPay Floor: ${userProfile.currencySymbol}${committedAutoPay.toInt()}"
-                        else "Configure monthly baseline limit for this category",
+                        avgSpend > 0.0 ->
+                            "3-Month Spending Average: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgSpend)}"
+                        else ->
+                            "Configure monthly baseline limit for this category"
+                    }
+
+                    Text(
+                        text = infoSubtitle,
                         fontSize = 11.5.sp,
                         color = if (committedAutoPay > 0) AccentPurple else TextMuted,
                         fontWeight = if (committedAutoPay > 0) FontWeight.SemiBold else FontWeight.Normal
@@ -915,6 +943,104 @@ fun BudgetPlannerScreen(
                             unfocusedBorderColor = BorderLight
                         )
                     )
+
+                    // Quick-Budget Suggestions Chips
+                    if (cat.type == TransactionType.EXPENSE && (avgSpend > 0.0 || committedAutoPay > 0.0)) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (avgSpend > 0.0) {
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(9.dp))
+                                        .clickable {
+                                            val roundedVal = avgSpend.toInt()
+                                            customAmountText = roundedVal.toString()
+                                        },
+                                    shape = RoundedCornerShape(9.dp),
+                                    color = AccentPurple.copy(alpha = 0.10f),
+                                    border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.35f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.TrendingUp,
+                                            contentDescription = null,
+                                            tint = AccentPurple,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = "Use 3M Avg (${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgSpend)})",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AccentPurple
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (committedAutoPay > 0.0) {
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(9.dp))
+                                        .clickable {
+                                            val floorVal = committedAutoPay.toInt()
+                                            customAmountText = floorVal.toString()
+                                        },
+                                    shape = RoundedCornerShape(9.dp),
+                                    color = CanvasLight,
+                                    border = BorderStroke(0.8.dp, BorderLight)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Lock,
+                                            contentDescription = null,
+                                            tint = TextDark,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = "Use Floor (${userProfile.currencySymbol}${committedAutoPay.toInt()})",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDark
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Soft Warning for Significant Under-Budgeting
+                    if (isSignificantlyUnderBudget) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = Color(0xFFD48800),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "Target is lower than your 3-month average (${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgSpend)}).",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFF873800),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -1194,12 +1320,33 @@ private fun BudgetCategoryCleanCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Text(
-                    text = "$currencySymbol${String.format(Locale.US, "%,.0f", category.plannedAmount)}",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 14.5.sp,
-                    color = if (category.plannedAmount > 0) TextDark else TextMuted
-                )
+                // Stacked Right Column: Target Ceiling over 3-Month Average
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "$currencySymbol${String.format(Locale.US, "%,.0f", category.plannedAmount)}",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.5.sp,
+                        color = if (category.plannedAmount > 0) TextDark else TextMuted
+                    )
+
+                    if (category.type == TransactionType.EXPENSE) {
+                        Spacer(modifier = Modifier.height(1.5.dp))
+                        Text(
+                            text = if (category.averageMonthlySpend > 0.0) {
+                                "avg $currencySymbol${String.format(Locale.US, "%,.0f", category.averageMonthlySpend)}"
+                            } else {
+                                "avg $currencySymbol0"
+                            },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextMuted,
+                            maxLines = 1
+                        )
+                    }
+                }
             }
 
             // Inline Utilization Progress Bar
