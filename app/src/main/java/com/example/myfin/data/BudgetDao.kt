@@ -3,6 +3,13 @@ package com.example.myfin.data
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
+// Lightweight POJO projection for category spending aggregations across trailing lookback windows
+data class CategorySpendingRollup(
+    val category: String,
+    val type: TransactionType,
+    val totalAmount: Double
+)
+
 @Dao
 interface BudgetDao {
 
@@ -490,4 +497,19 @@ interface BudgetDao {
         ORDER BY totalActualAmount DESC
     """)
     fun getYearlyCategoryBreakdown(year: Int): Flow<List<YearlyCategoryRollup>>
+
+    // ========================================================================
+    // 10. Trailing Window Analytics (L3M Spending Matrix)
+    // ========================================================================
+    @Query("""
+        SELECT category, type, SUM(amount) AS totalAmount
+        FROM transactions
+        WHERE (year * 12 + month) BETWEEN (:targetMonthKey - 3) AND (:targetMonthKey - 1)
+          AND type != 'TRANSFER'
+        GROUP BY category, type
+    """)
+    fun getTrailing3MonthCategoryTotals(targetMonthKey: Int): Flow<List<CategorySpendingRollup>>
+
+    @Query("SELECT MIN(year * 12 + month) FROM transactions WHERE type != 'TRANSFER'")
+    suspend fun getEarliestTransactionMonthKey(): Int?
 }
