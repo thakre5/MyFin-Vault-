@@ -311,7 +311,6 @@ class BudgetViewModel(
             val (plans, masterCats, masterSubcats, trailingRollups) = metaData
             val (isBannerVisible, bannerMsg) = bannerInfo
 
-            // Compute trailing average spending per expense category
             val averagesMap = trailingRollups
                 .filter { it.type == TransactionType.EXPENSE }
                 .associate { it.category to (it.totalAmount / completedMonths.toDouble()) }
@@ -565,7 +564,6 @@ class BudgetViewModel(
                 }
             }
 
-            // UNIFIED BASELINE MONTHLY BURN (OPTION A: Actual Living Expenses)
             val completedHistoricalMonthsSpend = allTimeTxs.filter { tx ->
                 tx.type == TransactionType.EXPENSE &&
                 ((tx.year < sysYear) || (tx.year == sysYear && tx.month < sysMonth))
