@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -35,9 +36,8 @@ data class NowBarAlert(
     val icon: ImageVector,
     val iconTint: Color,
     val iconBg: Color,
-    val shortTitle: String,
-    val fullTitle: String,
-    val description: String,
+    val title: String,
+    val subtitle: String = "",
     val actionLabel: String,
     val actionColor: Color,
     val onAction: () -> Unit,
@@ -62,21 +62,21 @@ fun VaultNowBar(
                 delay(4500L)
                 if (!pagerState.isScrollInProgress) {
                     val next = (pagerState.currentPage + 1) % alerts.size
-                    pagerState.animateScrollToPage(next, animationSpec = tween(500))
+                    pagerState.animateScrollToPage(next, animationSpec = tween(550))
                 }
             }
         }
     }
 
     val barHeight by animateDpAsState(
-        targetValue = if (isExpanded) 132.dp else 48.dp,
-        animationSpec = tween(320),
+        targetValue = if (isExpanded) 124.dp else 50.dp,
+        animationSpec = tween(300),
         label = "nowBarHeight"
     )
 
     val cornerRadius by animateDpAsState(
-        targetValue = if (isExpanded) 18.dp else 24.dp,
-        animationSpec = tween(320),
+        targetValue = if (isExpanded) 18.dp else 25.dp,
+        animationSpec = tween(300),
         label = "nowBarCorner"
     )
 
@@ -87,8 +87,9 @@ fun VaultNowBar(
             .shadow(if (isExpanded) 3.dp else 1.5.dp, RoundedCornerShape(cornerRadius)),
         shape = RoundedCornerShape(cornerRadius),
         color = CardWhite,
-        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
     ) {
+        // Vertical Pager: Swiping Up & Down transitions between cards
         VerticalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
@@ -97,16 +98,19 @@ fun VaultNowBar(
             val alert = alerts.getOrNull(page) ?: return@VerticalPager
 
             if (!isExpanded) {
-                // COLLAPSED ONE UI NOW BAR (Single-line live activity capsule)
+                // COLLAPSED: Single-line Samsung Now Bar Live Pill
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clickable { isExpanded = true }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { isExpanded = true }
+                        .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Left glyph + Single-line metric
+                    // Left Status Badge + Headline (Single line, strictly no clipping)
                     Row(
                         modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically
@@ -122,15 +126,15 @@ fun VaultNowBar(
                                 imageVector = alert.icon,
                                 contentDescription = null,
                                 tint = alert.iconTint,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                         }
 
                         Spacer(modifier = Modifier.width(9.dp))
 
                         Text(
-                            text = alert.shortTitle,
-                            fontSize = 12.sp,
+                            text = alert.title,
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextDark,
                             maxLines = 1,
@@ -140,7 +144,7 @@ fun VaultNowBar(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
-                    // Right action pill + vertical micro-dots
+                    // Right Side: Samsung Micro-Dots + Action Button + Expand Arrow
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.End
@@ -149,14 +153,14 @@ fun VaultNowBar(
                         if (alerts.size > 1) {
                             Column(
                                 modifier = Modifier.padding(end = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(3.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.5.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 repeat(alerts.size) { idx ->
                                     val isCurrent = pagerState.currentPage == idx
                                     Box(
                                         modifier = Modifier
-                                            .size(if (isCurrent) 4.5.dp else 3.5.dp)
+                                            .size(if (isCurrent) 4.5.dp else 3.dp)
                                             .clip(CircleShape)
                                             .background(if (isCurrent) AccentPurple else BorderLight)
                                     )
@@ -164,12 +168,13 @@ fun VaultNowBar(
                             }
                         }
 
+                        // Compact Action Pill
                         Button(
                             onClick = alert.onAction,
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(15.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = alert.actionColor),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                            modifier = Modifier.height(28.dp)
+                            contentPadding = PaddingValues(horizontal = 13.dp, vertical = 0.dp),
+                            modifier = Modifier.height(30.dp)
                         ) {
                             Text(
                                 text = alert.actionLabel,
@@ -179,7 +184,7 @@ fun VaultNowBar(
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(2.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
 
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
@@ -190,14 +195,14 @@ fun VaultNowBar(
                     }
                 }
             } else {
-                // EXPANDED ONE UI CARD (Full details + swipeable up/down)
+                // EXPANDED: Detailed One UI Card (Revealed on Tap)
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Header row
+                    // Header Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -209,7 +214,7 @@ fun VaultNowBar(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(30.dp)
+                                    .size(28.dp)
                                     .clip(CircleShape)
                                     .background(alert.iconBg),
                                 contentAlignment = Alignment.Center
@@ -225,8 +230,8 @@ fun VaultNowBar(
                             Spacer(modifier = Modifier.width(8.dp))
 
                             Text(
-                                text = alert.fullTitle,
-                                fontSize = 12.5.sp,
+                                text = alert.title,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextDark,
                                 maxLines = 1,
@@ -236,13 +241,19 @@ fun VaultNowBar(
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (alerts.size > 1) {
-                                Text(
-                                    text = "${page + 1}/${alerts.size}",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextMuted,
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = CanvasLight,
                                     modifier = Modifier.padding(end = 4.dp)
-                                )
+                                ) {
+                                    Text(
+                                        text = "${page + 1}/${alerts.size}",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextMuted,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
                             IconButton(
                                 onClick = { isExpanded = false },
@@ -258,18 +269,20 @@ fun VaultNowBar(
                         }
                     }
 
-                    // Explanation body
-                    Text(
-                        text = alert.description,
-                        fontSize = 11.sp,
-                        color = TextMuted,
-                        lineHeight = 15.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
+                    // Full description text with room to breathe
+                    if (alert.subtitle.isNotBlank()) {
+                        Text(
+                            text = alert.subtitle,
+                            fontSize = 11.5.sp,
+                            color = TextMuted,
+                            lineHeight = 15.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
+                        )
+                    }
 
-                    // Footer actions
+                    // Bottom action row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -281,10 +294,15 @@ fun VaultNowBar(
                                     alert.onDismiss.invoke()
                                     isExpanded = false
                                 },
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                modifier = Modifier.height(26.dp)
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                modifier = Modifier.height(28.dp)
                             ) {
-                                Text("Dismiss", fontSize = 10.5.sp, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = "Dismiss",
+                                    fontSize = 11.sp,
+                                    color = TextMuted,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         } else {
                             Spacer(modifier = Modifier.width(1.dp))
@@ -295,9 +313,9 @@ fun VaultNowBar(
                                 alert.onAction.invoke()
                                 isExpanded = false
                             },
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = alert.actionColor),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                             modifier = Modifier.height(30.dp)
                         ) {
                             Text(
