@@ -1,6 +1,5 @@
 package com.example.myfin.ui.components
 
-import androidx.compose.animation.*
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -64,19 +63,24 @@ fun VaultNowBar(
     val coroutineScope = rememberCoroutineScope()
     val dragOffsetY = remember { Animatable(0f) }
 
-    // Auto-cycle the deck vertically every 5 seconds if not expanded or being dragged
+    // Auto-cycle deck vertically every 5 seconds when idle
     LaunchedEffect(currentIndex, alerts.size, isExpanded, isDragging) {
         if (alerts.size > 1 && !isExpanded && !isDragging) {
             delay(5000L)
-            dragOffsetY.animateTo(-90f, tween(260, easing = FastOutSlowInEasing))
+            dragOffsetY.animateTo(-80f, tween(260, easing = FastOutSlowInEasing))
             currentIndex = (currentIndex + 1) % alerts.size
-            dragOffsetY.snapTo(50f)
+            dragOffsetY.snapTo(40f)
             dragOffsetY.animateTo(0f, spring(dampingRatio = 0.82f))
         }
     }
 
     val totalHeight by animateDpAsState(
-        targetValue = if (isExpanded) 138.dp else if (alerts.size > 1) 58.dp else 50.dp,
+        targetValue = when {
+            isExpanded -> 138.dp
+            alerts.size >= 3 -> 68.dp
+            alerts.size == 2 -> 64.dp
+            else -> 56.dp
+        },
         animationSpec = tween(300),
         label = "deckTotalHeight"
     )
@@ -87,56 +91,52 @@ fun VaultNowBar(
             .height(totalHeight),
         contentAlignment = Alignment.TopCenter
     ) {
-        // 1. LAYER 2 (Third Card Peek, if 3+ alerts)
+        // LAYER 2: Third Card Peek (Visible when 3+ alerts exist)
         if (alerts.size >= 3 && !isExpanded) {
-            val thirdIndex = (currentIndex + 2) % alerts.size
-            val thirdAlert = alerts[thirdIndex]
-
             Surface(
                 modifier = Modifier
                     .fillMaxWidth(0.88f)
-                    .height(48.dp)
-                    .offset(y = 10.dp)
+                    .height(54.dp)
+                    .offset(y = 12.dp)
                     .graphicsLayer { alpha = 0.45f }
                     .zIndex(1f),
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(27.dp),
                 color = CardWhite,
                 border = BorderStroke(0.7.dp, BorderLight.copy(alpha = 0.5f)),
                 shadowElevation = 0.5.dp
             ) {}
         }
 
-        // 2. LAYER 1 (Second Card Peek, if 2+ alerts)
+        // LAYER 1: Second Card Peek (Visible when 2+ alerts exist)
         if (alerts.size >= 2 && !isExpanded) {
             val nextIndex = (currentIndex + 1) % alerts.size
             val nextAlert = alerts[nextIndex]
 
-            // Dynamically scale/tuck the peek as user swipes
-            val peekProgress = (abs(dragOffsetY.value) / 100f).coerceIn(0f, 1f)
-            val peekScale = 0.94f + (0.06f * peekProgress)
-            val peekOffsetY = (5.5.dp * (1f - peekProgress))
+            val dragProgress = (abs(dragOffsetY.value) / 100f).coerceIn(0f, 1f)
+            val peekScale = 0.94f + (0.06f * dragProgress)
+            val peekOffsetY = (6.5.dp * (1f - dragProgress))
 
             Surface(
                 modifier = Modifier
                     .fillMaxWidth(peekScale)
-                    .height(48.dp)
+                    .height(54.dp)
                     .offset(y = peekOffsetY)
-                    .graphicsLayer { alpha = 0.65f + (0.35f * peekProgress) }
+                    .graphicsLayer { alpha = 0.7f + (0.3f * dragProgress) }
                     .zIndex(2f),
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(27.dp),
                 color = CardWhite,
-                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.65f)),
+                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
                 shadowElevation = 1.dp
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(26.dp)
+                            .size(28.dp)
                             .clip(CircleShape)
                             .background(nextAlert.iconBg.copy(alpha = 0.6f)),
                         contentAlignment = Alignment.Center
@@ -145,7 +145,7 @@ fun VaultNowBar(
                             imageVector = nextAlert.icon,
                             contentDescription = null,
                             tint = nextAlert.iconTint.copy(alpha = 0.6f),
-                            modifier = Modifier.size(13.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -161,12 +161,11 @@ fun VaultNowBar(
             }
         }
 
-        // 3. FRONT ACTIVE CARD (Top of the Stack)
+        // FRONT ACTIVE CARD (Top of the Stack)
         val activeAlert = alerts[currentIndex % alerts.size]
 
-        val frontCardElevation = if (isExpanded) 3.5.dp else 2.dp
         val frontCardCorner by animateDpAsState(
-            targetValue = if (isExpanded) 18.dp else 25.dp,
+            targetValue = if (isExpanded) 18.dp else 28.dp,
             animationSpec = tween(280),
             label = "frontCardCorner"
         )
@@ -174,16 +173,16 @@ fun VaultNowBar(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (isExpanded) 136.dp else 50.dp)
+                .height(if (isExpanded) 136.dp else 56.dp)
                 .zIndex(3f)
                 .graphicsLayer {
                     translationY = if (!isExpanded) dragOffsetY.value else 0f
-                    val dragProgress = (abs(dragOffsetY.value) / 200f).coerceIn(0f, 1f)
-                    scaleX = 1f - (0.05f * dragProgress)
-                    alpha = 1f - (0.4f * dragProgress)
+                    val dragProgress = (abs(dragOffsetY.value) / 180f).coerceIn(0f, 1f)
+                    scaleX = 1f - (0.04f * dragProgress)
+                    alpha = 1f - (0.35f * dragProgress)
                 }
-                .shadow(frontCardElevation, RoundedCornerShape(frontCardCorner))
-                // Vertical Swipe Handling (Swipe Up/Down to flick cards)
+                .shadow(if (isExpanded) 3.5.dp else 2.dp, RoundedCornerShape(frontCardCorner))
+                // Vertical Swipe Handling (Swipe Up or Down to cycle cards)
                 .pointerInput(alerts.size, isExpanded) {
                     if (!isExpanded && alerts.size > 1) {
                         detectVerticalDragGestures(
@@ -192,14 +191,14 @@ fun VaultNowBar(
                                 coroutineScope.launch {
                                     val currentVal = dragOffsetY.value
                                     if (currentVal < -35f) { // Swiped Up
-                                        dragOffsetY.animateTo(-120f, tween(160, easing = FastOutSlowInEasing))
+                                        dragOffsetY.animateTo(-100f, tween(150, easing = FastOutSlowInEasing))
                                         currentIndex = (currentIndex + 1) % alerts.size
-                                        dragOffsetY.snapTo(60f)
+                                        dragOffsetY.snapTo(50f)
                                         dragOffsetY.animateTo(0f, spring(dampingRatio = 0.8f))
                                     } else if (currentVal > 35f) { // Swiped Down
-                                        dragOffsetY.animateTo(120f, tween(160, easing = FastOutSlowInEasing))
+                                        dragOffsetY.animateTo(100f, tween(150, easing = FastOutSlowInEasing))
                                         currentIndex = (currentIndex - 1 + alerts.size) % alerts.size
-                                        dragOffsetY.snapTo(-60f)
+                                        dragOffsetY.snapTo(-50f)
                                         dragOffsetY.animateTo(0f, spring(dampingRatio = 0.8f))
                                     } else {
                                         dragOffsetY.animateTo(0f, spring(dampingRatio = 0.7f))
@@ -221,34 +220,34 @@ fun VaultNowBar(
                             }
                         )
                     }
-                }
-                // Tap anywhere to Expand or Collapse
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    isExpanded = !isExpanded
                 },
             shape = RoundedCornerShape(frontCardCorner),
             color = CardWhite,
             border = BorderStroke(0.85.dp, BorderLight.copy(alpha = 0.85f))
         ) {
             if (!isExpanded) {
-                // COLLAPSED SINGLE-LINE NOW BAR CAPSULE
+                // COLLAPSED PILL (56dp with full vertical clearance for both lines)
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    // Left Side: Tap to Expand Area
                     Row(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { isExpanded = true },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
                                 .background(activeAlert.iconBg),
                             contentAlignment = Alignment.Center
@@ -257,32 +256,49 @@ fun VaultNowBar(
                                 imageVector = activeAlert.icon,
                                 contentDescription = null,
                                 tint = activeAlert.iconTint,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                         }
 
                         Spacer(modifier = Modifier.width(9.dp))
 
-                        Text(
-                            text = activeAlert.title,
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = activeAlert.title,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark,
+                                lineHeight = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = activeAlert.subtitle,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = TextMuted,
+                                lineHeight = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(6.dp))
 
+                    // Right Side: Micro-dots, Action Pill & Expand Chevron
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.End
                     ) {
-                        // Samsung Vertical Deck Dots Indicator
+                        // Samsung Vertical Deck Indicator Dots
                         if (alerts.size > 1) {
                             Column(
-                                modifier = Modifier.padding(end = 8.dp),
+                                modifier = Modifier.padding(end = 6.dp),
                                 verticalArrangement = Arrangement.spacedBy(2.5.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
@@ -298,12 +314,11 @@ fun VaultNowBar(
                             }
                         }
 
-                        // Action Button Pill (Clicks button directly without triggering card toggle)
                         Button(
                             onClick = activeAlert.onAction,
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = activeAlert.actionColor),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 11.dp, vertical = 0.dp),
                             modifier = Modifier.height(28.dp)
                         ) {
                             Text(
@@ -314,26 +329,38 @@ fun VaultNowBar(
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(3.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
 
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Expand",
-                            tint = TextMuted.copy(alpha = 0.7f),
-                            modifier = Modifier.size(17.dp)
-                        )
+                        IconButton(
+                            onClick = { isExpanded = true },
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Expand",
+                                tint = TextMuted.copy(alpha = 0.7f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             } else {
-                // EXPANDED DETAILS CARD (Tap anywhere collapses back)
+                // EXPANDED CARD (Tapping anywhere on header/background collapses card)
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 14.dp, vertical = 11.dp),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
+                    // Header Row: Tapping collapses
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { isExpanded = false },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -385,15 +412,21 @@ fun VaultNowBar(
                                 }
                             }
 
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowUp,
-                                contentDescription = "Collapse",
-                                tint = TextMuted,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            IconButton(
+                                onClick = { isExpanded = false },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowUp,
+                                    contentDescription = "Collapse",
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
 
+                    // Body Text: Tapping collapses
                     if (activeAlert.subtitle.isNotBlank()) {
                         Text(
                             text = activeAlert.subtitle,
@@ -402,10 +435,17 @@ fun VaultNowBar(
                             lineHeight = 16.sp,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 2.dp, vertical = 2.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { isExpanded = false }
                         )
                     }
 
+                    // Action Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -417,7 +457,7 @@ fun VaultNowBar(
                                     activeAlert.onDismiss.invoke()
                                     isExpanded = false
                                 },
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 modifier = Modifier.height(28.dp)
                             ) {
                                 Text(
