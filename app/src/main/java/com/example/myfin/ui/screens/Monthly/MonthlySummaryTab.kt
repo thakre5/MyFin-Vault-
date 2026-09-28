@@ -130,7 +130,8 @@ fun MonthlySummaryTab(
                         subtitle = uiState.rolloverBannerMessage.ifBlank { "Recurring AutoPay bills scheduled." },
                         actionLabel = "Dismiss",
                         actionColor = AccentPurple,
-                        onAction = { viewModel.dismissRolloverBanner() }
+                        onAction = { viewModel.dismissRolloverBanner() },
+                        onDismiss = { viewModel.dismissRolloverBanner() }
                     )
                 )
             }
@@ -141,6 +142,7 @@ fun MonthlySummaryTab(
                     if (paydayPlan.toCommitments > 0.0) add("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toCommitments)} to Bills")
                     if (paydayPlan.totalToFortress > 0.0) add("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.totalToFortress)} to Fortress")
                 }.joinToString(" & ")
+
                 add(
                     NowBarAlert(
                         id = "payday",
@@ -218,7 +220,7 @@ fun MonthlySummaryTab(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
     ) {
-        // 1. SAMSUNG NOW BAR CAPSULE (Sits cleanly right above the Hero card)
+        // 1. SAMSUNG NOW BAR CAPSULE (Sits cleanly right above the Hero card with vertical swiping)
         if (nowBarAlerts.isNotEmpty()) {
             item(key = "now_bar_capsule") {
                 VaultNowBar(
