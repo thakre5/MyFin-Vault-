@@ -5,6 +5,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,9 +24,11 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,14 +39,11 @@ import com.example.myfin.ui.CategoryPerformance
 import com.example.myfin.ui.FilterCriteria
 import com.example.myfin.ui.MonthlyUiState
 import com.example.myfin.ui.components.NowBarAlert
-import com.example.myfin.ui.components.SpendingSparkline
 import com.example.myfin.ui.components.VaultNowBar
 import com.example.myfin.ui.theme.*
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.round
 
 @Composable
 fun MonthlySummaryTab(
@@ -67,7 +67,9 @@ fun MonthlySummaryTab(
     onDismissWaterfall: () -> Unit,
     onDismissSweep: () -> Unit,
     onNavigateToLedgerWithFilter: (TransactionType) -> Unit,
-    onNavigateToCommitments: () -> Unit
+    onNavigateToCommitments: () -> Unit,
+    onOpenDrawer: () -> Unit = {},
+    onOpenAddSheet: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var selectedMatrixType by remember { mutableStateOf(TransactionType.EXPENSE) }
@@ -85,7 +87,7 @@ fun MonthlySummaryTab(
         isCurrentMonth && monthEndSweepPlan != null && monthEndSweepPlan.sweepAmount > 0.0 && dismissedSweepMonth != uiState.selectedMonth
     }
 
-    // Consolidated Samsung Now Bar Alerts (Shortfall, Rollover, Waterfall, Month-End Sweep)
+    // Samsung Now Bar Alerts
     val nowBarAlerts = remember(
         uiState.commitmentsShortfall,
         uiState.isRolloverBannerVisible,
@@ -97,7 +99,6 @@ fun MonthlySummaryTab(
         userProfile.currencySymbol
     ) {
         buildList {
-            // 1. Critical: Commitments Shortfall
             if (uiState.commitmentsShortfall.isShortfall) {
                 val shortfall = uiState.commitmentsShortfall
                 val dueText = if (shortfall.earliestDueDay != null) " by ${shortfall.earliestDueDay}th" else ""
@@ -116,7 +117,6 @@ fun MonthlySummaryTab(
                 )
             }
 
-            // 2. High: Scheduled Recurring Commitments
             if (uiState.isRolloverBannerVisible) {
                 add(
                     NowBarAlert(
@@ -134,7 +134,6 @@ fun MonthlySummaryTab(
                 )
             }
 
-            // 3. Medium: Payday Allocation
             if (showWaterfallPrompt && paydayPlan != null) {
                 val parts = buildList {
                     if (paydayPlan.toCommitments > 0.0) add("${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", paydayPlan.toCommitments)} to Bills")
@@ -166,7 +165,6 @@ fun MonthlySummaryTab(
                 )
             }
 
-            // 4. Low: Month-End Wealth Sweep
             if (showMonthEndSweepPrompt && monthEndSweepPlan != null) {
                 add(
                     NowBarAlert(
@@ -198,78 +196,161 @@ fun MonthlySummaryTab(
         uiState.categories.filter { it.type == selectedMatrixType && it.category.isNotBlank() }
     }
 
-    // Baseline metrics calculation
-    val todayDay = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH) }
+    // Calculation for dynamic velocity & Donut breakdown
     val daysUntilSalary = uiState.metrics.daysUntilPayday.coerceAtLeast(1)
     val safeDailyVelocity = if (uiState.metrics.safeToSpend > 0) {
         uiState.metrics.safeToSpend / daysUntilSalary
     } else 0.0
 
-    val incomeBase = uiState.metrics.personalIncome.takeIf { it > 0.0 } ?: uiState.metrics.actualIncome
-    val lifestyleExp = uiState.metrics.lifestyleExpenses
-    val preSipSaved = uiState.metrics.netSavedBeforeInvest
-    val retentionPct = if (incomeBase > 0) round((preSipSaved / incomeBase) * 100.0).toInt().coerceIn(0, 100) else 0
-
-    val fortressFd = uiState.fortressFdBalance
-    val fortTotal = remember(uiState.activeAccounts) {
-        uiState.activeAccounts
-            .filter { acc -> acc.accountType.equals("Fortress", ignoreCase = true) }
-            .sumOf { it.currentBalance }
-    }
-    val fortressSavings = remember(fortTotal, fortressFd) { (fortTotal - fortressFd).coerceAtLeast(0.0) }
-    val fortressCushionDeficit = remember(fortressSavings, userProfile.fortressSweepThreshold) {
-        if (userProfile.fortressSweepThreshold > 0.0) (userProfile.fortressSweepThreshold - fortressSavings).coerceAtLeast(0.0) else 0.0
+    val timeGreeting = remember {
+        when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
+            in 4..11 -> "Good morning"
+            in 12..16 -> "Good afternoon"
+            else -> "Good evening"
+        }
     }
 
-    // Macro outflow distribution metrics
-    val committedFixed = uiState.metrics.fixedCommitmentsTotal
-    val actualLivingBurn = (lifestyleExp - committedFixed).coerceAtLeast(0.0)
-    val actualAssets = uiState.metrics.actualAssets
-    val totalOutflows = committedFixed + actualLivingBurn + actualAssets
+    // Top Expense Categories for Donut Chart
+    val expenseCategories = remember(uiState.categories) {
+        uiState.categories
+            .filter { it.type == TransactionType.EXPENSE && it.actualAmount > 0.0 }
+            .sortedByDescending { it.actualAmount }
+    }
+    val totalExpenseSpent = remember(expenseCategories) {
+        expenseCategories.sumOf { it.actualAmount }
+    }
 
-    val fixedOutflowFraction = if (totalOutflows > 0) (committedFixed / totalOutflows).toFloat().coerceIn(0f, 1f) else 0.33f
-    val livingOutflowFraction = if (totalOutflows > 0) (actualLivingBurn / totalOutflows).toFloat().coerceIn(0f, 1f) else 0.33f
-    val assetOutflowFraction = if (totalOutflows > 0) (actualAssets / totalOutflows).toFloat().coerceIn(0f, 1f) else 0.34f
+    val donutColors = remember {
+        listOf(
+            Color(0xFF4F46E5), // Indigo
+            Color(0xFF38BDF8), // Cyan Sky
+            Color(0xFFF43F5E), // Coral Pink
+            Color(0xFFF59E0B), // Amber
+            Color(0xFFA855F7)  // Violet
+        )
+    }
+
+    val topDonutSlices = remember(expenseCategories, totalExpenseSpent) {
+        if (totalExpenseSpent <= 0.0 || expenseCategories.isEmpty()) {
+            emptyList()
+        } else {
+            val topFour = expenseCategories.take(4)
+            val othersAmount = expenseCategories.drop(4).sumOf { it.actualAmount }
+
+            val slices = topFour.mapIndexed { index, cat ->
+                val pct = ((cat.actualAmount / totalExpenseSpent) * 100).toInt()
+                DonutSliceData(
+                    name = cat.category,
+                    percentage = pct,
+                    color = donutColors[index % donutColors.size]
+                )
+            }.toMutableList()
+
+            if (othersAmount > 0.0) {
+                val otherPct = ((othersAmount / totalExpenseSpent) * 100).toInt()
+                slices.add(
+                    DonutSliceData(
+                        name = "Others",
+                        percentage = otherPct,
+                        color = donutColors.last()
+                    )
+                )
+            }
+            slices
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
     ) {
-        // 1. SAMSUNG NOW BAR DECK
+        // 1. WARM GREETING HEADER (Matches Reference)
+        item(key = "greeting_header") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "$timeGreeting,",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextMuted
+                    )
+                    Text(
+                        text = "${userProfile.displayName.ifBlank { "User" }} 👋",
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextDark,
+                        letterSpacing = (-0.3).sp
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(if (isHealthy) SoftGreen else SoftRed)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isHealthy) "Safe Runway" else "Attention",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isHealthy) SoftGreen else SoftRed
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. SAMSUNG NOW BAR DECK
         if (nowBarAlerts.isNotEmpty()) {
             item(key = "now_bar_capsule") {
                 VaultNowBar(
                     alerts = nowBarAlerts,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 12.dp)
                 )
             }
         }
 
-        // 2. HERO CARD: ACTIVE TONAL PULSE WITH PACING & HORIZON SPARKLINE
-        item(key = "hero_active_pulse") {
+        // 3. FINTECH HERO CARD (Royal Indigo Gradient matching Reference)
+        item(key = "fintech_hero_card") {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(22.dp)),
+                    .shadow(5.dp, RoundedCornerShape(22.dp)),
                 shape = RoundedCornerShape(22.dp),
-                color = Color(0xFF1E1B4B),
-                border = BorderStroke(1.dp, Color(0xFF3730A3).copy(alpha = 0.45f))
+                color = Color(0xFF3730A3),
+                border = BorderStroke(1.dp, Color(0xFF4F46E5).copy(alpha = 0.5f))
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            Brush.verticalGradient(
+                            Brush.linearGradient(
                                 colors = listOf(
-                                    Color(0xFF1E1B4B),
-                                    Color(0xFF151336),
-                                    Color(0xFF0F0E24)
+                                    Color(0xFF4338CA), // Royal Indigo
+                                    Color(0xFF3730A3),
+                                    Color(0xFF312E81)  // Deep Indigo
                                 )
                             )
                         )
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                        .padding(horizontal = 18.dp, vertical = 16.dp)
                 ) {
-                    // Header Row: Status Badge + Title + Capacity Pill
+                    // Card Top Row: Label + Capacity + Overlapping Mastercard Circles
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -280,49 +361,61 @@ fun MonthlySummaryTab(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable(onClick = onOpenStsInfo)
-                                .padding(vertical = 2.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isHealthy) Color(0xFF34D399) else Color(0xFFF87171))
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "LIQUID SAFE TO SPEND",
-                                color = Color(0xFFA5B4FC),
-                                fontSize = 9.5.sp,
+                                text = "SAFE TO SPEND",
+                                color = Color(0xFFC7D2FE),
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Black,
-                                letterSpacing = 0.5.sp
+                                letterSpacing = 0.6.sp
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 imageVector = Icons.Default.HelpOutline,
                                 contentDescription = "Explain Safe to Spend",
-                                tint = Color(0xFFA5B4FC).copy(alpha = 0.8f),
+                                tint = Color(0xFFC7D2FE).copy(alpha = 0.8f),
                                 modifier = Modifier.size(13.dp)
                             )
                         }
 
-                        Surface(
-                            shape = RoundedCornerShape(7.dp),
-                            color = (if (isHealthy) Color(0xFF6366F1) else Color(0xFFEF4444)).copy(alpha = 0.22f),
-                            border = BorderStroke(0.6.dp, (if (isHealthy) Color(0xFF818CF8) else Color(0xFFF87171)).copy(alpha = 0.35f))
-                        ) {
-                            Text(
-                                text = "${uiState.metrics.safeToSpendPercentage}% Capacity",
-                                color = if (isHealthy) Color(0xFFC7D2FE) else Color(0xFFFCA5A5),
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
-                            )
+                        // Decorative Mastercard-style circles badge matching reference card
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color.White.copy(alpha = 0.15f),
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text(
+                                    text = "${uiState.metrics.safeToSpendPercentage}% Cap",
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+                                )
+                            }
+
+                            Box(modifier = Modifier.size(24.dp, 16.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFEF4444).copy(alpha = 0.85f))
+                                        .align(Alignment.CenterStart)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFF59E0B).copy(alpha = 0.85f))
+                                        .align(Alignment.CenterEnd)
+                                )
+                            }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Main Figure
+                    // Balance Display
                     if (isDiscreetMode) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
@@ -331,61 +424,38 @@ fun MonthlySummaryTab(
                         ) {
                             Text(
                                 text = "  ● ● ● ● ●  ",
-                                fontSize = 18.sp,
-                                color = Color(0xFFE2E8F0),
+                                fontSize = 20.sp,
+                                color = Color.White,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
                     } else {
                         Text(
                             text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
-                            fontSize = 25.sp,
+                            fontSize = 28.sp,
                             fontWeight = FontWeight.Black,
-                            color = if (isHealthy) Color(0xFFFFFFFF) else Color(0xFFFCA5A5),
-                            letterSpacing = (-0.6).sp
+                            color = Color.White,
+                            letterSpacing = (-0.7).sp
                         )
                     }
 
-                    // Pacing Velocity Subtitle
+                    // Pacing Velocity
                     Text(
                         text = when {
-                            isPastMonth -> "Month closed • Final liquid ledger reconciled"
+                            isPastMonth -> "Month closed • Final safe ledger balance"
                             uiState.metrics.isSalaryDelayed -> "Salary expected (${uiState.metrics.nextPaydayDay}th) • 1-day safety runway reserved"
                             isCurrentMonth && isHealthy -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", safeDailyVelocity)}/day safe pace • $daysUntilSalary days until payday (${uiState.metrics.nextPaydayDay}th)"
                             isCurrentMonth -> "Runway deficit: Spending exceeds safe buffer before next payday"
                             else -> "Projected runway reserved for $daysUntilSalary days"
                         },
-                        fontSize = 11.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Medium,
-                        color = if (uiState.metrics.isSalaryDelayed) Color(0xFFFBBF24) else if (isHealthy) Color(0xFFCBD5E1) else Color(0xFFFCA5A5)
+                        color = if (uiState.metrics.isSalaryDelayed) Color(0xFFFDE68A) else Color(0xFFE0E7FF)
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    // Integrated Sparkline
-                    SpendingSparkline(
-                        points = uiState.metrics.dailyExpensePoints,
-                        lineColor = if (isHealthy) Color(0xFF818CF8) else Color(0xFFF87171),
-                        gradientStartColor = (if (isHealthy) Color(0xFF818CF8) else Color(0xFFF87171)).copy(alpha = 0.35f),
-                        gradientEndColor = Color.Transparent
-                    )
-
-                    // Payday Horizon Milestones Timeline
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("1st Start", fontSize = 8.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
-                        Text("Today (${todayDay}th)", fontSize = 8.5.sp, color = Color(0xFFA5B4FC), fontWeight = FontWeight.Bold)
-                        Text("Payday (${uiState.metrics.nextPaydayDay}th)", fontSize = 8.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Translucent Bottom Pillar Chips
+                    // Frosted Inflow / Fixed / SIP Chips on Card
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -393,24 +463,24 @@ fun MonthlySummaryTab(
                         val displayInflow = if (uiState.metrics.plannedIncome > 0) uiState.metrics.plannedIncome else uiState.metrics.personalIncome
                         val displayAssets = if (uiState.metrics.plannedAssets > 0) uiState.metrics.plannedAssets else uiState.metrics.actualAssets
 
-                        DarkPillarMetricCard(
+                        FrostedCardPill(
                             title = "Inflow",
                             amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayInflow)}",
                             tintColor = Color(0xFF34D399),
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigateToLedgerWithFilter(TransactionType.INCOME) }
                         )
-                        DarkPillarMetricCard(
+                        FrostedCardPill(
                             title = "Fixed Bills",
                             amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
-                            tintColor = Color(0xFFF87171),
+                            tintColor = Color(0xFFFCA5A5),
                             modifier = Modifier.weight(1f),
                             onClick = onNavigateToCommitments
                         )
-                        DarkPillarMetricCard(
+                        FrostedCardPill(
                             title = "SIP Assets",
                             amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayAssets)}",
-                            tintColor = Color(0xFF2DD4BF),
+                            tintColor = Color(0xFF67E8F9),
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigateToLedgerWithFilter(TransactionType.ASSET) }
                         )
@@ -419,250 +489,194 @@ fun MonthlySummaryTab(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(10.dp)) }
-
-        // 3. 3-ITEM QUICK PULSE STRIP (Replaces 108dp carousel)
-        item(key = "quick_pulse_strip") {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(1.5.dp, RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp),
-                color = CardWhite,
-                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Column 1: Wealth Retained (Pre-SIP)
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { onOpenBalanceFlowInfo(1) }
-                            .padding(horizontal = 8.dp),
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        Text(
-                            text = "RETAINED",
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextMuted,
-                            letterSpacing = 0.4.sp
-                        )
-                        Spacer(modifier = Modifier.height(1.dp))
-                        Text(
-                            text = if (isDiscreetMode) "••••" else "$retentionPct% Saved",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Black,
-                            color = SoftTeal
-                        )
-                        Text(
-                            text = if (isDiscreetMode) "••••" else "${if (preSipSaved >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", preSipSaved)}",
-                            fontSize = 9.5.sp,
-                            color = TextMuted
-                        )
-                    }
-
-                    Box(modifier = Modifier.height(30.dp).width(0.8.dp).background(BorderLight.copy(alpha = 0.7f)))
-
-                    // Column 2: Lifestyle Burn (Total Living Spent)
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { onOpenBalanceFlowInfo(0) }
-                            .padding(horizontal = 8.dp),
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        Text(
-                            text = "MONTH BURN",
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextMuted,
-                            letterSpacing = 0.4.sp
-                        )
-                        Spacer(modifier = Modifier.height(1.dp))
-                        Text(
-                            text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", lifestyleExp)}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Black,
-                            color = SoftRed
-                        )
-                        val avgBurnDaily = if (todayDay > 0) lifestyleExp / todayDay else 0.0
-                        Text(
-                            text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgBurnDaily)}/day",
-                            fontSize = 9.5.sp,
-                            color = TextMuted
-                        )
-                    }
-
-                    Box(modifier = Modifier.height(30.dp).width(0.8.dp).background(BorderLight.copy(alpha = 0.7f)))
-
-                    // Column 3: Fortress Safety Net (Emergency Fund Status)
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { onOpenFortressInfo() }
-                            .padding(horizontal = 8.dp),
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        Text(
-                            text = "FORTRESS NET",
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextMuted,
-                            letterSpacing = 0.4.sp
-                        )
-                        Spacer(modifier = Modifier.height(1.dp))
-                        Text(
-                            text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", fortressFd)}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color(0xFF0D9488)
-                        )
-                        Text(
-                            text = if (isDiscreetMode) "••••" else if (fortressCushionDeficit > 0) "● Filling" else "● Protected",
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (fortressCushionDeficit > 0) SoftAmber else SoftGreen
-                        )
-                    }
-                }
-            }
-        }
-
-        item { Spacer(modifier = Modifier.height(10.dp)) }
-
-        // 4. MACRO OUTFLOW DISTRIBUTION STRIP
-        item(key = "macro_outflow_strip") {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(1.dp, RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                color = CardWhite,
-                border = BorderStroke(0.7.dp, BorderLight.copy(alpha = 0.6f))
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "OUTFLOW ALLOCATION",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextMuted,
-                            letterSpacing = 0.5.sp
-                        )
-                        Text(
-                            text = if (isDiscreetMode) "••••" else "Total: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalOutflows)}",
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Multi-segmented distribution bar
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(CanvasLight)
-                    ) {
-                        if (fixedOutflowFraction > 0.01f) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(fixedOutflowFraction.coerceAtLeast(0.01f))
-                                    .fillMaxHeight()
-                                    .background(SoftRed)
-                            )
-                        }
-                        if (livingOutflowFraction > 0.01f) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(livingOutflowFraction.coerceAtLeast(0.01f))
-                                    .fillMaxHeight()
-                                    .background(SoftAmber)
-                            )
-                        }
-                        if (assetOutflowFraction > 0.01f) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(assetOutflowFraction.coerceAtLeast(0.01f))
-                                    .fillMaxHeight()
-                                    .background(SoftTeal)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Distribution Legend
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftRed))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Fixed: ${(fixedOutflowFraction * 100).toInt()}%",
-                                fontSize = 9.5.sp,
-                                color = TextDark,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftAmber))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Living: ${(livingOutflowFraction * 100).toInt()}%",
-                                fontSize = 9.5.sp,
-                                color = TextDark,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftTeal))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Wealth: ${(assetOutflowFraction * 100).toInt()}%",
-                                fontSize = 9.5.sp,
-                                color = TextDark,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
         item { Spacer(modifier = Modifier.height(14.dp)) }
 
-        // 5. CATEGORY MATRIX HEADER WITH LIVE HEADROOM READOUT
+        // 4. THE 4-ICON QUICK ACTION STRIP (Direct from Reference)
+        item(key = "quick_action_strip") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                QuickActionButton(
+                    icon = Icons.Default.Add,
+                    label = "Add Entry",
+                    containerColor = Color(0xFFEEF2FF),
+                    contentColor = Color(0xFF4F46E5),
+                    onClick = onOpenAddSheet
+                )
+                QuickActionButton(
+                    icon = Icons.Default.SyncAlt,
+                    label = "Transfer",
+                    containerColor = Color(0xFFECFDF5),
+                    contentColor = Color(0xFF059669),
+                    onClick = onOpenTransferSheet
+                )
+                QuickActionButton(
+                    icon = Icons.Default.Autorenew,
+                    label = "AutoPay",
+                    containerColor = Color(0xFFFFF1F2),
+                    contentColor = Color(0xFFE11D48),
+                    onClick = onNavigateToCommitments
+                )
+                QuickActionButton(
+                    icon = Icons.Default.MoreHoriz,
+                    label = "More",
+                    containerColor = Color(0xFFF1F5F9),
+                    contentColor = Color(0xFF475569),
+                    onClick = onOpenDrawer
+                )
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(16.dp)) }
+
+        // 5. SPENDING OVERVIEW (Donut Chart Card focusing on Top Expenses)
+        item(key = "spending_overview_donut") {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Spending Overview",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Black,
+                    color = TextDark
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(1.5.dp, RoundedCornerShape(20.dp)),
+                    shape = RoundedCornerShape(20.dp),
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                ) {
+                    if (totalExpenseSpent <= 0.0 || topDonutSlices.isEmpty()) {
+                        // Empty / Unspent State
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = SoftGreen,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Zero expenses logged this month yet.",
+                                fontSize = 12.5.sp,
+                                color = TextMuted,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    } else {
+                        // Donut Ring + Top Slices Legend
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Left Donut Ring with Center Total
+                            Box(
+                                modifier = Modifier.size(118.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Canvas(modifier = Modifier.size(110.dp)) {
+                                    val strokePx = 16.dp.toPx()
+                                    var currentAngle = -90f
+
+                                    topDonutSlices.forEach { slice ->
+                                        val sweep = (slice.percentage / 100f) * 360f
+                                        if (sweep > 0f) {
+                                            drawArc(
+                                                color = slice.color,
+                                                startAngle = currentAngle,
+                                                sweepAngle = (sweep - 3f).coerceAtLeast(1f),
+                                                useCenter = false,
+                                                style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                                            )
+                                            currentAngle += sweep
+                                        }
+                                    }
+                                }
+
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalExpenseSpent)}",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 14.5.sp,
+                                        color = TextDark
+                                    )
+                                    Text(
+                                        text = "This Month",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextMuted
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(14.dp))
+
+                            // Right Legend: Top 4 Drivers with %
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                topDonutSlices.forEach { slice ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(7.dp)
+                                                    .clip(CircleShape)
+                                                    .background(slice.color)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = slice.name,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = TextDark,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        Text(
+                                            text = "${slice.percentage}%",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = TextMuted
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(18.dp)) }
+
+        // 6. CATEGORY MATRIX HEADER & SWITCHER
         item(key = "matrix_header_and_switcher") {
             val plannedExp = uiState.metrics.plannedExpenses
             val actualExp = uiState.metrics.actualExpenses
             val expDiff = plannedExp - actualExp
-
-            val plannedAst = uiState.metrics.plannedAssets
-            val actualAst = uiState.metrics.actualAssets
-            val astDiff = plannedAst - actualAst
-
-            val pendingClaims = uiState.reimbursementStatus.pendingReimbursement
 
             val liveHeadroomLabel = when (selectedMatrixType) {
                 TransactionType.EXPENSE -> when {
@@ -671,15 +685,8 @@ fun MonthlySummaryTab(
                     else -> "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(expDiff))} Over Budget"
                 }
                 TransactionType.INCOME -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualIncome)} Received"
-                TransactionType.ASSET -> when {
-                    plannedAst <= 0 -> "No Target Set"
-                    astDiff > 0 -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", astDiff)} to Fund"
-                    else -> "100% Funded"
-                }
-                TransactionType.CORPORATE -> when {
-                    pendingClaims > 0 -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingClaims)} Pending"
-                    else -> "Reimbursed"
-                }
+                TransactionType.ASSET -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualAssets)} Funded"
+                TransactionType.CORPORATE -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.reimbursementStatus.pendingReimbursement)} Pending"
                 TransactionType.TRANSFER -> "Transfers"
             }
 
@@ -687,7 +694,7 @@ fun MonthlySummaryTab(
                 TransactionType.EXPENSE -> if (plannedExp > 0 && expDiff < 0) SoftRed else SoftGreen
                 TransactionType.INCOME -> SoftGreen
                 TransactionType.ASSET -> SoftTeal
-                TransactionType.CORPORATE -> if (pendingClaims > 0) Color(0xFFE57A28) else SoftGreen
+                TransactionType.CORPORATE -> Color(0xFFE57A28)
                 TransactionType.TRANSFER -> AccentPurple
             }
 
@@ -758,7 +765,7 @@ fun MonthlySummaryTab(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // 6. CATEGORY MATRIX ROWS
+        // 7. CATEGORY MATRIX ROWS
         if (activeMatrix.isEmpty()) {
             item {
                 Surface(
@@ -812,8 +819,56 @@ fun MonthlySummaryTab(
     }
 }
 
+// Data holder for Donut chart slices
+private data class DonutSliceData(
+    val name: String,
+    val percentage: Int,
+    val color: Color
+)
+
 @Composable
-private fun DarkPillarMetricCard(
+private fun QuickActionButton(
+    icon: ImageVector,
+    label: String,
+    containerColor: Color,
+    contentColor: Color,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick
+        )
+    ) {
+        Surface(
+            modifier = Modifier.size(54.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = containerColor,
+            border = BorderStroke(0.6.dp, contentColor.copy(alpha = 0.2f))
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = contentColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(5.dp))
+        Text(
+            text = label,
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextDark
+        )
+    }
+}
+
+@Composable
+private fun FrostedCardPill(
     title: String,
     amount: String,
     tintColor: Color,
@@ -824,8 +879,8 @@ private fun DarkPillarMetricCard(
         modifier = modifier
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(10.dp),
-        color = Color.White.copy(alpha = 0.08f),
-        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.12f))
+        color = Color.White.copy(alpha = 0.12f),
+        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.18f))
     ) {
         Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -836,7 +891,7 @@ private fun DarkPillarMetricCard(
                         .background(tintColor)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(text = title, fontSize = 8.5.sp, color = Color(0xFFA5B4FC), fontWeight = FontWeight.SemiBold)
+                Text(text = title, fontSize = 8.5.sp, color = Color(0xFFC7D2FE), fontWeight = FontWeight.SemiBold)
             }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
