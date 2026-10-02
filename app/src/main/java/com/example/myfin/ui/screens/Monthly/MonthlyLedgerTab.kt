@@ -63,6 +63,22 @@ fun MonthlyLedgerTab(
 
     val isSearchingOrFiltered = filterCriteria.query.isNotBlank() || hasActiveCustomFilters
 
+    // Format active date range label safely in Composable scope
+    val dateRangeLabel = remember(filterCriteria.startDate, filterCriteria.endDate) {
+        val start = filterCriteria.startDate
+        val end = filterCriteria.endDate
+        if (start != null || end != null) {
+            val sdf = SimpleDateFormat("dd MMM", Locale.US)
+            val startStr = start?.let { sdf.format(Date(it)) }
+            val endStr = end?.let { sdf.format(Date(it)) }
+            when {
+                startStr != null && endStr != null -> "$startStr – $endStr"
+                startStr != null -> "From $startStr"
+                else -> "Until $endStr"
+            }
+        } else null
+    }
+
     // Track expanded status for each date group (Option 2: Top 2 days expanded, older days collapsed)
     val dateKeys = remember(uiState.groupedTransactions) {
         uiState.groupedTransactions.keys.toList()
@@ -249,18 +265,10 @@ fun MonthlyLedgerTab(
                 }
 
                 // Date Range Filter Badge
-                if (filterCriteria.startDate != null || filterCriteria.endDate != null) {
-                    val sdf = remember { SimpleDateFormat("dd MMM", Locale.US) }
-                    val startStr = filterCriteria.startDate?.let { sdf.format(Date(it)) }
-                    val endStr = filterCriteria.endDate?.let { sdf.format(Date(it)) }
-                    val dateLabel = when {
-                        startStr != null && endStr != null -> "$startStr – $endStr"
-                        startStr != null -> "From $startStr"
-                        else -> "Until $endStr"
-                    }
+                dateRangeLabel?.let { label ->
                     item {
                         RemovableFilterChip(
-                            label = dateLabel,
+                            label = label,
                             icon = Icons.Default.DateRange,
                             onRemove = {
                                 viewModel.updateFilter(
