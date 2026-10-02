@@ -52,6 +52,7 @@ fun MonthlySummaryTab(
     userProfile: UserProfile,
     filterCriteria: FilterCriteria,
     isDiscreetMode: Boolean,
+    isMidnightTheme: Boolean = false,
     isCurrentMonth: Boolean,
     isPastMonth: Boolean,
     dismissedWaterfallMonth: Int,
@@ -87,7 +88,6 @@ fun MonthlySummaryTab(
         isCurrentMonth && monthEndSweepPlan != null && monthEndSweepPlan.sweepAmount > 0.0 && dismissedSweepMonth != uiState.selectedMonth
     }
 
-    // Samsung Now Bar Alerts
     val nowBarAlerts = remember(
         uiState.commitmentsShortfall,
         uiState.isRolloverBannerVisible,
@@ -258,11 +258,13 @@ fun MonthlySummaryTab(
         }
     }
 
+    val headingTextColor = if (isMidnightTheme) Color.White else TextDark
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 0.dp, bottom = 140.dp)
     ) {
-        // 1. COMPACT SINGLE-LINE GREETING HEADER (Eliminates the whitespace void)
+        // 1. COMPACT SINGLE-LINE GREETING HEADER
         item(key = "greeting_header") {
             Row(
                 modifier = Modifier
@@ -275,7 +277,7 @@ fun MonthlySummaryTab(
                     text = "$timeGreeting, ${userProfile.displayName.ifBlank { "User" }} 👋",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Black,
-                    color = TextDark,
+                    color = headingTextColor,
                     letterSpacing = (-0.3).sp
                 )
 
@@ -488,6 +490,7 @@ fun MonthlySummaryTab(
                     label = "Add Entry",
                     containerColor = Color(0xFFEEF2FF),
                     contentColor = Color(0xFF4F46E5),
+                    labelColor = if (isMidnightTheme) Color(0xFFE2E8F0) else TextDark,
                     onClick = onOpenAddSheet
                 )
                 QuickActionButton(
@@ -495,6 +498,7 @@ fun MonthlySummaryTab(
                     label = "Transfer",
                     containerColor = Color(0xFFECFDF5),
                     contentColor = Color(0xFF059669),
+                    labelColor = if (isMidnightTheme) Color(0xFFE2E8F0) else TextDark,
                     onClick = onOpenTransferSheet
                 )
                 QuickActionButton(
@@ -502,6 +506,7 @@ fun MonthlySummaryTab(
                     label = "AutoPay",
                     containerColor = Color(0xFFFFF1F2),
                     contentColor = Color(0xFFE11D48),
+                    labelColor = if (isMidnightTheme) Color(0xFFE2E8F0) else TextDark,
                     onClick = onNavigateToCommitments
                 )
                 QuickActionButton(
@@ -509,6 +514,7 @@ fun MonthlySummaryTab(
                     label = "More",
                     containerColor = Color(0xFFF1F5F9),
                     contentColor = Color(0xFF475569),
+                    labelColor = if (isMidnightTheme) Color(0xFFE2E8F0) else TextDark,
                     onClick = onOpenDrawer
                 )
             }
@@ -516,14 +522,14 @@ fun MonthlySummaryTab(
 
         item { Spacer(modifier = Modifier.height(14.dp)) }
 
-        // 5. SPENDING OVERVIEW (Donut Chart)
+        // 5. SPENDING OVERVIEW (Donut Chart - Floating White Card)
         item(key = "spending_overview_donut") {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "Spending Overview",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Black,
-                    color = TextDark
+                    color = headingTextColor
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -688,7 +694,7 @@ fun MonthlySummaryTab(
                     text = "Category Matrix",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Black,
-                    color = TextDark
+                    color = headingTextColor
                 )
 
                 Surface(
@@ -708,11 +714,15 @@ fun MonthlySummaryTab(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Segment Switcher adapts to midnight canvas
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(BorderLight.copy(alpha = 0.5f))
+                    .background(
+                        if (isMidnightTheme) Color.White.copy(alpha = 0.10f)
+                        else BorderLight.copy(alpha = 0.5f)
+                    )
                     .padding(4.dp)
             ) {
                 listOf(
@@ -735,7 +745,7 @@ fun MonthlySummaryTab(
                             text = label,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 11.sp,
-                            color = if (isSelected) color else TextMuted,
+                            color = if (isSelected) color else if (isMidnightTheme) Color(0xFF94A3B8) else TextMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -745,7 +755,7 @@ fun MonthlySummaryTab(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // 7. CATEGORY MATRIX ROWS
+        // 7. CATEGORY MATRIX ROWS (Floating White Card)
         if (activeMatrix.isEmpty()) {
             item {
                 Surface(
@@ -811,6 +821,7 @@ private fun QuickActionButton(
     label: String,
     containerColor: Color,
     contentColor: Color,
+    labelColor: Color = TextDark,
     onClick: () -> Unit
 ) {
     Column(
@@ -841,7 +852,7 @@ private fun QuickActionButton(
             text = label,
             fontSize = 11.5.sp,
             fontWeight = FontWeight.SemiBold,
-            color = TextDark
+            color = labelColor
         )
     }
 }
