@@ -6,8 +6,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -21,13 +19,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionEntity
@@ -53,7 +50,6 @@ fun SwipeableTransactionItem(
     val currentOnEdit by rememberUpdatedState(onEdit)
     val currentOnDelete by rememberUpdatedState(onDelete)
 
-    // Extract local properties to avoid complex expression smart-cast issues
     val txTitle = currentTx.title.trim()
     val txSubcategory = currentTx.subcategory.trim()
     val txCategory = currentTx.category.trim()
@@ -121,7 +117,6 @@ fun SwipeableTransactionItem(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(18.dp))
                     .background(backgroundColor)
                     .padding(horizontal = 20.dp),
                 contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
@@ -134,14 +129,14 @@ fun SwipeableTransactionItem(
                         Surface(
                             shape = CircleShape,
                             color = Color.White.copy(alpha = 0.22f),
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(30.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.Default.Edit,
                                     contentDescription = "Edit Entry",
                                     tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                             }
                         }
@@ -150,7 +145,7 @@ fun SwipeableTransactionItem(
                             text = "Edit",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = 12.5.sp
                         )
                     }
                 } else if (direction == SwipeToDismissBoxValue.EndToStart) {
@@ -162,20 +157,20 @@ fun SwipeableTransactionItem(
                             text = "Delete",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = 12.5.sp
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = CircleShape,
                             color = Color.White.copy(alpha = 0.22f),
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(30.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.Default.Delete,
                                     contentDescription = "Delete Entry",
                                     tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                             }
                         }
@@ -184,7 +179,6 @@ fun SwipeableTransactionItem(
             }
         }
     ) {
-        // Friendly mapping for transfer subtypes
         val friendlySubcategory = remember(txSubcategory, txType, txSubtype) {
             if (txType == TransactionType.TRANSFER) {
                 when {
@@ -199,7 +193,6 @@ fun SwipeableTransactionItem(
             }
         }
 
-        // Row 1 Title: Format as Subcategory (Title) if title is distinct, otherwise Subcategory
         val displayTitle = remember(txTitle, friendlySubcategory) {
             val isRedundant = txTitle.isBlank() ||
                 txTitle.equals(friendlySubcategory, ignoreCase = true) ||
@@ -214,12 +207,19 @@ fun SwipeableTransactionItem(
             }
         }
 
-        // Row 2 Bank Route Text
         val bankRouteText = remember(txAccountName, txToAccountName, txType) {
             if (txType == TransactionType.TRANSFER && !txToAccountName.isNullOrBlank()) {
                 "${txAccountName.uppercase()} ➔ ${txToAccountName.uppercase()}"
             } else {
-                txAccountName.uppercase()
+                txAccountName
+            }
+        }
+
+        val sublineText = remember(txCategory, bankRouteText) {
+            if (txCategory.isNotBlank() && bankRouteText.isNotBlank()) {
+                "$txCategory • $bankRouteText"
+            } else {
+                txCategory.ifBlank { bankRouteText }
             }
         }
 
@@ -232,24 +232,22 @@ fun SwipeableTransactionItem(
             TransactionType.TRANSFER -> AccentPurple
         }
 
-        val formattedDateTime = remember(txDate) {
-            formatContextualDateTime(txDate)
+        // Clean time format (e.g. 05:30 PM) without redundant "Yesterday" label
+        val formattedTime = remember(txDate) {
+            SimpleDateFormat("hh:mm a", Locale.US).format(Date(txDate))
         }
 
+        // Flat row surface inside the parent daily container
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(1.dp, RoundedCornerShape(18.dp))
-                .clip(RoundedCornerShape(18.dp))
-                .border(0.8.dp, BorderLight.copy(alpha = 0.6f), RoundedCornerShape(18.dp))
                 .clickable { currentOnTap(currentTx) },
-            shape = RoundedCornerShape(18.dp),
             color = CardWhite
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 14.dp, vertical = 11.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -269,14 +267,14 @@ fun SwipeableTransactionItem(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(11.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
-                // Center Column: Row 1 Subcategory (Title) + Row 2 (50% Category | 50% Bank)
+                // Center Column: Title + Category & Bank
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(3.5.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.5.dp)
                 ) {
-                    // Row 1: Subcategory (Title) with continuous Marquee
+                    // Line 1: Title + optional AutoPay badge
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
@@ -287,26 +285,20 @@ fun SwipeableTransactionItem(
                             fontSize = 13.5.sp,
                             color = TextDark,
                             maxLines = 1,
-                            modifier = Modifier
-                                .weight(1f, fill = false)
-                                .basicMarquee(
-                                    iterations = Int.MAX_VALUE,
-                                    delayMillis = 1200,
-                                    initialDelayMillis = 1200,
-                                    velocity = 30.dp
-                                )
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
 
                         if (txLinkedFixedBillId != null) {
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = AccentPurpleLight,
-                                border = BorderStroke(0.5.dp, AccentPurple.copy(alpha = 0.4f))
+                                border = BorderStroke(0.5.dp, AccentPurple.copy(alpha = 0.35f))
                             ) {
                                 Text(
                                     text = "AutoPay",
-                                    fontSize = 8.5.sp,
+                                    fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = AccentPurple,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -315,59 +307,19 @@ fun SwipeableTransactionItem(
                         }
                     }
 
-                    // Row 2: 50% Category & 50% Bank with continuous Marquee
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // 50% Category
-                        Text(
-                            text = txCategory,
-                            fontSize = 11.sp,
-                            color = TextMuted,
-                            maxLines = 1,
-                            modifier = Modifier
-                                .weight(1f)
-                                .basicMarquee(
-                                    iterations = Int.MAX_VALUE,
-                                    delayMillis = 1800,
-                                    initialDelayMillis = 1800,
-                                    velocity = 25.dp
-                                )
-                        )
-
-                        // 50% Bank Vault Route
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = CanvasLight,
-                            border = BorderStroke(0.6.dp, BorderLight),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = bankRouteText,
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (txType == TransactionType.TRANSFER) AccentPurple else TextDark.copy(alpha = 0.75f),
-                                maxLines = 1,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    .basicMarquee(
-                                        iterations = Int.MAX_VALUE,
-                                        delayMillis = 1800,
-                                        initialDelayMillis = 1800,
-                                        velocity = 25.dp
-                                    )
-                            )
-                        }
-                    }
+                    // Line 2: Category • Bank (clean text, no clipped badges)
+                    Text(
+                        text = sublineText,
+                        fontSize = 11.sp,
+                        color = TextMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
-                // Right Block: Amount & Smart Contextual Timestamp Vertically Centered
+                // Right Column: Amount & Clean Time
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.Center
@@ -394,42 +346,21 @@ fun SwipeableTransactionItem(
                     Text(
                         text = "$amountPrefix$currencySymbol${String.format(Locale.US, "%,.2f", txAmount)}",
                         fontWeight = FontWeight.Black,
-                        fontSize = 14.5.sp,
+                        fontSize = 14.sp,
                         color = amountColor
                     )
 
                     Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
-                        text = formattedDateTime,
-                        fontSize = 10.sp,
+                        text = formattedTime,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Medium,
                         color = TextMuted.copy(alpha = 0.85f)
                     )
                 }
             }
         }
-    }
-}
-
-private fun formatContextualDateTime(timestamp: Long): String {
-    val txCal = Calendar.getInstance().apply { timeInMillis = timestamp }
-    val nowCal = Calendar.getInstance()
-    val timeStr = SimpleDateFormat("hh:mm a", Locale.US).format(Date(timestamp))
-
-    val isSameDay = txCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
-            txCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR)
-
-    val isYesterday = txCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
-            txCal.get(Calendar.DAY_OF_YEAR) == (nowCal.get(Calendar.DAY_OF_YEAR) - 1)
-
-    val isSameYear = txCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR)
-
-    return when {
-        isSameDay -> timeStr
-        isYesterday -> "Yesterday, $timeStr"
-        isSameYear -> "${SimpleDateFormat("dd MMM", Locale.US).format(Date(timestamp))}, $timeStr"
-        else -> "${SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date(timestamp))}, $timeStr"
     }
 }
 
