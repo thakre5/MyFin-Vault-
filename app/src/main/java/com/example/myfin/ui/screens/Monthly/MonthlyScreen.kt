@@ -1,6 +1,8 @@
 package com.example.myfin.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -110,6 +112,18 @@ fun MonthlyScreen(
     val isPastMonth = (uiState.selectedYear < todayCal.get(Calendar.YEAR)) ||
             (uiState.selectedYear == todayCal.get(Calendar.YEAR) && uiState.selectedMonth < (todayCal.get(Calendar.MONTH) + 1))
 
+    val isLedgerTab = pagerState.currentPage == 1
+    val topBarBg by animateColorAsState(
+        targetValue = if (isLedgerTab) Color(0xFF0F172A) else CanvasLight,
+        animationSpec = tween(220),
+        label = "topBarBg"
+    )
+    val topBarContentColor by animateColorAsState(
+        targetValue = if (isLedgerTab) Color.White else TextDark,
+        animationSpec = tween(220),
+        label = "topBarContentColor"
+    )
+
     val fabActions = remember {
         listOf(
             DockFabAction(
@@ -131,11 +145,11 @@ fun MonthlyScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(CanvasLight)
+            .background(if (isLedgerTab) Color(0xFF0F172A) else CanvasLight)
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. PINNED TOP BAR
+            // 1. PINNED TOP BAR (Dynamically blends with active page theme)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -144,7 +158,7 @@ fun MonthlyScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(CanvasLight)
+                        .background(topBarBg)
                         .statusBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
@@ -158,7 +172,7 @@ fun MonthlyScreen(
                         Icon(
                             imageVector = Icons.Default.Menu,
                             contentDescription = "Drawer / Navigation",
-                            tint = TextDark,
+                            tint = topBarContentColor,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -169,9 +183,12 @@ fun MonthlyScreen(
                             .clip(RoundedCornerShape(20.dp))
                             .clickable { showMonthPicker = true },
                         shape = RoundedCornerShape(20.dp),
-                        color = CardWhite,
-                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f)),
-                        shadowElevation = 2.dp
+                        color = if (isLedgerTab) Color.White.copy(alpha = 0.12f) else CardWhite,
+                        border = BorderStroke(
+                            0.8.dp,
+                            if (isLedgerTab) Color.White.copy(alpha = 0.2f) else BorderLight.copy(alpha = 0.7f)
+                        ),
+                        shadowElevation = if (isLedgerTab) 0.dp else 2.dp
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
@@ -181,10 +198,15 @@ fun MonthlyScreen(
                                 text = "${MONTH_NAMES[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
-                                color = TextDark
+                                color = topBarContentColor
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                tint = if (isLedgerTab) Color(0xFFA5B4FC) else AccentPurple,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
 
@@ -213,39 +235,41 @@ fun MonthlyScreen(
                             Icon(
                                 imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = "Toggle Balance Privacy",
-                                tint = if (isDiscreetMode) AccentPurple else TextMuted,
+                                tint = if (isLedgerTab) Color.White else if (isDiscreetMode) AccentPurple else TextMuted,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(14.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(CanvasLight, CanvasLight.copy(alpha = 0f))
+                if (!isLedgerTab) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(14.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(CanvasLight, CanvasLight.copy(alpha = 0f))
+                                )
                             )
-                        )
-                )
+                    )
+                }
             }
 
-            // 2. HORIZONTAL PAGER
+            // 2. HORIZONTAL PAGER (Ledger page gets edge-to-edge canvas with zero side margins)
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
             ) { page ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp)
-                ) {
-                    when (page) {
-                        0 -> MonthlySummaryTab(
+                when (page) {
+                    0 -> Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp)
+                    ) {
+                        MonthlySummaryTab(
                             viewModel = viewModel,
                             uiState = uiState,
                             userProfile = userProfile,
@@ -280,21 +304,27 @@ fun MonthlyScreen(
                                 showAddSheet = true
                             }
                         )
+                    }
 
-                        1 -> MonthlyLedgerTab(
-                            viewModel = viewModel,
-                            uiState = uiState,
-                            userProfile = userProfile,
-                            filterCriteria = filterCriteria,
-                            accountsList = accountsList,
-                            isDiscreetMode = isDiscreetMode,
-                            onOpenFilterSheet = { showFilterSheet = true },
-                            onViewTx = { viewingTx = it },
-                            onEditTx = { editingTx = it; showAddSheet = true },
-                            onDeleteTx = { transactionToDelete = it }
-                        )
+                    1 -> MonthlyLedgerTab(
+                        viewModel = viewModel,
+                        uiState = uiState,
+                        userProfile = userProfile,
+                        filterCriteria = filterCriteria,
+                        accountsList = accountsList,
+                        isDiscreetMode = isDiscreetMode,
+                        onOpenFilterSheet = { showFilterSheet = true },
+                        onViewTx = { viewingTx = it },
+                        onEditTx = { editingTx = it; showAddSheet = true },
+                        onDeleteTx = { transactionToDelete = it }
+                    )
 
-                        2 -> MonthlyAutoPayTab(
+                    2 -> Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp)
+                    ) {
+                        MonthlyAutoPayTab(
                             uiState = uiState,
                             userProfile = userProfile,
                             isDiscreetMode = isDiscreetMode,
