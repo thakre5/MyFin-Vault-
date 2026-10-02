@@ -61,7 +61,6 @@ fun MonthlyLedgerTab(
 
     val isSearchingOrFiltered = filterCriteria.query.isNotBlank() || hasActiveCustomFilters
 
-    // Format active date range label safely in Composable scope
     val dateRangeLabel = remember(filterCriteria.startDate, filterCriteria.endDate) {
         val start = filterCriteria.startDate
         val end = filterCriteria.endDate
@@ -77,7 +76,6 @@ fun MonthlyLedgerTab(
         } else null
     }
 
-    // Track expanded status for each date group (Option 2: Top 2 days expanded, older days collapsed)
     val dateKeys = remember(uiState.groupedTransactions) {
         uiState.groupedTransactions.keys.toList()
     }
@@ -90,7 +88,7 @@ fun MonthlyLedgerTab(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // 1. UNIFIED HEADER: TITLE + INLINE EXPANDING SEARCH + FILTER LAUNCHER
+        // 1. TOP HEADER: TITLE + SEARCH + FILTER
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -193,7 +191,7 @@ fun MonthlyLedgerTab(
                     }
                 }
 
-                // Filter Icon with Active Dot
+                // Filter button with active dot
                 IconButton(
                     onClick = onOpenFilterSheet,
                     modifier = Modifier.size(36.dp)
@@ -218,7 +216,7 @@ fun MonthlyLedgerTab(
             }
         }
 
-        // 2. ACTIVE FILTER TAGS (Visible ONLY when custom filters are active)
+        // Active filter pills
         if (hasActiveCustomFilters) {
             Spacer(modifier = Modifier.height(4.dp))
             LazyRow(
@@ -295,9 +293,14 @@ fun MonthlyLedgerTab(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        // VISUAL SEPARATION: Subtle hairline divider between the top header area and content list
+        HorizontalDivider(
+            color = BorderLight.copy(alpha = 0.5f),
+            thickness = 0.8.dp,
+            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+        )
 
-        // 3. GROUPED TRANSACTION LIST WITH SMART DAILY ACCORDION (Option 2)
+        // 2. SCROLLABLE CONTENT WITH SEPARATED DATE HEADERS
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -364,7 +367,7 @@ fun MonthlyLedgerTab(
                     val isExpanded = expandedDates[dateHeader] ?: true
 
                     if (isExpanded) {
-                        // EXPANDED STATE: Clean Typography Sticky Header
+                        // Sticky Header with clear top separation
                         stickyHeader(key = "header_$dateHeader") {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
@@ -375,7 +378,7 @@ fun MonthlyLedgerTab(
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(8.dp))
                                         .clickable { expandedDates[dateHeader] = false }
-                                        .padding(top = 10.dp, bottom = 6.dp, start = 2.dp, end = 2.dp),
+                                        .padding(top = 14.dp, bottom = 8.dp, start = 2.dp, end = 2.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -383,14 +386,14 @@ fun MonthlyLedgerTab(
                                         Text(
                                             text = dateHeader.uppercase(),
                                             fontWeight = FontWeight.Black,
-                                            fontSize = 11.sp,
+                                            fontSize = 11.5.sp,
                                             color = TextDark,
                                             letterSpacing = 0.5.sp
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = "• ${txList.size} ${if (txList.size == 1) "entry" else "entries"}",
-                                            fontSize = 10.5.sp,
+                                            fontSize = 11.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = TextMuted
                                         )
@@ -436,7 +439,7 @@ fun MonthlyLedgerTab(
                             }
                         }
 
-                        // UNIFIED GROUPED CARD CONTAINER (All items in one white card with dividers)
+                        // Distinct Daily Card with clear separation from header and next section
                         item(key = "container_$dateHeader") {
                             Surface(
                                 modifier = Modifier
@@ -458,7 +461,7 @@ fun MonthlyLedgerTab(
                                         )
                                         if (index < sortedTxList.lastIndex) {
                                             HorizontalDivider(
-                                                color = BorderLight.copy(alpha = 0.6f),
+                                                color = BorderLight.copy(alpha = 0.5f),
                                                 thickness = 0.6.dp,
                                                 modifier = Modifier.padding(start = 64.dp, end = 14.dp)
                                             )
@@ -466,15 +469,16 @@ fun MonthlyLedgerTab(
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(10.dp))
+                            // Bottom separation between different days
+                            Spacer(modifier = Modifier.height(14.dp))
                         }
                     } else {
-                        // COLLAPSED STATE: Slim Accordion Summary Bar
+                        // Collapsed Accordion Row with proper vertical separation
                         item(key = "collapsed_$dateHeader") {
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 3.dp)
+                                    .padding(vertical = 4.dp)
                                     .shadow(1.dp, RoundedCornerShape(14.dp))
                                     .clip(RoundedCornerShape(14.dp))
                                     .clickable { expandedDates[dateHeader] = true },
@@ -485,7 +489,7 @@ fun MonthlyLedgerTab(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 13.dp, vertical = 10.dp),
+                                        .padding(horizontal = 14.dp, vertical = 11.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
