@@ -209,7 +209,6 @@ fun MonthlySummaryTab(
         }
     }
 
-    // Top Expense Categories for Donut Chart
     val expenseCategories = remember(uiState.categories) {
         uiState.categories
             .filter { it.type == TransactionType.EXPENSE && it.actualAmount > 0.0 }
@@ -221,11 +220,11 @@ fun MonthlySummaryTab(
 
     val donutColors = remember {
         listOf(
-            Color(0xFF4F46E5), // Indigo
-            Color(0xFF38BDF8), // Cyan Sky
-            Color(0xFFF43F5E), // Coral Pink
-            Color(0xFFF59E0B), // Amber
-            Color(0xFFA855F7)  // Violet
+            Color(0xFF4F46E5),
+            Color(0xFF38BDF8),
+            Color(0xFFF43F5E),
+            Color(0xFFF59E0B),
+            Color(0xFFA855F7)
         )
     }
 
@@ -261,32 +260,24 @@ fun MonthlySummaryTab(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 2.dp, bottom = 140.dp)
+        contentPadding = PaddingValues(top = 0.dp, bottom = 140.dp)
     ) {
-        // 1. WARM GREETING HEADER (Compact & Flush)
+        // 1. COMPACT SINGLE-LINE GREETING HEADER (Eliminates the whitespace void)
         item(key = "greeting_header") {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 2.dp, bottom = 8.dp),
+                    .padding(top = 2.dp, bottom = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = "$timeGreeting,",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextMuted
-                    )
-                    Text(
-                        text = "${userProfile.displayName.ifBlank { "User" }} 👋",
-                        fontSize = 18.5.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextDark,
-                        letterSpacing = (-0.3).sp
-                    )
-                }
+                Text(
+                    text = "$timeGreeting, ${userProfile.displayName.ifBlank { "User" }} 👋",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black,
+                    color = TextDark,
+                    letterSpacing = (-0.3).sp
+                )
 
                 Surface(
                     shape = RoundedCornerShape(12.dp),
@@ -294,7 +285,7 @@ fun MonthlySummaryTab(
                     border = BorderStroke(0.8.dp, BorderLight)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -320,7 +311,7 @@ fun MonthlySummaryTab(
             item(key = "now_bar_capsule") {
                 VaultNowBar(
                     alerts = nowBarAlerts,
-                    modifier = Modifier.padding(bottom = 10.dp)
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
         }
