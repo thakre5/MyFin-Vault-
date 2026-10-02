@@ -196,7 +196,6 @@ fun MonthlySummaryTab(
         uiState.categories.filter { it.type == selectedMatrixType && it.category.isNotBlank() }
     }
 
-    // Calculation for dynamic velocity & Donut breakdown
     val daysUntilSalary = uiState.metrics.daysUntilPayday.coerceAtLeast(1)
     val safeDailyVelocity = if (uiState.metrics.safeToSpend > 0) {
         uiState.metrics.safeToSpend / daysUntilSalary
@@ -262,27 +261,27 @@ fun MonthlySummaryTab(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
+        contentPadding = PaddingValues(top = 2.dp, bottom = 140.dp)
     ) {
-        // 1. WARM GREETING HEADER (Matches Reference)
+        // 1. WARM GREETING HEADER (Compact & Flush)
         item(key = "greeting_header") {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp),
+                    .padding(top = 2.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
                     Text(
                         text = "$timeGreeting,",
-                        fontSize = 12.5.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = TextMuted
                     )
                     Text(
                         text = "${userProfile.displayName.ifBlank { "User" }} 👋",
-                        fontSize = 19.sp,
+                        fontSize = 18.5.sp,
                         fontWeight = FontWeight.Black,
                         color = TextDark,
                         letterSpacing = (-0.3).sp
@@ -295,7 +294,7 @@ fun MonthlySummaryTab(
                     border = BorderStroke(0.8.dp, BorderLight)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -307,7 +306,7 @@ fun MonthlySummaryTab(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (isHealthy) "Safe Runway" else "Attention",
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isHealthy) SoftGreen else SoftRed
                         )
@@ -321,17 +320,17 @@ fun MonthlySummaryTab(
             item(key = "now_bar_capsule") {
                 VaultNowBar(
                     alerts = nowBarAlerts,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    modifier = Modifier.padding(bottom = 10.dp)
                 )
             }
         }
 
-        // 3. FINTECH HERO CARD (Royal Indigo Gradient matching Reference)
+        // 3. FINTECH HERO CARD
         item(key = "fintech_hero_card") {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(5.dp, RoundedCornerShape(22.dp)),
+                    .shadow(4.dp, RoundedCornerShape(22.dp)),
                 shape = RoundedCornerShape(22.dp),
                 color = Color(0xFF3730A3),
                 border = BorderStroke(1.dp, Color(0xFF4F46E5).copy(alpha = 0.5f))
@@ -342,15 +341,14 @@ fun MonthlySummaryTab(
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(
-                                    Color(0xFF4338CA), // Royal Indigo
+                                    Color(0xFF4338CA),
                                     Color(0xFF3730A3),
-                                    Color(0xFF312E81)  // Deep Indigo
+                                    Color(0xFF312E81)
                                 )
                             )
                         )
-                        .padding(horizontal = 18.dp, vertical = 16.dp)
+                        .padding(horizontal = 18.dp, vertical = 15.dp)
                 ) {
-                    // Card Top Row: Label + Capacity + Overlapping Mastercard Circles
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -378,7 +376,6 @@ fun MonthlySummaryTab(
                             )
                         }
 
-                        // Decorative Mastercard-style circles badge matching reference card
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
@@ -415,7 +412,6 @@ fun MonthlySummaryTab(
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Balance Display
                     if (isDiscreetMode) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
@@ -439,7 +435,6 @@ fun MonthlySummaryTab(
                         )
                     }
 
-                    // Pacing Velocity
                     Text(
                         text = when {
                             isPastMonth -> "Month closed • Final safe ledger balance"
@@ -453,9 +448,8 @@ fun MonthlySummaryTab(
                         color = if (uiState.metrics.isSalaryDelayed) Color(0xFFFDE68A) else Color(0xFFE0E7FF)
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(13.dp))
 
-                    // Frosted Inflow / Fixed / SIP Chips on Card
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -489,9 +483,9 @@ fun MonthlySummaryTab(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(14.dp)) }
+        item { Spacer(modifier = Modifier.height(12.dp)) }
 
-        // 4. THE 4-ICON QUICK ACTION STRIP (Direct from Reference)
+        // 4. QUICK ACTION STRIP
         item(key = "quick_action_strip") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -529,9 +523,9 @@ fun MonthlySummaryTab(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(16.dp)) }
+        item { Spacer(modifier = Modifier.height(14.dp)) }
 
-        // 5. SPENDING OVERVIEW (Donut Chart Card focusing on Top Expenses)
+        // 5. SPENDING OVERVIEW (Donut Chart)
         item(key = "spending_overview_donut") {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -551,7 +545,6 @@ fun MonthlySummaryTab(
                     border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                 ) {
                     if (totalExpenseSpent <= 0.0 || topDonutSlices.isEmpty()) {
-                        // Empty / Unspent State
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -574,7 +567,6 @@ fun MonthlySummaryTab(
                             )
                         }
                     } else {
-                        // Donut Ring + Top Slices Legend
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -582,7 +574,6 @@ fun MonthlySummaryTab(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            // Left Donut Ring with Center Total
                             Box(
                                 modifier = Modifier.size(118.dp),
                                 contentAlignment = Alignment.Center
@@ -624,7 +615,6 @@ fun MonthlySummaryTab(
 
                             Spacer(modifier = Modifier.width(14.dp))
 
-                            // Right Legend: Top 4 Drivers with %
                             Column(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -670,7 +660,7 @@ fun MonthlySummaryTab(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(18.dp)) }
+        item { Spacer(modifier = Modifier.height(16.dp)) }
 
         // 6. CATEGORY MATRIX HEADER & SWITCHER
         item(key = "matrix_header_and_switcher") {
@@ -727,7 +717,6 @@ fun MonthlySummaryTab(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 4-Way Segment Switcher
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -819,7 +808,6 @@ fun MonthlySummaryTab(
     }
 }
 
-// Data holder for Donut chart slices
 private data class DonutSliceData(
     val name: String,
     val percentage: Int,
