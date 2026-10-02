@@ -259,35 +259,46 @@ fun MonthlySummaryTab(
     }
 
     val headingTextColor = if (isMidnightTheme) Color.White else TextDark
+    val subtitleTextColor = if (isMidnightTheme) Color(0xFF94A3B8) else TextMuted
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 0.dp, bottom = 140.dp)
+        contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
     ) {
-        // 1. COMPACT SINGLE-LINE GREETING HEADER
+        // 1. 2-LINE GREETING HEADER (Comfortable hierarchy & zero clutter)
         item(key = "greeting_header") {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 2.dp, bottom = 6.dp),
+                    .padding(top = 2.dp, bottom = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "$timeGreeting, ${userProfile.displayName.ifBlank { "User" }} 👋",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Black,
-                    color = headingTextColor,
-                    letterSpacing = (-0.3).sp
-                )
+                Column {
+                    Text(
+                        text = "$timeGreeting,",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = subtitleTextColor
+                    )
+                    Spacer(modifier = Modifier.height(1.dp))
+                    Text(
+                        text = "${userProfile.displayName.ifBlank { "User" }} 👋",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = headingTextColor,
+                        letterSpacing = (-0.4).sp
+                    )
+                }
 
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = CardWhite,
-                    border = BorderStroke(0.8.dp, BorderLight)
+                    border = BorderStroke(0.8.dp, BorderLight),
+                    shadowElevation = 1.dp
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.5.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -313,7 +324,7 @@ fun MonthlySummaryTab(
             item(key = "now_bar_capsule") {
                 VaultNowBar(
                     alerts = nowBarAlerts,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 12.dp)
                 )
             }
         }
@@ -476,7 +487,7 @@ fun MonthlySummaryTab(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(12.dp)) }
+        item { Spacer(modifier = Modifier.height(14.dp)) }
 
         // 4. QUICK ACTION STRIP
         item(key = "quick_action_strip") {
@@ -520,7 +531,7 @@ fun MonthlySummaryTab(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(14.dp)) }
+        item { Spacer(modifier = Modifier.height(16.dp)) }
 
         // 5. SPENDING OVERVIEW (Donut Chart - Floating White Card)
         item(key = "spending_overview_donut") {
@@ -714,7 +725,6 @@ fun MonthlySummaryTab(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Segment Switcher adapts to midnight canvas
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
