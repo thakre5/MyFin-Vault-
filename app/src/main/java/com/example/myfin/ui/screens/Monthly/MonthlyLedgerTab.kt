@@ -1,5 +1,6 @@
 package com.example.myfin.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -8,18 +9,20 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,238 +54,250 @@ fun MonthlyLedgerTab(
     onEditTx: (TransactionEntity) -> Unit,
     onDeleteTx: (TransactionEntity) -> Unit
 ) {
+    var isSearchExpanded by remember { mutableStateOf(filterCriteria.query.isNotBlank()) }
+
+    val hasActiveCustomFilters = filterCriteria.type != null ||
+            (filterCriteria.account.isNotBlank() && filterCriteria.account != "ALL") ||
+            filterCriteria.startDate != null ||
+            filterCriteria.endDate != null
+
+    val isSearchingOrFiltered = filterCriteria.query.isNotBlank() || hasActiveCustomFilters
+
+    // Track expanded status for each date group (Option 2: Top 2 days expanded, older days collapsed)
+    val dateKeys = remember(uiState.groupedTransactions) {
+        uiState.groupedTransactions.keys.toList()
+    }
+    val expandedDates = remember(uiState.groupedTransactions, isSearchingOrFiltered) {
+        mutableStateMapOf<String, Boolean>().apply {
+            dateKeys.forEachIndexed { index, dateKey ->
+                put(dateKey, if (isSearchingOrFiltered) true else index < 2)
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        // 1. SEARCH BAR WITH FILTER LAUNCHER
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(46.dp),
-            shape = RoundedCornerShape(14.dp),
-            color = CardWhite,
-            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search",
-                    tint = TextMuted,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Box(
-                    modifier = Modifier.weight(1f),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (filterCriteria.query.isEmpty()) {
-                        Text(
-                            text = "Search ledger...",
-                            color = TextMuted,
-                            fontSize = 13.sp,
-                            maxLines = 1
-                        )
-                    }
-                    BasicTextField(
-                        value = filterCriteria.query,
-                        onValueChange = { viewModel.updateSearchQuery(it) },
-                        singleLine = true,
-                        textStyle = TextStyle(
-                            fontSize = 13.sp,
-                            color = TextDark,
-                            fontWeight = FontWeight.Medium
-                        ),
-                        cursorBrush = SolidColor(AccentPurple),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                if (filterCriteria.query.isNotBlank()) {
-                    IconButton(
-                        onClick = { viewModel.updateSearchQuery("") },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Clear",
-                            tint = TextMuted,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                }
-
-                val hasActiveCustomFilters = filterCriteria.type != null ||
-                        filterCriteria.account != "ALL" ||
-                        filterCriteria.startDate != null ||
-                        filterCriteria.endDate != null
-
-                IconButton(onClick = onOpenFilterSheet, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Tune,
-                        contentDescription = "Filter",
-                        tint = if (hasActiveCustomFilters) AccentPurple else TextMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // 2. ACTIVE DATE RANGE CHIP (IF CONFIGURED)
-        if (filterCriteria.startDate != null || filterCriteria.endDate != null) {
-            val sdf = remember { SimpleDateFormat("dd MMM", Locale.US) }
-            val startStr = filterCriteria.startDate?.let { sdf.format(Date(it)) }
-            val endStr = filterCriteria.endDate?.let { sdf.format(Date(it)) }
-
-            val dateRangeLabel = when {
-                startStr != null && endStr != null -> "$startStr – $endStr"
-                startStr != null -> "From $startStr"
-                else -> "Until $endStr"
-            }
-
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = AccentPurple.copy(alpha = 0.12f),
-                border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.35f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.DateRange,
-                            contentDescription = null,
-                            tint = AccentPurple,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Date Filter: $dateRangeLabel",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AccentPurple
-                        )
-                    }
-                    IconButton(
-                        onClick = { viewModel.updateFilter(filterCriteria.type, filterCriteria.account, null, null) },
-                        modifier = Modifier.size(20.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Clear Date Filter",
-                            tint = AccentPurple,
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        // 3. SEGMENTED TRANSACTION TYPE SELECTOR
+        // 1. UNIFIED HEADER: TITLE + INLINE EXPANDING SEARCH + FILTER LAUNCHER
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(BorderLight.copy(alpha = 0.5f))
-                .padding(3.dp)
+                .height(44.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            listOf(
-                null to "All",
-                TransactionType.EXPENSE to "Expense",
-                TransactionType.INCOME to "Income",
-                TransactionType.ASSET to "Asset",
-                TransactionType.CORPORATE to "Corp",
-                TransactionType.TRANSFER to "Transfer"
-            ).forEach { (type, label) ->
-                val isSelected = filterCriteria.type == type
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(if (isSelected) CardWhite else Color.Transparent)
-                        .clickable {
-                            viewModel.updateFilter(type, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
-                        }
-                        .padding(vertical = 7.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = label,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        fontSize = 10.sp,
-                        color = if (isSelected) {
-                            when (type) {
-                                TransactionType.EXPENSE -> SoftRed
-                                TransactionType.INCOME -> SoftGreen
-                                TransactionType.ASSET -> SoftTeal
-                                TransactionType.CORPORATE -> Color(0xFFE57A28)
-                                TransactionType.TRANSFER -> AccentPurple
-                                else -> TextDark
+            // Left: Anchored Page Heading
+            Text(
+                text = "Transactions",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Black,
+                color = TextDark,
+                letterSpacing = (-0.4).sp
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Right: Expanding Search Bar + Action Icons
+            Row(
+                modifier = Modifier.weight(1f, fill = isSearchExpanded),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isSearchExpanded) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = TextMuted,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                if (filterCriteria.query.isEmpty()) {
+                                    Text(
+                                        text = "Search...",
+                                        color = TextMuted,
+                                        fontSize = 12.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                                BasicTextField(
+                                    value = filterCriteria.query,
+                                    onValueChange = { viewModel.updateSearchQuery(it) },
+                                    singleLine = true,
+                                    textStyle = TextStyle(
+                                        fontSize = 12.5.sp,
+                                        color = TextDark,
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    cursorBrush = SolidColor(AccentPurple),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
-                        } else TextMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+
+                            IconButton(
+                                onClick = {
+                                    viewModel.updateSearchQuery("")
+                                    isSearchExpanded = false
+                                },
+                                modifier = Modifier.size(22.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close Search",
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                } else {
+                    IconButton(
+                        onClick = { isSearchExpanded = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = TextDark,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                // Filter Icon with Active Badge
+                IconButton(
+                    onClick = onOpenFilterSheet,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.TopEnd) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Filter",
+                            tint = if (hasActiveCustomFilters) AccentPurple else TextDark,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        if (hasActiveCustomFilters) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(AccentPurple)
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        // 2. ACTIVE FILTER TAGS (Visible ONLY when custom filters are active)
+        if (hasActiveCustomFilters) {
+            Spacer(modifier = Modifier.height(4.dp))
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Type Filter Badge
+                filterCriteria.type?.let { type ->
+                    item {
+                        RemovableFilterChip(
+                            label = type.name.lowercase().replaceFirstChar { it.uppercase() },
+                            onRemove = {
+                                viewModel.updateFilter(
+                                    null,
+                                    filterCriteria.account,
+                                    filterCriteria.startDate,
+                                    filterCriteria.endDate
+                                )
+                            }
+                        )
+                    }
+                }
 
-        // 4. HORIZONTAL VAULT ACCOUNT CHIPS
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item {
-                FilterChip(
-                    selected = filterCriteria.account == "ALL",
-                    onClick = { viewModel.updateFilter(filterCriteria.type, "ALL", filterCriteria.startDate, filterCriteria.endDate) },
-                    label = { Text(text = "All Vaults", fontSize = 11.sp) },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AccentPurple.copy(alpha = 0.12f),
-                        selectedLabelColor = AccentPurple
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        enabled = true,
-                        selected = filterCriteria.account == "ALL",
-                        selectedBorderColor = AccentPurple.copy(alpha = 0.4f),
-                        borderColor = BorderLight
-                    )
-                )
-            }
-            items(accountsList) { acc ->
-                val isSelected = filterCriteria.account == acc
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { viewModel.updateFilter(filterCriteria.type, acc, filterCriteria.startDate, filterCriteria.endDate) },
-                    label = { Text(text = acc, fontSize = 11.sp) },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AccentPurple.copy(alpha = 0.12f),
-                        selectedLabelColor = AccentPurple
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        enabled = true,
-                        selected = isSelected,
-                        selectedBorderColor = AccentPurple.copy(alpha = 0.4f),
-                        borderColor = BorderLight
-                    )
-                )
+                // Vault Account Filter Badge
+                if (filterCriteria.account.isNotBlank() && filterCriteria.account != "ALL") {
+                    item {
+                        RemovableFilterChip(
+                            label = filterCriteria.account,
+                            onRemove = {
+                                viewModel.updateFilter(
+                                    filterCriteria.type,
+                                    "ALL",
+                                    filterCriteria.startDate,
+                                    filterCriteria.endDate
+                                )
+                            }
+                        )
+                    }
+                }
+
+                // Date Range Filter Badge
+                if (filterCriteria.startDate != null || filterCriteria.endDate != null) {
+                    val sdf = remember { SimpleDateFormat("dd MMM", Locale.US) }
+                    val startStr = filterCriteria.startDate?.let { sdf.format(Date(it)) }
+                    val endStr = filterCriteria.endDate?.let { sdf.format(Date(it)) }
+                    val dateLabel = when {
+                        startStr != null && endStr != null -> "$startStr – $endStr"
+                        startStr != null -> "From $startStr"
+                        else -> "Until $endStr"
+                    }
+                    item {
+                        RemovableFilterChip(
+                            label = dateLabel,
+                            icon = Icons.Default.DateRange,
+                            onRemove = {
+                                viewModel.updateFilter(
+                                    filterCriteria.type,
+                                    filterCriteria.account,
+                                    null,
+                                    null
+                                )
+                            }
+                        )
+                    }
+                }
+
+                // Reset All Button
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.Transparent,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { viewModel.resetFilters() }
+                    ) {
+                        Text(
+                            text = "Reset All",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AccentPurple,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                        )
+                    }
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // 5. GROUPED TRANSACTION LIST WITH STICKY HEADERS
+        // 3. GROUPED TRANSACTION LIST WITH SMART DAILY ACCORDION (Option 2)
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -294,7 +309,7 @@ fun MonthlyLedgerTab(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 40.dp),
+                            .padding(top = 48.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -306,11 +321,11 @@ fun MonthlyLedgerTab(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Try clearing filters or log a new entry",
+                                text = "Try clearing search or filters",
                                 fontSize = 12.sp,
                                 color = TextMuted
                             )
-                            if (filterCriteria.query.isNotBlank() || filterCriteria.type != null || filterCriteria.account != "ALL" || filterCriteria.startDate != null) {
+                            if (filterCriteria.query.isNotBlank() || hasActiveCustomFilters) {
                                 Spacer(modifier = Modifier.height(10.dp))
                                 TextButton(onClick = { viewModel.resetFilters() }) {
                                     Icon(
@@ -333,56 +348,150 @@ fun MonthlyLedgerTab(
                 }
             } else {
                 uiState.groupedTransactions.forEach { (dateHeader, txList) ->
-                    // Comprehensive daily inflows (Personal income + Corporate reimbursements)
                     val dailyInflow = txList.filter {
                         it.type == TransactionType.INCOME ||
-                        (it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true))
+                                (it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true))
                     }.sumOf { it.amount }
 
-                    // Comprehensive daily outflows (Living expenses + SIP/Assets + Corporate outlays)
                     val dailyOutflow = txList.filter {
                         it.type == TransactionType.EXPENSE ||
-                        it.type == TransactionType.ASSET ||
-                        (it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true))
+                                it.type == TransactionType.ASSET ||
+                                (it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true))
                     }.sumOf { it.amount }
 
                     val dailyTransferVolume = txList.filter { it.type == TransactionType.TRANSFER }.sumOf { it.amount }
                     val sortedTxList = txList.sortedByDescending { it.date }
+                    val isExpanded = expandedDates[dateHeader] ?: true
 
-                    stickyHeader(key = "header_$dateHeader") {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = CanvasLight
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
+                    if (isExpanded) {
+                        // EXPANDED STATE: Clean Typography Sticky Header
+                        stickyHeader(key = "header_$dateHeader") {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = CanvasLight
+                            ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(top = 10.dp, bottom = 8.dp, start = 4.dp, end = 4.dp),
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { expandedDates[dateHeader] = false }
+                                        .padding(top = 10.dp, bottom = 6.dp, start = 2.dp, end = 2.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = TextDark
-                                        ) {
+                                        Text(
+                                            text = dateHeader.uppercase(),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 11.sp,
+                                            color = TextDark,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "• ${txList.size} ${if (txList.size == 1) "entry" else "entries"}",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = TextMuted
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.KeyboardArrowUp,
+                                            contentDescription = "Collapse",
+                                            tint = TextMuted,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        if (dailyInflow > 0.0) {
                                             Text(
-                                                text = dateHeader.uppercase(),
-                                                fontWeight = FontWeight.Black,
-                                                fontSize = 9.5.sp,
-                                                color = Color.White,
-                                                letterSpacing = 0.6.sp,
-                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                                text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyInflow)}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                color = SoftGreen
                                             )
                                         }
+                                        if (dailyOutflow > 0.0) {
+                                            Text(
+                                                text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyOutflow)}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                color = TextDark
+                                            )
+                                        }
+                                        if (filterCriteria.type == TransactionType.TRANSFER && dailyTransferVolume > 0.0) {
+                                            Text(
+                                                text = if (isDiscreetMode) "••••" else "⇄ ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyTransferVolume)}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                color = AccentPurple
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
+                        // Expanded Transactions
+                        items(sortedTxList, key = { it.id }) { tx ->
+                            Box(modifier = Modifier.padding(vertical = 3.dp)) {
+                                SwipeableTransactionItem(
+                                    transaction = tx,
+                                    currencySymbol = userProfile.currencySymbol,
+                                    onTap = { onViewTx(it) },
+                                    onEdit = { onEditTx(it) },
+                                    onDelete = { onDeleteTx(it) }
+                                )
+                            }
+                        }
+                    } else {
+                        // COLLAPSED STATE: Slim Accordion Summary Bar (Takes minimal vertical space)
+                        item(key = "collapsed_$dateHeader") {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp)
+                                    .shadow(1.dp, RoundedCornerShape(14.dp))
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable { expandedDates[dateHeader] = true },
+                                shape = RoundedCornerShape(14.dp),
+                                color = CardWhite,
+                                border = BorderStroke(0.7.dp, BorderLight.copy(alpha = 0.7f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 13.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (dailyInflow > dailyOutflow) SoftGreen
+                                                    else if (dailyOutflow > 0) SoftRed
+                                                    else AccentPurple
+                                                )
+                                        )
                                         Spacer(modifier = Modifier.width(8.dp))
-
                                         Text(
-                                            text = "${txList.size} ${if (txList.size == 1) "entry" else "entries"}",
+                                            text = dateHeader.uppercase(),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = TextDark,
+                                            letterSpacing = 0.3.sp
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "• ${txList.size} ${if (txList.size == 1) "entry" else "entries"}",
                                             fontSize = 11.sp,
-                                            fontWeight = FontWeight.Medium,
                                             color = TextMuted
                                         )
                                     }
@@ -395,7 +504,7 @@ fun MonthlyLedgerTab(
                                             Text(
                                                 text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyInflow)}",
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 11.5.sp,
+                                                fontSize = 11.sp,
                                                 color = SoftGreen
                                             )
                                         }
@@ -403,41 +512,68 @@ fun MonthlyLedgerTab(
                                             Text(
                                                 text = if (isDiscreetMode) "••••" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyOutflow)}",
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 11.5.sp,
+                                                fontSize = 11.sp,
                                                 color = TextDark
                                             )
                                         }
-                                        if (filterCriteria.type == TransactionType.TRANSFER && dailyTransferVolume > 0.0) {
-                                            Text(
-                                                text = if (isDiscreetMode) "••••" else "⇄ ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyTransferVolume)}",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.5.sp,
-                                                color = AccentPurple
-                                            )
-                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.KeyboardArrowDown,
+                                            contentDescription = "Expand",
+                                            tint = TextMuted,
+                                            modifier = Modifier.size(16.dp)
+                                        )
                                     }
                                 }
-                                HorizontalDivider(
-                                    color = BorderLight.copy(alpha = 0.5f),
-                                    thickness = 0.6.dp
-                                )
                             }
-                        }
-                    }
-
-                    items(sortedTxList, key = { it.id }) { tx ->
-                        Box(modifier = Modifier.padding(vertical = 3.5.dp)) {
-                            SwipeableTransactionItem(
-                                transaction = tx,
-                                currencySymbol = userProfile.currencySymbol,
-                                onTap = { onViewTx(it) },
-                                onEdit = { onEditTx(it) },
-                                onDelete = { onDeleteTx(it) }
-                            )
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun RemovableFilterChip(
+    label: String,
+    icon: ImageVector? = null,
+    onRemove: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = AccentPurple.copy(alpha = 0.10f),
+        border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.35f))
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = AccentPurple,
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = AccentPurple
+            )
+            Spacer(modifier = Modifier.width(3.dp))
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Remove",
+                tint = AccentPurple,
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onRemove)
+                    .padding(2.dp)
+            )
         }
     }
 }
