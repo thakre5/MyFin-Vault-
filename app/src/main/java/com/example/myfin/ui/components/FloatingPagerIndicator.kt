@@ -80,7 +80,7 @@ fun FloatingPagerIndicator(
                 .clickable(
                     enabled = isInteractive,
                     onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LightImpact)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         coroutineScope.launch {
                             val next = (pagerState.currentPage + 1) % pagerState.pageCount
                             pagerState.animateScrollToPage(next)
