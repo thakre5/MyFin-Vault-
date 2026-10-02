@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -24,7 +25,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionEntity
@@ -232,12 +232,10 @@ fun SwipeableTransactionItem(
             TransactionType.TRANSFER -> AccentPurple
         }
 
-        // Clean time format (e.g. 05:30 PM) without redundant "Yesterday" label
         val formattedTime = remember(txDate) {
             SimpleDateFormat("hh:mm a", Locale.US).format(Date(txDate))
         }
 
-        // Flat row surface inside the parent daily container
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -269,12 +267,12 @@ fun SwipeableTransactionItem(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Center Column: Title + Category & Bank
+                // Center Column: Marquee Title + Marquee Category & Bank
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(2.5.dp)
                 ) {
-                    // Line 1: Title + optional AutoPay badge
+                    // Line 1: Auto-scrolling title if long + AutoPay pill
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
@@ -285,12 +283,18 @@ fun SwipeableTransactionItem(
                             fontSize = 13.5.sp,
                             color = TextDark,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .basicMarquee(
+                                    iterations = Int.MAX_VALUE,
+                                    delayMillis = 1500,
+                                    initialDelayMillis = 1500,
+                                    velocity = 30.dp
+                                )
                         )
 
                         if (txLinkedFixedBillId != null) {
-                            Spacer(modifier = Modifier.width(5.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = AccentPurpleLight,
@@ -307,13 +311,20 @@ fun SwipeableTransactionItem(
                         }
                     }
 
-                    // Line 2: Category • Bank (clean text, no clipped badges)
+                    // Line 2: Auto-scrolling Category • Bank (never truncated with dots)
                     Text(
                         text = sublineText,
                         fontSize = 11.sp,
                         color = TextMuted,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                delayMillis = 2000,
+                                initialDelayMillis = 2000,
+                                velocity = 25.dp
+                            )
                     )
                 }
 
