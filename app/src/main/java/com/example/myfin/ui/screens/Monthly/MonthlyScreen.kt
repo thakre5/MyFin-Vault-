@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +61,8 @@ fun MonthlyScreen(
     val pageTitles = remember { listOf("Summary", "Ledger", "AutoPay") }
 
     var isDiscreetMode by remember { mutableStateOf(false) }
+    var isMidnightTheme by rememberSaveable { mutableStateOf(false) }
+
     var showStsInfoSheet by remember { mutableStateOf(false) }
     var showThreePillarInfoSheet by remember { mutableStateOf(false) }
     var showFortressInfoSheet by remember { mutableStateOf(false) }
@@ -112,13 +115,15 @@ fun MonthlyScreen(
             (uiState.selectedYear == todayCal.get(Calendar.YEAR) && uiState.selectedMonth < (todayCal.get(Calendar.MONTH) + 1))
 
     val isLedgerTab = pagerState.currentPage == 1
+    val isDarkCanvas = isLedgerTab || isMidnightTheme
+
     val topBarBg by animateColorAsState(
-        targetValue = if (isLedgerTab) Color(0xFF0F172A) else CanvasLight,
+        targetValue = if (isDarkCanvas) Color(0xFF0F172A) else CanvasLight,
         animationSpec = tween(220),
         label = "topBarBg"
     )
     val topBarContentColor by animateColorAsState(
-        targetValue = if (isLedgerTab) Color.White else TextDark,
+        targetValue = if (isDarkCanvas) Color.White else TextDark,
         animationSpec = tween(220),
         label = "topBarContentColor"
     )
@@ -144,11 +149,11 @@ fun MonthlyScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (isLedgerTab) Color(0xFF0F172A) else CanvasLight)
+            .background(if (isDarkCanvas) Color(0xFF0F172A) else CanvasLight)
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. PINNED TOP BAR (Compact & Flush)
+            // 1. PINNED TOP BAR (With Dynamic Theme Switcher)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -182,12 +187,12 @@ fun MonthlyScreen(
                             .clip(RoundedCornerShape(20.dp))
                             .clickable { showMonthPicker = true },
                         shape = RoundedCornerShape(20.dp),
-                        color = if (isLedgerTab) Color.White.copy(alpha = 0.12f) else CardWhite,
+                        color = if (isDarkCanvas) Color.White.copy(alpha = 0.12f) else CardWhite,
                         border = BorderStroke(
                             0.8.dp,
-                            if (isLedgerTab) Color.White.copy(alpha = 0.2f) else BorderLight.copy(alpha = 0.7f)
+                            if (isDarkCanvas) Color.White.copy(alpha = 0.2f) else BorderLight.copy(alpha = 0.7f)
                         ),
-                        shadowElevation = if (isLedgerTab) 0.dp else 1.5.dp
+                        shadowElevation = if (isDarkCanvas) 0.dp else 1.5.dp
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.5.dp),
@@ -203,7 +208,7 @@ fun MonthlyScreen(
                             Icon(
                                 Icons.Default.ArrowDropDown,
                                 contentDescription = null,
-                                tint = if (isLedgerTab) Color(0xFFA5B4FC) else AccentPurple,
+                                tint = if (isDarkCanvas) Color(0xFFA5B4FC) else AccentPurple,
                                 modifier = Modifier.size(17.dp)
                             )
                         }
@@ -213,6 +218,7 @@ fun MonthlyScreen(
                         modifier = Modifier.align(Alignment.CenterEnd),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Toggle settled visibility on AutoPay tab
                         if (pagerState.currentPage == 2) {
                             IconButton(
                                 onClick = { hideSettledCommitments = !hideSettledCommitments },
@@ -227,6 +233,20 @@ fun MonthlyScreen(
                             }
                         }
 
+                        // Theme Mode Toggle (Option A)
+                        IconButton(
+                            onClick = { isMidnightTheme = !isMidnightTheme },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isMidnightTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                contentDescription = "Toggle Midnight Canvas",
+                                tint = if (isDarkCanvas) Color.White else TextMuted,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+
+                        // Privacy Mode Toggle
                         IconButton(
                             onClick = { isDiscreetMode = !isDiscreetMode },
                             modifier = Modifier.size(36.dp)
@@ -234,7 +254,7 @@ fun MonthlyScreen(
                             Icon(
                                 imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = "Toggle Balance Privacy",
-                                tint = if (isLedgerTab) Color.White else if (isDiscreetMode) AccentPurple else TextMuted,
+                                tint = if (isDarkCanvas) Color.White else if (isDiscreetMode) AccentPurple else TextMuted,
                                 modifier = Modifier.size(19.dp)
                             )
                         }
@@ -261,6 +281,7 @@ fun MonthlyScreen(
                             userProfile = userProfile,
                             filterCriteria = filterCriteria,
                             isDiscreetMode = isDiscreetMode,
+                            isMidnightTheme = isMidnightTheme,
                             isCurrentMonth = isCurrentMonth,
                             isPastMonth = isPastMonth,
                             dismissedWaterfallMonth = dismissedWaterfallMonth,
