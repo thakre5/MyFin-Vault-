@@ -273,6 +273,11 @@ fun MonthlyScreen(
                             },
                             onNavigateToCommitments = {
                                 coroutineScope.launch { pagerState.animateScrollToPage(2) }
+                            },
+                            onOpenDrawer = onOpenDrawer,
+                            onOpenAddSheet = {
+                                editingTx = null
+                                showAddSheet = true
                             }
                         )
 
