@@ -71,54 +71,63 @@ fun FloatingPagerIndicator(
                     translationY = animTranslationY
                 }
                 .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(20.dp),
-                    ambientColor = Color.Black.copy(alpha = 0.12f),
-                    spotColor = Color.Black.copy(alpha = 0.16f)
+                    elevation = 3.dp,
+                    shape = RoundedCornerShape(14.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.08f),
+                    spotColor = Color.Black.copy(alpha = 0.12f)
                 )
-                .clip(RoundedCornerShape(20.dp)),
-            shape = RoundedCornerShape(20.dp),
+                .clip(RoundedCornerShape(14.dp))
+                .clickable(
+                    enabled = isInteractive,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LightImpact)
+                        coroutineScope.launch {
+                            val next = (pagerState.currentPage + 1) % pagerState.pageCount
+                            pagerState.animateScrollToPage(next)
+                        }
+                    }
+                ),
+            shape = RoundedCornerShape(14.dp),
             color = containerColor,
             border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.5.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 AnimatedContent(
                     targetState = pagerState.currentPage,
                     transitionSpec = {
-                        (fadeIn(animationSpec = tween(180)) + slideInVertically(animationSpec = tween(180)) { height -> height / 2 })
-                            .togetherWith(fadeOut(animationSpec = tween(140)) + slideOutVertically(animationSpec = tween(140)) { height -> -height / 2 })
+                        (fadeIn(animationSpec = tween(160)) + slideInVertically(animationSpec = tween(160)) { height -> height / 2 })
+                            .togetherWith(fadeOut(animationSpec = tween(120)) + slideOutVertically(animationSpec = tween(120)) { height -> -height / 2 })
                     },
                     label = "tabTitleAnimation"
                 ) { targetPage ->
                     val title = pageTitles.getOrNull(targetPage).orEmpty()
                     Text(
                         text = title,
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = activeColor,
                         letterSpacing = 0.2.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(1.5.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     repeat(pagerState.pageCount) { pageIndex ->
                         val isSelected = pagerState.currentPage == pageIndex
                         val dashWidth by animateDpAsState(
-                            targetValue = if (isSelected) 18.dp else 7.dp,
+                            targetValue = if (isSelected) 14.dp else 5.dp,
                             animationSpec = spring(dampingRatio = 0.78f, stiffness = 500f),
                             label = "dashWidth"
                         )
 
-                        // Touch-friendly outer wrapper with 3dp inner visual indicator
                         Box(
                             modifier = Modifier
                                 .clickable(
@@ -133,13 +142,13 @@ fun FloatingPagerIndicator(
                                         }
                                     }
                                 }
-                                .padding(vertical = 5.dp),
+                                .padding(vertical = 1.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 modifier = Modifier
                                     .width(dashWidth)
-                                    .height(3.dp)
+                                    .height(2.5.dp)
                                     .clip(CircleShape)
                                     .background(if (isSelected) activeColor else inactiveColor)
                             )
