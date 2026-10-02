@@ -19,7 +19,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -149,7 +148,7 @@ fun MonthlyScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. PINNED TOP BAR (Dynamically blends with active page theme)
+            // 1. PINNED TOP BAR (Compact & Identical across all 3 tabs)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -160,20 +159,20 @@ fun MonthlyScreen(
                         .fillMaxWidth()
                         .background(topBarBg)
                         .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
                 ) {
                     IconButton(
                         onClick = onOpenDrawer,
                         modifier = Modifier
                             .align(Alignment.CenterStart)
-                            .size(38.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Menu,
                             contentDescription = "Drawer / Navigation",
                             tint = topBarContentColor,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
@@ -188,24 +187,24 @@ fun MonthlyScreen(
                             0.8.dp,
                             if (isLedgerTab) Color.White.copy(alpha = 0.2f) else BorderLight.copy(alpha = 0.7f)
                         ),
-                        shadowElevation = if (isLedgerTab) 0.dp else 2.dp
+                        shadowElevation = if (isLedgerTab) 0.dp else 1.5.dp
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = "${MONTH_NAMES[uiState.selectedMonth - 1]} ${uiState.selectedYear}",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
+                                fontSize = 12.5.sp,
                                 color = topBarContentColor
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
                             Icon(
                                 Icons.Default.ArrowDropDown,
                                 contentDescription = null,
                                 tint = if (isLedgerTab) Color(0xFFA5B4FC) else AccentPurple,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                         }
                     }
@@ -217,46 +216,33 @@ fun MonthlyScreen(
                         if (pagerState.currentPage == 2) {
                             IconButton(
                                 onClick = { hideSettledCommitments = !hideSettledCommitments },
-                                modifier = Modifier.size(38.dp)
+                                modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
                                     imageVector = if (hideSettledCommitments) Icons.Default.CheckCircle else Icons.Default.CheckCircleOutline,
                                     contentDescription = "Toggle Settled Visibility",
                                     tint = if (hideSettledCommitments) AccentPurple else TextMuted,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }
 
                         IconButton(
                             onClick = { isDiscreetMode = !isDiscreetMode },
-                            modifier = Modifier.size(38.dp)
+                            modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = "Toggle Balance Privacy",
                                 tint = if (isLedgerTab) Color.White else if (isDiscreetMode) AccentPurple else TextMuted,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(19.dp)
                             )
                         }
                     }
                 }
-
-                if (!isLedgerTab) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(14.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(CanvasLight, CanvasLight.copy(alpha = 0f))
-                                )
-                            )
-                    )
-                }
             }
 
-            // 2. HORIZONTAL PAGER (Ledger page gets edge-to-edge canvas with zero side margins)
+            // 2. HORIZONTAL PAGER
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
