@@ -148,7 +148,7 @@ fun MonthlyScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. PINNED TOP BAR (Compact & Identical across all 3 tabs)
+            // 1. PINNED TOP BAR (Compact & Flush)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -159,7 +159,7 @@ fun MonthlyScreen(
                         .fillMaxWidth()
                         .background(topBarBg)
                         .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .padding(horizontal = 16.dp, vertical = 2.dp)
                 ) {
                     IconButton(
                         onClick = onOpenDrawer,
@@ -190,7 +190,7 @@ fun MonthlyScreen(
                         shadowElevation = if (isLedgerTab) 0.dp else 1.5.dp
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
