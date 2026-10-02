@@ -8,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -25,7 +24,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionEntity
@@ -100,7 +98,6 @@ fun MonthlyLedgerTab(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: Anchored Page Heading
             Text(
                 text = "Transactions",
                 fontSize = 20.sp,
@@ -111,7 +108,6 @@ fun MonthlyLedgerTab(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Right: Expanding Search Bar + Action Icons
             Row(
                 modifier = Modifier.weight(1f, fill = isSearchExpanded),
                 horizontalArrangement = Arrangement.End,
@@ -197,7 +193,7 @@ fun MonthlyLedgerTab(
                     }
                 }
 
-                // Filter Icon with Active Badge
+                // Filter Icon with Active Dot
                 IconButton(
                     onClick = onOpenFilterSheet,
                     modifier = Modifier.size(36.dp)
@@ -230,7 +226,6 @@ fun MonthlyLedgerTab(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Type Filter Badge
                 filterCriteria.type?.let { type ->
                     item {
                         RemovableFilterChip(
@@ -247,7 +242,6 @@ fun MonthlyLedgerTab(
                     }
                 }
 
-                // Vault Account Filter Badge
                 if (filterCriteria.account.isNotBlank() && filterCriteria.account != "ALL") {
                     item {
                         RemovableFilterChip(
@@ -264,7 +258,6 @@ fun MonthlyLedgerTab(
                     }
                 }
 
-                // Date Range Filter Badge
                 dateRangeLabel?.let { label ->
                     item {
                         RemovableFilterChip(
@@ -282,7 +275,6 @@ fun MonthlyLedgerTab(
                     }
                 }
 
-                // Reset All Button
                 item {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
@@ -444,20 +436,40 @@ fun MonthlyLedgerTab(
                             }
                         }
 
-                        // Expanded Transactions
-                        items(sortedTxList, key = { it.id }) { tx ->
-                            Box(modifier = Modifier.padding(vertical = 3.dp)) {
-                                SwipeableTransactionItem(
-                                    transaction = tx,
-                                    currencySymbol = userProfile.currencySymbol,
-                                    onTap = { onViewTx(it) },
-                                    onEdit = { onEditTx(it) },
-                                    onDelete = { onDeleteTx(it) }
-                                )
+                        // UNIFIED GROUPED CARD CONTAINER (All items in one white card with dividers)
+                        item(key = "container_$dateHeader") {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .shadow(1.5.dp, RoundedCornerShape(18.dp))
+                                    .clip(RoundedCornerShape(18.dp)),
+                                shape = RoundedCornerShape(18.dp),
+                                color = CardWhite,
+                                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    sortedTxList.forEachIndexed { index, tx ->
+                                        SwipeableTransactionItem(
+                                            transaction = tx,
+                                            currencySymbol = userProfile.currencySymbol,
+                                            onTap = { onViewTx(it) },
+                                            onEdit = { onEditTx(it) },
+                                            onDelete = { onDeleteTx(it) }
+                                        )
+                                        if (index < sortedTxList.lastIndex) {
+                                            HorizontalDivider(
+                                                color = BorderLight.copy(alpha = 0.6f),
+                                                thickness = 0.6.dp,
+                                                modifier = Modifier.padding(start = 64.dp, end = 14.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
+                            Spacer(modifier = Modifier.height(10.dp))
                         }
                     } else {
-                        // COLLAPSED STATE: Slim Accordion Summary Bar (Takes minimal vertical space)
+                        // COLLAPSED STATE: Slim Accordion Summary Bar
                         item(key = "collapsed_$dateHeader") {
                             Surface(
                                 modifier = Modifier
