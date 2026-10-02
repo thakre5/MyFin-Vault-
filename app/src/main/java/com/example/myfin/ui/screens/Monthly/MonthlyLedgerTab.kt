@@ -70,7 +70,7 @@ fun MonthlyLedgerTab(
 
     val isSearchingOrFiltered = filterCriteria.query.isNotBlank() || hasActiveCustomFilters
 
-    // Active Vault Balance: Sum of liquid balances excluding Fortress
+    // Active Vault Balance (Excluding Fortress)
     val activeVaultBalance = remember(uiState.activeAccounts, uiState.accounts) {
         val list = uiState.activeAccounts.ifEmpty { uiState.accounts.filter { !it.isArchived } }
         list.filter { !it.accountType.equals("Fortress", ignoreCase = true) }
@@ -107,19 +107,20 @@ fun MonthlyLedgerTab(
         }
     }
 
-    // Scroll Physics: Collapse dark deck into full-screen sheet
-    val maxDeckHeight = 168.dp
-    val maxDeckPx = with(LocalDensity.current) { maxDeckHeight.toPx() }
-    var deckOffsetPx by remember { mutableFloatStateOf(0f) }
+    // Scroll Physics: Slide sheet over dark cockpit
+    val density = LocalDensity.current
+    val deckHeightDp = 164.dp
+    val deckHeightPx = with(density) { deckHeightDp.toPx() }
+    var sheetOffsetPx by remember { mutableFloatStateOf(deckHeightPx) }
 
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 val delta = available.y
-                if (delta < 0f) { // Scrolling up -> collapse dark deck
-                    val newOffset = (deckOffsetPx + delta).coerceIn(-maxDeckPx, 0f)
-                    val consumed = newOffset - deckOffsetPx
-                    deckOffsetPx = newOffset
+                if (delta < 0f && sheetOffsetPx > 0f) {
+                    val newOffset = (sheetOffsetPx + delta).coerceIn(0f, deckHeightPx)
+                    val consumed = newOffset - sheetOffsetPx
+                    sheetOffsetPx = newOffset
                     return Offset(0f, consumed)
                 }
                 return Offset.Zero
@@ -127,10 +128,10 @@ fun MonthlyLedgerTab(
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 val delta = available.y
-                if (delta > 0f) { // Scrolling down -> reveal dark deck
-                    val newOffset = (deckOffsetPx + delta).coerceIn(-maxDeckPx, 0f)
-                    val consumed = newOffset - deckOffsetPx
-                    deckOffsetPx = newOffset
+                if (delta > 0f && sheetOffsetPx < deckHeightPx) {
+                    val newOffset = (sheetOffsetPx + delta).coerceIn(0f, deckHeightPx)
+                    val consumed = sheetOffsetPx - newOffset
+                    sheetOffsetPx = newOffset
                     return Offset(0f, consumed)
                 }
                 return Offset.Zero
@@ -138,49 +139,39 @@ fun MonthlyLedgerTab(
         }
     }
 
-    val isFullyCollapsed = deckOffsetPx <= -maxDeckPx + 4f
+    val isFullyCollapsed = sheetOffsetPx <= 4f
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color(0xFF0F172A))
             .nestedScroll(nestedScrollConnection)
     ) {
-        // 1. FULL-BLEED MIDNIGHT DECK (Edge-to-edge canvas)
+        // 1. FULL-BLEED MIDNIGHT COCKPIT DECK
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(maxDeckHeight)
-                .graphicsLayer {
-                    translationY = deckOffsetPx
-                    alpha = ((maxDeckPx + deckOffsetPx) / maxDeckPx).coerceIn(0f, 1f)
-                }
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF0F172A),
-                            Color(0xFF1E1B4B)
-                        )
-                    )
-                )
+                .height(deckHeightDp)
+                .background(Color(0xFF0F172A))
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 10.dp, bottom = 28.dp),
+                    .padding(bottom = 18.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Column: Metrics
+                // Left Column: Large Balance + Cash Flow Pod
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 22.dp)
+                        .padding(start = 20.dp)
                 ) {
                     Text(
                         text = "ACTIVE VAULT BALANCE",
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color(0xFFA5B4FC),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF94A3B8),
                         letterSpacing = 0.8.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -201,89 +192,105 @@ fun MonthlyLedgerTab(
                     } else {
                         Text(
                             text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", activeVaultBalance)}",
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Black,
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Bold,
                             color = Color.White,
-                            letterSpacing = (-0.6).sp
+                            letterSpacing = (-0.5).sp
                         )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Inflow • Outflow • Remaining Subtext
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    // Frosted Glass Cash Flow Capsule
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.08f),
+                        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.14f))
                     ) {
-                        Text(
-                            text = if (isDiscreetMode) "•••• in" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthlyInflow)} in",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = SoftGreen
-                        )
-                        Text(text = "•", fontSize = 10.sp, color = Color(0xFF64748B))
-                        Text(
-                            text = if (isDiscreetMode) "•••• out" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthlyOutflow)} out",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFFCA5A5)
-                        )
-                        Text(text = "•", fontSize = 10.sp, color = Color(0xFF64748B))
-                        Text(
-                            text = if (isDiscreetMode) "•••• left" else "${if (remainingFromInflow >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", remainingFromInflow)} left",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (remainingFromInflow >= 0) Color(0xFF38BDF8) else SoftRed
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text(
+                                text = if (isDiscreetMode) "•••• in" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthlyInflow)} in",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SoftGreen
+                            )
+                            Text(text = "•", fontSize = 10.sp, color = Color(0xFF64748B))
+                            Text(
+                                text = if (isDiscreetMode) "•••• out" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthlyOutflow)} out",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFFCA5A5)
+                            )
+                            Text(text = "•", fontSize = 10.sp, color = Color(0xFF64748B))
+                            Text(
+                                text = if (isDiscreetMode) "•••• left" else "${if (remainingFromInflow >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", remainingFromInflow)} left",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (remainingFromInflow >= 0) Color(0xFF38BDF8) else SoftRed
+                            )
+                        }
                     }
                 }
 
-                // Right Edge: Multi-Layer Card Stack Bleeding Off Margin
+                // Right Edge: 3-Tier Layered Card Stack Peeking Directly Off Screen
                 Box(
                     modifier = Modifier
-                        .width(48.dp)
-                        .height(96.dp)
+                        .width(52.dp)
+                        .height(98.dp)
                         .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color(0xFF38BDF8),
-                                    Color(0xFF6366F1),
-                                    Color(0xFFFBBF24)
-                                )
-                            )
-                        )
-                        .shadow(6.dp, RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
                 ) {
+                    // Layer 3: Blue Card Base
                     Box(
                         modifier = Modifier
-                            .align(Alignment.Center)
-                            .size(14.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.45f))
+                            .fillMaxSize()
+                            .background(Color(0xFF2563EB))
+                    )
+                    // Layer 2: Cyan Card Middle
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(36.dp)
+                            .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+                            .background(Color(0xFF06B6D4))
+                    )
+                    // Layer 1: Vibrant Yellow Card Front
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(18.dp)
+                            .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFFFDE047), Color(0xFFEAB308))
+                                )
+                            )
                     )
                 }
             }
         }
 
-        // 2. FULL-BLEED SLIDING SHEET DRAWER (Smoothly covers dark deck on scroll)
+        // 2. EDGE-TO-EDGE SLIDING WHITE SHEET DRAWER
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .offset { IntOffset(0, (maxDeckPx + deckOffsetPx).roundToInt()) },
+                .offset { IntOffset(0, sheetOffsetPx.roundToInt()) },
             shape = RoundedCornerShape(
-                topStart = if (isFullyCollapsed) 0.dp else 26.dp,
-                topEnd = if (isFullyCollapsed) 0.dp else 26.dp
+                topStart = if (isFullyCollapsed) 0.dp else 28.dp,
+                topEnd = if (isFullyCollapsed) 0.dp else 28.dp
             ),
             color = CanvasLight,
-            shadowElevation = 8.dp
+            shadowElevation = 10.dp
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Drag handle
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 9.dp, bottom = 4.dp),
+                        .padding(top = 10.dp, bottom = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
@@ -291,11 +298,11 @@ fun MonthlyLedgerTab(
                             .width(36.dp)
                             .height(4.dp)
                             .clip(CircleShape)
-                            .background(BorderLight.copy(alpha = 0.85f))
+                            .background(BorderLight.copy(alpha = 0.9f))
                     )
                 }
 
-                // Header Row: Title + Expanding Search + Filter Button
+                // Header Row: Transactions + Expanding Search + Filter
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -513,7 +520,7 @@ fun MonthlyLedgerTab(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 2.dp, bottom = 180.dp)
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 140.dp)
                 ) {
                     if (uiState.groupedTransactions.isEmpty()) {
                         item(key = "empty_ledger") {
