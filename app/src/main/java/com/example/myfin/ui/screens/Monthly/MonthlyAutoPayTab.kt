@@ -1,22 +1,33 @@
 package com.example.myfin.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -25,21 +36,29 @@ import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.data.UserProfile
 import com.example.myfin.ui.MonthlyUiState
-import com.example.myfin.ui.components.SwipeableFixedBillItem
 import com.example.myfin.ui.theme.*
 import java.util.Calendar
 import java.util.Locale
 
+enum class CommitmentMacroFilter(val label: String) {
+    ALL("All"),
+    OUTFLOW("Outflow"),
+    INFLOW("Inflow"),
+    INTERNAL("Internal")
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MonthlyAutoPayTab(
     uiState: MonthlyUiState,
     userProfile: UserProfile,
     isDiscreetMode: Boolean,
+    isMidnightTheme: Boolean = false,
     isCurrentMonth: Boolean,
     isPastMonth: Boolean,
     hideSettledCommitments: Boolean,
-    selectedCommitmentFilter: TransactionType?,
-    onSelectCommitmentFilter: (TransactionType?) -> Unit,
+    selectedCommitmentFilter: TransactionType? = null,
+    onSelectCommitmentFilter: ((TransactionType?) -> Unit)? = null,
     onResetFilters: () -> Unit,
     onAddAutoPay: () -> Unit,
     onTapBill: (FixedBillEntity) -> Unit,
@@ -47,52 +66,108 @@ fun MonthlyAutoPayTab(
     onDeleteBill: (FixedBillEntity) -> Unit,
     onSettleBill: (FixedBillEntity, Double, Long) -> Unit
 ) {
+    var activeMacroFilter by remember { mutableStateOf(CommitmentMacroFilter.ALL) }
+    var isSettledSectionExpanded by remember { mutableStateOf(false) }
+
     val currentDayOfMonth = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH) }
 
-    // 1. Filter and Chronologically Sort Commitments (Unpaid first -> Ascending dueDay -> Settled last)
-    val filteredBills = remember(uiState.fixedBills, hideSettledCommitments, selectedCommitmentFilter) {
-        uiState.fixedBills
-            .filter { bill ->
-                val matchesHidden = !hideSettledCommitments || !bill.isPaid
-                val matchesType = selectedCommitmentFilter == null || bill.type == selectedCommitmentFilter
-                matchesHidden && matchesType
-            }
-            .sortedWith(
-                compareBy<FixedBillEntity> { it.isPaid } // false (0) first, true (1) last
-                    .thenBy { it.dueDay ?: 99 }          // 1..31 first, unscheduled (null) at 99
-                    .thenBy { it.title.lowercase(Locale.ROOT) }
-            )
-    }
-
-    // 2. Isolate Genuine Outflow Commitments from Inflow Receivables
-    val isOutflowCommitment = { bill: FixedBillEntity ->
-        bill.type != TransactionType.INCOME &&
-        !(bill.type == TransactionType.CORPORATE && bill.category.equals("Reimbursements & Claims", ignoreCase = true))
-    }
-
-    val pendingCommitmentsTotal = remember(filteredBills, selectedCommitmentFilter) {
-        if (selectedCommitmentFilter == TransactionType.INCOME) {
-            filteredBills.filter { !it.isPaid }.sumOf { it.amount }
-        } else {
-            filteredBills.filter { !it.isPaid && isOutflowCommitment(it) }.sumOf { it.amount }
-        }
-    }
-
-    // 3. Overdue Counter (Restricted to Outflow Obligations)
-    val overdueCount = remember(filteredBills, currentDayOfMonth, isCurrentMonth, isPastMonth) {
-        filteredBills.count { bill ->
-            if (bill.isPaid || !isOutflowCommitment(bill)) false
-            else when {
-                isPastMonth -> true
-                isCurrentMonth -> bill.dueDay != null && bill.dueDay < currentDayOfMonth
+    // Helper: Outflows (Living Expenses, SIP Investments, Fortress Sweeps, Corporate Expenses)
+    val isOutflow = remember {
+        { bill: FixedBillEntity ->
+            when {
+                bill.type == TransactionType.EXPENSE -> true
+                bill.type == TransactionType.ASSET -> true // SIPs & Investments as Outflow
+                bill.type == TransactionType.TRANSFER -> {
+                    // Fortress Sweeps treated as Outflow
+                    bill.subcategory.equals("WEALTH_ALLOCATION", ignoreCase = true) ||
+                            bill.toAccount?.contains("Fortress", ignoreCase = true) == true ||
+                            bill.category.equals("Fortress", ignoreCase = true)
+                }
+                bill.type == TransactionType.CORPORATE -> !bill.category.equals("Reimbursements & Claims", ignoreCase = true)
                 else -> false
             }
         }
     }
-    val hasOverdue = overdueCount > 0
+
+    // Helper: Inflows (Income & Reimbursement Receipts)
+    val isInflow = remember {
+        { bill: FixedBillEntity ->
+            bill.type == TransactionType.INCOME ||
+                    (bill.type == TransactionType.CORPORATE && bill.category.equals("Reimbursements & Claims", ignoreCase = true))
+        }
+    }
+
+    // Helper: Internal (Operating -> Commitments Bill Funding, Rebalances)
+    val isInternal = remember {
+        { bill: FixedBillEntity ->
+            bill.type == TransactionType.TRANSFER && !isOutflow(bill)
+        }
+    }
+
+    // Filter commitments by the 4-way Macro Filter
+    val filteredBills = remember(uiState.fixedBills, activeMacroFilter, hideSettledCommitments) {
+        uiState.fixedBills.filter { bill ->
+            val matchesSettledVisibility = !hideSettledCommitments || !bill.isPaid
+            val matchesMacro = when (activeMacroFilter) {
+                CommitmentMacroFilter.ALL -> true
+                CommitmentMacroFilter.OUTFLOW -> isOutflow(bill)
+                CommitmentMacroFilter.INFLOW -> isInflow(bill)
+                CommitmentMacroFilter.INTERNAL -> isInternal(bill)
+            }
+            matchesSettledVisibility && matchesMacro
+        }
+    }
+
+    // Partition into Timeline Groups: Action Needed / Overdue vs Upcoming vs Settled
+    val overdueOrActionNeeded = remember(filteredBills, currentDayOfMonth, isCurrentMonth, isPastMonth) {
+        filteredBills.filter { bill ->
+            if (bill.isPaid) false
+            else when {
+                isPastMonth -> true
+                isCurrentMonth -> bill.dueDay != null && bill.dueDay <= currentDayOfMonth
+                else -> false
+            }
+        }.sortedWith(compareBy({ it.dueDay ?: 0 }, { it.title.lowercase(Locale.ROOT) }))
+    }
+
+    val upcomingBills = remember(filteredBills, currentDayOfMonth, isCurrentMonth, isPastMonth) {
+        filteredBills.filter { bill ->
+            if (bill.isPaid) false
+            else when {
+                isPastMonth -> false
+                isCurrentMonth -> bill.dueDay == null || bill.dueDay > currentDayOfMonth
+                else -> true
+            }
+        }.sortedWith(compareBy({ it.dueDay ?: 99 }, { it.title.lowercase(Locale.ROOT) }))
+    }
+
+    val settledBills = remember(filteredBills) {
+        filteredBills.filter { it.isPaid }
+            .sortedByDescending { it.paidDateMillis }
+    }
+
+    // Metrics for summary badge
+    val pendingOutflowTotal = remember(filteredBills) {
+        filteredBills.filter { !it.isPaid && isOutflow(it) }.sumOf { it.amount }
+    }
+    val pendingInflowTotal = remember(filteredBills) {
+        filteredBills.filter { !it.isPaid && isInflow(it) }.sumOf { it.amount }
+    }
+    val pendingInternalTotal = remember(filteredBills) {
+        filteredBills.filter { !it.isPaid && isInternal(it) }.sumOf { it.amount }
+    }
+
+    val overdueOutflowCount = remember(overdueOrActionNeeded) {
+        overdueOrActionNeeded.count { isOutflow(it) }
+    }
+
+    // Theming Colors
+    val headingColor = if (isMidnightTheme) Color.White else TextDark
+    val subtextColor = if (isMidnightTheme) Color(0xFF94A3B8) else TextMuted
+    val filterRowBg = if (isMidnightTheme) Color.White.copy(alpha = 0.10f) else BorderLight.copy(alpha = 0.5f)
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // TOP HEADER: TITLE & COMPACT SUMMARY BADGE
+        // 1. TOP HEADER: TITLE + ACTION & SMART METRIC BADGE
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -101,27 +176,28 @@ fun MonthlyAutoPayTab(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Recurring Commitments",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black,
+                    color = headingColor,
+                    letterSpacing = (-0.3).sp
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "AutoPay, Standing Orders & Sweeps",
                     fontSize = 11.sp,
-                    color = TextMuted
+                    color = subtextColor
                 )
             }
 
             Column(horizontalAlignment = Alignment.End) {
                 TextButton(
                     onClick = onAddAutoPay,
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                     modifier = Modifier.height(28.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "Add",
+                        contentDescription = "Add AutoPay",
                         modifier = Modifier.size(15.dp),
                         tint = AccentPurple
                     )
@@ -129,37 +205,65 @@ fun MonthlyAutoPayTab(
                     Text(
                         text = "Add AutoPay",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp,
+                        fontSize = 12.sp,
                         color = AccentPurple
                     )
                 }
 
                 Spacer(modifier = Modifier.height(3.dp))
 
-                val badgeColor = if (hasOverdue) SoftRed else SoftAmber
-                val isIncomeFilter = selectedCommitmentFilter == TransactionType.INCOME
-                val badgeText = if (isDiscreetMode) {
-                    if (isIncomeFilter) "•••• Expected" else "•••• Pending"
-                } else {
-                    val amtStr = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingCommitmentsTotal)}"
-                    when {
-                        isIncomeFilter -> "$amtStr Expected"
-                        hasOverdue -> "$amtStr Due ($overdueCount Overdue)"
-                        else -> "$amtStr Pending"
+                // Dynamic Header Badge
+                val (badgeText, badgeColor) = remember(
+                    activeMacroFilter,
+                    pendingOutflowTotal,
+                    pendingInflowTotal,
+                    pendingInternalTotal,
+                    overdueOutflowCount,
+                    isDiscreetMode,
+                    userProfile.currencySymbol
+                ) {
+                    val curr = userProfile.currencySymbol
+                    when (activeMacroFilter) {
+                        CommitmentMacroFilter.INFLOW -> {
+                            val txt = if (isDiscreetMode) "•••• Expected" else "+$curr${String.format(Locale.US, "%,.0f", pendingInflowTotal)} Expected"
+                            txt to SoftTeal
+                        }
+                        CommitmentMacroFilter.INTERNAL -> {
+                            val txt = if (isDiscreetMode) "•••• Scheduled" else "⇄ $curr${String.format(Locale.US, "%,.0f", pendingInternalTotal)} Sweeps"
+                            txt to AccentPurple
+                        }
+                        CommitmentMacroFilter.OUTFLOW -> {
+                            if (overdueOutflowCount > 0) {
+                                val txt = if (isDiscreetMode) "•••• Due ($overdueOutflowCount Overdue)" else "-$curr${String.format(Locale.US, "%,.0f", pendingOutflowTotal)} Due ($overdueOutflowCount Overdue)"
+                                txt to SoftRed
+                            } else {
+                                val txt = if (isDiscreetMode) "•••• Due" else "-$curr${String.format(Locale.US, "%,.0f", pendingOutflowTotal)} Due"
+                                txt to SoftAmber
+                            }
+                        }
+                        CommitmentMacroFilter.ALL -> {
+                            if (overdueOutflowCount > 0) {
+                                val txt = if (isDiscreetMode) "•••• Due ($overdueOutflowCount Overdue)" else "$curr${String.format(Locale.US, "%,.0f", pendingOutflowTotal)} Due ($overdueOutflowCount Overdue)"
+                                txt to SoftRed
+                            } else {
+                                val txt = if (isDiscreetMode) "•••• Pending" else "$curr${String.format(Locale.US, "%,.0f", pendingOutflowTotal)} Pending"
+                                txt to SoftAmber
+                            }
+                        }
                     }
                 }
 
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
+                    shape = RoundedCornerShape(7.dp),
                     color = badgeColor.copy(alpha = 0.12f),
                     border = BorderStroke(0.6.dp, badgeColor.copy(alpha = 0.35f))
                 ) {
                     Text(
                         text = badgeText,
-                        fontSize = 10.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = badgeColor,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
                     )
                 }
             }
@@ -167,48 +271,37 @@ fun MonthlyAutoPayTab(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // SEGMENTED FILTER ROW WITH TRUNCATION-PROOF LABELS
+        // 2. THE 4-WAY MACRO SEGMENT SWITCHER
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(BorderLight.copy(alpha = 0.5f))
+                .clip(RoundedCornerShape(14.dp))
+                .background(filterRowBg)
                 .padding(3.dp)
         ) {
-            listOf(
-                null to "All",
-                TransactionType.EXPENSE to "Bills",
-                TransactionType.INCOME to "Inflow",
-                TransactionType.ASSET to "SIPs",
-                TransactionType.CORPORATE to "Corp",
-                TransactionType.TRANSFER to "Sweeps"
-            ).forEach { (type, label) ->
-                val isSelected = selectedCommitmentFilter == type
+            CommitmentMacroFilter.entries.forEach { filter ->
+                val isSelected = activeMacroFilter == filter
+                val activeTint = when (filter) {
+                    CommitmentMacroFilter.ALL -> AccentPurple
+                    CommitmentMacroFilter.OUTFLOW -> SoftRed
+                    CommitmentMacroFilter.INFLOW -> SoftGreen
+                    CommitmentMacroFilter.INTERNAL -> AccentPurple
+                }
+
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(9.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .background(if (isSelected) CardWhite else Color.Transparent)
-                        .clickable { onSelectCommitmentFilter(type) }
-                        .padding(vertical = 7.dp),
+                        .clickable { activeMacroFilter = filter }
+                        .padding(vertical = 7.5.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = label,
+                        text = filter.label,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        fontSize = 10.sp,
-                        color = if (isSelected) {
-                            when (type) {
-                                TransactionType.EXPENSE -> SoftRed
-                                TransactionType.INCOME -> SoftGreen
-                                TransactionType.ASSET -> SoftTeal
-                                TransactionType.CORPORATE -> Color(0xFFE57A28)
-                                TransactionType.TRANSFER -> AccentPurple
-                                else -> TextDark
-                            }
-                        } else TextMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        fontSize = 11.5.sp,
+                        color = if (isSelected) activeTint else subtextColor
                     )
                 }
             }
@@ -216,7 +309,7 @@ fun MonthlyAutoPayTab(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // CHRONOLOGICALLY ORDERED RECURRING COMMITMENTS LIST
+        // 3. GROUPED TIMELINE HORIZON LIST
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -226,28 +319,37 @@ fun MonthlyAutoPayTab(
             if (filteredBills.isEmpty()) {
                 item(key = "empty_commitments") {
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        color = CardWhite
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 20.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
                     ) {
                         Column(
                             modifier = Modifier
-                                .padding(24.dp)
+                                .padding(28.dp)
                                 .fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = if (hideSettledCommitments) {
-                                    "No pending commitments in this filter"
-                                } else {
-                                    "No recurring commitments recorded"
-                                },
-                                fontSize = 12.sp,
+                                text = if (hideSettledCommitments) "No pending commitments in this filter" else "No recurring commitments recorded",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextDark
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Try clearing active filters or add a new commitment",
+                                fontSize = 11.5.sp,
                                 color = TextMuted
                             )
-                            if (hideSettledCommitments || selectedCommitmentFilter != null) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                TextButton(onClick = onResetFilters) {
+                            if (activeMacroFilter != CommitmentMacroFilter.ALL || hideSettledCommitments) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                TextButton(onClick = {
+                                    activeMacroFilter = CommitmentMacroFilter.ALL
+                                    onResetFilters()
+                                }) {
                                     Icon(
                                         imageVector = Icons.Default.Refresh,
                                         contentDescription = null,
@@ -267,17 +369,497 @@ fun MonthlyAutoPayTab(
                     }
                 }
             } else {
-                items(filteredBills, key = { it.id }) { bill ->
-                    Box(modifier = Modifier.padding(vertical = 4.dp)) {
-                        SwipeableFixedBillItem(
-                            bill = bill,
-                            currencySymbol = userProfile.currencySymbol,
-                            onTap = { onTapBill(it) },
-                            onEdit = { onEditBill(it) },
-                            onDelete = { onDeleteBill(it) },
-                            onSettleBill = { b, customAmt, dateMillis ->
-                                onSettleBill(b, customAmt, dateMillis)
+                // SECTION 1: ACTION NEEDED / OVERDUE
+                if (overdueOrActionNeeded.isNotEmpty()) {
+                    item(key = "header_action_needed") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp, bottom = 6.dp, start = 2.dp, end = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "ACTION NEEDED",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = SoftRed,
+                                    letterSpacing = 0.6.sp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "• ${overdueOrActionNeeded.size}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = subtextColor
+                                )
                             }
+                        }
+                    }
+
+                    item(key = "container_action_needed") {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(2.dp, RoundedCornerShape(18.dp)),
+                            shape = RoundedCornerShape(18.dp),
+                            color = CardWhite,
+                            border = BorderStroke(0.9.dp, SoftRed.copy(alpha = 0.35f))
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                overdueOrActionNeeded.forEachIndexed { index, bill ->
+                                    AutoPayCommitmentRow(
+                                        bill = bill,
+                                        currencySymbol = userProfile.currencySymbol,
+                                        isDiscreetMode = isDiscreetMode,
+                                        isOutflow = isOutflow(bill),
+                                        isInflow = isInflow(bill),
+                                        currentDayOfMonth = currentDayOfMonth,
+                                        onTap = { onTapBill(bill) },
+                                        onEdit = { onEditBill(bill) },
+                                        onDelete = { onDeleteBill(bill) },
+                                        onSettle = {
+                                            onSettleBill(bill, bill.amount, System.currentTimeMillis())
+                                        }
+                                    )
+                                    if (index < overdueOrActionNeeded.lastIndex) {
+                                        HorizontalDivider(
+                                            color = BorderLight.copy(alpha = 0.5f),
+                                            thickness = 0.6.dp,
+                                            modifier = Modifier.padding(start = 54.dp, end = 14.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+                }
+
+                // SECTION 2: UPCOMING THIS MONTH
+                if (upcomingBills.isNotEmpty()) {
+                    item(key = "header_upcoming") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp, bottom = 6.dp, start = 2.dp, end = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "UPCOMING SCHEDULE",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = headingColor,
+                                    letterSpacing = 0.6.sp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "• ${upcomingBills.size}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = subtextColor
+                                )
+                            }
+                        }
+                    }
+
+                    item(key = "container_upcoming") {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(1.5.dp, RoundedCornerShape(18.dp)),
+                            shape = RoundedCornerShape(18.dp),
+                            color = CardWhite,
+                            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                upcomingBills.forEachIndexed { index, bill ->
+                                    AutoPayCommitmentRow(
+                                        bill = bill,
+                                        currencySymbol = userProfile.currencySymbol,
+                                        isDiscreetMode = isDiscreetMode,
+                                        isOutflow = isOutflow(bill),
+                                        isInflow = isInflow(bill),
+                                        currentDayOfMonth = currentDayOfMonth,
+                                        onTap = { onTapBill(bill) },
+                                        onEdit = { onEditBill(bill) },
+                                        onDelete = { onDeleteBill(bill) },
+                                        onSettle = {
+                                            onSettleBill(bill, bill.amount, System.currentTimeMillis())
+                                        }
+                                    )
+                                    if (index < upcomingBills.lastIndex) {
+                                        HorizontalDivider(
+                                            color = BorderLight.copy(alpha = 0.5f),
+                                            thickness = 0.6.dp,
+                                            modifier = Modifier.padding(start = 54.dp, end = 14.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+                }
+
+                // SECTION 3: SETTLED & COMPLETED (Collapsible Accordion)
+                if (settledBills.isNotEmpty() && !hideSettledCommitments) {
+                    val chevronRotation by animateFloatAsState(
+                        targetValue = if (isSettledSectionExpanded) 180f else 0f,
+                        animationSpec = tween(200),
+                        label = "chevronRotation"
+                    )
+
+                    item(key = "header_settled") {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { isSettledSectionExpanded = !isSettledSectionExpanded }
+                                .padding(vertical = 4.dp),
+                            color = Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = SoftGreen,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "SETTLED & COMPLETED",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = SoftGreen,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "• ${settledBills.size}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = subtextColor
+                                    )
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = if (isSettledSectionExpanded) "Hide" else "Show",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = subtextColor
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = "Toggle Settled",
+                                        tint = subtextColor,
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .rotate(chevronRotation)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (isSettledSectionExpanded) {
+                        item(key = "container_settled") {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .shadow(1.dp, RoundedCornerShape(18.dp)),
+                                shape = RoundedCornerShape(18.dp),
+                                color = CardWhite.copy(alpha = 0.9f),
+                                border = BorderStroke(0.7.dp, BorderLight.copy(alpha = 0.6f))
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    settledBills.forEachIndexed { index, bill ->
+                                        AutoPayCommitmentRow(
+                                            bill = bill,
+                                            currencySymbol = userProfile.currencySymbol,
+                                            isDiscreetMode = isDiscreetMode,
+                                            isOutflow = isOutflow(bill),
+                                            isInflow = isInflow(bill),
+                                            currentDayOfMonth = currentDayOfMonth,
+                                            onTap = { onTapBill(bill) },
+                                            onEdit = { onEditBill(bill) },
+                                            onDelete = { onDeleteBill(bill) },
+                                            onSettle = {
+                                                onSettleBill(bill, bill.amount, System.currentTimeMillis())
+                                            }
+                                        )
+                                        if (index < settledBills.lastIndex) {
+                                            HorizontalDivider(
+                                                color = BorderLight.copy(alpha = 0.5f),
+                                                thickness = 0.6.dp,
+                                                modifier = Modifier.padding(start = 54.dp, end = 14.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Clean & De-Cluttered Commitment Row with Tap-To-Settle Checkbox and Swipe Actions
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+private fun AutoPayCommitmentRow(
+    bill: FixedBillEntity,
+    currencySymbol: String,
+    isDiscreetMode: Boolean,
+    isOutflow: Boolean,
+    isInflow: Boolean,
+    currentDayOfMonth: Int,
+    onTap: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onSettle: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+
+    val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { totalDistance -> totalDistance * 0.35f },
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onEdit()
+                    false
+                }
+                SwipeToDismissBoxValue.EndToStart -> {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onDelete()
+                    false
+                }
+                SwipeToDismissBoxValue.Settled -> false
+            }
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val backgroundColor by animateColorAsState(
+                targetValue = when (dismissState.targetValue) {
+                    SwipeToDismissBoxValue.StartToEnd -> AccentPurple
+                    SwipeToDismissBoxValue.EndToStart -> SoftRed
+                    SwipeToDismissBoxValue.Settled -> Color.Transparent
+                },
+                animationSpec = tween(200),
+                label = "swipeBg"
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(backgroundColor)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+            ) {
+                if (direction == SwipeToDismissBoxValue.StartToEnd) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = "Edit", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                    }
+                } else if (direction == SwipeToDismissBoxValue.EndToStart) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+    ) {
+        // Clean Title: strip duplicate/bloated parentheticals
+        val cleanTitle = remember(bill.title) {
+            val raw = bill.title.trim()
+            val firstParen = raw.indexOf('(')
+            val secondParen = if (firstParen >= 0) raw.indexOf('(', firstParen + 1) else -1
+            if (secondParen > firstParen) {
+                raw.substring(0, secondParen).trim()
+            } else raw
+        }
+
+        // Subline: Category • Bank
+        val subline = remember(bill.category, bill.account, bill.toAccount, bill.type) {
+            val accountRoute = if (bill.type == TransactionType.TRANSFER && !bill.toAccount.isNullOrBlank()) {
+                "${bill.account} ➔ ${bill.toAccount}"
+            } else bill.account
+            if (bill.category.isNotBlank() && accountRoute.isNotBlank()) {
+                "${bill.category} • $accountRoute"
+            } else bill.category.ifBlank { accountRoute }
+        }
+
+        // Status pill calculation
+        val (statusText, statusBg, statusTint) = remember(bill.isPaid, bill.dueDay, currentDayOfMonth, isOutflow, isInflow) {
+            if (bill.isPaid) {
+                Triple("Settled ✓", SoftGreen.copy(alpha = 0.12f), SoftGreen)
+            } else {
+                val due = bill.dueDay
+                when {
+                    due == null -> Triple("Scheduled", BorderLight.copy(alpha = 0.7f), TextMuted)
+                    due < currentDayOfMonth -> {
+                        if (isInflow) {
+                            // Calm Teal/Amber for salary/deposit overdue
+                            Triple("Awaiting Deposit (Exp ${due}th)", SoftTeal.copy(alpha = 0.12f), SoftTeal)
+                        } else {
+                            // Red for true debt/liability overdue
+                            Triple("Overdue (Due ${due}th)", SoftRed.copy(alpha = 0.12f), SoftRed)
+                        }
+                    }
+                    due == currentDayOfMonth -> Triple("Due Today", SoftAmber.copy(alpha = 0.12f), SoftAmber)
+                    due - currentDayOfMonth <= 3 -> Triple("Due in ${due - currentDayOfMonth}d", SoftAmber.copy(alpha = 0.12f), SoftAmber)
+                    else -> Triple("Due ${due}th", CanvasLight, TextMuted)
+                }
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onTap),
+            color = CardWhite
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Interactive Checkbox / Circle
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(if (bill.isPaid) SoftGreen else Color.Transparent)
+                        .then(
+                            if (!bill.isPaid) {
+                                Modifier.clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onSettle()
+                                }
+                            } else Modifier
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (bill.isPaid) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Settled",
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    } else {
+                        Surface(
+                            modifier = Modifier.size(22.dp),
+                            shape = CircleShape,
+                            color = Color.Transparent,
+                            border = BorderStroke(1.5.dp, BorderLight.copy(alpha = 0.9f))
+                        ) {}
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Center Column: Marquee Title & Subline
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.5.dp)
+                ) {
+                    Text(
+                        text = cleanTitle,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = if (bill.isPaid) TextDark.copy(alpha = 0.6f) else TextDark,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                delayMillis = 1500,
+                                initialDelayMillis = 1500,
+                                velocity = 30.dp
+                            )
+                    )
+
+                    Text(
+                        text = subline,
+                        fontSize = 11.sp,
+                        color = if (bill.isPaid) TextMuted.copy(alpha = 0.6f) else TextMuted,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                delayMillis = 2000,
+                                initialDelayMillis = 2000,
+                                velocity = 25.dp
+                            )
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Right Column: Clean Amount + Single Status Badge
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    val amountColor = when {
+                        bill.isPaid -> TextDark.copy(alpha = 0.5f)
+                        isInflow -> SoftGreen
+                        bill.type == TransactionType.ASSET -> SoftTeal
+                        bill.type == TransactionType.TRANSFER -> AccentPurple
+                        bill.dueDay != null && bill.dueDay < currentDayOfMonth -> SoftRed
+                        else -> TextDark
+                    }
+
+                    Text(
+                        text = if (isDiscreetMode) "••••" else "${if (isInflow) "+" else if (isOutflow) "-" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", bill.amount)}",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.5.sp,
+                        color = amountColor
+                    )
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(5.dp),
+                        color = statusBg,
+                        border = BorderStroke(0.5.dp, statusTint.copy(alpha = 0.35f))
+                    ) {
+                        Text(
+                            text = statusText,
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = statusTint,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                         )
                     }
                 }
