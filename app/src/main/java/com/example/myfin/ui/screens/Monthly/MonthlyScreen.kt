@@ -233,7 +233,7 @@ fun MonthlyScreen(
                             }
                         }
 
-                        // Theme Mode Toggle (Option A)
+                        // Theme Mode Toggle
                         IconButton(
                             onClick = { isMidnightTheme = !isMidnightTheme },
                             modifier = Modifier.size(36.dp)
@@ -335,6 +335,7 @@ fun MonthlyScreen(
                             uiState = uiState,
                             userProfile = userProfile,
                             isDiscreetMode = isDiscreetMode,
+                            isMidnightTheme = isMidnightTheme,
                             isCurrentMonth = isCurrentMonth,
                             isPastMonth = isPastMonth,
                             hideSettledCommitments = hideSettledCommitments,
