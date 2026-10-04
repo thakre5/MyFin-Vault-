@@ -1,7 +1,7 @@
 package com.example.myfin.ui.screens
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,14 +21,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.FixedBillEntity
@@ -69,18 +65,23 @@ fun MonthlyAutoPayTab(
     var activeMacroFilter by remember { mutableStateOf(CommitmentMacroFilter.ALL) }
     var isSettledSectionExpanded by remember { mutableStateOf(false) }
 
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isSettledSectionExpanded) 180f else 0f,
+        animationSpec = tween(200),
+        label = "chevronRotation"
+    )
+
     val currentDayOfMonth = remember { Calendar.getInstance().get(Calendar.DAY_OF_MONTH) }
 
-    // Helper: Outflows (Living Expenses, SIP Investments, Fortress Sweeps, Corporate Expenses)
+    // Outflow: Expenses, SIP Investments, Fortress Sweeps, Corporate Outlays
     val isOutflow = remember {
         { bill: FixedBillEntity ->
             when {
                 bill.type == TransactionType.EXPENSE -> true
-                bill.type == TransactionType.ASSET -> true // SIPs & Investments as Outflow
+                bill.type == TransactionType.ASSET -> true
                 bill.type == TransactionType.TRANSFER -> {
-                    // Fortress Sweeps treated as Outflow
                     bill.subcategory.equals("WEALTH_ALLOCATION", ignoreCase = true) ||
-                            bill.toAccount?.contains("Fortress", ignoreCase = true) == true ||
+                            bill.toAccountName?.contains("Fortress", ignoreCase = true) == true ||
                             bill.category.equals("Fortress", ignoreCase = true)
                 }
                 bill.type == TransactionType.CORPORATE -> !bill.category.equals("Reimbursements & Claims", ignoreCase = true)
@@ -89,7 +90,7 @@ fun MonthlyAutoPayTab(
         }
     }
 
-    // Helper: Inflows (Income & Reimbursement Receipts)
+    // Inflow: Salary & Corporate Claims
     val isInflow = remember {
         { bill: FixedBillEntity ->
             bill.type == TransactionType.INCOME ||
@@ -97,14 +98,13 @@ fun MonthlyAutoPayTab(
         }
     }
 
-    // Helper: Internal (Operating -> Commitments Bill Funding, Rebalances)
+    // Internal: Operating -> Commitments Bill Funding sweeps & rebalances
     val isInternal = remember {
         { bill: FixedBillEntity ->
             bill.type == TransactionType.TRANSFER && !isOutflow(bill)
         }
     }
 
-    // Filter commitments by the 4-way Macro Filter
     val filteredBills = remember(uiState.fixedBills, activeMacroFilter, hideSettledCommitments) {
         uiState.fixedBills.filter { bill ->
             val matchesSettledVisibility = !hideSettledCommitments || !bill.isPaid
@@ -118,7 +118,6 @@ fun MonthlyAutoPayTab(
         }
     }
 
-    // Partition into Timeline Groups: Action Needed / Overdue vs Upcoming vs Settled
     val overdueOrActionNeeded = remember(filteredBills, currentDayOfMonth, isCurrentMonth, isPastMonth) {
         filteredBills.filter { bill ->
             if (bill.isPaid) false
@@ -143,10 +142,9 @@ fun MonthlyAutoPayTab(
 
     val settledBills = remember(filteredBills) {
         filteredBills.filter { it.isPaid }
-            .sortedByDescending { it.paidDateMillis }
+            .sortedWith(compareBy({ it.dueDay ?: 99 }, { it.title.lowercase(Locale.ROOT) }))
     }
 
-    // Metrics for summary badge
     val pendingOutflowTotal = remember(filteredBills) {
         filteredBills.filter { !it.isPaid && isOutflow(it) }.sumOf { it.amount }
     }
@@ -161,13 +159,12 @@ fun MonthlyAutoPayTab(
         overdueOrActionNeeded.count { isOutflow(it) }
     }
 
-    // Theming Colors
     val headingColor = if (isMidnightTheme) Color.White else TextDark
     val subtextColor = if (isMidnightTheme) Color(0xFF94A3B8) else TextMuted
     val filterRowBg = if (isMidnightTheme) Color.White.copy(alpha = 0.10f) else BorderLight.copy(alpha = 0.5f)
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // 1. TOP HEADER: TITLE + ACTION & SMART METRIC BADGE
+        // 1. TOP HEADER
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -212,7 +209,6 @@ fun MonthlyAutoPayTab(
 
                 Spacer(modifier = Modifier.height(3.dp))
 
-                // Dynamic Header Badge
                 val (badgeText, badgeColor) = remember(
                     activeMacroFilter,
                     pendingOutflowTotal,
@@ -271,7 +267,7 @@ fun MonthlyAutoPayTab(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // 2. THE 4-WAY MACRO SEGMENT SWITCHER
+        // 2. 4-WAY MACRO SWITCHER
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -309,7 +305,7 @@ fun MonthlyAutoPayTab(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // 3. GROUPED TIMELINE HORIZON LIST
+        // 3. GROUPED LIST
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -437,7 +433,7 @@ fun MonthlyAutoPayTab(
                     }
                 }
 
-                // SECTION 2: UPCOMING THIS MONTH
+                // SECTION 2: UPCOMING
                 if (upcomingBills.isNotEmpty()) {
                     item(key = "header_upcoming") {
                         Row(
@@ -505,14 +501,8 @@ fun MonthlyAutoPayTab(
                     }
                 }
 
-                // SECTION 3: SETTLED & COMPLETED (Collapsible Accordion)
+                // SECTION 3: SETTLED & COMPLETED
                 if (settledBills.isNotEmpty() && !hideSettledCommitments) {
-                    val chevronRotation by animateFloatAsState(
-                        targetValue = if (isSettledSectionExpanded) 180f else 0f,
-                        animationSpec = tween(200),
-                        label = "chevronRotation"
-                    )
-
                     item(key = "header_settled") {
                         Surface(
                             modifier = Modifier
@@ -619,9 +609,6 @@ fun MonthlyAutoPayTab(
     }
 }
 
-/**
- * Clean & De-Cluttered Commitment Row with Tap-To-Settle Checkbox and Swipe Actions
- */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun AutoPayCommitmentRow(
@@ -696,7 +683,6 @@ private fun AutoPayCommitmentRow(
             }
         }
     ) {
-        // Clean Title: strip duplicate/bloated parentheticals
         val cleanTitle = remember(bill.title) {
             val raw = bill.title.trim()
             val firstParen = raw.indexOf('(')
@@ -706,17 +692,15 @@ private fun AutoPayCommitmentRow(
             } else raw
         }
 
-        // Subline: Category • Bank
-        val subline = remember(bill.category, bill.account, bill.toAccount, bill.type) {
-            val accountRoute = if (bill.type == TransactionType.TRANSFER && !bill.toAccount.isNullOrBlank()) {
-                "${bill.account} ➔ ${bill.toAccount}"
-            } else bill.account
+        val subline = remember(bill.category, bill.accountName, bill.toAccountName, bill.type) {
+            val accountRoute = if (bill.type == TransactionType.TRANSFER && !bill.toAccountName.isNullOrBlank()) {
+                "${bill.accountName} ➔ ${bill.toAccountName}"
+            } else bill.accountName
             if (bill.category.isNotBlank() && accountRoute.isNotBlank()) {
                 "${bill.category} • $accountRoute"
             } else bill.category.ifBlank { accountRoute }
         }
 
-        // Status pill calculation
         val (statusText, statusBg, statusTint) = remember(bill.isPaid, bill.dueDay, currentDayOfMonth, isOutflow, isInflow) {
             if (bill.isPaid) {
                 Triple("Settled ✓", SoftGreen.copy(alpha = 0.12f), SoftGreen)
@@ -726,10 +710,8 @@ private fun AutoPayCommitmentRow(
                     due == null -> Triple("Scheduled", BorderLight.copy(alpha = 0.7f), TextMuted)
                     due < currentDayOfMonth -> {
                         if (isInflow) {
-                            // Calm Teal/Amber for salary/deposit overdue
                             Triple("Awaiting Deposit (Exp ${due}th)", SoftTeal.copy(alpha = 0.12f), SoftTeal)
                         } else {
-                            // Red for true debt/liability overdue
                             Triple("Overdue (Due ${due}th)", SoftRed.copy(alpha = 0.12f), SoftRed)
                         }
                     }
@@ -752,7 +734,6 @@ private fun AutoPayCommitmentRow(
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Interactive Checkbox / Circle
                 Box(
                     modifier = Modifier
                         .size(24.dp)
@@ -787,7 +768,6 @@ private fun AutoPayCommitmentRow(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Center Column: Marquee Title & Subline
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(2.5.dp)
@@ -826,7 +806,6 @@ private fun AutoPayCommitmentRow(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Right Column: Clean Amount + Single Status Badge
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.Center
