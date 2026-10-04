@@ -1,5 +1,6 @@
 package com.example.myfin.ui.screens
 
+import android.app.Activity
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -23,10 +24,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.core.view.WindowCompat
 import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
@@ -117,6 +120,23 @@ fun MonthlyScreen(
     val isLedgerTab = pagerState.currentPage == 1
     val isDarkCanvas = isLedgerTab || isMidnightTheme
 
+    // Dynamic OS Status Bar Contrast Adapter
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        DisposableEffect(isDarkCanvas) {
+            val window = (view.context as? Activity)?.window
+            val insetsController = window?.let { WindowCompat.getInsetsController(it, view) }
+            
+            // Dark canvas -> white icons (false); Light canvas -> dark icons (true)
+            insetsController?.isAppearanceLightStatusBars = !isDarkCanvas
+
+            onDispose {
+                // Restore dark icons for other light screens upon navigating away
+                insetsController?.isAppearanceLightStatusBars = true
+            }
+        }
+    }
+
     val topBarBg by animateColorAsState(
         targetValue = if (isDarkCanvas) Color(0xFF0F172A) else CanvasLight,
         animationSpec = tween(220),
@@ -153,7 +173,7 @@ fun MonthlyScreen(
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. PINNED TOP BAR (With Dynamic Theme Switcher)
+            // 1. PINNED TOP BAR
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -218,7 +238,6 @@ fun MonthlyScreen(
                         modifier = Modifier.align(Alignment.CenterEnd),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Toggle settled visibility on AutoPay tab
                         if (pagerState.currentPage == 2) {
                             IconButton(
                                 onClick = { hideSettledCommitments = !hideSettledCommitments },
@@ -233,7 +252,6 @@ fun MonthlyScreen(
                             }
                         }
 
-                        // Theme Mode Toggle
                         IconButton(
                             onClick = { isMidnightTheme = !isMidnightTheme },
                             modifier = Modifier.size(36.dp)
@@ -246,7 +264,6 @@ fun MonthlyScreen(
                             )
                         }
 
-                        // Privacy Mode Toggle
                         IconButton(
                             onClick = { isDiscreetMode = !isDiscreetMode },
                             modifier = Modifier.size(36.dp)
