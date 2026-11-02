@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -144,9 +145,9 @@ fun DrawerMenuContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Navigation Items
+            // Core Navigation Items
             DrawerNavItem(
                 icon = Icons.Default.Assessment,
                 label = "Monthly Dashboard",
@@ -183,6 +184,33 @@ fun DrawerMenuContent(
                 isSelected = currentSelection == NavigationTarget.REPORTS_ANALYTICS,
                 onClick = { onSelectTarget(NavigationTarget.REPORTS_ANALYTICS) }
             )
+
+            // Workspace Utilities Divider
+            HorizontalDivider(
+                color = Color.White.copy(alpha = 0.12f),
+                thickness = 0.7.dp,
+                modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp)
+            )
+
+            DrawerNavItem(
+                icon = Icons.Default.Calculate,
+                label = "Calculator & SIP",
+                isSelected = currentSelection == NavigationTarget.CALCULATOR,
+                onClick = { onSelectTarget(NavigationTarget.CALCULATOR) }
+            )
+            DrawerNavItem(
+                icon = Icons.Default.EditNote,
+                label = "Notes & Checklists",
+                isSelected = currentSelection == NavigationTarget.NOTES,
+                onClick = { onSelectTarget(NavigationTarget.NOTES) }
+            )
+
+            HorizontalDivider(
+                color = Color.White.copy(alpha = 0.12f),
+                thickness = 0.7.dp,
+                modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp)
+            )
+
             DrawerNavItem(
                 icon = Icons.Default.Settings,
                 label = "Vault Settings",
@@ -197,7 +225,7 @@ fun DrawerMenuContent(
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         // Bottom Section: Centered Lock Action + Version Footer
         Column(
