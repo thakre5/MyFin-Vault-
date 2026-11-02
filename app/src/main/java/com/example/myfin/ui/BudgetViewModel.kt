@@ -901,7 +901,7 @@ class BudgetViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthlyUiState())
 
-    val category3MonthAverages: StateFlow> = monthlyUiState
+    val category3MonthAverages: StateFlow<Map<String, Double>> = monthlyUiState
         .map { it.category3MonthAverages }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
@@ -1572,7 +1572,6 @@ class BudgetViewModel(
             dao.clearUserProfile()
             dao.clearAllCategories()
             dao.clearAllSubcategories()
-            dao.clearAllNotes()
             seedFullExcelTaxonomyIfEmpty()
             seedDefaultAccountsIfEmpty()
             securityManager.clearAll()
@@ -1799,7 +1798,7 @@ class BudgetViewModel(
         subtype: TransferSubtype = TransferSubtype.NONE,
         date: Long = System.currentTimeMillis()
     ) {
-        val resolvedNote = if (note.isBlank()) "Vault Transfer ($fromAccount ➤ $toAccount)" else note.trim()
+        val resolvedNote = if (note.isBlank()) "Vault Transfer ($fromAccount âž” $toAccount)" else note.trim()
         saveTransaction(
             title = resolvedNote,
             amount = amount,
@@ -1825,7 +1824,7 @@ class BudgetViewModel(
                     fromAccount = operatingAccount,
                     toAccount = commitmentsAccount,
                     amount = plan.toCommitments,
-                    note = "Payday Allocation ➤ Commitments Bill Funding",
+                    note = "Payday Allocation âž” Commitments Bill Funding",
                     subtype = TransferSubtype.BILL_FUNDING
                 )
             }
@@ -1834,7 +1833,7 @@ class BudgetViewModel(
                     fromAccount = operatingAccount,
                     toAccount = fortressAccount,
                     amount = plan.totalToFortress,
-                    note = "Payday Allocation ➤ Fortress Emergency Base",
+                    note = "Payday Allocation âž” Fortress Emergency Base",
                     subtype = TransferSubtype.WEALTH_ALLOCATION
                 )
             }
@@ -1852,7 +1851,7 @@ class BudgetViewModel(
                     fromAccount = operatingAccount,
                     toAccount = fortressAccount,
                     amount = plan.sweepAmount,
-                    note = "Month-End Wealth Sweep ➤ Fortress Extra",
+                    note = "Month-End Wealth Sweep âž” Fortress Extra",
                     subtype = TransferSubtype.WEALTH_ALLOCATION
                 )
             }
@@ -2218,7 +2217,6 @@ class BudgetViewModel(
             val allAccounts = dao.getAllAccountsDirect()
             val allFixedBills = dao.getAllFixedBills()
             val allBudgetPlans = dao.getAllBudgetPlans()
-            val allNotes = dao.getAllNotesDirect()
             val currentProfile = userProfile.value
 
             val profileObj = JSONObject().apply {
@@ -2338,21 +2336,6 @@ class BudgetViewModel(
             }
             root.put("budgetPlans", plansArray)
 
-            val notesArray = JSONArray()
-            allNotes.forEach { n ->
-                notesArray.put(JSONObject().apply {
-                    put("id", n.id)
-                    put("title", n.title)
-                    put("content", n.content)
-                    put("tag", n.tag)
-                    put("isPinned", n.isPinned)
-                    put("isChecklist", n.isChecklist)
-                    put("checklistJson", n.checklistJson)
-                    put("updatedAt", n.updatedAt)
-                })
-            }
-            root.put("notes", notesArray)
-
             context.contentResolver.openOutputStream(uri)?.use { os ->
                 os.write(root.toString(2).toByteArray(Charsets.UTF_8))
             }
@@ -2380,7 +2363,6 @@ class BudgetViewModel(
                 dao.clearAllTransactions()
                 dao.clearAllFixedBills()
                 dao.clearAllBudgetPlans()
-                dao.clearAllNotes()
             }
             if (root.has("categories") && wipeExisting) {
                 dao.clearAllCategories()
@@ -2506,26 +2488,6 @@ class BudgetViewModel(
                         )
                     )
                 }
-            }
-            if (root.has("notes")) {
-                val notesArray = root.getJSONArray("notes")
-                val notesList = mutableListOf<NoteEntity>()
-                for (i in 0 until notesArray.length()) {
-                    val n = notesArray.getJSONObject(i)
-                    notesList.add(
-                        NoteEntity(
-                            id = n.optLong("id", 0L),
-                            title = n.optString("title", "Quick Note"),
-                            content = n.optString("content", ""),
-                            tag = n.optString("tag", "General"),
-                            isPinned = n.optBoolean("isPinned", false),
-                            isChecklist = n.optBoolean("isChecklist", false),
-                            checklistJson = n.optString("checklistJson", "[]"),
-                            updatedAt = n.optLong("updatedAt", System.currentTimeMillis())
-                        )
-                    )
-                }
-                dao.insertNotes(notesList)
             }
 
             var updatedProfile = userProfile.value.copy(id = 1, isOnboardingCompleted = true)
