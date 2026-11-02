@@ -7,6 +7,8 @@ enum class NavigationTarget {
     DATA_SET,
     VAULT_ACCOUNTS,
     REPORTS_ANALYTICS,
+    CALCULATOR,
+    NOTES,
     SETTINGS,
     USER_GUIDE
 }
