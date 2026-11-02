@@ -33,6 +33,25 @@ data class TransactionEntity(
 )
 
 @Entity(
+    tableName = "notes",
+    indices = [
+        Index(value = ["isPinned"]),
+        Index(value = ["updatedAt"]),
+        Index(value = ["tag"])
+    ]
+)
+data class NoteEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val content: String = "",
+    val tag: String = "General",
+    val isPinned: Boolean = false,
+    val isChecklist: Boolean = false,
+    val checklistJson: String = "[]", // Serialized checklist items with optional amounts
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
     tableName = "accounts",
     indices = [
         Index(value = ["isArchived"]),
