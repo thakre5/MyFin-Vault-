@@ -17,9 +17,10 @@ import java.util.Calendar
         SubcategoryEntity::class,
         FixedBillEntity::class,
         BudgetPlanEntity::class,
-        UserProfile::class
+        UserProfile::class,
+        NoteEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -47,13 +48,11 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 1. Categories & Subcategories lifecycle flags
                 db.execSQL("ALTER TABLE categories ADD COLUMN isLegacy INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE categories ADD COLUMN isNew INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE subcategories ADD COLUMN isLegacy INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE subcategories ADD COLUMN isNew INTEGER NOT NULL DEFAULT 0")
 
-                // 2. UserProfile: Fortress dual-target & taxonomy transition flags
                 db.execSQL("ALTER TABLE user_profile ADD COLUMN fortressSweepThreshold REAL NOT NULL DEFAULT 0.0")
                 db.execSQL("ALTER TABLE user_profile ADD COLUMN fortressEmergencyMonths INTEGER NOT NULL DEFAULT 6")
                 db.execSQL("ALTER TABLE user_profile ADD COLUMN fortressManualTarget REAL NOT NULL DEFAULT 0.0")
@@ -65,12 +64,29 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 1. Corporate float reconciliation fields
                 db.execSQL("ALTER TABLE user_profile ADD COLUMN initialReimbursementClaim REAL NOT NULL DEFAULT 0.0")
                 db.execSQL("ALTER TABLE user_profile ADD COLUMN initialCompanyAdvance REAL NOT NULL DEFAULT 0.0")
-
-                // 2. Index on FixedBillEntity.isPaid
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_fixed_bills_isPaid ON fixed_bills(isPaid)")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `notes` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL DEFAULT '',
+                        `tag` TEXT NOT NULL DEFAULT 'General',
+                        `isPinned` INTEGER NOT NULL DEFAULT 0,
+                        `isChecklist` INTEGER NOT NULL DEFAULT 0,
+                        `checklistJson` TEXT NOT NULL DEFAULT '[]',
+                        `updatedAt` INTEGER NOT NULL
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_isPinned` ON `notes` (`isPinned`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_updatedAt` ON `notes` (`updatedAt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_tag` ON `notes` (`tag`)")
             }
         }
 
@@ -81,7 +97,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "myfin_vault.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigration()
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
@@ -102,7 +118,6 @@ abstract class AppDatabase : RoomDatabase() {
                         private fun seedMasterTaxonomy(db: SupportSQLiteDatabase) {
                             db.beginTransaction()
                             try {
-                                // 1. Flag known obsolete default categories as legacy
                                 db.execSQL("""
                                     UPDATE categories 
                                     SET isLegacy = 1 
@@ -116,7 +131,6 @@ abstract class AppDatabase : RoomDatabase() {
                                        OR (parentCategory = 'Reimbursements & Corporate Inflow' AND type = 'INCOME')
                                 """)
 
-                                // 2. Upsert standard default categories
                                 CategoryEntity.defaultCategories.forEach { category ->
                                     val catNameEscaped = category.name.replace("'", "''")
                                     val isNewInt = if (category.isNew) 1 else 0
@@ -125,7 +139,6 @@ abstract class AppDatabase : RoomDatabase() {
                                     )
                                 }
 
-                                // 3. Upsert standard default subcategories
                                 SubcategoryEntity.defaultSubcategories.forEach { subcategory ->
                                     val parentEscaped = subcategory.parentCategory.replace("'", "''")
                                     val subNameEscaped = subcategory.name.replace("'", "''")
@@ -135,7 +148,6 @@ abstract class AppDatabase : RoomDatabase() {
                                     )
                                 }
 
-                                // 4. Initialize default user profile if absent with all required non-null fields
                                 val cal = Calendar.getInstance()
                                 val curMonth = cal.get(Calendar.MONTH) + 1
                                 val curYear = cal.get(Calendar.YEAR)
