@@ -512,4 +512,18 @@ interface BudgetDao {
 
     @Query("SELECT MIN(year * 12 + month) FROM transactions WHERE type != 'TRANSFER'")
     suspend fun getEarliestTransactionMonthKey(): Int?
+    // ========================================================================
+    // 11. Financial Notes & Checklists
+    // ========================================================================
+    @Query("SELECT * FROM notes ORDER BY isPinned DESC, updatedAt DESC")
+    fun getAllNotes(): Flow<List<NoteEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNote(note: NoteEntity): Long
+
+    @Delete
+    suspend fun deleteNote(note: NoteEntity)
+
+    @Query("UPDATE notes SET isPinned = :isPinned, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateNotePin(id: Long, isPinned: Boolean, updatedAt: Long = System.currentTimeMillis())
 }
