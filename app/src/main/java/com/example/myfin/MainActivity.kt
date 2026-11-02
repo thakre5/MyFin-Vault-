@@ -279,6 +279,21 @@ class MainActivity : FragmentActivity() {
                                             onNavigateToSettings = { currentTarget = NavigationTarget.SETTINGS }
                                         )
                                     }
+                                    NavigationTarget.CALCULATOR -> {
+                                        CalculatorScreen(
+                                            currencySymbol = userProfile.currencySymbol,
+                                            onOpenDrawer = { isDrawerOpen = true },
+                                            onNavigateBack = { currentTarget = NavigationTarget.MONTHLY_VIEW }
+                                        )
+                                    }
+                                    NavigationTarget.NOTES -> {
+                                        NotesScreen(
+                                            budgetDao = database.budgetDao(),
+                                            currencySymbol = userProfile.currencySymbol,
+                                            onOpenDrawer = { isDrawerOpen = true },
+                                            onNavigateBack = { currentTarget = NavigationTarget.MONTHLY_VIEW }
+                                        )
+                                    }
                                     NavigationTarget.SETTINGS -> {
                                         SettingsScreen(
                                             viewModel = viewModel,
