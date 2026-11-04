@@ -1,9 +1,12 @@
 package com.example.myfin.ui.screens
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,11 +32,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import com.example.myfin.ui.theme.*
 import java.util.Locale
 import kotlin.math.pow
@@ -46,102 +51,99 @@ fun CalculatorScreen(
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) } // 0 = Tape Calculator, 1 = SIP & EMI
 
+    // Sync status bar icons to white for the dark Midnight cockpit header
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        DisposableEffect(Unit) {
+            val window = (view.context as? Activity)?.window
+            val insetsController = window?.let { WindowCompat.getInsetsController(it, view) }
+            insetsController?.isAppearanceLightStatusBars = false
+            onDispose {
+                insetsController?.isAppearanceLightStatusBars = true
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(CanvasLight)
-            .statusBarsPadding()
-            .navigationBarsPadding()
+            .background(Color(0xFF0F172A))
     ) {
-        // 1. TOP BAR
-        Row(
+        // 1. MIDNIGHT COCKPIT TOP BAR + SEGMENTED SWITCHER
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 IconButton(
                     onClick = onOpenDrawer,
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Menu,
                         contentDescription = "Menu",
-                        tint = TextDark,
+                        tint = Color.White,
                         modifier = Modifier.size(22.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "Financial Calculator",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextDark,
-                        letterSpacing = (-0.3).sp
-                    )
-                    Text(
-                        text = if (selectedTab == 0) "Live Expression & History Tape" else "Wealth SIP & Loan EMI Estimator",
-                        fontSize = 11.sp,
-                        color = TextMuted
-                    )
-                }
-            }
 
-            IconButton(
-                onClick = onNavigateBack,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(CardWhite)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Back to Dashboard",
-                    tint = TextDark,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-
-        // 2. 2-TAB SEGMENTED SWITCHER
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(BorderLight.copy(alpha = 0.55f))
-                .padding(4.dp)
-        ) {
-            listOf(
-                0 to "Standard + Tape",
-                1 to "SIP & EMI Estimator"
-            ).forEach { (idx, title) ->
-                val isSelected = selectedTab == idx
-                Box(
+                // Glassmorphic Mode Switcher Pill in Header
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (isSelected) CardWhite else Color.Transparent)
-                        .clickable { selectedTab = idx }
-                        .padding(vertical = 8.5.dp),
-                    contentAlignment = Alignment.Center
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.White.copy(alpha = 0.10f))
+                        .padding(3.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = title,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        fontSize = 12.sp,
-                        color = if (isSelected) AccentPurple else TextMuted
+                    listOf(
+                        0 to "Calculator",
+                        1 to "SIP & EMI"
+                    ).forEach { (idx, title) ->
+                        val isSelected = selectedTab == idx
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(17.dp))
+                                .background(if (isSelected) AccentPurple else Color.Transparent)
+                                .clickable { selectedTab = idx }
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = title,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 12.sp,
+                                color = if (isSelected) Color.White else Color(0xFF94A3B8)
+                            )
+                        }
+                    }
+                }
+
+                IconButton(
+                    onClick = onNavigateBack,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.10f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Back",
+                        tint = Color.White,
+                        modifier = Modifier.size(17.dp)
                     )
                 }
             }
         }
 
-        // 3. TAB CONTENT
+        // 2. TAB BODY
         if (selectedTab == 0) {
             StandardTapeCalculatorTab(currencySymbol = currencySymbol)
         } else {
@@ -193,92 +195,108 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
         expression += token
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        // DISPLAY & TAPE CARD
-        Surface(
+    Column(modifier = Modifier.fillMaxSize()) {
+        // 1. DARK COCKPIT READOUT & FLOATING HISTORY TAPE
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .shadow(2.dp, RoundedCornerShape(22.dp)),
-            shape = RoundedCornerShape(22.dp),
-            color = CardWhite,
-            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                .weight(0.42f)
+                .padding(horizontal = 22.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+            // Top Row: Tape Header + Clear Action
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Top Tape History Header + List
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = null,
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = "HISTORY TAPE",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF64748B),
+                        letterSpacing = 0.8.sp
+                    )
+                }
+
+                if (tapeHistory.isNotEmpty()) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = SoftRed.copy(alpha = 0.15f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { tapeHistory.clear() }
                     ) {
                         Text(
-                            text = "CALCULATION TAPE",
+                            text = "Clear Tape",
                             fontSize = 10.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextMuted,
-                            letterSpacing = 0.6.sp
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFCA5A5),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
-                        if (tapeHistory.isNotEmpty()) {
-                            Text(
-                                text = "Clear Tape",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SoftRed,
-                                modifier = Modifier.clickable { tapeHistory.clear() }
-                            )
-                        }
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    if (tapeHistory.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Recent calculations will appear here.\nTap any past result to reuse it.",
-                                fontSize = 11.5.sp,
-                                color = TextMuted.copy(alpha = 0.65f),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            items(tapeHistory) { item ->
+            // Scrollable Tape Pills
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(vertical = 6.dp)
+            ) {
+                if (tapeHistory.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        Text(
+                            text = "Tap '=' to log calculations to tape • Tap any entry to reuse",
+                            fontSize = 11.sp,
+                            color = Color(0xFF475569),
+                            textAlign = TextAlign.End
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        reverseLayout = true,
+                        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Bottom)
+                    ) {
+                        items(tapeHistory) { item ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color.White.copy(alpha = 0.06f),
+                                border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.10f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        val cleanVal = if (item.rawResult % 1.0 == 0.0) {
+                                            item.rawResult.toLong().toString()
+                                        } else item.rawResult.toString()
+                                        appendToken(cleanVal)
+                                    }
+                            ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(CanvasLight)
-                                        .clickable {
-                                            val cleanVal = if (item.rawResult % 1.0 == 0.0) {
-                                                item.rawResult.toLong().toString()
-                                            } else item.rawResult.toString()
-                                            appendToken(cleanVal)
-                                        }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                         text = item.expression,
                                         fontSize = 12.sp,
-                                        color = TextMuted,
+                                        color = Color(0xFF94A3B8),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f)
@@ -287,39 +305,42 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                                         text = "= $currencySymbol${item.resultFormatted}",
                                         fontSize = 12.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = AccentPurple
+                                        color = Color(0xFFA5B4FC)
                                     )
                                 }
                             }
                         }
                     }
                 }
+            }
 
-                HorizontalDivider(
-                    color = BorderLight.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(vertical = 8.dp)
+            // Live Equation & Giant Result Readout
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    text = expression.ifBlank { "0" },
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF94A3B8),
+                    textAlign = TextAlign.End,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
 
-                // Active Expression & Live Total
-                Column(
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.End
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = expression.ifBlank { "0" },
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextMuted,
-                        textAlign = TextAlign.End,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End,
+                    // Copy Pill Button
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color.White.copy(alpha = 0.08f),
+                        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.14f)),
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
                             .clickable {
@@ -328,128 +349,182 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                                     if (liveResult % 1.0 == 0.0) liveResult.toLong().toString() else String.format(Locale.US, "%.2f", liveResult)
                                 } else "0"
                                 clipboard.setPrimaryClip(ClipData.newPlainText("Calc Result", rawCopy))
-                                Toast.makeText(context, "Copied $rawCopy to clipboard", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Copied $currencySymbol$formattedResult", Toast.LENGTH_SHORT).show()
                             }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy result",
-                            tint = AccentPurple.copy(alpha = 0.7f),
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "$currencySymbol$formattedResult",
-                            fontSize = 30.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextDark,
-                            letterSpacing = (-0.8).sp
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy",
+                                tint = Color(0xFFA5B4FC),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "Copy",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFA5B4FC)
+                            )
+                        }
                     }
+
+                    // Main Total
+                    Text(
+                        text = "$currencySymbol$formattedResult",
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        letterSpacing = (-1.0).sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // NUMERIC & OPERATOR KEYPAD
-        val keypadRows = listOf(
-            listOf("AC", "⌫", "%", "÷"),
-            listOf("7", "8", "9", "×"),
-            listOf("4", "5", "6", "-"),
-            listOf("1", "2", "3", "+"),
-            listOf("00", "0", ".", "=")
-        )
-
-        Column(
+        // 2. ELEVATED TACTILE KEYPAD SHEET
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .weight(0.58f),
+            shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+            color = CanvasLight,
+            shadowElevation = 16.dp
         ) {
-            keypadRows.forEach { row ->
-                Row(
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Drag indicator bar
+                Box(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    contentAlignment = Alignment.Center
                 ) {
-                    row.forEach { key ->
-                        val isOperator = key in setOf("÷", "×", "-", "+", "=")
-                        val isAction = key in setOf("AC", "⌫", "%")
+                    Box(
+                        modifier = Modifier
+                            .width(36.dp)
+                            .height(4.dp)
+                            .clip(CircleShape)
+                            .background(BorderLight)
+                    )
+                }
 
-                        val bgColor = when {
-                            key == "=" -> AccentPurple
-                            isOperator -> AccentPurple.copy(alpha = 0.12f)
-                            isAction -> BorderLight.copy(alpha = 0.65f)
-                            else -> CardWhite
-                        }
-                        val contentColor = when {
-                            key == "=" -> Color.White
-                            isOperator -> AccentPurple
-                            key == "AC" -> SoftRed
-                            else -> TextDark
-                        }
+                val keypadRows = listOf(
+                    listOf("AC", "⌫", "%", "÷"),
+                    listOf("7", "8", "9", "×"),
+                    listOf("4", "5", "6", "-"),
+                    listOf("1", "2", "3", "+"),
+                    listOf("00", "0", ".", "=")
+                )
 
-                        Surface(
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    keypadRows.forEach { row ->
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable {
-                                    when (key) {
-                                        "AC" -> {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            expression = ""
-                                        }
-                                        "⌫" -> {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            if (expression.isNotEmpty()) {
-                                                expression = expression.dropLast(1)
-                                            }
-                                        }
-                                        "=" -> {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            if (liveResult != null && !liveResult.isNaN() && expression.isNotBlank()) {
-                                                tapeHistory.add(
-                                                    0,
-                                                    CalcTapeEntry(
-                                                        expression = expression,
-                                                        resultFormatted = formattedResult,
-                                                        rawResult = liveResult
-                                                    )
-                                                )
-                                                expression = if (liveResult % 1.0 == 0.0) {
-                                                    liveResult.toLong().toString()
-                                                } else {
-                                                    String.format(Locale.US, "%.2f", liveResult)
-                                                }
-                                            }
-                                        }
-                                        else -> appendToken(key)
-                                    }
-                                },
-                            shape = RoundedCornerShape(16.dp),
-                            color = bgColor,
-                            border = BorderStroke(
-                                0.7.dp,
-                                if (key == "=") AccentPurple else BorderLight.copy(alpha = 0.8f)
-                            )
+                                .fillMaxWidth()
+                                .weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                if (key == "⌫") {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Backspace,
-                                        contentDescription = "Backspace",
-                                        tint = contentColor,
-                                        modifier = Modifier.size(20.dp)
+                            row.forEach { key ->
+                                val isEquals = key == "="
+                                val isOperator = key in setOf("÷", "×", "-", "+")
+                                val isClear = key == "AC"
+                                val isUtil = key in setOf("⌫", "%")
+
+                                val keyBg = when {
+                                    isEquals -> Color(0xFF4338CA)
+                                    isOperator -> Color(0xFFEEF2FF)
+                                    isClear -> SoftRed.copy(alpha = 0.12f)
+                                    isUtil -> Color(0xFFF1F5F9)
+                                    else -> CardWhite
+                                }
+
+                                val keyContentColor = when {
+                                    isEquals -> Color.White
+                                    isOperator -> Color(0xFF4338CA)
+                                    isClear -> SoftRed
+                                    isUtil -> Color(0xFF475569)
+                                    else -> TextDark
+                                }
+
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .shadow(if (isEquals) 4.dp else 1.dp, RoundedCornerShape(20.dp))
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .clickable {
+                                            when (key) {
+                                                "AC" -> {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    expression = ""
+                                                }
+                                                "⌫" -> {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    if (expression.isNotEmpty()) {
+                                                        expression = expression.dropLast(1)
+                                                    }
+                                                }
+                                                "=" -> {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    if (liveResult != null && !liveResult.isNaN() && expression.isNotBlank()) {
+                                                        tapeHistory.add(
+                                                            0,
+                                                            CalcTapeEntry(
+                                                                expression = expression,
+                                                                resultFormatted = formattedResult,
+                                                                rawResult = liveResult
+                                                            )
+                                                        )
+                                                        expression = if (liveResult % 1.0 == 0.0) {
+                                                            liveResult.toLong().toString()
+                                                        } else {
+                                                            String.format(Locale.US, "%.2f", liveResult)
+                                                        }
+                                                    }
+                                                }
+                                                else -> appendToken(key)
+                                            }
+                                        },
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = keyBg,
+                                    border = BorderStroke(
+                                        0.8.dp,
+                                        if (isEquals) Color(0xFF4F46E5)
+                                        else if (isOperator) Color(0xFFC7D2FE)
+                                        else BorderLight.copy(alpha = 0.65f)
                                     )
-                                } else {
-                                    Text(
-                                        text = key,
-                                        fontSize = 19.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = contentColor
-                                    )
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        if (key == "⌫") {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.Backspace,
+                                                contentDescription = "Backspace",
+                                                tint = keyContentColor,
+                                                modifier = Modifier.size(21.dp)
+                                            )
+                                        } else {
+                                            Text(
+                                                text = key,
+                                                fontSize = if (isOperator || isEquals) 22.sp else 20.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = keyContentColor
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -474,232 +549,319 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
     var loanInterestRate by rememberSaveable { mutableFloatStateOf(9.5f) }
     var loanTenureYears by rememberSaveable { mutableFloatStateOf(5f) }
 
-    Column(
+    Surface(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(top = 6.dp),
+        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+        color = CanvasLight
     ) {
-        // Mode Pill Switcher
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            FilterChip(
-                selected = isSipMode,
-                onClick = { isSipMode = true },
-                label = { Text("SIP Wealth Compounder", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
-                leadingIcon = {
-                    Icon(Icons.Default.TrendingUp, contentDescription = null, modifier = Modifier.size(16.dp))
-                },
-                modifier = Modifier.weight(1f)
-            )
-            FilterChip(
-                selected = !isSipMode,
-                onClick = { isSipMode = false },
-                label = { Text("Loan EMI Calculator", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
-                leadingIcon = {
-                    Icon(Icons.Default.AccountBalance, contentDescription = null, modifier = Modifier.size(16.dp))
-                },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        if (isSipMode) {
-            val months = (sipYears.toInt() * 12).coerceAtLeast(1)
-            val monthlyRate = (sipReturnRate / 12.0) / 100.0
-            val totalInvested = monthlySip.toDouble() * months
-            val maturityValue = if (monthlyRate == 0.0) {
-                totalInvested
-            } else {
-                monthlySip * (((1 + monthlyRate).pow(months.toDouble()) - 1) / monthlyRate) * (1 + monthlyRate)
-            }
-            val wealthGained = (maturityValue - totalInvested).coerceAtLeast(0.0)
-
-            // Hero Summary Card
-            Surface(
+            // Mode Switcher
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(22.dp)),
-                shape = RoundedCornerShape(22.dp),
-                color = Color(0xFF3730A3)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(BorderLight.copy(alpha = 0.55f))
+                    .padding(4.dp)
             ) {
-                Column(
+                listOf(
+                    true to "SIP Wealth Compounder",
+                    false to "Loan EMI Calculator"
+                ).forEach { (sipMode, label) ->
+                    val selected = isSipMode == sipMode
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (selected) CardWhite else Color.Transparent)
+                            .clickable { isSipMode = sipMode }
+                            .padding(vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 12.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selected) AccentPurple else TextMuted
+                        )
+                    }
+                }
+            }
+
+            if (isSipMode) {
+                val months = (sipYears.toInt() * 12).coerceAtLeast(1)
+                val monthlyRate = (sipReturnRate / 12.0) / 100.0
+                val totalInvested = monthlySip.toDouble() * months
+                val maturityValue = if (monthlyRate == 0.0) {
+                    totalInvested
+                } else {
+                    monthlySip * (((1 + monthlyRate).pow(months.toDouble()) - 1) / monthlyRate) * (1 + monthlyRate)
+                }
+                val wealthGained = (maturityValue - totalInvested).coerceAtLeast(0.0)
+                val investedRatio = if (maturityValue > 0) (totalInvested / maturityValue).toFloat().coerceIn(0.05f, 0.95f) else 0.5f
+
+                // Hero Card
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(Color(0xFF4338CA), Color(0xFF312E81))
+                        .shadow(5.dp, RoundedCornerShape(24.dp)),
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color(0xFF3730A3)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(Color(0xFF4338CA), Color(0xFF312E81))
+                                )
                             )
-                        )
-                        .padding(18.dp)
-                ) {
-                    Text(
-                        text = "PROJECTED MATURITY VALUE",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color(0xFFC7D2FE),
-                        letterSpacing = 0.6.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "$currencySymbol${String.format(Locale.US, "%,.0f", maturityValue)}",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(20.dp)
                     ) {
-                        EstimatorMetricBox(
-                            label = "Total Invested",
-                            value = "$currencySymbol${String.format(Locale.US, "%,.0f", totalInvested)}",
-                            tint = Color(0xFF67E8F9),
-                            modifier = Modifier.weight(1f)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "PROJECTED MATURITY VALUE",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFFC7D2FE),
+                                letterSpacing = 0.8.sp
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color.White.copy(alpha = 0.15f)
+                            ) {
+                                val multiplier = if (totalInvested > 0) maturityValue / totalInvested else 1.0
+                                Text(
+                                    text = "${String.format(Locale.US, "%.1fx", multiplier)} Return",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF34D399),
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            text = "$currencySymbol${String.format(Locale.US, "%,.0f", maturityValue)}",
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White,
+                            letterSpacing = (-0.8).sp
                         )
-                        EstimatorMetricBox(
-                            label = "Est. Wealth Gained",
-                            value = "+$currencySymbol${String.format(Locale.US, "%,.0f", wealthGained)}",
-                            tint = Color(0xFF34D399),
-                            modifier = Modifier.weight(1f)
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Visual Split Bar
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(CircleShape)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(investedRatio)
+                                    .fillMaxHeight()
+                                    .background(Color(0xFF38BDF8))
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f - investedRatio)
+                                    .fillMaxHeight()
+                                    .background(Color(0xFF34D399))
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            EstimatorMetricBox(
+                                label = "Principal Invested",
+                                value = "$currencySymbol${String.format(Locale.US, "%,.0f", totalInvested)}",
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.weight(1f)
+                            )
+                            EstimatorMetricBox(
+                                label = "Est. Wealth Gained",
+                                value = "+$currencySymbol${String.format(Locale.US, "%,.0f", wealthGained)}",
+                                tint = Color(0xFF34D399),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                // Controls Card
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        SliderControlRow(
+                            title = "Monthly SIP Deposit",
+                            valueDisplay = "$currencySymbol${String.format(Locale.US, "%,.0f", monthlySip)}",
+                            value = monthlySip,
+                            valueRange = 500f..150000f,
+                            onValueChange = { monthlySip = (it / 500f).toInt() * 500f }
+                        )
+                        SliderControlRow(
+                            title = "Expected Return Rate (p.a.)",
+                            valueDisplay = "${String.format(Locale.US, "%.1f", sipReturnRate)}%",
+                            value = sipReturnRate,
+                            valueRange = 4f..25f,
+                            onValueChange = { sipReturnRate = (it * 2).toInt() / 2f }
+                        )
+                        SliderControlRow(
+                            title = "Investment Duration",
+                            valueDisplay = "${sipYears.toInt()} Years",
+                            value = sipYears,
+                            valueRange = 1f..35f,
+                            onValueChange = { sipYears = it.toInt().toFloat() }
                         )
                     }
                 }
-            }
-
-            // Sliders Card
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                color = CardWhite,
-                border = BorderStroke(0.8.dp, BorderLight)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    SliderControlRow(
-                        title = "Monthly SIP Investment",
-                        valueDisplay = "$currencySymbol${String.format(Locale.US, "%,.0f", monthlySip)}",
-                        value = monthlySip,
-                        valueRange = 500f..150000f,
-                        onValueChange = { monthlySip = (it / 500f).toInt() * 500f }
-                    )
-                    SliderControlRow(
-                        title = "Expected Annual Return (CAGR)",
-                        valueDisplay = "${String.format(Locale.US, "%.1f", sipReturnRate)}%",
-                        value = sipReturnRate,
-                        valueRange = 4f..25f,
-                        onValueChange = { sipReturnRate = (it * 2).toInt() / 2f }
-                    )
-                    SliderControlRow(
-                        title = "Investment Horizon",
-                        valueDisplay = "${sipYears.toInt()} Years",
-                        value = sipYears,
-                        valueRange = 1f..35f,
-                        onValueChange = { sipYears = it.toInt().toFloat() }
-                    )
-                }
-            }
-        } else {
-            // Loan EMI Calculation
-            val months = (loanTenureYears.toInt() * 12).coerceAtLeast(1)
-            val monthlyRate = (loanInterestRate / 12.0) / 100.0
-            val emi = if (monthlyRate == 0.0) {
-                loanPrincipal.toDouble() / months
             } else {
-                (loanPrincipal * monthlyRate * (1 + monthlyRate).pow(months.toDouble())) /
-                        ((1 + monthlyRate).pow(months.toDouble()) - 1)
-            }
-            val totalPayable = emi * months
-            val totalInterest = (totalPayable - loanPrincipal).coerceAtLeast(0.0)
+                val months = (loanTenureYears.toInt() * 12).coerceAtLeast(1)
+                val monthlyRate = (loanInterestRate / 12.0) / 100.0
+                val emi = if (monthlyRate == 0.0) {
+                    loanPrincipal.toDouble() / months
+                } else {
+                    (loanPrincipal * monthlyRate * (1 + monthlyRate).pow(months.toDouble())) /
+                            ((1 + monthlyRate).pow(months.toDouble()) - 1)
+                }
+                val totalPayable = emi * months
+                val totalInterest = (totalPayable - loanPrincipal).coerceAtLeast(0.0)
+                val principalRatio = if (totalPayable > 0) (loanPrincipal / totalPayable).toFloat().coerceIn(0.05f, 0.95f) else 0.5f
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(22.dp)),
-                shape = RoundedCornerShape(22.dp),
-                color = Color(0xFF0F172A)
-            ) {
-                Column(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(18.dp)
+                        .shadow(5.dp, RoundedCornerShape(24.dp)),
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color(0xFF0F172A)
                 ) {
-                    Text(
-                        text = "MONTHLY LOAN EMI",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color(0xFF94A3B8),
-                        letterSpacing = 0.6.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "$currencySymbol${String.format(Locale.US, "%,.0f", emi)} / mo",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
                     ) {
-                        EstimatorMetricBox(
-                            label = "Total Interest",
-                            value = "$currencySymbol${String.format(Locale.US, "%,.0f", totalInterest)}",
-                            tint = Color(0xFFFCA5A5),
-                            modifier = Modifier.weight(1f)
+                        Text(
+                            text = "MONTHLY LOAN EMI",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF94A3B8),
+                            letterSpacing = 0.8.sp
                         )
-                        EstimatorMetricBox(
-                            label = "Total Payable",
-                            value = "$currencySymbol${String.format(Locale.US, "%,.0f", totalPayable)}",
-                            tint = Color(0xFFC7D2FE),
-                            modifier = Modifier.weight(1f)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "$currencySymbol${String.format(Locale.US, "%,.0f", emi)} / mo",
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White,
+                            letterSpacing = (-0.8).sp
                         )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(CircleShape)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(principalRatio)
+                                    .fillMaxHeight()
+                                    .background(Color(0xFFA5B4FC))
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f - principalRatio)
+                                    .fillMaxHeight()
+                                    .background(Color(0xFFF87171))
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            EstimatorMetricBox(
+                                label = "Total Interest",
+                                value = "$currencySymbol${String.format(Locale.US, "%,.0f", totalInterest)}",
+                                tint = Color(0xFFFCA5A5),
+                                modifier = Modifier.weight(1f)
+                            )
+                            EstimatorMetricBox(
+                                label = "Total Payable",
+                                value = "$currencySymbol${String.format(Locale.US, "%,.0f", totalPayable)}",
+                                tint = Color(0xFFC7D2FE),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
-            }
 
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                color = CardWhite,
-                border = BorderStroke(0.8.dp, BorderLight)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight)
                 ) {
-                    SliderControlRow(
-                        title = "Loan Principal Amount",
-                        valueDisplay = "$currencySymbol${String.format(Locale.US, "%,.0f", loanPrincipal)}",
-                        value = loanPrincipal,
-                        valueRange = 25000f..5000000f,
-                        onValueChange = { loanPrincipal = (it / 25000f).toInt() * 25000f }
-                    )
-                    SliderControlRow(
-                        title = "Annual Interest Rate",
-                        valueDisplay = "${String.format(Locale.US, "%.1f", loanInterestRate)}%",
-                        value = loanInterestRate,
-                        valueRange = 5f..24f,
-                        onValueChange = { loanInterestRate = (it * 2).toInt() / 2f }
-                    )
-                    SliderControlRow(
-                        title = "Loan Tenure",
-                        valueDisplay = "${loanTenureYears.toInt()} Years (${loanTenureYears.toInt() * 12} mos)",
-                        value = loanTenureYears,
-                        valueRange = 1f..30f,
-                        onValueChange = { loanTenureYears = it.toInt().toFloat() }
-                    )
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        SliderControlRow(
+                            title = "Loan Principal Amount",
+                            valueDisplay = "$currencySymbol${String.format(Locale.US, "%,.0f", loanPrincipal)}",
+                            value = loanPrincipal,
+                            valueRange = 25000f..5000000f,
+                            onValueChange = { loanPrincipal = (it / 25000f).toInt() * 25000f }
+                        )
+                        SliderControlRow(
+                            title = "Annual Interest Rate",
+                            valueDisplay = "${String.format(Locale.US, "%.1f", loanInterestRate)}%",
+                            value = loanInterestRate,
+                            valueRange = 5f..24f,
+                            onValueChange = { loanInterestRate = (it * 2).toInt() / 2f }
+                        )
+                        SliderControlRow(
+                            title = "Loan Tenure",
+                            valueDisplay = "${loanTenureYears.toInt()} Years (${loanTenureYears.toInt() * 12} mos)",
+                            value = loanTenureYears,
+                            valueRange = 1f..30f,
+                            onValueChange = { loanTenureYears = it.toInt().toFloat() }
+                        )
+                    }
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -713,11 +875,11 @@ private fun EstimatorMetricBox(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        color = Color.White.copy(alpha = 0.10f),
-        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.16f))
+        color = Color.White.copy(alpha = 0.09f),
+        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.14f))
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
-            Text(text = label, fontSize = 10.sp, color = Color.White.copy(alpha = 0.75f))
+            Text(text = label, fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f))
             Spacer(modifier = Modifier.height(2.dp))
             Text(text = value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = tint)
         }
@@ -772,9 +934,6 @@ private fun formatCleanNumber(value: Double): String {
     }
 }
 
-/**
- * Lightweight, safe recursive-descent arithmetic evaluator supporting +, -, ×, ÷, and %
- */
 private fun evaluateMathExpression(expr: String): Double? {
     val sanitized = expr
         .replace("×", "*")
