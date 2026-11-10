@@ -405,20 +405,22 @@ fun MonthlyAutoPayTab(
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 overdueOrActionNeeded.forEachIndexed { index, bill ->
-                                    AutoPayCommitmentRow(
-                                        bill = bill,
-                                        currencySymbol = userProfile.currencySymbol,
-                                        isDiscreetMode = isDiscreetMode,
-                                        isOutflow = isOutflow(bill),
-                                        isInflow = isInflow(bill),
-                                        currentDayOfMonth = currentDayOfMonth,
-                                        onTap = { onTapBill(bill) },
-                                        onEdit = { onEditBill(bill) },
-                                        onDelete = { onDeleteBill(bill) },
-                                        onSettle = {
-                                            onSettleBill(bill, bill.amount, System.currentTimeMillis())
-                                        }
-                                    )
+                                    key(bill.id) {
+                                        AutoPayCommitmentRow(
+                                            bill = bill,
+                                            currencySymbol = userProfile.currencySymbol,
+                                            isDiscreetMode = isDiscreetMode,
+                                            isOutflow = isOutflow(bill),
+                                            isInflow = isInflow(bill),
+                                            currentDayOfMonth = currentDayOfMonth,
+                                            onTap = { onTapBill(bill) },
+                                            onEdit = { onEditBill(bill) },
+                                            onDelete = { onDeleteBill(bill) },
+                                            onSettle = {
+                                                onSettleBill(bill, bill.amount, System.currentTimeMillis())
+                                            }
+                                        )
+                                    }
                                     if (index < overdueOrActionNeeded.lastIndex) {
                                         HorizontalDivider(
                                             color = BorderLight.copy(alpha = 0.5f),
@@ -473,20 +475,22 @@ fun MonthlyAutoPayTab(
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 upcomingBills.forEachIndexed { index, bill ->
-                                    AutoPayCommitmentRow(
-                                        bill = bill,
-                                        currencySymbol = userProfile.currencySymbol,
-                                        isDiscreetMode = isDiscreetMode,
-                                        isOutflow = isOutflow(bill),
-                                        isInflow = isInflow(bill),
-                                        currentDayOfMonth = currentDayOfMonth,
-                                        onTap = { onTapBill(bill) },
-                                        onEdit = { onEditBill(bill) },
-                                        onDelete = { onDeleteBill(bill) },
-                                        onSettle = {
-                                            onSettleBill(bill, bill.amount, System.currentTimeMillis())
-                                        }
-                                    )
+                                    key(bill.id) {
+                                        AutoPayCommitmentRow(
+                                            bill = bill,
+                                            currencySymbol = userProfile.currencySymbol,
+                                            isDiscreetMode = isDiscreetMode,
+                                            isOutflow = isOutflow(bill),
+                                            isInflow = isInflow(bill),
+                                            currentDayOfMonth = currentDayOfMonth,
+                                            onTap = { onTapBill(bill) },
+                                            onEdit = { onEditBill(bill) },
+                                            onDelete = { onDeleteBill(bill) },
+                                            onSettle = {
+                                                onSettleBill(bill, bill.amount, System.currentTimeMillis())
+                                            }
+                                        )
+                                    }
                                     if (index < upcomingBills.lastIndex) {
                                         HorizontalDivider(
                                             color = BorderLight.copy(alpha = 0.5f),
@@ -576,20 +580,22 @@ fun MonthlyAutoPayTab(
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     settledBills.forEachIndexed { index, bill ->
-                                        AutoPayCommitmentRow(
-                                            bill = bill,
-                                            currencySymbol = userProfile.currencySymbol,
-                                            isDiscreetMode = isDiscreetMode,
-                                            isOutflow = isOutflow(bill),
-                                            isInflow = isInflow(bill),
-                                            currentDayOfMonth = currentDayOfMonth,
-                                            onTap = { onTapBill(bill) },
-                                            onEdit = { onEditBill(bill) },
-                                            onDelete = { onDeleteBill(bill) },
-                                            onSettle = {
-                                                onSettleBill(bill, bill.amount, System.currentTimeMillis())
-                                            }
-                                        )
+                                        key(bill.id) {
+                                            AutoPayCommitmentRow(
+                                                bill = bill,
+                                                currencySymbol = userProfile.currencySymbol,
+                                                isDiscreetMode = isDiscreetMode,
+                                                isOutflow = isOutflow(bill),
+                                                isInflow = isInflow(bill),
+                                                currentDayOfMonth = currentDayOfMonth,
+                                                onTap = { onTapBill(bill) },
+                                                onEdit = { onEditBill(bill) },
+                                                onDelete = { onDeleteBill(bill) },
+                                                onSettle = {
+                                                    onSettleBill(bill, bill.amount, System.currentTimeMillis())
+                                                }
+                                            )
+                                        }
                                         if (index < settledBills.lastIndex) {
                                             HorizontalDivider(
                                                 color = BorderLight.copy(alpha = 0.5f),
@@ -624,6 +630,8 @@ private fun AutoPayCommitmentRow(
     onSettle: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+    val currentOnEdit by rememberUpdatedState(onEdit)
+    val currentOnDelete by rememberUpdatedState(onDelete)
 
     val dismissState = rememberSwipeToDismissBoxState(
         positionalThreshold = { totalDistance -> totalDistance * 0.35f },
@@ -631,12 +639,12 @@ private fun AutoPayCommitmentRow(
             when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onEdit()
+                    currentOnEdit()
                     false
                 }
                 SwipeToDismissBoxValue.EndToStart -> {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onDelete()
+                    currentOnDelete()
                     false
                 }
                 SwipeToDismissBoxValue.Settled -> false
