@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -66,23 +67,28 @@ fun AddEditFixedBillDialog(
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val billKey = initialBill?.id ?: -1L
 
-    var selectedType by remember { mutableStateOf(initialBill?.type ?: TransactionType.EXPENSE) }
+    var selectedType by remember(billKey) {
+        mutableStateOf(initialBill?.type ?: TransactionType.EXPENSE)
+    }
 
-    var noteText by remember {
+    var noteText by remember(billKey) {
         mutableStateOf(
             initialBill?.let { bill ->
                 val cleanTitle = bill.title.trim()
                 val cleanSubcat = bill.subcategory.trim()
                 when {
-                    cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
+                    cleanTitle.isBlank() ||
+                            cleanTitle.equals(cleanSubcat, ignoreCase = true) ||
+                            cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
                     else -> cleanTitle
                 }
             } ?: ""
         )
     }
 
-    var amountText by remember {
+    var amountText by remember(billKey) {
         mutableStateOf(
             initialBill?.amount?.let {
                 if (it > 0) {
@@ -91,9 +97,12 @@ fun AddEditFixedBillDialog(
             } ?: ""
         )
     }
-    var dueDayText by remember { mutableStateOf(initialBill?.dueDay?.toString() ?: "") }
 
-    var selectedTransferSubtype by remember {
+    var dueDayText by remember(billKey) {
+        mutableStateOf(initialBill?.dueDay?.toString() ?: "")
+    }
+
+    var selectedTransferSubtype by remember(billKey) {
         mutableStateOf(
             try {
                 TransferSubtype.valueOf(initialBill?.subcategory.orEmpty())
@@ -108,22 +117,22 @@ fun AddEditFixedBillDialog(
         )
     }
 
-    var isPaidState by remember { mutableStateOf(initialBill?.isPaid ?: false) }
-    var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var isPaidState by remember(billKey) { mutableStateOf(initialBill?.isPaid ?: false) }
+    var selectedDateMillis by remember(billKey) { mutableStateOf(System.currentTimeMillis()) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
 
     val isToday = remember(selectedDateMillis) {
         val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
         val calNow = Calendar.getInstance()
         calSelected.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
-        calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
+                calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
     }
 
     val isYesterday = remember(selectedDateMillis) {
         val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
         val calYesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
         calSelected.get(Calendar.YEAR) == calYesterday.get(Calendar.YEAR) &&
-        calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
+                calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
     }
 
     val formattedDateLabel = remember(selectedDateMillis, isToday, isYesterday) {
@@ -134,28 +143,32 @@ fun AddEditFixedBillDialog(
         }
     }
 
-    // Preserve historical bill's category even if it is legacy
+    // Preserve historical bill's category and place selected category first or scroll to it
     val filteredCategoryEntities = remember(masterCategories, selectedType, initialBill) {
         val cats = masterCategories.filter { it.type == selectedType }.toMutableList()
         if (initialBill != null && initialBill.type == selectedType && initialBill.category.isNotBlank()) {
             if (cats.none { it.name.equals(initialBill.category, ignoreCase = true) }) {
-                cats.add(CategoryEntity(name = initialBill.category, type = selectedType, isLegacy = true))
+                cats.add(0, CategoryEntity(name = initialBill.category, type = selectedType, isLegacy = true))
             }
         }
         cats
     }
 
-    var selectedCategory by remember(filteredCategoryEntities) {
-        mutableStateOf(
-            initialBill?.category ?: filteredCategoryEntities.firstOrNull()?.name ?: "General"
-        )
+    var selectedCategory by remember(billKey, selectedType) {
+        val initialMatch = if (initialBill != null && initialBill.type == selectedType && initialBill.category.isNotBlank()) {
+            filteredCategoryEntities.firstOrNull { it.name.equals(initialBill.category, ignoreCase = true) }?.name
+                ?: initialBill.category
+        } else null
+        mutableStateOf(initialMatch ?: filteredCategoryEntities.firstOrNull()?.name ?: "General")
     }
 
-    LaunchedEffect(selectedType) {
-        if (selectedType != TransactionType.TRANSFER) {
-            val names = filteredCategoryEntities.map { it.name }
-            if (names.isNotEmpty() && selectedCategory !in names) {
-                selectedCategory = names.firstOrNull() ?: "General"
+    LaunchedEffect(selectedType, filteredCategoryEntities) {
+        if (selectedType != TransactionType.TRANSFER && filteredCategoryEntities.isNotEmpty()) {
+            val matchesExisting = filteredCategoryEntities.any {
+                it.name.equals(selectedCategory, ignoreCase = true)
+            }
+            if (!matchesExisting) {
+                selectedCategory = filteredCategoryEntities.first().name
             }
         }
     }
@@ -169,22 +182,52 @@ fun AddEditFixedBillDialog(
             initialBill.category.equals(selectedCategory, ignoreCase = true) && initialBill.subcategory.isNotBlank()
         ) {
             if (subs.none { it.name.equals(initialBill.subcategory, ignoreCase = true) }) {
-                subs.add(SubcategoryEntity(parentCategory = selectedCategory, name = initialBill.subcategory, type = selectedType, isLegacy = true))
+                subs.add(0, SubcategoryEntity(parentCategory = selectedCategory, name = initialBill.subcategory, type = selectedType, isLegacy = true))
             }
         }
         subs
     }
 
-    var selectedSubcategory by remember(availableSubcategoryEntities) {
-        mutableStateOf(
-            initialBill?.subcategory ?: availableSubcategoryEntities.firstOrNull()?.name ?: "General"
-        )
+    var selectedSubcategory by remember(billKey, selectedCategory, selectedType) {
+        val initialSubMatch = if (
+            initialBill != null &&
+            initialBill.type == selectedType &&
+            initialBill.category.equals(selectedCategory, ignoreCase = true) &&
+            initialBill.subcategory.isNotBlank()
+        ) {
+            availableSubcategoryEntities.firstOrNull { it.name.equals(initialBill.subcategory, ignoreCase = true) }?.name
+                ?: initialBill.subcategory
+        } else null
+        mutableStateOf(initialSubMatch ?: availableSubcategoryEntities.firstOrNull()?.name ?: "General")
     }
 
     LaunchedEffect(availableSubcategoryEntities) {
-        val names = availableSubcategoryEntities.map { it.name }
-        if (names.isNotEmpty() && selectedSubcategory !in names) {
-            selectedSubcategory = names.firstOrNull() ?: "General"
+        if (availableSubcategoryEntities.isNotEmpty()) {
+            val matchesExisting = availableSubcategoryEntities.any {
+                it.name.equals(selectedSubcategory, ignoreCase = true)
+            }
+            if (!matchesExisting) {
+                selectedSubcategory = availableSubcategoryEntities.first().name
+            }
+        }
+    }
+
+    // Auto-scroll LazyRows so the active Category & Subcategory are immediately visible in the viewport
+    val categoryListState = rememberLazyListState()
+    val subcategoryListState = rememberLazyListState()
+    val accountListState = rememberLazyListState()
+
+    LaunchedEffect(selectedCategory, filteredCategoryEntities) {
+        val idx = filteredCategoryEntities.indexOfFirst { it.name.equals(selectedCategory, ignoreCase = true) }
+        if (idx >= 0) {
+            categoryListState.animateScrollToItem(idx)
+        }
+    }
+
+    LaunchedEffect(selectedSubcategory, availableSubcategoryEntities) {
+        val idx = availableSubcategoryEntities.indexOfFirst { it.name.equals(selectedSubcategory, ignoreCase = true) }
+        if (idx >= 0) {
+            subcategoryListState.animateScrollToItem(idx)
         }
     }
 
@@ -192,11 +235,18 @@ fun AddEditFixedBillDialog(
         filteredCategoryEntities.find { it.name.equals(selectedCategory, ignoreCase = true) }?.isLegacy == true
     }
 
-    var selectedAccount by remember {
+    var selectedAccount by remember(billKey) {
         mutableStateOf(initialBill?.accountName ?: accountList.firstOrNull() ?: "PRIMARY BANK")
     }
-    var selectedToAccount by remember {
+    var selectedToAccount by remember(billKey) {
         mutableStateOf(initialBill?.toAccountName ?: accountList.getOrNull(1) ?: accountList.firstOrNull() ?: "SECONDARY BANK")
+    }
+
+    LaunchedEffect(selectedAccount, accountList) {
+        val idx = accountList.indexOfFirst { it.equals(selectedAccount, ignoreCase = true) }
+        if (idx >= 0) {
+            accountListState.animateScrollToItem(idx)
+        }
     }
 
     var showNewCategoryDialog by remember { mutableStateOf(false) }
@@ -204,7 +254,10 @@ fun AddEditFixedBillDialog(
     var showNewSubcategoryDialog by remember { mutableStateOf(false) }
     var newSubcategoryName by remember { mutableStateOf("") }
 
-    val isSelfTransfer = selectedType == TransactionType.TRANSFER && selectedAccount.isNotBlank() && selectedToAccount.isNotBlank() && selectedAccount.equals(selectedToAccount, ignoreCase = true)
+    val isSelfTransfer = selectedType == TransactionType.TRANSFER &&
+            selectedAccount.isNotBlank() &&
+            selectedToAccount.isNotBlank() &&
+            selectedAccount.equals(selectedToAccount, ignoreCase = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -428,7 +481,10 @@ fun AddEditFixedBillDialog(
                     }
                 }
 
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                LazyRow(
+                    state = categoryListState,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     items(
                         items = if (filteredCategoryEntities.isEmpty()) listOf(CategoryEntity("General", selectedType)) else filteredCategoryEntities,
                         key = { "${it.name}_${it.isLegacy}" }
@@ -519,7 +575,10 @@ fun AddEditFixedBillDialog(
                     }
                 }
 
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                LazyRow(
+                    state = subcategoryListState,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     items(availableSubcategoryEntities, key = { "${it.name}_${it.isLegacy}" }) { subEntity ->
                         val isSelected = selectedSubcategory.equals(subEntity.name, ignoreCase = true)
                         FilterChip(
@@ -571,9 +630,12 @@ fun AddEditFixedBillDialog(
                 color = TextDark
             )
             Spacer(modifier = Modifier.height(4.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyRow(
+                state = accountListState,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 items(accountList) { acc ->
-                    val isSelected = selectedAccount == acc
+                    val isSelected = selectedAccount.equals(acc, ignoreCase = true)
                     FilterChip(
                         selected = isSelected,
                         onClick = {
@@ -597,8 +659,8 @@ fun AddEditFixedBillDialog(
                 Text("Destination Vault (To)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                 Spacer(modifier = Modifier.height(4.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(accountList.filter { it != selectedAccount }) { acc ->
-                        val isSelected = selectedToAccount == acc
+                    items(accountList.filter { !it.equals(selectedAccount, ignoreCase = true) }) { acc ->
+                        val isSelected = selectedToAccount.equals(acc, ignoreCase = true)
                         FilterChip(
                             selected = isSelected,
                             onClick = { selectedToAccount = acc },
