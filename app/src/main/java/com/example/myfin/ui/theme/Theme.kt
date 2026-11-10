@@ -10,21 +10,26 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val LightColorScheme = lightColorScheme(
-    primary = AccentPurple,
+    primary = Primary600,
     onPrimary = CardWhite,
-    primaryContainer = AccentPurpleLight,
-    onPrimaryContainer = AccentPurpleDark,
+    primaryContainer = Primary100,
+    onPrimaryContainer = Primary900,
     secondary = SoftTeal,
     onSecondary = CardWhite,
-    background = CanvasLight,
-    onBackground = TextDark,
+    secondaryContainer = SoftTealLight,
+    onSecondaryContainer = Primary900,
+    background = Neutral50,
+    onBackground = Neutral900,
     surface = CardWhite,
-    onSurface = TextDark,
-    surfaceVariant = CanvasLight,
-    onSurfaceVariant = TextMuted,
-    outline = BorderLight,
-    error = SoftRed,
-    onError = CardWhite
+    onSurface = Neutral900,
+    surfaceVariant = Neutral100,
+    onSurfaceVariant = Neutral500,
+    outline = Neutral200,
+    outlineVariant = Neutral300,
+    error = Error500,
+    onError = CardWhite,
+    errorContainer = Error100,
+    onErrorContainer = Error700
 )
 
 @Composable
@@ -34,7 +39,7 @@ fun MyfinTheme(content: @Composable () -> Unit) {
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
             window.statusBarColor = AndroidGraphicsColor.TRANSPARENT
-            // true = dark text & icons (black/dark gray) for all light screens across the app
+            // true = dark text & icons (Neutral900) for all light screens across the app
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
         }
     }
