@@ -1,5 +1,6 @@
 package com.example.myfin.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -28,8 +29,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import com.example.myfin.BuildConfig
-import com.example.myfin.ui.theme.AccentPurple
-import com.example.myfin.ui.theme.SoftRed
+import com.example.myfin.ui.theme.Error500
+import com.example.myfin.ui.theme.Neutral400
+import com.example.myfin.ui.theme.Primary300
+import com.example.myfin.ui.theme.Primary400
+import com.example.myfin.ui.theme.Primary600
 import java.io.File
 
 @Composable
@@ -78,7 +82,7 @@ fun DrawerMenuContent(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(AccentPurple),
+                        .background(Primary600),
                     contentAlignment = Alignment.Center
                 ) {
                     if (imageModel != null) {
@@ -91,7 +95,7 @@ fun DrawerMenuContent(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(AccentPurple),
+                                        .background(Primary600),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
@@ -106,7 +110,7 @@ fun DrawerMenuContent(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(AccentPurple),
+                                        .background(Primary600),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
@@ -140,7 +144,7 @@ fun DrawerMenuContent(
                     Text(
                         text = "Tap to manage profile",
                         fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.6f)
+                        color = Neutral400
                     )
                 }
             }
@@ -235,7 +239,8 @@ fun DrawerMenuContent(
         ) {
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = SoftRed.copy(alpha = 0.15f),
+                color = Error500.copy(alpha = 0.16f),
+                border = BorderStroke(0.6.dp, Error500.copy(alpha = 0.35f)),
                 modifier = Modifier
                     .clip(RoundedCornerShape(14.dp))
                     .clickable { onLockApp() }
@@ -248,7 +253,7 @@ fun DrawerMenuContent(
                     Icon(
                         imageVector = Icons.Default.Lock,
                         contentDescription = "Lock",
-                        tint = SoftRed,
+                        tint = Color(0xFFFCA5A5),
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -256,7 +261,7 @@ fun DrawerMenuContent(
                         text = "Lock Vault",
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
-                        color = SoftRed
+                        color = Color(0xFFFCA5A5)
                     )
                 }
             }
@@ -276,7 +281,7 @@ fun DrawerMenuContent(
                     Icon(
                         imageVector = Icons.Default.Security,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.75f),
+                        tint = Primary300,
                         modifier = Modifier.size(11.dp)
                     )
                 }
@@ -284,12 +289,12 @@ fun DrawerMenuContent(
                     text = "MyFin Vault v${BuildConfig.VERSION_NAME}",
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.85f)
+                    color = Color.White.copy(alpha = 0.88f)
                 )
                 Text(
                     text = "100% Offline SQLite • Zero Cloud Telemetry",
                     fontSize = 8.5.sp,
-                    color = Color.White.copy(alpha = 0.50f),
+                    color = Neutral400,
                     textAlign = TextAlign.Center
                 )
             }
@@ -306,7 +311,8 @@ private fun DrawerNavItem(
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) AccentPurple.copy(alpha = 0.35f) else Color.Transparent,
+        color = if (isSelected) Primary600.copy(alpha = 0.32f) else Color.Transparent,
+        border = if (isSelected) BorderStroke(0.7.dp, Primary400.copy(alpha = 0.45f)) else null,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
@@ -320,7 +326,7 @@ private fun DrawerNavItem(
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = if (isSelected) Color(0xFFD0BCFF) else Color.White.copy(alpha = 0.82f),
+                tint = if (isSelected) Primary300 else Color.White.copy(alpha = 0.80f),
                 modifier = Modifier.size(19.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
