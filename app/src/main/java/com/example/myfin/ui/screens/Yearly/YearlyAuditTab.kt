@@ -1,20 +1,18 @@
 package com.example.myfin.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,74 +20,69 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myfin.ui.YearlyMonthData
+import com.example.myfin.ui.YearlyUiState
 import com.example.myfin.ui.theme.*
 import java.util.Locale
-import kotlin.math.cos
-import kotlin.math.max
-import kotlin.math.min
+import kotlin.math.abs
 import kotlin.math.roundToInt
-import kotlin.math.sin
 
-private val RADAR_PALETTE = listOf(
-    Color(0xFF8B5CF6), // Purple
-    Color(0xFF06B6D4), // Cyan
-    Color(0xFF10B981), // Emerald
-    Color(0xFFF59E0B), // Amber
-    Color(0xFFF43F5E), // Rose
-    Color(0xFF64748B)  // Slate
-)
+private val MONTH_SHORT_LABELS = listOf("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D")
 
 @Composable
-fun YearlyAuditTab(
-    categoryTrajectories: List<CategoryAnnualTrajectory>,
-    plannedCategoryCeilings: Map<String, Double>,
-    isCategoryLegacy: (String) -> Boolean,
+fun YearlyCashflowTab(
+    yearlyState: YearlyUiState,
+    quarterlyData: List<QuarterlyMetrics>,
     currencySymbol: String,
     isDiscreetMode: Boolean,
-    onOpenGraphGuide: (GraphExplanationGuide) -> Unit,
-    onCategoryClick: (String) -> Unit = {}
+    onOpenMatrixSheet: (CashflowMatrixSheetType) -> Unit
 ) {
-    val totalAnnualBurn = remember(categoryTrajectories) {
-        categoryTrajectories.sumOf { it.annualTotal }
+    val yearlyMonthsData = yearlyState.yearlyMonths
+    val annualPersonalIncome = yearlyState.annualPersonalIncome
+    val annualLifestyleExpenses = yearlyState.annualLifestyleExpenses
+    val totalYearlyAssets = yearlyState.totalYearlyAssets
+    val reimbursementStatus = yearlyState.reimbursementStatus
+
+    val activeMonthsCount = remember(yearlyMonthsData) {
+        val count = yearlyMonthsData.count { !it.isFuture || it.lifestyleExpenses > 0.0 || it.personalIncome > 0.0 }
+        count.coerceAtLeast(1)
     }
 
-    val paretoMetrics = remember(categoryTrajectories, totalAnnualBurn) {
-        if (totalAnnualBurn <= 0.0 || categoryTrajectories.isEmpty()) {
-            null
-        } else {
-            var cumulative = 0.0
-            var count = 0
-            val sorted = categoryTrajectories.sortedByDescending { it.annualTotal }
-            for (cat in sorted) {
-                cumulative += cat.annualTotal
-                count++
-                if (cumulative / totalAnnualBurn >= 0.75) break
-            }
-            val percentage = ((cumulative / totalAnnualBurn) * 100).roundToInt()
-            Pair(count, percentage)
-        }
+    val totalFixedObligations = remember(yearlyMonthsData) {
+        yearlyMonthsData.sumOf { it.fixedExpenses }
     }
+    val totalDiscretionaryBurn = remember(annualLifestyleExpenses, totalFixedObligations) {
+        (annualLifestyleExpenses - totalFixedObligations).coerceAtLeast(0.0)
+    }
+    val netCashRetained = remember(annualPersonalIncome, annualLifestyleExpenses, totalYearlyAssets) {
+        annualPersonalIncome - annualLifestyleExpenses - totalYearlyAssets
+    }
+    val incomeBase = if (annualPersonalIncome > 0.0) annualPersonalIncome else 1.0
 
-    val overrunCategories = remember(categoryTrajectories, plannedCategoryCeilings) {
-        categoryTrajectories.filter { cat ->
-            val ceiling = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
-            ceiling > 0.0 && cat.annualTotal > ceiling
-        }
-    }
+    val fixedRatio = (totalFixedObligations / incomeBase).toFloat().coerceIn(0f, 1f)
+    val discretionaryRatio = (totalDiscretionaryBurn / incomeBase).toFloat().coerceIn(0f, 1f)
+    val assetRatio = (totalYearlyAssets / incomeBase).toFloat().coerceIn(0f, 1f)
+    val retainedRatio = (maxOf(0.0, netCashRetained) / incomeBase).toFloat().coerceIn(0f, 1f)
 
-    val totalOverrunAmount = remember(overrunCategories, plannedCategoryCeilings) {
-        overrunCategories.sumOf { cat ->
-            val ceiling = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
-            cat.annualTotal - ceiling
-        }
+    val projectedInflow = remember(annualPersonalIncome, activeMonthsCount) {
+        (annualPersonalIncome / activeMonthsCount) * 12.0
     }
+    val projectedBurn = remember(annualLifestyleExpenses, activeMonthsCount) {
+        (annualLifestyleExpenses / activeMonthsCount) * 12.0
+    }
+    val projectedAssets = remember(totalYearlyAssets, activeMonthsCount) {
+        (totalYearlyAssets / activeMonthsCount) * 12.0
+    }
+    val projectedNetSurplus = projectedInflow - projectedBurn - projectedAssets
 
     LazyColumn(
         modifier = Modifier
@@ -97,724 +90,603 @@ fun YearlyAuditTab(
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 240.dp)
     ) {
-        // 1. COMPACT PARETO RADAR CARD
-        item(key = "compact_pareto_radar_card") {
-            CompactParetoRadarCard(
-                categoryTrajectories = categoryTrajectories,
-                paretoMetrics = paretoMetrics,
-                totalBurn = totalAnnualBurn,
+        // 1. CASHFLOW DYNAMICS (Opens Dynamics Matrix Sheet)
+        item(key = "dual_smooth_wave_card") {
+            DualSmoothWaveCard(
+                title = "Cashflow Dynamics",
+                subtitle = "Personal Inflow vs. Lifestyle Burn",
+                yearlyMonths = yearlyMonthsData,
+                annualIncome = annualPersonalIncome,
+                annualExpenses = annualLifestyleExpenses,
+                activeMonthsCount = activeMonthsCount,
                 currencySymbol = currencySymbol,
                 isDiscreet = isDiscreetMode,
-                onInfoClick = {
-                    onOpenGraphGuide(
-                        GraphExplanationGuide(
-                            title = "Annual Spending Pareto",
-                            subtitle = "Cumulative Category Concentration",
-                            whatItShows = "Audits your annual outflow distribution against the Pareto Principle (where the vital top categories drive the majority of burn).",
-                            visualElements = listOf(
-                                "Radial Crests" to "Protrusions represent categories absorbing the largest share of capital.",
-                                "Concentric Rings" to "Proportional spending thresholds (33%, 66%, 100%).",
-                                "Pareto Metric" to "Shows the exact count of categories accounting for >75% of total annual burn."
-                            ),
-                            whyItMatters = "Focusing your savings efforts on the top 2-3 protruding categories yields far greater financial results than micromanaging small expenses.",
-                            actionableTip = "Cap discretionary limits on your top 2 categories to instantly improve annual retention."
-                        )
-                    )
-                }
+                onInfoClick = { onOpenMatrixSheet(CashflowMatrixSheetType.CASHFLOW_DYNAMICS) }
             )
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 2. BUDGET VS. ACTUAL OUTFLOW VARIANCE
-        item(key = "budget_vs_actual_dual_pillars") {
-            CompactBudgetVsActualCard(
-                categoryTrajectories = categoryTrajectories,
-                plannedCategoryCeilings = plannedCategoryCeilings,
-                overrunCount = overrunCategories.size,
-                totalOverrun = totalOverrunAmount,
+        // 2. 12-MONTH NET CASHFLOW PULSE (Opens Monthly Itemized Table Sheet)
+        item(key = "monthly_cashflow_pulse_card") {
+            MonthlyCashflowPulseCard(
+                yearlyMonths = yearlyMonthsData,
                 currencySymbol = currencySymbol,
                 isDiscreet = isDiscreetMode,
-                onInfoClick = {
-                    onOpenGraphGuide(
-                        GraphExplanationGuide(
-                            title = "Budget vs. Realized Outflow",
-                            subtitle = "Annualized Variance Analysis",
-                            whatItShows = "Compares actual realized category spending against real annualized limits configured in your Budget Planner.",
-                            visualElements = listOf(
-                                "Grey Bars" to "Annualized budget ceiling (Target × 12).",
-                                "Purple Bars" to "Actual realized annual spend.",
-                                "Red Bars" to "Identifies categories where spending exceeded targets."
-                            ),
-                            whyItMatters = "Pinpoints exact lifestyle domains where budget targets were violated over the calendar year.",
-                            actionableTip = "For categories flagged in red, tighten monthly limits or rebalance targets for the upcoming year."
-                        )
-                    )
-                }
+                onInfoClick = { onOpenMatrixSheet(CashflowMatrixSheetType.CASHFLOW_PULSE) }
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 3. CATEGORY TRAJECTORY LIST HEADER
-        item(key = "trajectories_title") {
+        // 3. ANNUAL 3-PILLAR CAPITAL DEPLOYMENT MATRIX (Opens 50/30/20 Benchmark Matrix)
+        item(key = "annual_three_pillar_matrix_card") {
+            AnnualThreePillarMatrixCard(
+                annualIncome = annualPersonalIncome,
+                totalFixed = totalFixedObligations,
+                totalVariable = totalDiscretionaryBurn,
+                totalAssets = totalYearlyAssets,
+                netCashRetained = netCashRetained,
+                fixedRatio = fixedRatio,
+                discretionaryRatio = discretionaryRatio,
+                assetRatio = assetRatio,
+                retainedRatio = retainedRatio,
+                currencySymbol = currencySymbol,
+                isDiscreet = isDiscreetMode,
+                onInfoClick = { onOpenMatrixSheet(CashflowMatrixSheetType.THREE_PILLAR_ALLOCATION) }
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+        }
+
+        // 4. YEAR-END PROJECTED RUN-RATE FORECAST (Opens 12-Month Extrapolation Math)
+        item(key = "annual_forecast_runrate_card") {
+            AnnualForecastRunRateCard(
+                activeMonths = activeMonthsCount,
+                projectedInflow = projectedInflow,
+                projectedBurn = projectedBurn,
+                projectedAssets = projectedAssets,
+                projectedSurplus = projectedNetSurplus,
+                currencySymbol = currencySymbol,
+                isDiscreet = isDiscreetMode,
+                onInfoClick = { onOpenMatrixSheet(CashflowMatrixSheetType.RUN_RATE_FORECAST) }
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+        }
+
+        // 5. CORPORATE FLOAT & CLAIMS BANNER (Opens Outlay & Advance Ledger)
+        if (reimbursementStatus.cumulativeWorkExpenses > 0.0 || reimbursementStatus.excessAdvanceHeld > 0.0 || reimbursementStatus.pendingReimbursement > 0.0) {
+            item(key = "reimbursement_banner") {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onOpenMatrixSheet(CashflowMatrixSheetType.CORPORATE_FLOAT) },
+                    shape = RoundedCornerShape(16.dp),
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, Warning500.copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Warning100),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.WorkOutline,
+                                contentDescription = null,
+                                tint = Warning700,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Corporate Float & Claims", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = when {
+                                    reimbursementStatus.excessAdvanceHeld > 0.0 ->
+                                        "Holding ${currencySymbol}${String.format(Locale.US, "%,.0f", reimbursementStatus.excessAdvanceHeld)} upfront company advance (ring-fenced)."
+                                    reimbursementStatus.pendingReimbursement > 0.0 ->
+                                        "Company owes you ${currencySymbol}${String.format(Locale.US, "%,.0f", reimbursementStatus.pendingReimbursement)} in pending claims."
+                                    else -> "All corporate outlays fully settled."
+                                },
+                                fontSize = 10.5.sp,
+                                color = if (reimbursementStatus.isSettled) Success700 else Warning700,
+                                lineHeight = 14.sp
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            val floatAmount = if (reimbursementStatus.excessAdvanceHeld > 0.0) {
+                                reimbursementStatus.excessAdvanceHeld
+                            } else {
+                                reimbursementStatus.pendingReimbursement
+                            }
+
+                            val displayAmt: Double = if (floatAmount > 0.0) floatAmount else reimbursementStatus.totalWorkExpenses
+
+                            Text(
+                                text = if (isDiscreetMode) "••••" else "${currencySymbol}${String.format(Locale.US, "%,.0f", displayAmt)}",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 13.5.sp,
+                                color = if (reimbursementStatus.isSettled) Success700 else Warning700
+                            )
+                            Text(
+                                text = when {
+                                    reimbursementStatus.excessAdvanceHeld > 0.0 -> "Advance Held"
+                                    reimbursementStatus.pendingReimbursement > 0.0 -> "Claim Due"
+                                    else -> "Settled"
+                                },
+                                fontSize = 9.sp,
+                                color = TextMuted
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+
+        // 6. FISCAL QUARTER RETENTION GRID (Opens Quarterly Breakdown Sheet)
+        item(key = "cashflow_quarterly_grid") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onOpenMatrixSheet(CashflowMatrixSheetType.QUARTERLY_RETENTION) },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Fiscal Quarter Retention", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Default.HelpOutline,
+                        contentDescription = "Quarterly Matrix",
+                        tint = Primary600,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                quarterlyData.forEach { q ->
+                    val hasActivity = q.totalIncome > 0.0 || q.totalExpenses > 0.0 || q.totalAssets > 0.0
+                    val rateText = if (!hasActivity) "—" else "${q.savingsRate.toInt()}%"
+                    val rateColor = if (!hasActivity) TextMuted else if (q.netSurplus >= 0) SoftTeal else Error700
+                    val surplusText = if (!hasActivity) "Pending" else "${currencySymbol}${(q.netSurplus / 1000).toInt()}k"
+
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(13.dp))
+                            .clickable { onOpenMatrixSheet(CashflowMatrixSheetType.QUARTERLY_RETENTION) },
+                        shape = RoundedCornerShape(13.dp),
+                        color = CardWhite,
+                        border = BorderStroke(0.7.dp, BorderLight)
+                    ) {
+                        Column(modifier = Modifier.padding(9.dp)) {
+                            Text(q.quarterLabel, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = if (isDiscreetMode) "••••" else rateText,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Black,
+                                color = rateColor
+                            )
+                            Text(
+                                text = if (isDiscreetMode) "••••" else surplusText,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (!hasActivity) TextMuted else TextDark
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// =========================================================
+// 1. DUAL SMOOTH WAVE CARD (COMPACT & CLICKABLE)
+// =========================================================
+
+@Composable
+private fun DualSmoothWaveCard(
+    title: String,
+    subtitle: String,
+    yearlyMonths: List<YearlyMonthData>,
+    annualIncome: Double,
+    annualExpenses: Double,
+    activeMonthsCount: Int,
+    currencySymbol: String,
+    isDiscreet: Boolean,
+    onInfoClick: () -> Unit
+) {
+    var selectedMonthIndex by remember { mutableStateOf<Int?>(null) }
+    val activeMonthlyAvgBurn = if (annualExpenses > 0) annualExpenses / activeMonthsCount else 0.0
+
+    val netOperatingSurplus = annualIncome - annualExpenses
+    val retentionPercentage = if (annualIncome > 0) {
+        ((netOperatingSurplus / annualIncome) * 100).coerceIn(-100.0, 100.0).roundToInt()
+    } else 0
+
+    val peakMonth = yearlyMonths.filter { !it.isFuture }.maxByOrNull { it.lifestyleExpenses }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp),
+        color = CardWhite,
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onInfoClick),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, fontWeight = FontWeight.Black, fontSize = 16.5.sp, color = TextDark)
+                    Text(subtitle, fontSize = 10.5.sp, color = TextMuted)
+                }
+
+                IconButton(
+                    onClick = onInfoClick,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Graph Matrix",
+                        tint = TextMuted,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Interactive Touch Scrubber Banner
+            AnimatedContent(
+                targetState = selectedMonthIndex,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "ScrubberBanner"
+            ) { scrubIdx ->
+                if (scrubIdx != null && scrubIdx in yearlyMonths.indices) {
+                    val mData = yearlyMonths[scrubIdx]
+                    val mInflow = mData.personalIncome
+                    val mBurn = mData.lifestyleExpenses
+                    val mSurplus = mData.netSavings
+                    val mRate = if (mInflow > 0) ((mSurplus / mInflow) * 100).toInt() else 0
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Primary50,
+                        border = BorderStroke(0.6.dp, Primary200),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "${mData.monthName} ${if (mData.isFuture) "(Plan)" else ""}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.5.sp,
+                                    color = Primary700
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(
+                                    onClick = { selectedMonthIndex = null },
+                                    modifier = Modifier.size(16.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear Selection",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = if (isDiscreet) "••••" else "In: $currencySymbol${String.format(Locale.US, "%,.0f", mInflow)}",
+                                    fontSize = 10.sp,
+                                    color = Success700,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (isDiscreet) "••••" else "Burn: $currencySymbol${String.format(Locale.US, "%,.0f", mBurn)}",
+                                    fontSize = 10.sp,
+                                    color = Primary600,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (isDiscreet) "••••" else "${if (mSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", mSurplus)} ($mRate%)",
+                                    fontSize = 10.sp,
+                                    color = if (mSurplus >= 0) SoftTeal else Error700,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier.height(20.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(
+                            text = "Tap or drag across wave to inspect monthly cashflow",
+                            fontSize = 9.5.sp,
+                            color = TextMuted.copy(alpha = 0.75f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Dual Wave Canvas
+            DualWaveCanvas(
+                yearlyMonths = yearlyMonths,
+                selectedMonthIndex = selectedMonthIndex,
+                onSelectMonth = { selectedMonthIndex = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(118.dp)
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            // X-Axis Month Markers
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                MONTH_SHORT_LABELS.forEachIndexed { idx, label ->
+                    val isSelected = selectedMonthIndex == idx
+                    val isFuture = yearlyMonths.getOrNull(idx)?.isFuture == true
+                    Text(
+                        text = label,
+                        fontSize = 9.sp,
+                        fontWeight = if (isSelected) FontWeight.Black else FontWeight.SemiBold,
+                        color = when {
+                            isSelected -> Primary600
+                            isFuture -> TextMuted.copy(alpha = 0.4f)
+                            else -> TextDark
+                        },
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.width(14.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Legend
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Success500))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Inflow", fontSize = 9.5.sp, color = TextDark, fontWeight = FontWeight.Bold)
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Primary600))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Lifestyle Burn", fontSize = 9.5.sp, color = TextDark, fontWeight = FontWeight.Bold)
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Neutral300))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Projected", fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.8.dp)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Bottom Metrics
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Category Trajectory & Spikes", fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = TextDark)
-                    Text("12-month pattern with peak burn month", fontSize = 10.5.sp, color = TextMuted)
-                }
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = CanvasLight,
-                    border = BorderStroke(0.6.dp, BorderLight)
-                ) {
+                    Text("Active Monthly Burn", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(1.dp))
                     Text(
-                        text = "${categoryTrajectories.size} Categories",
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextDark,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", activeMonthlyAvgBurn)}",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextDark
                     )
-                }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-        }
-
-        if (categoryTrajectories.isEmpty()) {
-            item(key = "empty_trajectories") {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = CardWhite,
-                    border = BorderStroke(0.8.dp, BorderLight)
-                ) {
-                    Box(modifier = Modifier.padding(28.dp), contentAlignment = Alignment.Center) {
-                        Text("No recorded category expenses for this year", fontSize = 12.sp, color = TextMuted)
-                    }
-                }
-            }
-        } else {
-            items(categoryTrajectories, key = { it.categoryName }) { item ->
-                val isLegacy = remember(isCategoryLegacy, item.categoryName) {
-                    isCategoryLegacy(item.categoryName)
-                }
-                val plannedCeiling = plannedCategoryCeilings[item.categoryName.trim()] ?: 0.0
-
-                PolishedCategoryTrajectoryRow(
-                    item = item,
-                    annualCeiling = plannedCeiling,
-                    currencySymbol = currencySymbol,
-                    isDiscreet = isDiscreetMode,
-                    isLegacy = isLegacy,
-                    onClick = { onCategoryClick(item.categoryName) }
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-        }
-    }
-}
-
-// =========================================================
-// 1. COMPACT PARETO RADAR CARD (WITH ADAPTIVE N < 3 FALLBACK)
-// =========================================================
-
-@Composable
-private fun CompactParetoRadarCard(
-    categoryTrajectories: List<CategoryAnnualTrajectory>,
-    paretoMetrics: Pair<Int, Int>?,
-    totalBurn: Double,
-    currencySymbol: String,
-    isDiscreet: Boolean,
-    onInfoClick: () -> Unit
-) {
-    val topCategories = remember(categoryTrajectories) {
-        categoryTrajectories.take(6)
-    }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(20.dp)),
-        shape = RoundedCornerShape(20.dp),
-        color = CardWhite,
-        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onInfoClick),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Annual Spending Pareto", fontWeight = FontWeight.Black, fontSize = 16.5.sp, color = TextDark)
                     Text(
-                        text = if (isDiscreet) "Total Burn: ••••" else "Total Burn: $currencySymbol${String.format(Locale.US, "%,.0f", totalBurn)}",
-                        fontSize = 10.5.sp,
-                        color = TextMuted
+                        text = if (peakMonth != null && peakMonth.lifestyleExpenses > 0) "Peak: ${peakMonth.monthName}" else "$activeMonthsCount active mos",
+                        fontSize = 9.sp,
+                        color = Error700,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                IconButton(
-                    onClick = onInfoClick,
-                    modifier = Modifier.size(28.dp).clip(CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Pareto Explanation",
-                        tint = TextMuted,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (paretoMetrics != null) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = AccentPurple.copy(alpha = 0.08f),
-                    border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.25f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.PieChart, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Top ${paretoMetrics.first} categories drive ${paretoMetrics.second}% of annual burn",
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AccentPurple
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            if (topCategories.size >= 3) {
-                // Star Polygon for >= 3 categories
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(135.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CompactStarRadarCanvas(
-                        topCategories = topCategories,
-                        modifier = Modifier.fillMaxSize()
-                    )
-
-                    Surface(
-                        modifier = Modifier.size(28.dp),
-                        shape = CircleShape,
-                        color = CardWhite,
-                        shadowElevation = 2.dp,
-                        border = BorderStroke(0.8.dp, Color(0xFFEDE9FE))
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Operating Surplus", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = if (netOperatingSurplus >= 0) SoftTealLight else Error100
+                        ) {
                             Text(
-                                text = "${topCategories.size}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Black,
-                                color = AccentPurple
+                                text = "$retentionPercentage% Retained",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (netOperatingSurplus >= 0) SoftTeal else Error700,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }
                     }
-                }
-            } else if (topCategories.isNotEmpty()) {
-                // Adaptive Split Bar for 1 or 2 categories
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(12.dp)
-                            .clip(CircleShape)
-                            .background(BorderLight.copy(alpha = 0.4f))
-                    ) {
-                        topCategories.forEachIndexed { idx, cat ->
-                            val color = RADAR_PALETTE[idx % RADAR_PALETTE.size]
-                            val ratio = if (totalBurn > 0) (cat.annualTotal / totalBurn).toFloat().coerceIn(0.04f, 1f) else 1f
-                            Box(
-                                modifier = Modifier
-                                    .weight(ratio)
-                                    .fillMaxHeight()
-                                    .background(color)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                topCategories.chunked(2).forEach { rowPair ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        rowPair.forEach { cat ->
-                            val colorIdx = (topCategories.indexOf(cat)).coerceIn(0, RADAR_PALETTE.lastIndex)
-                            val chipColor = RADAR_PALETTE[colorIdx]
-
-                            Row(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(CanvasLight)
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
-                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(chipColor))
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Text(
-                                        text = cat.categoryName,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = TextDark,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Text(
-                                    text = "${cat.percentageOfTotal.toInt()}%",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = chipColor
-                                )
-                            }
-                        }
-                        if (rowPair.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(1.dp))
+                    Text(
+                        text = if (isDiscreet) "••••" else "${if (netOperatingSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", netOperatingSurplus)}",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (netOperatingSurplus >= 0) SoftTeal else Error700
+                    )
+                    Text(
+                        text = "Net Operating Spread",
+                        fontSize = 9.sp,
+                        color = TextMuted,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
     }
 }
 
-@Composable
-private fun CompactStarRadarCanvas(
-    topCategories: List<CategoryAnnualTrajectory>,
-    modifier: Modifier = Modifier
-) {
-    Canvas(modifier = modifier) {
-        val count = topCategories.size
-        val c = center
-        val maxR = size.minDimension * 0.44f
-
-        for (ring in 1..3) {
-            val r = maxR * (ring / 3f)
-            drawCircle(
-                color = Color(0xFFF1F5F9),
-                radius = r,
-                center = c,
-                style = Stroke(width = 0.8.dp.toPx())
-            )
-        }
-
-        if (count < 3) return@Canvas
-
-        val n = count.coerceAtMost(6)
-        val maxAmt = topCategories.maxOfOrNull { it.annualTotal }?.coerceAtLeast(1.0) ?: 1.0
-        val polyPath = Path()
-
-        for (i in 0 until n) {
-            val amt = topCategories.getOrNull(i)?.annualTotal ?: 0.0
-            val ratio = (amt / maxAmt).toFloat().coerceIn(0.18f, 0.95f)
-            val rTip = maxR * ratio
-            val angTip = (i * 2 * Math.PI / n) - Math.PI / 2
-            val pTip = Offset(c.x + (rTip * cos(angTip)).toFloat(), c.y + (rTip * sin(angTip)).toFloat())
-
-            val nextAmt = topCategories.getOrNull((i + 1) % n)?.annualTotal ?: 0.0
-            val nextRatio = (nextAmt / maxAmt).toFloat().coerceIn(0.18f, 0.95f)
-            val rValley = min(rTip, maxR * nextRatio) * 0.58f
-            val angValley = ((i + 0.5) * 2 * Math.PI / n) - Math.PI / 2
-            val pValley = Offset(c.x + (rValley * cos(angValley)).toFloat(), c.y + (rValley * sin(angValley)).toFloat())
-
-            drawLine(
-                color = Color(0xFFE2E8F0),
-                start = c,
-                end = Offset(c.x + (maxR * cos(angTip)).toFloat(), c.y + (maxR * sin(angTip)).toFloat()),
-                strokeWidth = 0.8.dp.toPx()
-            )
-
-            if (i == 0) polyPath.moveTo(pTip.x, pTip.y) else polyPath.lineTo(pTip.x, pTip.y)
-            polyPath.lineTo(pValley.x, pValley.y)
-        }
-        polyPath.close()
-
-        drawPath(
-            path = polyPath,
-            brush = Brush.radialGradient(
-                colors = listOf(Color(0xFF8B5CF6).copy(alpha = 0.35f), Color(0xFF8B5CF6).copy(alpha = 0.08f)),
-                center = c,
-                radius = maxR
-            )
-        )
-        drawPath(
-            path = polyPath,
-            color = Color(0xFF8B5CF6),
-            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-        )
-
-        for (i in 0 until n) {
-            val amt = topCategories.getOrNull(i)?.annualTotal ?: 0.0
-            val ratio = (amt / maxAmt).toFloat().coerceIn(0.18f, 0.95f)
-            val rTip = maxR * ratio
-            val angTip = (i * 2 * Math.PI / n) - Math.PI / 2
-            val pTip = Offset(c.x + (rTip * cos(angTip)).toFloat(), c.y + (rTip * sin(angTip)).toFloat())
-
-            val dotColor = RADAR_PALETTE[i % RADAR_PALETTE.size]
-            drawCircle(color = Color.White, radius = 4.dp.toPx(), center = pTip)
-            drawCircle(color = dotColor, radius = 2.5.dp.toPx(), center = pTip)
-        }
-    }
-}
-
 // =========================================================
-// 2. BUDGET VS ACTUAL DUAL PILLARS (OVERRUN SENSITIVE)
+// 2. 12-MONTH NET CASHFLOW PULSE CARD (CLICKABLE)
 // =========================================================
 
 @Composable
-private fun CompactBudgetVsActualCard(
-    categoryTrajectories: List<CategoryAnnualTrajectory>,
-    plannedCategoryCeilings: Map<String, Double>,
-    overrunCount: Int,
-    totalOverrun: Double,
+private fun MonthlyCashflowPulseCard(
+    yearlyMonths: List<YearlyMonthData>,
     currencySymbol: String,
     isDiscreet: Boolean,
     onInfoClick: () -> Unit
 ) {
-    val displayList = remember(categoryTrajectories, plannedCategoryCeilings) {
-        val overruns = categoryTrajectories.filter { cat ->
-            val planned = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
-            planned > 0.0 && cat.annualTotal > planned
-        }.sortedByDescending { cat ->
-            cat.annualTotal - (plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0)
-        }
-        val others = categoryTrajectories.filter { it !in overruns }
-            .sortedByDescending { it.annualTotal }
-        (overruns + others).take(4)
-    }
+    val maxNet = yearlyMonths.maxOfOrNull { abs(it.netSavings) }?.coerceAtLeast(100.0) ?: 100.0
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(20.dp)),
-        shape = RoundedCornerShape(20.dp),
+            .shadow(2.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onInfoClick),
+        shape = RoundedCornerShape(16.dp),
         color = CardWhite,
-        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onInfoClick),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Budget vs. Realized Outflow", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark)
-                    Text("Variance analysis against annualized planner limits", fontSize = 10.5.sp, color = TextMuted)
-                }
-
-                IconButton(
-                    onClick = onInfoClick,
-                    modifier = Modifier.size(28.dp).clip(CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Variance Explanation",
-                        tint = TextMuted,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = if (overrunCount > 0) SoftRed.copy(alpha = 0.08f) else SoftGreen.copy(alpha = 0.08f),
-                border = BorderStroke(0.6.dp, if (overrunCount > 0) SoftRed.copy(alpha = 0.25f) else SoftGreen.copy(alpha = 0.25f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = if (overrunCount > 0) Icons.Default.WarningAmber else Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = if (overrunCount > 0) SoftRed else SoftGreen,
-                        modifier = Modifier.size(14.dp)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftTeal))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (overrunCount > 0) {
-                            if (isDiscreet) "$overrunCount categories exceeded budget" else "$overrunCount categories exceeded budget (+$currencySymbol${String.format(Locale.US, "%,.0f", totalOverrun)})"
-                        } else {
-                            "All categories within planned annual ceilings"
-                        },
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (overrunCount > 0) SoftRed else SoftGreen
+                        text = "12-MONTH CASHFLOW PULSE",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextMuted,
+                        letterSpacing = 0.6.sp
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Icon(
+                        imageVector = Icons.Default.HelpOutline,
+                        contentDescription = "Pulse Matrix",
+                        tint = Primary600,
+                        modifier = Modifier.size(13.dp)
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            if (displayList.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 20.dp),
-                    contentAlignment = Alignment.Center
+                val surplusMonths = yearlyMonths.count { !it.isFuture && it.netSavings > 0 }
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Success100
                 ) {
-                    Text("No planned or realized category data available", fontSize = 11.5.sp, color = TextMuted)
-                }
-            } else {
-                val maxBurn = displayList.maxOfOrNull { cat ->
-                    max(cat.annualTotal, plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0)
-                }?.coerceAtLeast(100.0) ?: 100.0
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(105.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    displayList.forEach { cat ->
-                        val actualRatio = (cat.annualTotal / maxBurn).toFloat().coerceIn(0.10f, 1f)
-                        val plannedAmt = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
-                        val plannedRatio = if (plannedAmt > 0) (plannedAmt / maxBurn).toFloat().coerceIn(0.08f, 1f) else 0.04f
-                        val isOverrun = plannedAmt > 0 && cat.annualTotal > plannedAmt
-
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Bottom,
-                            modifier = Modifier.fillMaxHeight()
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.Bottom
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .width(13.dp)
-                                        .height((76 * plannedRatio).dp)
-                                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                        .background(if (plannedAmt > 0) Color(0xFFCBD5E1) else Color(0xFFE2E8F0))
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .width(13.dp)
-                                        .height((76 * actualRatio).dp)
-                                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                        .background(if (isOverrun) SoftRed else Color(0xFF8B5CF6))
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(5.dp))
-                            Text(
-                                text = cat.categoryName,
-                                fontSize = 9.sp,
-                                color = if (isOverrun) SoftRed else TextMuted,
-                                fontWeight = if (isOverrun) FontWeight.Bold else FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.width(48.dp)
-                            )
-                        }
-                    }
+                    Text(
+                        text = "$surplusMonths / 12 Surplus",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Success700,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
-            HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
-            Spacer(modifier = Modifier.height(8.dp))
 
+            // Pulse Bars
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFCBD5E1)))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Planned Target", fontSize = 9.5.sp, color = TextMuted)
-                }
-                Spacer(modifier = Modifier.width(18.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF8B5CF6)))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Spend (Normal)", fontSize = 9.5.sp, color = TextMuted)
-                }
-                Spacer(modifier = Modifier.width(18.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftRed))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Overrun", fontSize = 9.5.sp, color = SoftRed, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-// =========================================================
-// 3. POLISHED CATEGORY TRAJECTORY ROW (PRIVACY-SAFE)
-// =========================================================
-
-@Composable
-private fun PolishedCategoryTrajectoryRow(
-    item: CategoryAnnualTrajectory,
-    annualCeiling: Double,
-    currencySymbol: String,
-    isDiscreet: Boolean,
-    isLegacy: Boolean = false,
-    onClick: () -> Unit = {}
-) {
-    val isOverrun = annualCeiling > 0.0 && item.annualTotal > annualCeiling
-    val monthlyAverage = item.annualTotal / 12.0
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        color = CardWhite,
-        border = BorderStroke(
-            0.7.dp,
-            when {
-                isOverrun -> SoftRed.copy(alpha = 0.5f)
-                isLegacy -> Color(0xFFFFB74D).copy(alpha = 0.7f)
-                else -> BorderLight
-            }
-        )
-    ) {
-        Column(modifier = Modifier.padding(13.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f, fill = false)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(item.categoryName, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextDark)
-                        if (isLegacy) {
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = Color(0xFFFFF3E0),
-                                border = BorderStroke(0.6.dp, Color(0xFFFFB74D))
-                            ) {
-                                Text(
-                                    text = "Legacy",
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFE65100),
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                )
-                            }
-                        }
-                        if (isOverrun) {
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = SoftRed.copy(alpha = 0.12f)
-                            ) {
-                                Text(
-                                    text = "Over Budget",
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SoftRed,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                )
-                            }
-                        }
-                    }
-                    Text(
-                        text = "${String.format(Locale.US, "%.1f", item.percentageOfTotal)}% of annual outflow • Avg $currencySymbol${String.format(Locale.US, "%,.0f", monthlyAverage)}/mo",
-                        fontSize = 10.sp,
-                        color = TextMuted
-                    )
-                }
+                yearlyMonths.forEach { m ->
+                    val isFuture = m.isFuture
+                    val net = m.netSavings
+                    val ratio = (abs(net) / maxNet).toFloat().coerceIn(0.12f, 1f)
+                    val barHeight = (20 * ratio).dp
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.annualTotal)}",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 14.5.sp,
-                            color = if (isOverrun) SoftRed else AccentPurple
-                        )
-                        if (annualCeiling > 0) {
-                            Text(
-                                text = if (isDiscreet) "Cap: ••••" else "Cap: $currencySymbol${String.format(Locale.US, "%,.0f", annualCeiling)}",
-                                fontSize = 9.sp,
-                                color = TextMuted
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(BorderLight)
                             )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Inspect Category",
-                        tint = TextMuted.copy(alpha = 0.6f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(26.dp)
-            ) {
-                if (item.monthlyAmounts.isNotEmpty()) {
-                    val maxMonth = item.monthlyAmounts.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
-                    val count = item.monthlyAmounts.size.coerceAtLeast(2)
-                    val pts = item.monthlyAmounts.mapIndexed { idx, amt ->
-                        val x = (idx.toFloat() / (count - 1).toFloat()) * size.width
-                        val y = size.height * (1f - (amt / maxMonth).toFloat().coerceIn(0.12f, 0.88f))
-                        Offset(x, y)
-                    }
-
-                    val path = Path()
-                    pts.forEachIndexed { idx, pt ->
-                        if (idx == 0) path.moveTo(pt.x, pt.y) else path.lineTo(pt.x, pt.y)
-                    }
-                    drawPath(
-                        path = path,
-                        color = if (isOverrun) SoftRed else if (item.annualTotal <= 0.0) BorderLight else AccentPurple,
-                        style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
-                    )
-
-                    if (item.annualTotal > 0.0) {
-                        val peakPt = pts.getOrNull(item.peakMonthIndex.coerceIn(0, (pts.size - 1).coerceAtLeast(0)))
-                        if (peakPt != null) {
-                            drawCircle(color = Color.White, radius = 4.dp.toPx(), center = peakPt)
-                            drawCircle(color = if (isOverrun) SoftRed else AccentPurple, radius = 2.6.dp.toPx(), center = peakPt)
+                            if (isFuture) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(4.dp)
+                                        .clip(CircleShape)
+                                        .background(Neutral300)
+                                )
+                            } else if (abs(net) < 1.0) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(4.dp)
+                                        .clip(CircleShape)
+                                        .background(BorderLight)
+                                )
+                            } else {
+                                val isPositive = net > 0
+                                Box(
+                                    modifier = Modifier
+                                        .width(8.dp)
+                                        .height(barHeight)
+                                        .offset(y = if (isPositive) (-barHeight / 2) else (barHeight / 2))
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(if (isPositive) Success500 else Error500)
+                                )
+                            }
                         }
                     }
                 }
@@ -826,22 +698,453 @@ private fun PolishedCategoryTrajectoryRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Jan", fontSize = 8.5.sp, color = TextMuted)
-                val peakMonthName = YEARLY_MONTH_NAMES.getOrNull(item.peakMonthIndex.coerceIn(0, 11)) ?: "Jan"
-                Text(
-                    text = if (item.annualTotal <= 0.0) {
-                        "No spend recorded"
-                    } else if (isDiscreet) {
-                        "Peak: $peakMonthName"
-                    } else {
-                        "Peak: $peakMonthName ($currencySymbol${String.format(Locale.US, "%,.0f", item.peakMonthAmount)})"
-                    },
-                    fontSize = 9.sp,
-                    color = if (isOverrun) SoftRed else AccentPurple,
-                    fontWeight = FontWeight.Bold
-                )
-                Text("Dec", fontSize = 8.5.sp, color = TextMuted)
+                MONTH_SHORT_LABELS.forEach { m ->
+                    Text(
+                        text = m,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextMuted,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
+        }
+    }
+}
+
+// =========================================================
+// 3. ANNUAL 3-PILLAR ALLOCATION MATRIX CARD (CLICKABLE)
+// =========================================================
+
+@Composable
+private fun AnnualThreePillarMatrixCard(
+    annualIncome: Double,
+    totalFixed: Double,
+    totalVariable: Double,
+    totalAssets: Double,
+    netCashRetained: Double,
+    fixedRatio: Float,
+    discretionaryRatio: Float,
+    assetRatio: Float,
+    retainedRatio: Float,
+    currencySymbol: String,
+    isDiscreet: Boolean,
+    onInfoClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(2.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onInfoClick),
+        shape = RoundedCornerShape(16.dp),
+        color = CardWhite,
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Primary600))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "ANNUAL 3-PILLAR ALLOCATION",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextMuted,
+                        letterSpacing = 0.6.sp
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Icon(
+                        imageVector = Icons.Default.HelpOutline,
+                        contentDescription = "Pillar Matrix",
+                        tint = Primary600,
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+
+                Text(
+                    text = if (isDiscreet) "Inflow: ••••" else "Inflow: $currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)}",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            val totalDeployment = (totalFixed + totalVariable + totalAssets + maxOf(0.0, netCashRetained)).coerceAtLeast(1.0)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.5.dp)
+                    .clip(CircleShape)
+                    .background(BorderLight.copy(alpha = 0.4f))
+            ) {
+                if (totalFixed > 0) {
+                    Box(modifier = Modifier.weight((totalFixed / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Neutral600))
+                }
+                if (totalVariable > 0) {
+                    Box(modifier = Modifier.weight((totalVariable / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Primary600))
+                }
+                if (totalAssets > 0) {
+                    Box(modifier = Modifier.weight((totalAssets / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(SoftTeal))
+                }
+                if (netCashRetained > 0) {
+                    Box(modifier = Modifier.weight((netCashRetained / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Success500))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                PillarAllocationPill(
+                    title = "Fixed Bills",
+                    amount = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalFixed)}",
+                    percentage = "${(fixedRatio * 100).toInt()}%",
+                    color = Neutral600,
+                    modifier = Modifier.weight(1f)
+                )
+                PillarAllocationPill(
+                    title = "Lifestyle",
+                    amount = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalVariable)}",
+                    percentage = "${(discretionaryRatio * 100).toInt()}%",
+                    color = Primary600,
+                    modifier = Modifier.weight(1f)
+                )
+                PillarAllocationPill(
+                    title = "Assets SIP",
+                    amount = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalAssets)}",
+                    percentage = "${(assetRatio * 100).toInt()}%",
+                    color = SoftTeal,
+                    modifier = Modifier.weight(1f)
+                )
+                PillarAllocationPill(
+                    title = if (netCashRetained >= 0) "Retained" else "Deficit",
+                    amount = if (isDiscreet) "••••" else "${if (netCashRetained < 0) "-" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", abs(netCashRetained))}",
+                    percentage = "${(retainedRatio * 100).toInt()}%",
+                    color = if (netCashRetained >= 0) Success500 else Error500,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PillarAllocationPill(
+    title: String,
+    amount: String,
+    percentage: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(9.dp),
+        color = CanvasLight,
+        border = BorderStroke(0.6.dp, BorderLight)
+    ) {
+        Column(modifier = Modifier.padding(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(color))
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(title, fontSize = 8.5.sp, color = TextMuted, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(modifier = Modifier.height(1.dp))
+            Text(amount, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Text(percentage, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = color)
+        }
+    }
+}
+
+// =========================================================
+// 4. YEAR-END PROJECTED RUN-RATE CARD (CLICKABLE)
+// =========================================================
+
+@Composable
+private fun AnnualForecastRunRateCard(
+    activeMonths: Int,
+    projectedInflow: Double,
+    projectedBurn: Double,
+    projectedAssets: Double,
+    projectedSurplus: Double,
+    currencySymbol: String,
+    isDiscreet: Boolean,
+    onInfoClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(2.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onInfoClick),
+        shape = RoundedCornerShape(16.dp),
+        color = CardWhite,
+        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Warning500))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "12-MONTH RUN-RATE FORECAST",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextMuted,
+                        letterSpacing = 0.6.sp
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Icon(
+                        imageVector = Icons.Default.HelpOutline,
+                        contentDescription = "Forecast Matrix",
+                        tint = Primary600,
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Warning100
+                ) {
+                    Text(
+                        text = "Paced on $activeMonths Active Mos",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Warning700,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Forecasted Inflow", fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(1.dp))
+                    Text(
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projectedInflow)}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .height(26.dp)
+                        .width(1.dp)
+                        .background(BorderLight)
+                )
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Forecasted Burn", fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(1.dp))
+                    Text(
+                        text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projectedBurn)}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Error700
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .height(26.dp)
+                        .width(1.dp)
+                        .background(BorderLight)
+                )
+
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                    Text("Year-End Surplus", fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(1.dp))
+                    Text(
+                        text = if (isDiscreet) "••••" else "${if (projectedSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", projectedSurplus)}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (projectedSurplus >= 0) SoftTeal else Error700
+                    )
+                }
+            }
+        }
+    }
+}
+
+// =========================================================
+// 5. CANVAS DRAWING IMPLEMENTATION (DUAL WAVE)
+// =========================================================
+
+@Composable
+private fun DualWaveCanvas(
+    yearlyMonths: List<YearlyMonthData>,
+    selectedMonthIndex: Int?,
+    onSelectMonth: (Int?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Canvas(
+        modifier = modifier
+            .pointerInput(yearlyMonths) {
+                detectTapGestures(
+                    onTap = { offset ->
+                        val stepX = size.width / 11f.coerceAtLeast(1f)
+                        val idx = (offset.x / stepX).roundToInt().coerceIn(0, 11)
+                        onSelectMonth(if (selectedMonthIndex == idx) null else idx)
+                    }
+                )
+            }
+            .pointerInput(yearlyMonths) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val stepX = size.width / 11f.coerceAtLeast(1f)
+                        val idx = (offset.x / stepX).roundToInt().coerceIn(0, 11)
+                        onSelectMonth(idx)
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        val stepX = size.width / 11f.coerceAtLeast(1f)
+                        val idx = (change.position.x / stepX).roundToInt().coerceIn(0, 11)
+                        onSelectMonth(idx)
+                    }
+                )
+            }
+    ) {
+        val w = size.width
+        val h = size.height
+        val count = 12
+        val stepX = w / (count - 1).toFloat()
+
+        val personalInflows = yearlyMonths.map { it.personalIncome }
+        val personalBurns = yearlyMonths.map { it.lifestyleExpenses }
+
+        val maxVal = (personalInflows + personalBurns).maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
+
+        for (i in 1..2) {
+            val y = h * (i / 3f)
+            drawLine(
+                color = Neutral100,
+                start = Offset(0f, y),
+                end = Offset(w, y),
+                strokeWidth = 1.dp.toPx()
+            )
+        }
+
+        val firstFutureIndex = yearlyMonths.indexOfFirst { it.isFuture }
+        if (firstFutureIndex != -1) {
+            val futureStartX = firstFutureIndex * stepX
+            drawRect(
+                color = Neutral50.copy(alpha = 0.75f),
+                topLeft = Offset(futureStartX, 0f),
+                size = Size(w - futureStartX, h)
+            )
+            drawLine(
+                color = Neutral300,
+                start = Offset(futureStartX, 0f),
+                end = Offset(futureStartX, h),
+                strokeWidth = 1.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 5f), 0f)
+            )
+        }
+
+        val ptsInflow = personalInflows.mapIndexed { idx, inf ->
+            val x = idx * stepX
+            val ratio = (inf / maxVal).toFloat().coerceIn(0.04f, 0.90f)
+            val y = h * (1f - ratio)
+            Offset(x, y)
+        }
+
+        val ptsBurn = personalBurns.mapIndexed { idx, burn ->
+            val x = idx * stepX
+            val ratio = (burn / maxVal).toFloat().coerceIn(0.04f, 0.90f)
+            val y = h * (1f - ratio)
+            Offset(x, y)
+        }
+
+        fun drawSmoothLineAndArea(pts: List<Offset>, strokeColor: Color, gradientStart: Color) {
+            if (pts.isEmpty()) return
+            val path = Path().apply {
+                moveTo(pts[0].x, pts[0].y)
+                for (i in 0 until pts.size - 1) {
+                    val p0 = pts[i]
+                    val p1 = pts[i + 1]
+                    val cx = (p0.x + p1.x) / 2
+                    cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                }
+            }
+
+            val area = Path().apply {
+                addPath(path)
+                lineTo(pts.last().x, h)
+                lineTo(pts.first().x, h)
+                close()
+            }
+
+            drawPath(
+                path = area,
+                brush = Brush.verticalGradient(
+                    colors = listOf(gradientStart.copy(alpha = 0.20f), Color.Transparent),
+                    startY = 0f,
+                    endY = h
+                )
+            )
+
+            drawPath(
+                path = path,
+                color = strokeColor,
+                style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round)
+            )
+        }
+
+        drawSmoothLineAndArea(ptsInflow, Success500, Success500)
+        drawSmoothLineAndArea(ptsBurn, Primary600, Primary600)
+
+        val peakBurnIdx = personalBurns.indices.maxByOrNull { personalBurns[it] } ?: 0
+        val peakInflowIdx = personalInflows.indices.maxByOrNull { personalInflows[it] } ?: 0
+
+        if (ptsBurn.isNotEmpty() && personalBurns[peakBurnIdx] > 0) {
+            val peakPt = ptsBurn[peakBurnIdx]
+            drawCircle(color = CardWhite, radius = 4.5.dp.toPx(), center = peakPt)
+            drawCircle(color = Primary600, radius = 3.dp.toPx(), center = peakPt)
+        }
+
+        if (ptsInflow.isNotEmpty() && personalInflows[peakInflowIdx] > 0) {
+            val inPt = ptsInflow[peakInflowIdx]
+            drawCircle(color = CardWhite, radius = 4.5.dp.toPx(), center = inPt)
+            drawCircle(color = Success500, radius = 3.dp.toPx(), center = inPt)
+        }
+
+        if (selectedMonthIndex != null && selectedMonthIndex in ptsInflow.indices) {
+            val scrubX = selectedMonthIndex * stepX
+            drawLine(
+                color = Primary600.copy(alpha = 0.65f),
+                start = Offset(scrubX, 0f),
+                end = Offset(scrubX, h),
+                strokeWidth = 1.4.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 4f), 0f)
+            )
+
+            val inPoint = ptsInflow[selectedMonthIndex]
+            drawCircle(color = CardWhite, radius = 5.dp.toPx(), center = inPoint)
+            drawCircle(color = Success500, radius = 3.5.dp.toPx(), center = inPoint)
+
+            val burnPoint = ptsBurn[selectedMonthIndex]
+            drawCircle(color = CardWhite, radius = 5.dp.toPx(), center = burnPoint)
+            drawCircle(color = Primary600, radius = 3.5.dp.toPx(), center = burnPoint)
         }
     }
 }
