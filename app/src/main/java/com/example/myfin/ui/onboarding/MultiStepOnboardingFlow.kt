@@ -115,7 +115,6 @@ fun MultiStepOnboardingFlow(
                     initialAccounts[i] = acc.copy(defaultType = "Cash", minBalanceText = "0")
                 }
                 else -> {
-                    // Custom bank: adjust type only if switching to simple mode
                     if (!is3Vault && !acc.defaultType.equals("Cash", ignoreCase = true)) {
                         initialAccounts[i] = acc.copy(defaultType = "Operating", minBalanceText = "0")
                     }
@@ -155,7 +154,6 @@ fun MultiStepOnboardingFlow(
         if (hasSealedAndLaunched) return
         hasSealedAndLaunched = true
 
-        // Clean and format DOB digits (DD/MM/YYYY)
         val cleanDigits = rawDobDigits.filter { it.isDigit() }
         val formattedDob = if (cleanDigits.length == 8) {
             "${cleanDigits.substring(0, 2)}/${cleanDigits.substring(2, 4)}/${cleanDigits.substring(4, 8)}"
@@ -164,7 +162,6 @@ fun MultiStepOnboardingFlow(
         val salaryCommitment = initialCommitments.find { it.type == TransactionType.INCOME && it.isSelected }
         val parsedSalary = salaryCommitment?.amountText?.toDoubleOrNull() ?: 0.0
 
-        // 1. Single Atomic Profile & Security Persistence
         val finalProfile = UserProfile(
             id = 1,
             displayName = displayName.trim().ifEmpty { "Vault User" },
@@ -177,14 +174,12 @@ fun MultiStepOnboardingFlow(
             isOnboardingCompleted = true
         )
 
-        // Bind recovery keys and credentials
         if (formattedDob.isNotBlank()) {
             viewModel.securityManager.setRecoveryDob(formattedDob)
         }
         viewModel.saveMasterPin(masterPin.ifEmpty { "1234" })
         viewModel.saveUserProfile(finalProfile)
 
-        // 2. Set Up Accounts with User-Defined MAB Floored Values
         val accountEntities = initialAccounts.mapIndexed { index, acc ->
             val parsedMin = acc.minBalanceText.toDoubleOrNull() ?: 0.0
             AccountEntity(
@@ -198,7 +193,6 @@ fun MultiStepOnboardingFlow(
         }
         viewModel.replaceAllAccounts(accountEntities)
 
-        // 3. Set Up Commitments (Safe Fallback to avoid NoSuchElementException)
         val defaultAccountName = initialAccounts.firstOrNull()?.name?.trim()?.uppercase() ?: "PRIMARY BANK"
         val commitmentsAccountName = initialAccounts.firstOrNull { it.defaultType.equals("Commitments", ignoreCase = true) }?.name?.trim()?.uppercase()
             ?: defaultAccountName
@@ -242,7 +236,7 @@ fun MultiStepOnboardingFlow(
             .fillMaxSize()
             .background(CanvasLight)
     ) {
-        // Splash Transition
+        // Splash Transition (Royal Cobalt Blue & Deep Navy)
         AnimatedVisibility(
             visible = showSplashReveal,
             enter = fadeIn(),
@@ -257,9 +251,9 @@ fun MultiStepOnboardingFlow(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0xFF2D1B69),
-                                AccentPurpleDark,
-                                AccentPurple
+                                Neutral900,
+                                Primary900,
+                                Primary700
                             )
                         )
                     ),
@@ -285,7 +279,6 @@ fun MultiStepOnboardingFlow(
                             colorFilter = ColorFilter.tint(Color.White)
                         )
                     } else {
-                        // Outline Vector Logo Fallback
                         val infiniteTransition = rememberInfiniteTransition(label = "SplashLogoPulse")
                         val pulseScale by infiniteTransition.animateFloat(
                             initialValue = 0.94f,
@@ -322,7 +315,7 @@ fun MultiStepOnboardingFlow(
                         text = "Your Wealth. Your Rules. Zero Cloud.",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFFC084FC),
+                        color = Primary200,
                         textAlign = TextAlign.Center,
                         letterSpacing = 0.2.sp
                     )
