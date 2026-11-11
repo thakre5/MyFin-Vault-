@@ -51,11 +51,27 @@ data class NoteChecklistItem(
 private val NOTE_TAGS = listOf("All", "General", "To-Buy", "IOU / Split", "Tax & SIP", "Goals")
 
 private fun tagAccentColor(tag: String): Color = when (tag) {
-    "To-Buy" -> SoftAmber
-    "IOU / Split" -> SoftRed
+    "To-Buy" -> Warning500
+    "IOU / Split" -> Error500
     "Tax & SIP" -> SoftTeal
-    "Goals" -> Color(0xFF4F46E5)
-    else -> AccentPurple
+    "Goals" -> Primary700
+    else -> Primary600
+}
+
+private fun tagBadgeBgColor(tag: String): Color = when (tag) {
+    "To-Buy" -> Warning100
+    "IOU / Split" -> Error100
+    "Tax & SIP" -> SoftTealLight
+    "Goals" -> Primary100
+    else -> Primary50
+}
+
+private fun tagBadgeTextColor(tag: String): Color = when (tag) {
+    "To-Buy" -> Warning700
+    "IOU / Split" -> Error700
+    "Tax & SIP" -> SoftTeal
+    "Goals" -> Primary800
+    else -> Primary700
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,7 +101,6 @@ fun NotesScreen(
         }
     }
 
-    // Calculate total pending checklist value across all notes
     val totalPendingChecklistValue = remember(allNotes) {
         allNotes.filter { it.isChecklist }.sumOf { note ->
             parseChecklistJson(note.checklistJson).filter { !it.isChecked }.sumOf { it.amount }
@@ -100,28 +115,26 @@ fun NotesScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Secondary Quick-Checklist FAB
                 SmallFloatingActionButton(
                     onClick = {
                         editingNote = null
                         defaultNewChecklistMode = true
                         showEditorSheet = true
                     },
-                    containerColor = Color(0xFF1E293B),
+                    containerColor = Neutral800,
                     contentColor = Color.White,
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Icon(Icons.Default.Checklist, contentDescription = "New Checklist", modifier = Modifier.size(20.dp))
                 }
 
-                // Primary Note FAB
                 ExtendedFloatingActionButton(
                     onClick = {
                         editingNote = null
                         defaultNewChecklistMode = false
                         showEditorSheet = true
                     },
-                    containerColor = AccentPurple,
+                    containerColor = Primary600,
                     contentColor = Color.White,
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -193,20 +206,20 @@ fun NotesScreen(
                 }
             }
 
-            // 2. MIDNIGHT WORKSPACE OVERVIEW DECK
+            // 2. MIDNIGHT-TO-ROYAL-NAVY WORKSPACE OVERVIEW DECK
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(3.dp, RoundedCornerShape(20.dp)),
                 shape = RoundedCornerShape(20.dp),
-                color = Color(0xFF0F172A)
+                color = Neutral900
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
                             Brush.horizontalGradient(
-                                listOf(Color(0xFF0F172A), Color(0xFF1E1B4B))
+                                listOf(Neutral900, Primary900)
                             )
                         )
                         .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -218,7 +231,7 @@ fun NotesScreen(
                             text = "PENDING CHECKLIST ESTIMATES",
                             fontSize = 9.5.sp,
                             fontWeight = FontWeight.Black,
-                            color = Color(0xFFA5B4FC),
+                            color = Primary300,
                             letterSpacing = 0.7.sp
                         )
                         Spacer(modifier = Modifier.height(3.dp))
@@ -232,8 +245,8 @@ fun NotesScreen(
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        WorkspaceStatChip(label = "Notes", count = allNotes.size.toString(), tint = Color(0xFF38BDF8))
-                        WorkspaceStatChip(label = "Pinned", count = pinnedCount.toString(), tint = Color(0xFFFBBF24))
+                        WorkspaceStatChip(label = "Notes", count = allNotes.size.toString(), tint = Primary300)
+                        WorkspaceStatChip(label = "Pinned", count = pinnedCount.toString(), tint = Warning500)
                     }
                 }
             }
@@ -244,7 +257,7 @@ fun NotesScreen(
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = CardWhite,
-                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.85f)),
+                border = BorderStroke(0.8.dp, BorderLight),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(42.dp)
@@ -271,7 +284,7 @@ fun NotesScreen(
                             onValueChange = { searchQuery = it },
                             singleLine = true,
                             textStyle = TextStyle(fontSize = 13.sp, color = TextDark, fontWeight = FontWeight.Medium),
-                            cursorBrush = SolidColor(AccentPurple),
+                            cursorBrush = SolidColor(Primary600),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -298,7 +311,7 @@ fun NotesScreen(
             ) {
                 NOTE_TAGS.forEach { tag ->
                     val isSelected = selectedTag == tag
-                    val chipColor = if (tag == "All") AccentPurple else tagAccentColor(tag)
+                    val chipColor = if (tag == "All") Primary600 else tagAccentColor(tag)
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = if (isSelected) chipColor else CardWhite,
@@ -431,7 +444,7 @@ private fun WorkspaceStatChip(label: String, count: String, tint: Color) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(text = count, fontSize = 14.sp, fontWeight = FontWeight.Black, color = tint)
-            Text(text = label, fontSize = 9.5.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.SemiBold)
+            Text(text = label, fontSize = 9.5.sp, color = Neutral400, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -460,13 +473,13 @@ private fun StarterTemplatesEmptyState(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(AccentPurple.copy(alpha = 0.12f)),
+                        .background(Primary50),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        tint = AccentPurple,
+                        tint = Primary600,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -490,7 +503,8 @@ private fun StarterTemplatesEmptyState(
                     icon = Icons.Default.ShoppingCart,
                     title = "Planned Purchases & Upgrades",
                     subtitle = "Auto-summing shopping & wishlist tracker",
-                    tint = SoftAmber,
+                    tint = Warning700,
+                    bgTint = Warning100,
                     onClick = {
                         onCreateFromTemplate(
                             "Planned Purchases",
@@ -508,7 +522,8 @@ private fun StarterTemplatesEmptyState(
                     icon = Icons.Default.SwapHoriz,
                     title = "IOU & Split Settlements",
                     subtitle = "Track money lent to friends or pending splits",
-                    tint = SoftRed,
+                    tint = Error700,
+                    bgTint = Error100,
                     onClick = {
                         onCreateFromTemplate(
                             "Pending IOUs & Splits",
@@ -527,6 +542,7 @@ private fun StarterTemplatesEmptyState(
                     title = "Tax & Investment Checklist",
                     subtitle = "Track annual SIP step-ups, ELSS & insurance renewals",
                     tint = SoftTeal,
+                    bgTint = SoftTealLight,
                     onClick = {
                         onCreateFromTemplate(
                             "Tax & SIP Checklist",
@@ -550,12 +566,13 @@ private fun TemplateQuickRow(
     title: String,
     subtitle: String,
     tint: Color,
+    bgTint: Color,
     onClick: () -> Unit
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = CanvasLight,
-        border = BorderStroke(0.7.dp, BorderLight.copy(alpha = 0.8f)),
+        border = BorderStroke(0.7.dp, BorderLight),
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
@@ -571,7 +588,7 @@ private fun TemplateQuickRow(
                 modifier = Modifier
                     .size(34.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(tint.copy(alpha = 0.14f)),
+                    .background(bgTint),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
@@ -603,6 +620,8 @@ private fun NoteCardItem(
     val pendingAmount = remember(checklistItems) { checklistItems.filter { !it.isChecked }.sumOf { it.amount } }
     val checkedCount = remember(checklistItems) { checklistItems.count { it.isChecked } }
     val accent = tagAccentColor(note.tag)
+    val badgeBg = tagBadgeBgColor(note.tag)
+    val badgeText = tagBadgeTextColor(note.tag)
 
     val dateFormatted = remember(note.updatedAt) {
         SimpleDateFormat("dd MMM, hh:mm a", Locale.US).format(Date(note.updatedAt))
@@ -618,11 +637,14 @@ private fun NoteCardItem(
         color = CardWhite,
         border = BorderStroke(
             width = if (note.isPinned) 1.2.dp else 0.8.dp,
-            color = if (note.isPinned) accent.copy(alpha = 0.6f) else BorderLight.copy(alpha = 0.7f)
+            color = if (note.isPinned) accent.copy(alpha = 0.6f) else BorderLight
         )
     ) {
-        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            // Left Category Accent Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+        ) {
             Box(
                 modifier = Modifier
                     .width(5.dp)
@@ -667,13 +689,13 @@ private fun NoteCardItem(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = accent.copy(alpha = 0.12f)
+                            color = badgeBg
                         ) {
                             Text(
                                 text = note.tag,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = accent,
+                                color = badgeText,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -685,7 +707,7 @@ private fun NoteCardItem(
                             Icon(
                                 imageVector = Icons.Default.PushPin,
                                 contentDescription = "Pin",
-                                tint = if (note.isPinned) accent else TextMuted.copy(alpha = 0.45f),
+                                tint = if (note.isPinned) accent else Neutral400,
                                 modifier = Modifier.size(15.dp)
                             )
                         }
@@ -697,7 +719,7 @@ private fun NoteCardItem(
                             Icon(
                                 imageVector = Icons.Default.DeleteOutline,
                                 contentDescription = "Delete",
-                                tint = SoftRed.copy(alpha = 0.75f),
+                                tint = Error500.copy(alpha = 0.8f),
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -718,7 +740,6 @@ private fun NoteCardItem(
                 if (note.isChecklist && checklistItems.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Progress Bar
                     val progress = (checkedCount.toFloat() / checklistItems.size.toFloat()).coerceIn(0f, 1f)
                     LinearProgressIndicator(
                         progress = { progress },
@@ -726,8 +747,8 @@ private fun NoteCardItem(
                             .fillMaxWidth()
                             .height(4.dp)
                             .clip(RoundedCornerShape(2.dp)),
-                        color = SoftGreen,
-                        trackColor = BorderLight.copy(alpha = 0.6f)
+                        color = Success500,
+                        trackColor = Neutral200
                     )
 
                     Spacer(modifier = Modifier.height(6.dp))
@@ -755,7 +776,7 @@ private fun NoteCardItem(
                                     Icon(
                                         imageVector = if (item.isChecked) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                                         contentDescription = null,
-                                        tint = if (item.isChecked) SoftGreen else TextMuted,
+                                        tint = if (item.isChecked) Success500 else Neutral400,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -785,7 +806,7 @@ private fun NoteCardItem(
                             Text(
                                 text = "+${checklistItems.size - 5} more items...",
                                 fontSize = 10.5.sp,
-                                color = accent,
+                                color = badgeText,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -810,7 +831,7 @@ private fun NoteCardItem(
                     if (note.isChecklist && totalAmount > 0.0) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = if (pendingAmount > 0) SoftAmber.copy(alpha = 0.14f) else SoftGreen.copy(alpha = 0.14f)
+                            color = if (pendingAmount > 0) Warning100 else Success100
                         ) {
                             Text(
                                 text = if (pendingAmount > 0) {
@@ -820,7 +841,7 @@ private fun NoteCardItem(
                                 },
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Black,
-                                color = if (pendingAmount > 0) SoftAmber else SoftGreen,
+                                color = if (pendingAmount > 0) Warning700 else Success700,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -840,13 +861,14 @@ private fun NoteEditorModalSheet(
     onDismiss: () -> Unit,
     onSave: (NoteEntity) -> Unit
 ) {
-    var title by remember { mutableStateOf(initialNote?.title ?: "") }
-    var content by remember { mutableStateOf(initialNote?.content ?: "") }
-    var tag by remember { mutableStateOf(initialNote?.tag ?: "General") }
-    var isPinned by remember { mutableStateOf(initialNote?.isPinned ?: false) }
-    var isChecklist by remember { mutableStateOf(initialNote?.isChecklist ?: defaultChecklistMode) }
+    val noteKey = initialNote?.id ?: -1L
+    var title by remember(noteKey) { mutableStateOf(initialNote?.title ?: "") }
+    var content by remember(noteKey) { mutableStateOf(initialNote?.content ?: "") }
+    var tag by remember(noteKey) { mutableStateOf(initialNote?.tag ?: "General") }
+    var isPinned by remember(noteKey) { mutableStateOf(initialNote?.isPinned ?: false) }
+    var isChecklist by remember(noteKey) { mutableStateOf(initialNote?.isChecklist ?: defaultChecklistMode) }
 
-    val checklistItems = remember {
+    val checklistItems = remember(noteKey) {
         mutableStateListOf<NoteChecklistItem>().apply {
             if (initialNote != null && initialNote.isChecklist) {
                 addAll(parseChecklistJson(initialNote.checklistJson))
@@ -854,8 +876,8 @@ private fun NoteEditorModalSheet(
         }
     }
 
-    var newItemText by remember { mutableStateOf("") }
-    var newItemAmount by remember { mutableStateOf("") }
+    var newItemText by remember(noteKey) { mutableStateOf("") }
+    var newItemAmount by remember(noteKey) { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -885,14 +907,18 @@ private fun NoteEditorModalSheet(
                     FilterChip(
                         selected = isChecklist,
                         onClick = { isChecklist = !isChecklist },
-                        label = { Text("Checklist + Auto-Sum", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                        label = { Text("Checklist + Auto-Sum", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
+                        )
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     IconButton(onClick = { isPinned = !isPinned }) {
                         Icon(
                             imageVector = Icons.Default.PushPin,
                             contentDescription = "Pin",
-                            tint = if (isPinned) AccentPurple else TextMuted
+                            tint = if (isPinned) Primary600 else TextMuted
                         )
                     }
                 }
@@ -906,7 +932,11 @@ private fun NoteEditorModalSheet(
                 label = { Text("Title") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Primary600,
+                    unfocusedBorderColor = BorderLight
+                )
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -921,7 +951,11 @@ private fun NoteEditorModalSheet(
                     FilterChip(
                         selected = tag == t,
                         onClick = { tag = t },
-                        label = { Text(t, fontSize = 11.sp) }
+                        label = { Text(t, fontSize = 11.sp, fontWeight = if (tag == t) FontWeight.Bold else FontWeight.Medium) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
+                        )
                     )
                 }
             }
@@ -935,7 +969,11 @@ private fun NoteEditorModalSheet(
                 minLines = 3,
                 maxLines = 6,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Primary600,
+                    unfocusedBorderColor = BorderLight
+                )
             )
 
             if (isChecklist) {
@@ -959,7 +997,11 @@ private fun NoteEditorModalSheet(
                         placeholder = { Text("Item name", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.weight(1.4f),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Primary600,
+                            unfocusedBorderColor = BorderLight
+                        )
                     )
                     OutlinedTextField(
                         value = newItemAmount,
@@ -968,7 +1010,11 @@ private fun NoteEditorModalSheet(
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(0.9f),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Primary600,
+                            unfocusedBorderColor = BorderLight
+                        )
                     )
                     IconButton(
                         onClick = {
@@ -987,7 +1033,7 @@ private fun NoteEditorModalSheet(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(AccentPurple)
+                            .background(Primary600)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
                     }
@@ -1011,7 +1057,8 @@ private fun NoteEditorModalSheet(
                                 checked = item.isChecked,
                                 onCheckedChange = { checked ->
                                     checklistItems[index] = item.copy(isChecked = checked)
-                                }
+                                },
+                                colors = CheckboxDefaults.colors(checkedColor = Primary600)
                             )
                             Text(
                                 text = item.text,
@@ -1025,11 +1072,11 @@ private fun NoteEditorModalSheet(
                                 text = "$currencySymbol${String.format(Locale.US, "%,.0f", item.amount)}",
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = AccentPurple
+                                color = Primary600
                             )
                         }
                         IconButton(onClick = { checklistItems.removeAt(index) }) {
-                            Icon(Icons.Default.Close, contentDescription = "Remove", tint = SoftRed, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Close, contentDescription = "Remove", tint = Error500, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -1065,7 +1112,7 @@ private fun NoteEditorModalSheet(
                     .fillMaxWidth()
                     .height(50.dp),
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                colors = ButtonDefaults.buttonColors(containerColor = Primary600)
             ) {
                 Text("Save Entry", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
             }
