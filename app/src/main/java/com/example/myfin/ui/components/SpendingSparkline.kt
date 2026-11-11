@@ -13,15 +13,16 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
-import com.example.myfin.ui.theme.AccentPurple
+import com.example.myfin.ui.theme.Neutral200
+import com.example.myfin.ui.theme.Primary600
 
 @Composable
 fun SpendingSparkline(
     points: List<Float>,
     modifier: Modifier = Modifier,
-    lineColor: Color = AccentPurple,
-    gradientStartColor: Color = AccentPurple.copy(alpha = 0.28f),
-    gradientEndColor: Color = AccentPurple.copy(alpha = 0.0f)
+    lineColor: Color = Primary600,
+    gradientStartColor: Color = Primary600.copy(alpha = 0.28f),
+    gradientEndColor: Color = Primary600.copy(alpha = 0.0f)
 ) {
     if (points.isEmpty()) return
 
@@ -34,7 +35,6 @@ fun SpendingSparkline(
         val minVal = 0f
         val range = (maxVal - minVal).coerceAtLeast(1f)
 
-        // Pre-compute pixel dimensions
         val paddingTopPx = 6.dp.toPx()
         val paddingBottomPx = 14.dp.toPx()
         val paddingStartPx = 4.dp.toPx()
@@ -51,14 +51,13 @@ fun SpendingSparkline(
         // Draw faint dashed 50% capacity reference line
         val midY = paddingTopPx + (usableHeightPx * 0.5f)
         drawLine(
-            color = Color(0xFFE2E8F0).copy(alpha = 0.75f),
+            color = Neutral200.copy(alpha = 0.85f),
             start = Offset(paddingStartPx, midY),
             end = Offset(size.width - paddingEndPx, midY),
             strokeWidth = 1.dp.toPx(),
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
         )
 
-        // Handle single-point edge case
         if (points.size == 1) {
             val pointVal = points[0].coerceAtLeast(0f)
             val normalizedY = 1f - ((pointVal - minVal) / range)
@@ -122,7 +121,6 @@ fun SpendingSparkline(
             }
         }
 
-        // Under-curve gradient fill
         drawPath(
             path = fillPath,
             brush = Brush.verticalGradient(
@@ -132,14 +130,12 @@ fun SpendingSparkline(
             )
         )
 
-        // Smooth Bezier line stroke
         drawPath(
             path = strokePath,
             color = lineColor,
             style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
         )
 
-        // Endpoint nodes with halo glow
         drawCircle(color = lineColor.copy(alpha = 0.18f), radius = haloRadiusPx, center = lastPoint)
         drawCircle(color = lineColor, radius = nodeRadiusPx, center = lastPoint)
         drawCircle(color = Color.White, radius = coreRadiusPx, center = lastPoint)
