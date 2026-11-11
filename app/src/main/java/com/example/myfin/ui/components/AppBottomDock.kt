@@ -121,7 +121,7 @@ fun AppBottomDock(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.28f))
+                    .background(Neutral900.copy(alpha = 0.32f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -150,17 +150,17 @@ fun AppBottomDock(
         ) {
             Surface(
                 modifier = Modifier
-                    .width(190.dp)
+                    .width(195.dp)
                     .shadow(
                         elevation = 18.dp,
                         shape = RoundedCornerShape(18.dp),
-                        ambientColor = Color.Black.copy(alpha = 0.22f),
-                        spotColor = Color.Black.copy(alpha = 0.28f)
+                        ambientColor = Neutral900.copy(alpha = 0.22f),
+                        spotColor = Neutral900.copy(alpha = 0.28f)
                     )
                     .clip(RoundedCornerShape(18.dp)),
                 shape = RoundedCornerShape(18.dp),
                 color = CardWhite,
-                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.85f))
             ) {
                 Column(
                     modifier = Modifier
@@ -179,12 +179,20 @@ fun AppBottomDock(
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = action.icon,
-                                contentDescription = action.label,
-                                tint = AccentPurple,
-                                modifier = Modifier.size(19.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Primary50),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = action.icon,
+                                    contentDescription = action.label,
+                                    tint = Primary600,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
                                 text = action.label,
@@ -196,9 +204,9 @@ fun AppBottomDock(
 
                         if (index < fabActions.size - 1) {
                             HorizontalDivider(
-                                color = BorderLight.copy(alpha = 0.5f),
+                                color = BorderLight.copy(alpha = 0.55f),
                                 thickness = 0.7.dp,
-                                modifier = Modifier.padding(horizontal = 10.dp)
+                                modifier = Modifier.padding(horizontal = 12.dp)
                             )
                         }
                     }
@@ -250,12 +258,12 @@ fun AppBottomDock(
                     .shadow(
                         elevation = 16.dp,
                         shape = RoundedCornerShape(29.dp),
-                        ambientColor = Color.Black.copy(alpha = 0.12f),
-                        spotColor = Color.Black.copy(alpha = 0.18f)
+                        ambientColor = Neutral900.copy(alpha = 0.12f),
+                        spotColor = Neutral900.copy(alpha = 0.18f)
                     ),
                 shape = RoundedCornerShape(29.dp),
                 color = CardWhite,
-                border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.5f))
+                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
             ) {
                 Row(
                     modifier = Modifier
@@ -276,7 +284,7 @@ fun AppBottomDock(
                                 .weight(pillWeight)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(25.dp))
-                                .background(if (isSelected) AccentPurple.copy(alpha = 0.12f) else Color.Transparent)
+                                .background(if (isSelected) Primary50 else Color.Transparent)
                                 .clickable(
                                     enabled = areControlsInteractive,
                                     interactionSource = remember { MutableInteractionSource() },
@@ -298,14 +306,14 @@ fun AppBottomDock(
                                 Icon(
                                     imageVector = item.icon,
                                     contentDescription = item.label,
-                                    tint = if (isSelected) AccentPurple else TextMuted,
+                                    tint = if (isSelected) Primary600 else TextMuted,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 if (isSelected) {
-                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = item.label,
-                                        color = AccentPurple,
+                                        color = Primary700,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp,
                                         letterSpacing = (-0.2).sp,
@@ -328,8 +336,8 @@ fun AppBottomDock(
                     .shadow(
                         elevation = 16.dp,
                         shape = CircleShape,
-                        ambientColor = AccentPurple.copy(alpha = 0.40f),
-                        spotColor = AccentPurple.copy(alpha = 0.45f)
+                        ambientColor = Primary600.copy(alpha = 0.40f),
+                        spotColor = Primary600.copy(alpha = 0.45f)
                     )
                     .clip(CircleShape)
                     .clickable(
@@ -345,7 +353,7 @@ fun AppBottomDock(
                         }
                     },
                 shape = CircleShape,
-                color = AccentPurple
+                color = Primary600
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
