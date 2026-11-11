@@ -38,12 +38,12 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private val RADAR_PALETTE = listOf(
-    Color(0xFF8B5CF6), // Purple
-    Color(0xFF06B6D4), // Cyan
-    Color(0xFF10B981), // Emerald
-    Color(0xFFF59E0B), // Amber
-    Color(0xFFF43F5E), // Rose
-    Color(0xFF64748B)  // Slate
+    Primary600,
+    SoftTeal,
+    Success500,
+    Warning500,
+    Error500,
+    Neutral500
 )
 
 @Composable
@@ -142,7 +142,7 @@ fun YearlyAuditTab(
                             whatItShows = "Compares actual realized category spending against real annualized limits configured in your Budget Planner.",
                             visualElements = listOf(
                                 "Grey Bars" to "Annualized budget ceiling (Target × 12).",
-                                "Purple Bars" to "Actual realized annual spend.",
+                                "Primary Bars" to "Actual realized annual spend.",
                                 "Red Bars" to "Identifies categories where spending exceeded targets."
                             ),
                             whyItMatters = "Pinpoints exact lifestyle domains where budget targets were violated over the calendar year.",
@@ -277,21 +277,21 @@ private fun CompactParetoRadarCard(
             if (paretoMetrics != null) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = AccentPurple.copy(alpha = 0.08f),
-                    border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.25f)),
+                    color = Primary50,
+                    border = BorderStroke(0.6.dp, Primary200),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.PieChart, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.PieChart, contentDescription = null, tint = Primary600, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "Top ${paretoMetrics.first} categories drive ${paretoMetrics.second}% of annual burn",
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = AccentPurple
+                            color = Primary700
                         )
                     }
                 }
@@ -316,14 +316,14 @@ private fun CompactParetoRadarCard(
                         shape = CircleShape,
                         color = CardWhite,
                         shadowElevation = 2.dp,
-                        border = BorderStroke(0.8.dp, Color(0xFFEDE9FE))
+                        border = BorderStroke(0.8.dp, Primary100)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = "${topCategories.size}",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Black,
-                                color = AccentPurple
+                                color = Primary600
                             )
                         }
                     }
@@ -420,7 +420,7 @@ private fun CompactStarRadarCanvas(
         for (ring in 1..3) {
             val r = maxR * (ring / 3f)
             drawCircle(
-                color = Color(0xFFF1F5F9),
+                color = Neutral100,
                 radius = r,
                 center = c,
                 style = Stroke(width = 0.8.dp.toPx())
@@ -447,7 +447,7 @@ private fun CompactStarRadarCanvas(
             val pValley = Offset(c.x + (rValley * cos(angValley)).toFloat(), c.y + (rValley * sin(angValley)).toFloat())
 
             drawLine(
-                color = Color(0xFFE2E8F0),
+                color = Neutral300,
                 start = c,
                 end = Offset(c.x + (maxR * cos(angTip)).toFloat(), c.y + (maxR * sin(angTip)).toFloat()),
                 strokeWidth = 0.8.dp.toPx()
@@ -461,14 +461,14 @@ private fun CompactStarRadarCanvas(
         drawPath(
             path = polyPath,
             brush = Brush.radialGradient(
-                colors = listOf(Color(0xFF8B5CF6).copy(alpha = 0.35f), Color(0xFF8B5CF6).copy(alpha = 0.08f)),
+                colors = listOf(Primary600.copy(alpha = 0.35f), Primary600.copy(alpha = 0.08f)),
                 center = c,
                 radius = maxR
             )
         )
         drawPath(
             path = polyPath,
-            color = Color(0xFF8B5CF6),
+            color = Primary600,
             style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
 
@@ -479,7 +479,7 @@ private fun CompactStarRadarCanvas(
             val angTip = (i * 2 * Math.PI / n) - Math.PI / 2
             val pTip = Offset(c.x + (rTip * cos(angTip)).toFloat(), c.y + (rTip * sin(angTip)).toFloat())
 
-            val dotColor = RADAR_PALETTE[i % RADAR_PALETTE.size]
+            val dotColor = RADAR_PALETTE[i % RADAR_PALETTE.lastIndex]
             drawCircle(color = Color.White, radius = 4.dp.toPx(), center = pTip)
             drawCircle(color = dotColor, radius = 2.5.dp.toPx(), center = pTip)
         }
@@ -551,8 +551,8 @@ private fun CompactBudgetVsActualCard(
 
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = if (overrunCount > 0) SoftRed.copy(alpha = 0.08f) else SoftGreen.copy(alpha = 0.08f),
-                border = BorderStroke(0.6.dp, if (overrunCount > 0) SoftRed.copy(alpha = 0.25f) else SoftGreen.copy(alpha = 0.25f)),
+                color = if (overrunCount > 0) Error100 else Success100,
+                border = BorderStroke(0.6.dp, if (overrunCount > 0) Error500.copy(alpha = 0.25f) else Success500.copy(alpha = 0.25f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -562,7 +562,7 @@ private fun CompactBudgetVsActualCard(
                     Icon(
                         imageVector = if (overrunCount > 0) Icons.Default.WarningAmber else Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = if (overrunCount > 0) SoftRed else SoftGreen,
+                        tint = if (overrunCount > 0) Error700 else Success700,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -574,7 +574,7 @@ private fun CompactBudgetVsActualCard(
                         },
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (overrunCount > 0) SoftRed else SoftGreen
+                        color = if (overrunCount > 0) Error700 else Success700
                     )
                 }
             }
@@ -622,21 +622,21 @@ private fun CompactBudgetVsActualCard(
                                         .width(13.dp)
                                         .height((76 * plannedRatio).dp)
                                         .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                        .background(if (plannedAmt > 0) Color(0xFFCBD5E1) else Color(0xFFE2E8F0))
+                                        .background(if (plannedAmt > 0) Neutral300 else Neutral200)
                                 )
                                 Box(
                                     modifier = Modifier
                                         .width(13.dp)
                                         .height((76 * actualRatio).dp)
                                         .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                        .background(if (isOverrun) SoftRed else Color(0xFF8B5CF6))
+                                        .background(if (isOverrun) Error500 else Primary600)
                                 )
                             }
                             Spacer(modifier = Modifier.height(5.dp))
                             Text(
                                 text = cat.categoryName,
                                 fontSize = 9.sp,
-                                color = if (isOverrun) SoftRed else TextMuted,
+                                color = if (isOverrun) Error700 else TextMuted,
                                 fontWeight = if (isOverrun) FontWeight.Bold else FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -657,21 +657,21 @@ private fun CompactBudgetVsActualCard(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFCBD5E1)))
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Neutral300))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Planned Target", fontSize = 9.5.sp, color = TextMuted)
                 }
                 Spacer(modifier = Modifier.width(18.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF8B5CF6)))
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Primary600))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Spend (Normal)", fontSize = 9.5.sp, color = TextMuted)
                 }
                 Spacer(modifier = Modifier.width(18.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftRed))
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Error500))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Overrun", fontSize = 9.5.sp, color = SoftRed, fontWeight = FontWeight.Bold)
+                    Text("Overrun", fontSize = 9.5.sp, color = Error700, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -704,8 +704,8 @@ private fun PolishedCategoryTrajectoryRow(
         border = BorderStroke(
             0.7.dp,
             when {
-                isOverrun -> SoftRed.copy(alpha = 0.5f)
-                isLegacy -> Color(0xFFFFB74D).copy(alpha = 0.7f)
+                isOverrun -> Error500.copy(alpha = 0.5f)
+                isLegacy -> Warning500.copy(alpha = 0.7f)
                 else -> BorderLight
             }
         )
@@ -723,14 +723,14 @@ private fun PolishedCategoryTrajectoryRow(
                             Spacer(modifier = Modifier.width(5.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = Color(0xFFFFF3E0),
-                                border = BorderStroke(0.6.dp, Color(0xFFFFB74D))
+                                color = Warning100,
+                                border = BorderStroke(0.6.dp, Warning500)
                             ) {
                                 Text(
                                     text = "Legacy",
                                     fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFE65100),
+                                    color = Warning700,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -739,13 +739,13 @@ private fun PolishedCategoryTrajectoryRow(
                             Spacer(modifier = Modifier.width(5.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = SoftRed.copy(alpha = 0.12f)
+                                color = Error100
                             ) {
                                 Text(
                                     text = "Over Budget",
                                     fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = SoftRed,
+                                    color = Error700,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -764,7 +764,7 @@ private fun PolishedCategoryTrajectoryRow(
                             text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.annualTotal)}",
                             fontWeight = FontWeight.Black,
                             fontSize = 14.5.sp,
-                            color = if (isOverrun) SoftRed else AccentPurple
+                            color = if (isOverrun) Error700 else Primary600
                         )
                         if (annualCeiling > 0) {
                             Text(
@@ -806,7 +806,7 @@ private fun PolishedCategoryTrajectoryRow(
                     }
                     drawPath(
                         path = path,
-                        color = if (isOverrun) SoftRed else if (item.annualTotal <= 0.0) BorderLight else AccentPurple,
+                        color = if (isOverrun) Error500 else if (item.annualTotal <= 0.0) BorderLight else Primary600,
                         style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
                     )
 
@@ -814,7 +814,7 @@ private fun PolishedCategoryTrajectoryRow(
                         val peakPt = pts.getOrNull(item.peakMonthIndex.coerceIn(0, (pts.size - 1).coerceAtLeast(0)))
                         if (peakPt != null) {
                             drawCircle(color = Color.White, radius = 4.dp.toPx(), center = peakPt)
-                            drawCircle(color = if (isOverrun) SoftRed else AccentPurple, radius = 2.6.dp.toPx(), center = peakPt)
+                            drawCircle(color = if (isOverrun) Error500 else Primary600, radius = 2.6.dp.toPx(), center = peakPt)
                         }
                     }
                 }
@@ -837,7 +837,7 @@ private fun PolishedCategoryTrajectoryRow(
                         "Peak: $peakMonthName ($currencySymbol${String.format(Locale.US, "%,.0f", item.peakMonthAmount)})"
                     },
                     fontSize = 9.sp,
-                    color = if (isOverrun) SoftRed else AccentPurple,
+                    color = if (isOverrun) Error700 else Primary600,
                     fontWeight = FontWeight.Bold
                 )
                 Text("Dec", fontSize = 8.5.sp, color = TextMuted)
