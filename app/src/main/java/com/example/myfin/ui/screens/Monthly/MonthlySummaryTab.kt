@@ -106,12 +106,12 @@ fun MonthlySummaryTab(
                     NowBarAlert(
                         id = "shortfall",
                         icon = Icons.Default.WarningAmber,
-                        iconTint = SoftRed,
-                        iconBg = SoftRed.copy(alpha = 0.12f),
+                        iconTint = Error500,
+                        iconBg = Error100,
                         title = "Shortfall • ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", shortfall.shortfallAmount)}",
                         subtitle = "Transfer to ${shortfall.affectedAccountName}$dueText to protect MAB & avoid AutoPay bounce.",
                         actionLabel = "Transfer",
-                        actionColor = SoftRed,
+                        actionColor = Error500,
                         onAction = onOpenTransferSheet
                     )
                 )
@@ -122,12 +122,12 @@ fun MonthlySummaryTab(
                     NowBarAlert(
                         id = "rollover",
                         icon = Icons.Default.SyncAlt,
-                        iconTint = AccentPurple,
-                        iconBg = AccentPurple.copy(alpha = 0.12f),
+                        iconTint = Primary600,
+                        iconBg = Primary100,
                         title = "AutoPay Bills Scheduled",
                         subtitle = uiState.rolloverBannerMessage.ifBlank { "Recurring AutoPay bills and budget limits scheduled for next cycle." },
                         actionLabel = "Dismiss",
-                        actionColor = AccentPurple,
+                        actionColor = Primary600,
                         onAction = { viewModel.dismissRolloverBanner() },
                         onDismiss = { viewModel.dismissRolloverBanner() }
                     )
@@ -145,7 +145,7 @@ fun MonthlySummaryTab(
                         id = "payday",
                         icon = Icons.Default.AccountBalanceWallet,
                         iconTint = SoftTeal,
-                        iconBg = SoftTeal.copy(alpha = 0.12f),
+                        iconBg = SoftTealLight,
                         title = "Payday Allocation Ready",
                         subtitle = if (parts.isNotBlank()) "Allocate $parts." else "Living cushion preserved in Operating.",
                         actionLabel = "Allocate",
@@ -170,12 +170,12 @@ fun MonthlySummaryTab(
                     NowBarAlert(
                         id = "sweep",
                         icon = Icons.Default.Savings,
-                        iconTint = SoftGreen,
-                        iconBg = SoftGreen.copy(alpha = 0.12f),
+                        iconTint = Success500,
+                        iconBg = Success100,
                         title = "Wealth Sweep • ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthEndSweepPlan.sweepAmount)}",
                         subtitle = "Sweep unspent surplus to Fortress Extra.",
                         actionLabel = "Sweep",
-                        actionColor = SoftGreen,
+                        actionColor = Success500,
                         onAction = {
                             viewModel.applyMonthEndSweep(
                                 plan = monthEndSweepPlan,
@@ -220,11 +220,11 @@ fun MonthlySummaryTab(
 
     val donutColors = remember {
         listOf(
-            Color(0xFF4F46E5),
-            Color(0xFF38BDF8),
-            Color(0xFFF43F5E),
-            Color(0xFFF59E0B),
-            Color(0xFFA855F7)
+            Primary600,
+            SoftTeal,
+            Error500,
+            Warning500,
+            Primary400
         )
     }
 
@@ -259,13 +259,13 @@ fun MonthlySummaryTab(
     }
 
     val headingTextColor = if (isMidnightTheme) Color.White else TextDark
-    val subtitleTextColor = if (isMidnightTheme) Color(0xFF94A3B8) else TextMuted
+    val subtitleTextColor = if (isMidnightTheme) Neutral400 else TextMuted
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
     ) {
-        // 1. 2-LINE GREETING HEADER (Comfortable hierarchy & zero clutter)
+        // 1. 2-LINE GREETING HEADER
         item(key = "greeting_header") {
             Row(
                 modifier = Modifier
@@ -293,9 +293,8 @@ fun MonthlySummaryTab(
 
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = CardWhite,
-                    border = BorderStroke(0.8.dp, BorderLight),
-                    shadowElevation = 1.dp
+                    color = if (isHealthy) Success100 else Error100,
+                    border = BorderStroke(0.8.dp, if (isHealthy) Success500.copy(alpha = 0.35f) else Error500.copy(alpha = 0.35f))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -305,14 +304,14 @@ fun MonthlySummaryTab(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(if (isHealthy) SoftGreen else SoftRed)
+                                .background(if (isHealthy) Success700 else Error700)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (isHealthy) "Safe Runway" else "Attention",
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isHealthy) SoftGreen else SoftRed
+                            color = if (isHealthy) Success700 else Error700
                         )
                     }
                 }
@@ -329,15 +328,15 @@ fun MonthlySummaryTab(
             }
         }
 
-        // 3. FINTECH HERO CARD
+        // 3. FINTECH HERO CARD (Royal Cobalt Blue 600 -> 900)
         item(key = "fintech_hero_card") {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(4.dp, RoundedCornerShape(22.dp)),
                 shape = RoundedCornerShape(22.dp),
-                color = Color(0xFF3730A3),
-                border = BorderStroke(1.dp, Color(0xFF4F46E5).copy(alpha = 0.5f))
+                color = Primary800,
+                border = BorderStroke(1.dp, Primary500.copy(alpha = 0.45f))
             ) {
                 Column(
                     modifier = Modifier
@@ -345,9 +344,9 @@ fun MonthlySummaryTab(
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(
-                                    Color(0xFF4338CA),
-                                    Color(0xFF3730A3),
-                                    Color(0xFF312E81)
+                                    Primary600,
+                                    Primary800,
+                                    Primary900
                                 )
                             )
                         )
@@ -366,7 +365,7 @@ fun MonthlySummaryTab(
                         ) {
                             Text(
                                 text = "SAFE TO SPEND",
-                                color = Color(0xFFC7D2FE),
+                                color = Primary200,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 0.6.sp
@@ -375,7 +374,7 @@ fun MonthlySummaryTab(
                             Icon(
                                 imageVector = Icons.Default.HelpOutline,
                                 contentDescription = "Explain Safe to Spend",
-                                tint = Color(0xFFC7D2FE).copy(alpha = 0.8f),
+                                tint = Primary200.copy(alpha = 0.85f),
                                 modifier = Modifier.size(13.dp)
                             )
                         }
@@ -383,7 +382,7 @@ fun MonthlySummaryTab(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = Color.White.copy(alpha = 0.15f),
+                                color = Color.White.copy(alpha = 0.16f),
                                 modifier = Modifier.padding(end = 8.dp)
                             ) {
                                 Text(
@@ -400,14 +399,14 @@ fun MonthlySummaryTab(
                                     modifier = Modifier
                                         .size(16.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFFEF4444).copy(alpha = 0.85f))
+                                        .background(Error500.copy(alpha = 0.88f))
                                         .align(Alignment.CenterStart)
                                 )
                                 Box(
                                     modifier = Modifier
                                         .size(16.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFFF59E0B).copy(alpha = 0.85f))
+                                        .background(Warning500.copy(alpha = 0.88f))
                                         .align(Alignment.CenterEnd)
                                 )
                             }
@@ -449,7 +448,7 @@ fun MonthlySummaryTab(
                         },
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Medium,
-                        color = if (uiState.metrics.isSalaryDelayed) Color(0xFFFDE68A) else Color(0xFFE0E7FF)
+                        color = if (uiState.metrics.isSalaryDelayed) Warning100 else Primary100
                     )
 
                     Spacer(modifier = Modifier.height(13.dp))
@@ -478,7 +477,7 @@ fun MonthlySummaryTab(
                         FrostedCardPill(
                             title = "SIP Assets",
                             amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayAssets)}",
-                            tintColor = Color(0xFF67E8F9),
+                            tintColor = Primary200,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigateToLedgerWithFilter(TransactionType.ASSET) }
                         )
@@ -499,33 +498,33 @@ fun MonthlySummaryTab(
                 QuickActionButton(
                     icon = Icons.Default.Add,
                     label = "Add Entry",
-                    containerColor = Color(0xFFEEF2FF),
-                    contentColor = Color(0xFF4F46E5),
-                    labelColor = if (isMidnightTheme) Color(0xFFE2E8F0) else TextDark,
+                    containerColor = Primary50,
+                    contentColor = Primary600,
+                    labelColor = if (isMidnightTheme) Neutral200 else TextDark,
                     onClick = onOpenAddSheet
                 )
                 QuickActionButton(
                     icon = Icons.Default.SyncAlt,
                     label = "Transfer",
-                    containerColor = Color(0xFFECFDF5),
-                    contentColor = Color(0xFF059669),
-                    labelColor = if (isMidnightTheme) Color(0xFFE2E8F0) else TextDark,
+                    containerColor = Success100,
+                    contentColor = Success700,
+                    labelColor = if (isMidnightTheme) Neutral200 else TextDark,
                     onClick = onOpenTransferSheet
                 )
                 QuickActionButton(
                     icon = Icons.Default.Autorenew,
                     label = "AutoPay",
-                    containerColor = Color(0xFFFFF1F2),
-                    contentColor = Color(0xFFE11D48),
-                    labelColor = if (isMidnightTheme) Color(0xFFE2E8F0) else TextDark,
+                    containerColor = Error100,
+                    contentColor = Error700,
+                    labelColor = if (isMidnightTheme) Neutral200 else TextDark,
                     onClick = onNavigateToCommitments
                 )
                 QuickActionButton(
                     icon = Icons.Default.MoreHoriz,
                     label = "More",
-                    containerColor = Color(0xFFF1F5F9),
-                    contentColor = Color(0xFF475569),
-                    labelColor = if (isMidnightTheme) Color(0xFFE2E8F0) else TextDark,
+                    containerColor = Neutral100,
+                    contentColor = Neutral600,
+                    labelColor = if (isMidnightTheme) Neutral200 else TextDark,
                     onClick = onOpenDrawer
                 )
             }
@@ -563,7 +562,7 @@ fun MonthlySummaryTab(
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = null,
-                                tint = SoftGreen,
+                                tint = Success500,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -688,12 +687,12 @@ fun MonthlySummaryTab(
                 TransactionType.TRANSFER -> "Transfers"
             }
 
-            val headroomColor = when (selectedMatrixType) {
-                TransactionType.EXPENSE -> if (plannedExp > 0 && expDiff < 0) SoftRed else SoftGreen
-                TransactionType.INCOME -> SoftGreen
-                TransactionType.ASSET -> SoftTeal
-                TransactionType.CORPORATE -> Color(0xFFE57A28)
-                TransactionType.TRANSFER -> AccentPurple
+            val (headroomBg, headroomText) = when (selectedMatrixType) {
+                TransactionType.EXPENSE -> if (plannedExp > 0 && expDiff < 0) Error100 to Error700 else Success100 to Success700
+                TransactionType.INCOME -> Success100 to Success700
+                TransactionType.ASSET -> SoftTealLight to SoftTeal
+                TransactionType.CORPORATE -> Warning100 to Warning700
+                TransactionType.TRANSFER -> Primary100 to Primary700
             }
 
             Row(
@@ -710,14 +709,14 @@ fun MonthlySummaryTab(
 
                 Surface(
                     shape = RoundedCornerShape(7.dp),
-                    color = headroomColor.copy(alpha = 0.12f),
-                    border = BorderStroke(0.6.dp, headroomColor.copy(alpha = 0.35f))
+                    color = headroomBg,
+                    border = BorderStroke(0.6.dp, headroomText.copy(alpha = 0.30f))
                 ) {
                     Text(
                         text = if (isDiscreetMode) "••••" else liveHeadroomLabel,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = headroomColor,
+                        color = headroomText,
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                     )
                 }
@@ -731,15 +730,15 @@ fun MonthlySummaryTab(
                     .clip(RoundedCornerShape(14.dp))
                     .background(
                         if (isMidnightTheme) Color.White.copy(alpha = 0.10f)
-                        else BorderLight.copy(alpha = 0.5f)
+                        else Neutral100
                     )
                     .padding(4.dp)
             ) {
                 listOf(
-                    Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
-                    Triple(TransactionType.INCOME, "Income", SoftGreen),
+                    Triple(TransactionType.EXPENSE, "Expenses", Error500),
+                    Triple(TransactionType.INCOME, "Income", Success500),
                     Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal),
-                    Triple(TransactionType.CORPORATE, "Corporate", Color(0xFFE57A28))
+                    Triple(TransactionType.CORPORATE, "Corporate", Warning700)
                 ).forEach { (type, label, color) ->
                     val isSelected = selectedMatrixType == type
                     Box(
@@ -755,7 +754,7 @@ fun MonthlySummaryTab(
                             text = label,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 11.sp,
-                            color = if (isSelected) color else if (isMidnightTheme) Color(0xFF94A3B8) else TextMuted,
+                            color = if (isSelected) color else if (isMidnightTheme) Neutral400 else TextMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -891,7 +890,7 @@ private fun FrostedCardPill(
                         .background(tintColor)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(text = title, fontSize = 8.5.sp, color = Color(0xFFC7D2FE), fontWeight = FontWeight.SemiBold)
+                Text(text = title, fontSize = 8.5.sp, color = Primary200, fontWeight = FontWeight.SemiBold)
             }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
@@ -931,12 +930,12 @@ private fun CategoryMatrixRow(
     } else 100
 
     val progressColor = when {
-        cat.isOverBudget && !isTargetOriented -> SoftRed
-        cat.type == TransactionType.INCOME -> SoftGreen
+        cat.isOverBudget && !isTargetOriented -> Error500
+        cat.type == TransactionType.INCOME -> Success500
         cat.type == TransactionType.ASSET -> SoftTeal
-        cat.type == TransactionType.CORPORATE -> Color(0xFFE57A28)
-        utilizationPercentage >= 85 -> SoftAmber
-        else -> AccentPurple
+        cat.type == TransactionType.CORPORATE -> Warning500
+        utilizationPercentage >= 85 -> Warning500
+        else -> Primary600
     }
 
     Column(
@@ -959,14 +958,14 @@ private fun CategoryMatrixRow(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (isLegacy) Color(0xFFFFF3E0) else progressColor.copy(alpha = 0.12f)),
+                        .background(if (isLegacy) Warning100 else progressColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = cat.category.take(1).uppercase(),
                         fontWeight = FontWeight.Black,
                         fontSize = 14.sp,
-                        color = if (isLegacy) Color(0xFFE65100) else progressColor
+                        color = if (isLegacy) Warning700 else progressColor
                     )
                 }
 
@@ -991,14 +990,14 @@ private fun CategoryMatrixRow(
                             Spacer(modifier = Modifier.width(5.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = Color(0xFFFFF3E0),
-                                border = BorderStroke(0.6.dp, Color(0xFFFFB74D))
+                                color = Warning100,
+                                border = BorderStroke(0.6.dp, Warning500)
                             ) {
                                 Text(
                                     text = "Legacy",
                                     fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFE65100),
+                                    color = Warning700,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -1008,7 +1007,7 @@ private fun CategoryMatrixRow(
                                 modifier = Modifier
                                     .size(5.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF4CAF50))
+                                    .background(Success500)
                             )
                         }
 
@@ -1016,15 +1015,15 @@ private fun CategoryMatrixRow(
                             Spacer(modifier = Modifier.width(5.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = SoftRed.copy(alpha = 0.12f),
-                                border = BorderStroke(0.5.dp, SoftRed.copy(alpha = 0.35f)),
+                                color = Error100,
+                                border = BorderStroke(0.5.dp, Error500.copy(alpha = 0.35f)),
                                 modifier = Modifier.wrapContentWidth()
                             ) {
                                 Text(
                                     text = "Over",
                                     fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = SoftRed,
+                                    color = Error700,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -1062,8 +1061,8 @@ private fun CategoryMatrixRow(
                     }
 
                     val statusColor = when {
-                        cat.isOverBudget && !isTargetOriented -> SoftRed
-                        isTargetOriented && cat.plannedAmount > 0 && cat.actualAmount >= cat.plannedAmount -> SoftGreen
+                        cat.isOverBudget && !isTargetOriented -> Error700
+                        isTargetOriented && cat.plannedAmount > 0 && cat.actualAmount >= cat.plannedAmount -> Success700
                         else -> TextMuted
                     }
 
@@ -1086,7 +1085,7 @@ private fun CategoryMatrixRow(
                         text = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", cat.actualAmount)}",
                         fontWeight = FontWeight.Black,
                         fontSize = 14.sp,
-                        color = if (cat.isOverBudget && !isTargetOriented) SoftRed else TextDark
+                        color = if (cat.isOverBudget && !isTargetOriented) Error700 else TextDark
                     )
                     if (cat.plannedAmount > 0) {
                         Text(
