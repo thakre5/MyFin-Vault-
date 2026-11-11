@@ -272,7 +272,7 @@ fun YearlyScreen(
                         Icon(
                             imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                             contentDescription = "Privacy Toggle",
-                            tint = if (isDiscreetMode) AccentPurple else TextMuted,
+                            tint = if (isDiscreetMode) Primary600 else TextMuted,
                             modifier = Modifier.size(18.dp)
                         )
                     }
