@@ -100,8 +100,8 @@ fun SwipeableTransactionItem(
 
             val backgroundColor by animateColorAsState(
                 targetValue = when (dismissState.targetValue) {
-                    SwipeToDismissBoxValue.StartToEnd -> AccentPurple
-                    SwipeToDismissBoxValue.EndToStart -> SoftRed
+                    SwipeToDismissBoxValue.StartToEnd -> Primary600
+                    SwipeToDismissBoxValue.EndToStart -> Error500
                     SwipeToDismissBoxValue.Settled -> Color.Transparent
                 },
                 animationSpec = tween(200),
@@ -195,10 +195,10 @@ fun SwipeableTransactionItem(
 
         val displayTitle = remember(txTitle, friendlySubcategory) {
             val isRedundant = txTitle.isBlank() ||
-                txTitle.equals(friendlySubcategory, ignoreCase = true) ||
-                txTitle.startsWith("Vault Transfer", ignoreCase = true) ||
-                (friendlySubcategory.isNotBlank() && friendlySubcategory.contains(txTitle, ignoreCase = true) && friendlySubcategory.length - txTitle.length <= 4) ||
-                (txTitle.isNotBlank() && txTitle.contains(friendlySubcategory, ignoreCase = true) && txTitle.length - friendlySubcategory.length <= 4)
+                    txTitle.equals(friendlySubcategory, ignoreCase = true) ||
+                    txTitle.startsWith("Vault Transfer", ignoreCase = true) ||
+                    (friendlySubcategory.isNotBlank() && friendlySubcategory.contains(txTitle, ignoreCase = true) && friendlySubcategory.length - txTitle.length <= 4) ||
+                    (txTitle.isNotBlank() && txTitle.contains(friendlySubcategory, ignoreCase = true) && txTitle.length - friendlySubcategory.length <= 4)
 
             if (!isRedundant && friendlySubcategory.isNotBlank()) {
                 "$friendlySubcategory ($txTitle)"
@@ -224,12 +224,15 @@ fun SwipeableTransactionItem(
         }
 
         val categoryIcon = getCategoryIcon(txCategory, txType, txSubtype, txSubcategory)
-        val iconTint = when (txType) {
-            TransactionType.INCOME -> SoftGreen
-            TransactionType.EXPENSE -> SoftRed
-            TransactionType.ASSET -> SoftTeal
-            TransactionType.CORPORATE -> Color(0xFFE57A28)
-            TransactionType.TRANSFER -> AccentPurple
+        val isCorporateInflow = txType == TransactionType.CORPORATE &&
+                txCategory.equals("Reimbursements & Claims", ignoreCase = true)
+
+        val (iconTint, iconBg) = when (txType) {
+            TransactionType.INCOME -> Success500 to Success100
+            TransactionType.EXPENSE -> Error500 to Error100
+            TransactionType.ASSET -> SoftTeal to SoftTealLight
+            TransactionType.CORPORATE -> if (isCorporateInflow) (Success500 to Success100) else (Warning700 to Warning100)
+            TransactionType.TRANSFER -> Primary600 to Primary50
         }
 
         val formattedTime = remember(txDate) {
@@ -249,12 +252,11 @@ fun SwipeableTransactionItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Icon Box
                 Box(
                     modifier = Modifier
                         .size(38.dp)
                         .clip(RoundedCornerShape(11.dp))
-                        .background(iconTint.copy(alpha = 0.12f)),
+                        .background(iconBg),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -267,12 +269,10 @@ fun SwipeableTransactionItem(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Center Column: Marquee Title + Marquee Category & Bank
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(2.5.dp)
                 ) {
-                    // Line 1: Auto-scrolling title if long + AutoPay pill
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
@@ -297,21 +297,20 @@ fun SwipeableTransactionItem(
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = AccentPurpleLight,
-                                border = BorderStroke(0.5.dp, AccentPurple.copy(alpha = 0.35f))
+                                color = Primary50,
+                                border = BorderStroke(0.5.dp, Primary200)
                             ) {
                                 Text(
                                     text = "AutoPay",
                                     fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = AccentPurple,
+                                    color = Primary700,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
                         }
                     }
 
-                    // Line 2: Auto-scrolling Category • Bank (never truncated with dots)
                     Text(
                         text = sublineText,
                         fontSize = 11.sp,
@@ -330,14 +329,10 @@ fun SwipeableTransactionItem(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Right Column: Amount & Clean Time
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    val isCorporateInflow = txType == TransactionType.CORPORATE &&
-                        txCategory.equals("Reimbursements & Claims", ignoreCase = true)
-
                     val amountPrefix = when (txType) {
                         TransactionType.EXPENSE -> "-"
                         TransactionType.INCOME -> "+"
@@ -347,11 +342,11 @@ fun SwipeableTransactionItem(
                     }
 
                     val amountColor = when (txType) {
-                        TransactionType.INCOME -> SoftGreen
+                        TransactionType.INCOME -> Success500
                         TransactionType.EXPENSE -> TextDark
                         TransactionType.ASSET -> SoftTeal
-                        TransactionType.CORPORATE -> if (isCorporateInflow) SoftGreen else Color(0xFFE57A28)
-                        TransactionType.TRANSFER -> AccentPurple
+                        TransactionType.CORPORATE -> if (isCorporateInflow) Success500 else Warning700
+                        TransactionType.TRANSFER -> Primary600
                     }
 
                     Text(
