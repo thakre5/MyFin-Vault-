@@ -308,9 +308,9 @@ fun OnboardingStep0WelcomeGateway(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFF3E8FF),
-                        Color(0xFFEDE9FE).copy(alpha = 0.65f),
-                        Color(0xFFF8FAFC),
+                        Primary100.copy(alpha = 0.75f),
+                        Primary50.copy(alpha = 0.85f),
+                        Neutral50,
                         CanvasLight
                     )
                 )
@@ -364,7 +364,7 @@ fun OnboardingStep0WelcomeGateway(
                                 .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeOut(tween(420)))
                         } else {
                             (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeIn(tween(420)))
-                                .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> -fullWidth } + fadeOut(tween(420)))
+                                .togetherWith(slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { fullWidth -> fullWidth } + fadeOut(tween(420)))
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -427,7 +427,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 .width(width)
                                                 .height(4.dp)
                                                 .clip(CircleShape)
-                                                .background(if (isSelected) AccentPurple else BorderLight)
+                                                .background(if (isSelected) Primary600 else BorderLight)
                                         )
                                     }
                                 }
@@ -792,7 +792,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 strategyDetailTarget = "3-VAULT"
                                             },
                                         shape = RoundedCornerShape(26.dp),
-                                        color = if (is3Tier) AccentPurple.copy(alpha = 0.08f) else CardWhite,
+                                        color = if (is3Tier) Primary50 else CardWhite,
                                         border = BorderStroke(
                                             width = if (is3Tier) 1.5.dp else 1.dp,
                                             color = if (is3Tier) AccentPurple else BorderLight.copy(alpha = 0.9f)
@@ -807,7 +807,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 Surface(
                                                     modifier = Modifier.size(36.dp),
                                                     shape = CircleShape,
-                                                    color = if (is3Tier) AccentPurple.copy(alpha = 0.15f) else CanvasLight
+                                                    color = if (is3Tier) Primary100 else CanvasLight
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
                                                         Icon(Icons.Outlined.AccountBalance, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(19.dp))
@@ -842,7 +842,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 strategyDetailTarget = "SIMPLE"
                                             },
                                         shape = RoundedCornerShape(26.dp),
-                                        color = if (isSimple) AccentPurple.copy(alpha = 0.08f) else CardWhite,
+                                        color = if (isSimple) Primary50 else CardWhite,
                                         border = BorderStroke(
                                             width = if (isSimple) 1.5.dp else 1.dp,
                                             color = if (isSimple) AccentPurple else BorderLight.copy(alpha = 0.9f)
@@ -857,7 +857,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 Surface(
                                                     modifier = Modifier.size(36.dp),
                                                     shape = CircleShape,
-                                                    color = if (isSimple) AccentPurple.copy(alpha = 0.15f) else CanvasLight
+                                                    color = if (isSimple) Primary100 else CanvasLight
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
                                                         Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(19.dp))
@@ -911,8 +911,8 @@ fun OnboardingStep0WelcomeGateway(
                                         .fillMaxWidth()
                                         .height(44.dp),
                                     shape = RoundedCornerShape(22.dp),
-                                    color = AccentPurple.copy(alpha = 0.08f),
-                                    border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.25f))
+                                    color = Primary50,
+                                    border = BorderStroke(0.8.dp, Primary200)
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -979,7 +979,7 @@ fun OnboardingStep0WelcomeGateway(
                                                     Surface(
                                                         modifier = Modifier.size(32.dp),
                                                         shape = CircleShape,
-                                                        color = CanvasLight
+                                                        color = Primary50
                                                     ) {
                                                         Box(contentAlignment = Alignment.Center) {
                                                             Icon(
@@ -1029,8 +1029,8 @@ fun OnboardingStep0WelcomeGateway(
                                                                             editingMabAccountIndex = index
                                                                         },
                                                                     shape = RoundedCornerShape(6.dp),
-                                                                    color = if (currentMinBal > 0.0) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                                                                    border = BorderStroke(0.5.dp, if (currentMinBal > 0.0) AccentPurple.copy(alpha = 0.4f) else BorderLight)
+                                                                    color = if (currentMinBal > 0.0) Primary50 else CanvasLight,
+                                                                    border = BorderStroke(0.5.dp, if (currentMinBal > 0.0) Primary200 else BorderLight)
                                                                 ) {
                                                                     Row(
                                                                         verticalAlignment = Alignment.CenterVertically,
@@ -1218,7 +1218,6 @@ fun OnboardingStep0WelcomeGateway(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceEvenly
                                     ) {
-                                        // Standardized Inflow (SoftGreen)
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1245,7 +1244,6 @@ fun OnboardingStep0WelcomeGateway(
 
                                         Box(modifier = Modifier.width(1.dp).height(18.dp).background(BorderLight))
 
-                                        // Standardized Outflow (SoftRed)
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1272,7 +1270,6 @@ fun OnboardingStep0WelcomeGateway(
 
                                         Box(modifier = Modifier.width(1.dp).height(18.dp).background(BorderLight))
 
-                                        // Standardized Assets (SoftTeal)
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.Center,
@@ -1314,9 +1311,9 @@ fun OnboardingStep0WelcomeGateway(
                                             else -> TextDark
                                         }
                                         val typeBg = when (item.type) {
-                                            TransactionType.INCOME -> SoftGreen.copy(alpha = 0.12f)
-                                            TransactionType.EXPENSE -> SoftRed.copy(alpha = 0.12f)
-                                            TransactionType.ASSET -> SoftTeal.copy(alpha = 0.12f)
+                                            TransactionType.INCOME -> SoftGreenLight
+                                            TransactionType.EXPENSE -> SoftRedLight
+                                            TransactionType.ASSET -> SoftTealLight
                                             else -> CanvasLight
                                         }
 
@@ -1611,6 +1608,7 @@ fun OnboardingStep0WelcomeGateway(
             }
         }
 
+        // Pinned Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1619,8 +1617,8 @@ fun OnboardingStep0WelcomeGateway(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFFF3E8FF).copy(alpha = 0.98f),
-                            Color(0xFFF3E8FF).copy(alpha = 0.85f),
+                            Primary100.copy(alpha = 0.96f),
+                            Primary50.copy(alpha = 0.80f),
                             Color.Transparent
                         )
                     )
@@ -1662,7 +1660,7 @@ fun OnboardingStep0WelcomeGateway(
                             Surface(
                                 modifier = Modifier.size(38.dp),
                                 shape = CircleShape,
-                                color = AccentPurple.copy(alpha = 0.12f)
+                                color = Primary50
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(Icons.Default.Shield, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(20.dp))
@@ -1707,7 +1705,7 @@ fun OnboardingStep0WelcomeGateway(
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable { customMabText = preset },
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
+                                    color = if (isSel) Primary50 else CanvasLight,
                                     border = BorderStroke(0.8.dp, if (isSel) AccentPurple else BorderLight)
                                 ) {
                                     Text(
@@ -1777,8 +1775,8 @@ fun OnboardingStep0WelcomeGateway(
                     Surface(
                         modifier = Modifier.size(60.dp),
                         shape = CircleShape,
-                        color = AccentPurple.copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))
+                        color = Primary50,
+                        border = BorderStroke(1.dp, Primary200)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
@@ -1932,7 +1930,7 @@ fun OnboardingStep0WelcomeGateway(
                         .padding(bottom = 32.dp, top = 8.dp)
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(modifier = Modifier.size(38.dp), shape = CircleShape, color = AccentPurple.copy(alpha = 0.12f)) {
+                        Surface(modifier = Modifier.size(38.dp), shape = CircleShape, color = Primary50) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(Icons.Default.Public, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(20.dp))
                             }
@@ -1958,7 +1956,7 @@ fun OnboardingStep0WelcomeGateway(
                                         showCountryPickerSheet = false
                                     },
                                 shape = RoundedCornerShape(14.dp),
-                                color = if (isSelected) AccentPurple.copy(alpha = 0.10f) else CanvasLight,
+                                color = if (isSelected) Primary50 else CanvasLight,
                                 border = BorderStroke(0.8.dp, if (isSelected) AccentPurple else BorderLight)
                             ) {
                                 Row(
@@ -2004,7 +2002,7 @@ fun OnboardingStep0WelcomeGateway(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp, top = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = AccentPurple.copy(alpha = 0.12f), border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))) {
+                    Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = Primary50, border = BorderStroke(1.dp, Primary200)) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(Icons.Default.FolderOpen, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(30.dp))
                         }
@@ -2060,7 +2058,7 @@ fun OnboardingStep0WelcomeGateway(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp, top = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = AccentPurple.copy(alpha = 0.12f), border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))) {
+                    Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = Primary50, border = BorderStroke(1.dp, Primary200)) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(Icons.Default.Fingerprint, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(32.dp))
                         }
