@@ -18,12 +18,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myfin.ui.theme.AccentPurple
-import com.example.myfin.ui.theme.AccentPurpleDark
-import com.example.myfin.ui.theme.AccentPurpleLight
-import com.example.myfin.ui.theme.MyfinTheme
-import com.example.myfin.ui.theme.TextDark
-import com.example.myfin.ui.theme.TextMuted
+import com.example.myfin.ui.theme.*
 
 @Composable
 fun MyFinBrandHeader(
@@ -36,10 +31,11 @@ fun MyFinBrandHeader(
 ) {
     val primaryTextColor = if (isDarkTheme) Color.White else TextDark
     val brandGradient = Brush.horizontalGradient(
-        colors = listOf(
-            AccentPurple,
-            AccentPurpleDark
-        )
+        colors = if (isDarkTheme) {
+            listOf(Primary300, Primary500)
+        } else {
+            listOf(Primary600, Primary800)
+        }
     )
 
     val scaledTitleSize = (logoSize.value * 0.52f).coerceIn(15f, 26f).sp
@@ -52,10 +48,9 @@ fun MyFinBrandHeader(
             ),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Outline-style App Logo
         MyFinAppLogo(
             size = logoSize,
-            tint = if (isDarkTheme) Color.White else AccentPurple
+            tint = if (isDarkTheme) Primary300 else Primary600
         )
 
         Spacer(modifier = Modifier.width(10.dp))
@@ -87,10 +82,10 @@ fun MyFinBrandHeader(
                     Spacer(modifier = Modifier.width(6.dp))
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = if (isDarkTheme) AccentPurple.copy(alpha = 0.25f) else AccentPurpleLight,
+                        color = if (isDarkTheme) Primary600.copy(alpha = 0.25f) else Primary50,
                         border = BorderStroke(
                             0.5.dp,
-                            if (isDarkTheme) AccentPurple.copy(alpha = 0.5f) else AccentPurple.copy(alpha = 0.35f)
+                            if (isDarkTheme) Primary400.copy(alpha = 0.5f) else Primary200
                         )
                     ) {
                         Text(
@@ -98,7 +93,7 @@ fun MyFinBrandHeader(
                             fontSize = 8.sp,
                             fontWeight = FontWeight.Black,
                             fontFamily = FontFamily.Monospace,
-                            color = if (isDarkTheme) Color(0xFFD0BCFF) else AccentPurple,
+                            color = if (isDarkTheme) Primary200 else Primary700,
                             letterSpacing = 0.8.sp,
                             modifier = Modifier.padding(horizontal = 4.5.dp, vertical = 1.5.dp)
                         )
@@ -112,7 +107,7 @@ fun MyFinBrandHeader(
                     text = subtitle.uppercase(),
                     fontSize = 8.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isDarkTheme) Color.White.copy(alpha = 0.55f) else TextMuted,
+                    color = if (isDarkTheme) Neutral400 else TextMuted,
                     letterSpacing = 0.8.sp
                 )
             }
@@ -124,7 +119,7 @@ fun MyFinBrandHeader(
 // PREVIEWS
 // ==========================================
 
-@Preview(name = "Brand Header - Light Canvas", showBackground = true, backgroundColor = 0xFFF7F8FA)
+@Preview(name = "Brand Header - Light Canvas", showBackground = true, backgroundColor = 0xFFF8FAFC)
 @Composable
 private fun PreviewBrandHeaderLight() {
     MyfinTheme {
@@ -137,7 +132,7 @@ private fun PreviewBrandHeaderLight() {
     }
 }
 
-@Preview(name = "Brand Header - Dark Canvas", showBackground = true, backgroundColor = 0xFF231B38)
+@Preview(name = "Brand Header - Dark Canvas", showBackground = true, backgroundColor = 0xFF0F172A)
 @Composable
 private fun PreviewBrandHeaderDark() {
     MyfinTheme {
