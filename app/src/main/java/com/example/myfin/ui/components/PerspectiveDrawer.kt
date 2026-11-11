@@ -1,5 +1,6 @@
 package com.example.myfin.ui.components
 
+import android.app.Activity
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -9,19 +10,31 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import com.example.myfin.ui.theme.CanvasLight
+import com.example.myfin.ui.theme.Neutral900
+import com.example.myfin.ui.theme.Primary900
 
-// Deep soft purple background for the perspective drawer canvas
-private val SoftPurpleDrawerBg = Color(0xFF231B38)
+// Deep Slate-to-Royal-Navy gradient for the perspective drawer canvas
+private val DrawerBackdropGradient = Brush.linearGradient(
+    colors = listOf(
+        Neutral900,
+        Color(0xFF132347),
+        Primary900
+    )
+)
 
 @Composable
 fun PerspectiveDrawer(
@@ -40,10 +53,24 @@ fun PerspectiveDrawer(
         label = "drawerAnimation"
     )
 
+    // Ensure status bar icons turn white when the dark drawer is open
+    val view = LocalView.current
+    if (!view.isInEditMode && isDrawerOpen) {
+        DisposableEffect(Unit) {
+            val window = (view.context as? Activity)?.window
+            val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+            val previousState = controller?.isAppearanceLightStatusBars ?: true
+            controller?.isAppearanceLightStatusBars = false
+            onDispose {
+                controller?.isAppearanceLightStatusBars = previousState
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(SoftPurpleDrawerBg)
+            .background(DrawerBackdropGradient)
     ) {
         // Drawer Menu Layer (Active and visible when open or animating)
         if (isDrawerOpen || transitionProgress > 0f) {
