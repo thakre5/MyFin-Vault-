@@ -90,8 +90,8 @@ fun YearlyMonthsTab(
                             whatItShows = "Breaks your monthly spend into three functional layers, isolating personal living burn from long-term capital deployment.",
                             visualElements = listOf(
                                 "Bottom Slate Layer" to "Fixed non-negotiable bills (Rent, Utilities, EMI commitments).",
-                                "Middle Violet Layer" to "Discretionary lifestyle burn (Groceries, Dining, Fuel).",
-                                "Top Cyan Crest" to "Capital deployed directly into wealth building (Mutual Funds, SIPs)."
+                                "Middle Cobalt Layer" to "Discretionary lifestyle burn (Groceries, Dining, Fuel).",
+                                "Top Teal Crest" to "Capital deployed directly into wealth building (Mutual Funds, SIPs)."
                             ),
                             whyItMatters = "Validates that high-spend months aren't eating into your investing layer.",
                             actionableTip = "If the bottom fixed layer exceeds 50% of your earnings, restructure subscriptions and fixed contracts."
@@ -233,11 +233,11 @@ private fun CompactLayeredMountainCard(
             ) {
                 OutflowLayerFilter.entries.forEach { filter ->
                     val isSelected = selectedFilter == filter
-                    val chipColor = when (filter) {
-                        OutflowLayerFilter.ALL -> AccentPurple
-                        OutflowLayerFilter.FIXED -> Color(0xFF475569)
-                        OutflowLayerFilter.LIFESTYLE -> Color(0xFF8B5CF6)
-                        OutflowLayerFilter.ASSETS -> Color(0xFF06B6D4)
+                    val (chipColor, chipBg) = when (filter) {
+                        OutflowLayerFilter.ALL -> Primary700 to Primary50
+                        OutflowLayerFilter.FIXED -> Neutral600 to Neutral100
+                        OutflowLayerFilter.LIFESTYLE -> Primary500 to Primary50
+                        OutflowLayerFilter.ASSETS -> SoftTeal to SoftTealLight
                     }
 
                     Surface(
@@ -246,7 +246,7 @@ private fun CompactLayeredMountainCard(
                             .clip(RoundedCornerShape(8.dp))
                             .clickable { selectedFilter = filter },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isSelected) chipColor.copy(alpha = 0.14f) else CanvasLight,
+                        color = if (isSelected) chipBg else CanvasLight,
                         border = BorderStroke(0.6.dp, if (isSelected) chipColor else BorderLight)
                     ) {
                         Text(
@@ -318,7 +318,7 @@ private fun FilteredMountainCanvas(
         // Background reference gridlines
         for (i in 1..2) {
             val y = h * (i / 3f)
-            drawLine(color = Color(0xFFF1F5F9), start = Offset(0f, y), end = Offset(w, y), strokeWidth = 1.dp.toPx())
+            drawLine(color = Neutral100, start = Offset(0f, y), end = Offset(w, y), strokeWidth = 1.dp.toPx())
         }
 
         // Shaded Future Months
@@ -326,12 +326,12 @@ private fun FilteredMountainCanvas(
         if (firstFutureIndex != -1) {
             val futureStartX = firstFutureIndex * stepX
             drawRect(
-                color = Color(0xFFF8FAFC).copy(alpha = 0.70f),
+                color = Neutral50.copy(alpha = 0.70f),
                 topLeft = Offset(futureStartX, 0f),
                 size = Size(w - futureStartX, h)
             )
             drawLine(
-                color = Color(0xFFCBD5E1),
+                color = Neutral300,
                 start = Offset(futureStartX, 0f),
                 end = Offset(futureStartX, h),
                 strokeWidth = 1.dp.toPx(),
@@ -361,7 +361,7 @@ private fun FilteredMountainCanvas(
         }
 
         when (activeFilter) {
-            // STACKED COMPOSITION (Cyan at top, Violet in middle, Slate at bottom)
+            // STACKED COMPOSITION (SoftTeal at top, Primary500 in middle, Neutral600 at bottom)
             OutflowLayerFilter.ALL -> {
                 val ptsAssets = yearlyMonths.mapIndexed { idx, m ->
                     val x = idx * stepX
@@ -382,18 +382,18 @@ private fun FilteredMountainCanvas(
 
                 drawLayerPath(
                     ptsAssets,
-                    Color(0xFF06B6D4),
-                    Brush.verticalGradient(listOf(Color(0xFF06B6D4).copy(alpha = 0.28f), Color.Transparent))
+                    SoftTeal,
+                    Brush.verticalGradient(listOf(SoftTeal.copy(alpha = 0.28f), Color.Transparent))
                 )
                 drawLayerPath(
                     ptsLifestyle,
-                    Color(0xFF8B5CF6),
-                    Brush.verticalGradient(listOf(Color(0xFF8B5CF6).copy(alpha = 0.38f), Color.Transparent))
+                    Primary500,
+                    Brush.verticalGradient(listOf(Primary500.copy(alpha = 0.38f), Color.Transparent))
                 )
                 drawLayerPath(
                     ptsFixed,
-                    Color(0xFF475569),
-                    Brush.verticalGradient(listOf(Color(0xFF475569).copy(alpha = 0.50f), Color(0xFF1E293B).copy(alpha = 0.20f)))
+                    Neutral600,
+                    Brush.verticalGradient(listOf(Neutral600.copy(alpha = 0.50f), Neutral800.copy(alpha = 0.20f)))
                 )
             }
 
@@ -406,8 +406,8 @@ private fun FilteredMountainCanvas(
                 }
                 drawLayerPath(
                     ptsFixed,
-                    Color(0xFF475569),
-                    Brush.verticalGradient(listOf(Color(0xFF475569).copy(alpha = 0.55f), Color.Transparent))
+                    Neutral600,
+                    Brush.verticalGradient(listOf(Neutral600.copy(alpha = 0.55f), Color.Transparent))
                 )
             }
 
@@ -420,8 +420,8 @@ private fun FilteredMountainCanvas(
                 }
                 drawLayerPath(
                     ptsLifestyle,
-                    Color(0xFF8B5CF6),
-                    Brush.verticalGradient(listOf(Color(0xFF8B5CF6).copy(alpha = 0.45f), Color.Transparent))
+                    Primary500,
+                    Brush.verticalGradient(listOf(Primary500.copy(alpha = 0.45f), Color.Transparent))
                 )
             }
 
@@ -434,8 +434,8 @@ private fun FilteredMountainCanvas(
                 }
                 drawLayerPath(
                     ptsIsolatedAssets,
-                    Color(0xFF06B6D4),
-                    Brush.verticalGradient(listOf(Color(0xFF06B6D4).copy(alpha = 0.45f), Color.Transparent))
+                    SoftTeal,
+                    Brush.verticalGradient(listOf(SoftTeal.copy(alpha = 0.45f), Color.Transparent))
                 )
             }
         }
@@ -495,8 +495,8 @@ private fun MonthlySpotlightComparisonCard(
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { onTapMonth(peak) },
                     shape = RoundedCornerShape(12.dp),
-                    color = CanvasLight,
-                    border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.4f))
+                    color = Primary50,
+                    border = BorderStroke(0.6.dp, Primary200)
                 ) {
                     Row(
                         modifier = Modifier
@@ -506,7 +506,7 @@ private fun MonthlySpotlightComparisonCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("Current Active Pacing", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                            Text("Current Active Pacing", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Primary700)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(peak?.monthName ?: "—", fontSize = 14.sp, fontWeight = FontWeight.Black, color = TextDark)
                         }
@@ -535,7 +535,7 @@ private fun MonthlySpotlightComparisonCard(
                             .clickable { onTapMonth(leanest) },
                         shape = RoundedCornerShape(12.dp),
                         color = CanvasLight,
-                        border = BorderStroke(0.6.dp, SoftGreen.copy(alpha = 0.4f))
+                        border = BorderStroke(0.6.dp, Success500.copy(alpha = 0.4f))
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Row(
@@ -543,8 +543,8 @@ private fun MonthlySpotlightComparisonCard(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Leanest Cycle", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = SoftGreen)
-                                Icon(Icons.AutoMirrored.Filled.TrendingDown, contentDescription = null, tint = SoftGreen, modifier = Modifier.size(13.dp))
+                                Text("Leanest Cycle", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Success700)
+                                Icon(Icons.AutoMirrored.Filled.TrendingDown, contentDescription = null, tint = Success500, modifier = Modifier.size(13.dp))
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
@@ -557,7 +557,7 @@ private fun MonthlySpotlightComparisonCard(
                                 text = if (isDiscreet || leanest == null) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", leanest.lifestyleExpenses)}",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = SoftGreen
+                                color = Success700
                             )
                             val leanDiff = if (leanest != null && avgBurn > 0) (((avgBurn - leanest.lifestyleExpenses) / avgBurn) * 100).roundToInt() else 0
                             Text(
@@ -576,7 +576,7 @@ private fun MonthlySpotlightComparisonCard(
                             .clickable { onTapMonth(peak) },
                         shape = RoundedCornerShape(12.dp),
                         color = CanvasLight,
-                        border = BorderStroke(0.6.dp, SoftRed.copy(alpha = 0.4f))
+                        border = BorderStroke(0.6.dp, Error500.copy(alpha = 0.4f))
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Row(
@@ -584,8 +584,8 @@ private fun MonthlySpotlightComparisonCard(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Peak Cycle", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
-                                Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = SoftRed, modifier = Modifier.size(13.dp))
+                                Text("Peak Cycle", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Error700)
+                                Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = Error500, modifier = Modifier.size(13.dp))
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
@@ -598,7 +598,7 @@ private fun MonthlySpotlightComparisonCard(
                                 text = if (isDiscreet || peak == null) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", peak.lifestyleExpenses)}",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = SoftRed
+                                color = Error700
                             )
                             val peakDiff = if (peak != null && avgBurn > 0) (((peak.lifestyleExpenses - avgBurn) / avgBurn) * 100).roundToInt() else 0
                             Text(
@@ -630,7 +630,9 @@ private fun TimelineMonthRow(
 ) {
     val isSurplus = data.netSavings >= 0
     val hasActivity = data.personalIncome > 0 || data.lifestyleExpenses > 0 || data.assets > 0
-    val statusColor = if (data.isFuture) TextMuted else if (isSurplus) SoftGreen else SoftRed
+    val statusDotColor = if (data.isFuture) TextMuted else if (isSurplus) Success500 else Error500
+    val statusBgColor = if (data.isFuture) Neutral100 else if (isSurplus) Success100 else Error100
+    val statusTextColor = if (data.isFuture) TextMuted else if (isSurplus) Success700 else Error700
 
     val absSavings = abs(data.netSavings)
     val formattedSavings = if (absSavings >= 1000) "${(absSavings / 1000).toInt()}k" else "${absSavings.toInt()}"
@@ -666,7 +668,7 @@ private fun TimelineMonthRow(
                 modifier = Modifier
                     .size(16.dp)
                     .clip(CircleShape)
-                    .background(if (data.isFuture) CanvasLight else statusColor.copy(alpha = 0.18f))
+                    .background(if (data.isFuture) CanvasLight else statusBgColor)
                     .padding(3.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -674,7 +676,7 @@ private fun TimelineMonthRow(
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(CircleShape)
-                        .background(if (data.isFuture) TextMuted.copy(alpha = 0.4f) else statusColor)
+                        .background(if (data.isFuture) TextMuted.copy(alpha = 0.4f) else statusDotColor)
                 )
             }
 
@@ -716,13 +718,13 @@ private fun TimelineMonthRow(
 
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = statusColor.copy(alpha = 0.12f)
+                        color = statusBgColor
                     ) {
                         Text(
                             text = if (isDiscreet) "••••" else badgeText,
                             fontSize = 9.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = statusColor,
+                            color = statusTextColor,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -759,7 +761,7 @@ private fun TimelineMonthRow(
                                 Text(
                                     text = floatLabel,
                                     fontSize = 8.5.sp,
-                                    color = Color(0xFFE57A28),
+                                    color = Warning700,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -769,13 +771,13 @@ private fun TimelineMonthRow(
                     if (hasActivity && !data.isFuture && avgBurn > 0) {
                         Surface(
                             shape = RoundedCornerShape(5.dp),
-                            color = (if (burnDeltaPercent <= 0) SoftGreen else SoftRed).copy(alpha = 0.10f)
+                            color = if (burnDeltaPercent <= 0) Success100 else Error100
                         ) {
                             Text(
                                 text = if (burnDeltaPercent <= 0) "${abs(burnDeltaPercent)}% under avg" else "+$burnDeltaPercent% over avg",
                                 fontSize = 8.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (burnDeltaPercent <= 0) SoftGreen else SoftRed,
+                                color = if (burnDeltaPercent <= 0) Success700 else Error700,
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                             )
                         }
@@ -800,13 +802,13 @@ private fun TimelineMonthRow(
                         val assetRatio = (data.assets / totalMonthOutflow).toFloat().coerceIn(0f, 1f)
 
                         if (fixedRatio > 0) {
-                            Box(modifier = Modifier.weight(fixedRatio.coerceAtLeast(0.04f)).fillMaxHeight().background(Color(0xFF475569)))
+                            Box(modifier = Modifier.weight(fixedRatio.coerceAtLeast(0.04f)).fillMaxHeight().background(Neutral600))
                         }
                         if (discRatio > 0) {
-                            Box(modifier = Modifier.weight(discRatio.coerceAtLeast(0.04f)).fillMaxHeight().background(Color(0xFF8B5CF6)))
+                            Box(modifier = Modifier.weight(discRatio.coerceAtLeast(0.04f)).fillMaxHeight().background(Primary500))
                         }
                         if (assetRatio > 0) {
-                            Box(modifier = Modifier.weight(assetRatio.coerceAtLeast(0.04f)).fillMaxHeight().background(Color(0xFF06B6D4)))
+                            Box(modifier = Modifier.weight(assetRatio.coerceAtLeast(0.04f)).fillMaxHeight().background(SoftTeal))
                         }
                     }
                 }
