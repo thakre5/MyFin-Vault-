@@ -44,15 +44,23 @@ fun TransactionDetailBottomSheet(
 
     val isCorporateInflow = remember(transaction.type, transaction.category) {
         (transaction.type == TransactionType.CORPORATE && transaction.category.equals("Reimbursements & Claims", ignoreCase = true)) ||
-        (transaction.type == TransactionType.INCOME && transaction.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true))
+                (transaction.type == TransactionType.INCOME && transaction.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true))
     }
 
-    val typeColor = when (transaction.type) {
-        TransactionType.INCOME -> SoftGreen
-        TransactionType.EXPENSE -> SoftRed
+    val (typeColor, typeBg) = when (transaction.type) {
+        TransactionType.INCOME -> Success700 to Success100
+        TransactionType.EXPENSE -> Error700 to Error100
+        TransactionType.ASSET -> SoftTeal to SoftTealLight
+        TransactionType.CORPORATE -> if (isCorporateInflow) (Success700 to Success100) else (Warning700 to Warning100)
+        TransactionType.TRANSFER -> Primary700 to Primary100
+    }
+
+    val amountColor = when (transaction.type) {
+        TransactionType.INCOME -> Success500
+        TransactionType.EXPENSE -> TextDark
         TransactionType.ASSET -> SoftTeal
-        TransactionType.CORPORATE -> if (isCorporateInflow) SoftGreen else Color(0xFFE57A28)
-        TransactionType.TRANSFER -> AccentPurple
+        TransactionType.CORPORATE -> if (isCorporateInflow) Success500 else Warning700
+        TransactionType.TRANSFER -> Primary600
     }
 
     val typeLabel = when (transaction.type) {
@@ -71,7 +79,6 @@ fun TransactionDetailBottomSheet(
         TransactionType.TRANSFER -> "⇄"
     }
 
-    // Map transfer enums and strings to user-friendly titles
     val friendlySubcategory = remember(transaction.subcategory, transaction.type) {
         if (transaction.type == TransactionType.TRANSFER) {
             when (transaction.subcategory.trim()) {
@@ -86,7 +93,6 @@ fun TransactionDetailBottomSheet(
         }
     }
 
-    // Standardized Primary Identification: Subcategory is primary; title only modifies if distinct
     val displayHeroTitle = remember(transaction.title, friendlySubcategory) {
         val cleanTitle = transaction.title.trim()
         val cleanSubcat = friendlySubcategory.trim()
@@ -103,7 +109,6 @@ fun TransactionDetailBottomSheet(
         }
     }
 
-    // Distinct custom note verification
     val distinctCustomNote = remember(transaction.title, friendlySubcategory) {
         val cleanTitle = transaction.title.trim()
         val cleanSubcat = friendlySubcategory.trim()
@@ -117,7 +122,6 @@ fun TransactionDetailBottomSheet(
         }
     }
 
-    // Relative Day Label (Today, Yesterday, Future, or Past Entry)
     val relativeDateTag = remember(transaction.date) {
         val txCal = Calendar.getInstance().apply { timeInMillis = transaction.date }
         val nowCal = Calendar.getInstance()
@@ -138,7 +142,6 @@ fun TransactionDetailBottomSheet(
         }
     }
 
-    // Resolve transfer subtype across active properties and legacy subcategory strings
     val resolvedTransferSubtype = remember(transaction) {
         if (transaction.type == TransactionType.TRANSFER) {
             if (transaction.transferSubtype != TransferSubtype.NONE) {
@@ -167,7 +170,7 @@ fun TransactionDetailBottomSheet(
                     .width(42.dp)
                     .height(4.5.dp),
                 shape = CircleShape,
-                color = BorderLight
+                color = Neutral300
             ) {}
         }
     ) {
@@ -178,7 +181,6 @@ fun TransactionDetailBottomSheet(
                 .padding(horizontal = 22.dp, vertical = 6.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Header Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -203,12 +205,12 @@ fun TransactionDetailBottomSheet(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Main Hero Block (Amount & Title)
+            // Main Hero Block
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
                 color = CanvasLight,
-                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                border = BorderStroke(0.8.dp, BorderLight)
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
@@ -220,7 +222,7 @@ fun TransactionDetailBottomSheet(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = typeColor.copy(alpha = 0.14f)
+                            color = typeBg
                         ) {
                             Text(
                                 text = typeLabel.uppercase(),
@@ -234,13 +236,14 @@ fun TransactionDetailBottomSheet(
 
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = AccentPurple.copy(alpha = 0.12f)
+                            color = Primary50,
+                            border = BorderStroke(0.5.dp, Primary200)
                         ) {
                             Text(
                                 text = relativeDateTag.uppercase(),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = AccentPurple,
+                                color = Primary700,
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp)
                             )
                         }
@@ -252,13 +255,12 @@ fun TransactionDetailBottomSheet(
                         text = "$amountPrefix$currencySymbol${String.format(Locale.US, "%,.2f", transaction.amount)}",
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Black,
-                        color = if (transaction.type == TransactionType.EXPENSE) TextDark else typeColor,
+                        color = amountColor,
                         letterSpacing = (-0.5).sp
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Primary Identification Headline
                     Text(
                         text = displayHeroTitle,
                         fontSize = 15.5.sp,
@@ -276,7 +278,7 @@ fun TransactionDetailBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 color = CardWhite,
-                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                border = BorderStroke(0.8.dp, BorderLight)
             ) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                     DetailInfoRow(
@@ -284,7 +286,7 @@ fun TransactionDetailBottomSheet(
                         label = "Category",
                         value = transaction.category
                     )
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
 
                     DetailInfoRow(
                         icon = Icons.Default.SubdirectoryArrowRight,
@@ -292,9 +294,8 @@ fun TransactionDetailBottomSheet(
                         value = friendlySubcategory
                     )
 
-                    // Show dedicated Custom Note row if entered
                     if (distinctCustomNote != null) {
-                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
                         DetailInfoRow(
                             icon = Icons.Default.EditNote,
                             label = "Custom Note / Title",
@@ -302,7 +303,7 @@ fun TransactionDetailBottomSheet(
                         )
                     }
 
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
 
                     DetailInfoRow(
                         icon = Icons.Default.AccountBalanceWallet,
@@ -313,7 +314,7 @@ fun TransactionDetailBottomSheet(
                             transaction.accountName
                         }
                     )
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
 
                     if (transaction.type == TransactionType.TRANSFER && resolvedTransferSubtype != TransferSubtype.NONE) {
                         val subtypeLabel = when (resolvedTransferSubtype) {
@@ -328,7 +329,7 @@ fun TransactionDetailBottomSheet(
                             label = "Transfer Classification",
                             value = subtypeLabel
                         )
-                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
                     }
 
                     DetailInfoRow(
@@ -336,16 +337,15 @@ fun TransactionDetailBottomSheet(
                         label = "Recorded Date",
                         value = dateFormatter.format(Date(transaction.date))
                     )
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
 
-                    // Target Accounting Ledger Cycle directly from Room partition
                     val monthName = MONTH_NAMES.getOrNull(transaction.month - 1) ?: "Month ${transaction.month}"
                     DetailInfoRow(
                         icon = Icons.Default.CalendarMonth,
                         label = "Accounting Cycle",
                         value = "$monthName ${transaction.year}"
                     )
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
 
                     DetailInfoRow(
                         icon = if (transaction.linkedFixedBillId != null) Icons.Default.EventRepeat else Icons.Default.EditNote,
@@ -354,7 +354,7 @@ fun TransactionDetailBottomSheet(
                     )
 
                     if (transaction.type == TransactionType.CORPORATE) {
-                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
                         DetailInfoRow(
                             icon = Icons.Default.WorkOutline,
                             label = "Accounting Policy",
@@ -370,7 +370,6 @@ fun TransactionDetailBottomSheet(
 
             Spacer(modifier = Modifier.height(22.dp))
 
-            // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -380,10 +379,12 @@ fun TransactionDetailBottomSheet(
                         onDismiss()
                         onDelete(transaction)
                     },
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftRed),
-                    border = BorderStroke(1.dp, SoftRed.copy(alpha = 0.5f))
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Error700),
+                    border = BorderStroke(1.dp, Error500.copy(alpha = 0.5f))
                 ) {
                     Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
@@ -395,13 +396,15 @@ fun TransactionDetailBottomSheet(
                         onDismiss()
                         onEdit(transaction)
                     },
-                    modifier = Modifier.weight(1.3f).height(48.dp),
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                 ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Edit Entry", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Edit Entry", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
                 }
             }
 
@@ -430,7 +433,7 @@ private fun DetailInfoRow(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = TextMuted,
+                tint = Primary600.copy(alpha = 0.8f),
                 modifier = Modifier.size(17.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
