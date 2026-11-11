@@ -1,7 +1,6 @@
 package com.example.myfin.ui.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -17,7 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,7 +53,6 @@ fun FilterBottomSheet(
     var showDateRangePicker by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Identify active date preset
     val activePreset = remember(filterStartDate, filterEndDate) {
         when {
             filterStartDate == null && filterEndDate == null -> DatePreset.ALL_TIME
@@ -91,7 +89,7 @@ fun FilterBottomSheet(
                     .width(40.dp)
                     .height(4.dp),
                 shape = CircleShape,
-                color = BorderLight
+                color = Neutral300
             ) {}
         }
     ) {
@@ -130,11 +128,11 @@ fun FilterBottomSheet(
                     FilterChip(
                         selected = selectedType == null,
                         onClick = { selectedType = null },
-                        label = { Text("All Flows", fontSize = 11.5.sp) },
+                        label = { Text("All Flows", fontSize = 11.5.sp, fontWeight = if (selectedType == null) FontWeight.Bold else FontWeight.Medium) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
                 }
@@ -151,11 +149,11 @@ fun FilterBottomSheet(
                     FilterChip(
                         selected = isSelected,
                         onClick = { selectedType = type },
-                        label = { Text(label, fontSize = 11.5.sp) },
+                        label = { Text(label, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
                 }
@@ -171,11 +169,11 @@ fun FilterBottomSheet(
                     FilterChip(
                         selected = selectedAccount == "ALL",
                         onClick = { selectedAccount = "ALL" },
-                        label = { Text("All Vaults", fontSize = 11.5.sp) },
+                        label = { Text("All Vaults", fontSize = 11.5.sp, fontWeight = if (selectedAccount == "ALL") FontWeight.Bold else FontWeight.Medium) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
                 }
@@ -184,11 +182,11 @@ fun FilterBottomSheet(
                     FilterChip(
                         selected = isSelected,
                         onClick = { selectedAccount = acc },
-                        label = { Text(acc, fontSize = 11.5.sp) },
+                        label = { Text(acc, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
                 }
@@ -210,8 +208,8 @@ fun FilterBottomSheet(
                         label = { Text("All Time", fontSize = 11.5.sp) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
                 }
@@ -226,8 +224,8 @@ fun FilterBottomSheet(
                         label = { Text("Today", fontSize = 11.5.sp) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
                 }
@@ -242,8 +240,8 @@ fun FilterBottomSheet(
                         label = { Text("Yesterday", fontSize = 11.5.sp) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
                 }
@@ -258,8 +256,8 @@ fun FilterBottomSheet(
                         label = { Text("This Month", fontSize = 11.5.sp) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
                 }
@@ -274,8 +272,8 @@ fun FilterBottomSheet(
                         label = { Text("Last Month", fontSize = 11.5.sp) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
                 }
@@ -289,20 +287,19 @@ fun FilterBottomSheet(
                         },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
                 }
             }
 
-            // Active Date Filter Summary Bar
             if (activeRangeText != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = AccentPurpleLight,
-                    border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.35f)),
+                    color = Primary50,
+                    border = BorderStroke(0.8.dp, Primary200),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -311,13 +308,13 @@ fun FilterBottomSheet(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.DateRange, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(15.dp))
+                            Icon(Icons.Default.DateRange, contentDescription = null, tint = Primary600, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = activeRangeText,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = AccentPurple
+                                color = Primary700
                             )
                         }
                         IconButton(
@@ -327,7 +324,7 @@ fun FilterBottomSheet(
                             },
                             modifier = Modifier.size(20.dp)
                         ) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear Dates", tint = AccentPurple, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.Close, contentDescription = "Clear Dates", tint = Primary600, modifier = Modifier.size(14.dp))
                         }
                     }
                 }
@@ -344,7 +341,9 @@ fun FilterBottomSheet(
                         onReset()
                         onDismiss()
                     },
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextDark)
                 ) {
@@ -356,17 +355,18 @@ fun FilterBottomSheet(
                         onApply(selectedType, selectedAccount, filterStartDate, filterEndDate)
                         onDismiss()
                     },
-                    modifier = Modifier.weight(1.2f).height(48.dp),
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                 ) {
-                    Text("Apply Filter", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Apply Filter", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
                 }
             }
         }
     }
 
-    // Material 3 Date Range Picker Dialog
     if (showDateRangePicker) {
         val initialUtcStart = remember(filterStartDate) {
             filterStartDate?.let { localMillis ->
@@ -424,7 +424,7 @@ fun FilterBottomSheet(
                         showDateRangePicker = false
                     }
                 ) {
-                    Text("Apply Range", fontWeight = FontWeight.Bold, color = AccentPurple)
+                    Text("Apply Range", fontWeight = FontWeight.Bold, color = Primary600)
                 }
             },
             dismissButton = {
