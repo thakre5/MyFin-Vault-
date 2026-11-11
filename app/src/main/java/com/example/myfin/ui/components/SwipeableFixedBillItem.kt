@@ -59,8 +59,6 @@ fun SwipeableFixedBillItem(
     var showSettleDialog by remember { mutableStateOf(false) }
     var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
 
-    // Extract local properties to avoid complex expression smart-cast issues
-    val billId = currentBill.id
     val billTitle = currentBill.title
     val billSubcategory = currentBill.subcategory
     val billCategory = currentBill.category
@@ -73,7 +71,6 @@ fun SwipeableFixedBillItem(
     val billMonth = currentBill.month
     val billYear = currentBill.year
 
-    // Dynamic Overdue Calculation (Safe across Past, Present, and Future Months)
     val currentCal = remember { Calendar.getInstance() }
     val currentDayOfMonth = currentCal.get(Calendar.DAY_OF_MONTH)
     val currentSysMonth = currentCal.get(Calendar.MONTH) + 1
@@ -88,7 +85,6 @@ fun SwipeableFixedBillItem(
         }
     }
 
-    // Map enum string to friendly name (Scoped at top level for both Card and Settle Dialog)
     val friendlySubcategory = remember(billSubcategory) {
         when (billSubcategory.trim()) {
             "WEALTH_ALLOCATION" -> "Fortress Sweep"
@@ -99,15 +95,14 @@ fun SwipeableFixedBillItem(
         }
     }
 
-    // Row 1 Title Formatting
     val displayPrimaryTitle = remember(billTitle, friendlySubcategory) {
         val cleanTitle = billTitle.trim()
         val cleanSubcat = friendlySubcategory.trim()
         val isRedundant = cleanTitle.isBlank() ||
-            cleanTitle.equals(cleanSubcat, ignoreCase = true) ||
-            cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
-            (cleanSubcat.isNotBlank() && cleanSubcat.contains(cleanTitle, ignoreCase = true) && cleanSubcat.length - cleanTitle.length <= 4) ||
-            (cleanTitle.isNotBlank() && cleanTitle.contains(cleanSubcat, ignoreCase = true) && cleanTitle.length - cleanSubcat.length <= 4)
+                cleanTitle.equals(cleanSubcat, ignoreCase = true) ||
+                cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
+                (cleanSubcat.isNotBlank() && cleanSubcat.contains(cleanTitle, ignoreCase = true) && cleanSubcat.length - cleanTitle.length <= 4) ||
+                (cleanTitle.isNotBlank() && cleanTitle.contains(cleanSubcat, ignoreCase = true) && cleanTitle.length - cleanSubcat.length <= 4)
 
         if (!isRedundant && cleanSubcat.isNotBlank()) {
             "$cleanSubcat ($cleanTitle)"
@@ -116,7 +111,6 @@ fun SwipeableFixedBillItem(
         }
     }
 
-    // Row 3 Route Text
     val routeText = remember(billAccountName, billToAccountName, billType) {
         if (billType == TransactionType.TRANSFER && !billToAccountName.isNullOrBlank()) {
             "${billAccountName.uppercase()} ➔ ${billToAccountName.uppercase()}"
@@ -125,12 +119,20 @@ fun SwipeableFixedBillItem(
         }
     }
 
-    val typeTagColor = when (billType) {
-        TransactionType.EXPENSE -> SoftRed
-        TransactionType.INCOME -> SoftGreen
+    val (typeTagColor, typeTagBg) = when (billType) {
+        TransactionType.EXPENSE -> Error700 to Error100
+        TransactionType.INCOME -> Success700 to Success100
+        TransactionType.ASSET -> SoftTeal to SoftTealLight
+        TransactionType.CORPORATE -> Warning700 to Warning100
+        TransactionType.TRANSFER -> Primary700 to Primary50
+    }
+
+    val amountTint = when (billType) {
+        TransactionType.EXPENSE -> Error500
+        TransactionType.INCOME -> Success500
         TransactionType.ASSET -> SoftTeal
-        TransactionType.CORPORATE -> Color(0xFFE57A28)
-        TransactionType.TRANSFER -> AccentPurple
+        TransactionType.CORPORATE -> Warning700
+        TransactionType.TRANSFER -> Primary600
     }
 
     val typeTagText = when (billType) {
@@ -178,8 +180,8 @@ fun SwipeableFixedBillItem(
 
             val backgroundColor by animateColorAsState(
                 targetValue = when (dismissState.targetValue) {
-                    SwipeToDismissBoxValue.StartToEnd -> AccentPurple
-                    SwipeToDismissBoxValue.EndToStart -> SoftRed
+                    SwipeToDismissBoxValue.StartToEnd -> Primary600
+                    SwipeToDismissBoxValue.EndToStart -> Error500
                     SwipeToDismissBoxValue.Settled -> Color.Transparent
                 },
                 animationSpec = tween(200),
@@ -266,7 +268,7 @@ fun SwipeableFixedBillItem(
                 .border(
                     BorderStroke(
                         0.8.dp,
-                        if (isOverdue) SoftRed.copy(alpha = 0.5f) else BorderLight.copy(alpha = 0.6f)
+                        if (isOverdue) Error500.copy(alpha = 0.45f) else BorderLight
                     ),
                     RoundedCornerShape(18.dp)
                 )
@@ -287,12 +289,11 @@ fun SwipeableFixedBillItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Status Checkmark Box
                 Box(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(if (billIsPaid) SoftGreen else CanvasLight)
+                        .background(if (billIsPaid) Success500 else CanvasLight)
                         .clickable {
                             if (!billIsPaid && currentOnSettle != null) {
                                 showSettleDialog = true
@@ -313,7 +314,7 @@ fun SwipeableFixedBillItem(
                         Surface(
                             shape = CircleShape,
                             color = Color.Transparent,
-                            border = BorderStroke(1.5.dp, BorderLight.copy(alpha = 0.85f)),
+                            border = BorderStroke(1.5.dp, Neutral300),
                             modifier = Modifier.size(24.dp)
                         ) {}
                     }
@@ -321,12 +322,10 @@ fun SwipeableFixedBillItem(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Center Column: 3 Structured Rows with Marquee Scrolling
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(3.5.dp)
                 ) {
-                    // Row 1: Subcategory (Custom Title)
                     Text(
                         text = displayPrimaryTitle,
                         fontWeight = FontWeight.Bold,
@@ -341,7 +340,6 @@ fun SwipeableFixedBillItem(
                         )
                     )
 
-                    // Row 2: [TYPE TAG] Category
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -349,7 +347,7 @@ fun SwipeableFixedBillItem(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = typeTagColor.copy(alpha = 0.12f)
+                            color = typeTagBg
                         ) {
                             Text(
                                 text = typeTagText,
@@ -375,7 +373,6 @@ fun SwipeableFixedBillItem(
                         )
                     }
 
-                    // Row 3: Vault Route • Date Indicator
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -407,15 +404,15 @@ fun SwipeableFixedBillItem(
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = when {
-                                    billIsPaid -> SoftGreen.copy(alpha = 0.10f)
-                                    isOverdue -> SoftRed.copy(alpha = 0.10f)
+                                    billIsPaid -> Success100
+                                    isOverdue -> Error100
                                     else -> CanvasLight
                                 },
                                 border = BorderStroke(
                                     0.6.dp,
                                     when {
-                                        billIsPaid -> SoftGreen.copy(alpha = 0.35f)
-                                        isOverdue -> SoftRed.copy(alpha = 0.4f)
+                                        billIsPaid -> Success500.copy(alpha = 0.4f)
+                                        isOverdue -> Error500.copy(alpha = 0.4f)
                                         else -> BorderLight
                                     }
                                 )
@@ -430,8 +427,8 @@ fun SwipeableFixedBillItem(
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = when {
-                                        billIsPaid -> SoftGreen
-                                        isOverdue -> SoftRed
+                                        billIsPaid -> Success700
+                                        isOverdue -> Error700
                                         else -> TextDark
                                     },
                                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
@@ -443,7 +440,6 @@ fun SwipeableFixedBillItem(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Right Column: Amount & Status Vertically Centered
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.Center
@@ -458,7 +454,7 @@ fun SwipeableFixedBillItem(
                         text = "$currencySymbol$formattedAmount",
                         fontWeight = FontWeight.Black,
                         fontSize = 15.sp,
-                        color = if (billIsPaid) TextDark.copy(alpha = 0.5f) else typeTagColor
+                        color = if (billIsPaid) TextDark.copy(alpha = 0.5f) else amountTint
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -470,9 +466,9 @@ fun SwipeableFixedBillItem(
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = when {
-                            billIsPaid -> SoftGreen
-                            isOverdue -> SoftRed
-                            else -> SoftAmber
+                            billIsPaid -> Success700
+                            isOverdue -> Error700
+                            else -> Warning700
                         }
                     )
                 }
@@ -480,7 +476,6 @@ fun SwipeableFixedBillItem(
         }
     }
 
-    // Interactive Settle Dialog
     if (showSettleDialog) {
         val initialFormattedAmount = if (billAmount % 1.0 == 0.0) {
             billAmount.toLong().toString()
@@ -495,14 +490,14 @@ fun SwipeableFixedBillItem(
             val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
             val calNow = Calendar.getInstance()
             calSelected.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
-            calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
+                    calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
         }
 
         val isYesterday = remember(selectedDateMillis) {
             val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
             val calYesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
             calSelected.get(Calendar.YEAR) == calYesterday.get(Calendar.YEAR) &&
-            calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
+                    calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
         }
 
         val formattedDateLabel = remember(selectedDateMillis, isToday, isYesterday) {
@@ -515,6 +510,7 @@ fun SwipeableFixedBillItem(
 
         AlertDialog(
             onDismissRequest = { showSettleDialog = false },
+            containerColor = CardWhite,
             title = {
                 Text(
                     text = "Settle $displayPrimaryTitle",
@@ -543,7 +539,11 @@ fun SwipeableFixedBillItem(
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Primary600,
+                            unfocusedBorderColor = BorderLight
+                        )
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -562,8 +562,8 @@ fun SwipeableFixedBillItem(
                             label = { Text("Today", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                             shape = RoundedCornerShape(8.dp),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentPurpleLight,
-                                selectedLabelColor = AccentPurple
+                                selectedContainerColor = Primary50,
+                                selectedLabelColor = Primary700
                             )
                         )
 
@@ -576,8 +576,8 @@ fun SwipeableFixedBillItem(
                             label = { Text("Yesterday", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                             shape = RoundedCornerShape(8.dp),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentPurpleLight,
-                                selectedLabelColor = AccentPurple
+                                selectedContainerColor = Primary50,
+                                selectedLabelColor = Primary700
                             )
                         )
 
@@ -587,8 +587,8 @@ fun SwipeableFixedBillItem(
                                 .height(32.dp)
                                 .clickable { showCalendarPicker = true },
                             shape = RoundedCornerShape(8.dp),
-                            color = if (!isToday && !isYesterday) AccentPurpleLight else CanvasLight,
-                            border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) AccentPurple else BorderLight)
+                            color = if (!isToday && !isYesterday) Primary50 else CanvasLight,
+                            border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) Primary600 else BorderLight)
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 8.dp),
@@ -599,12 +599,12 @@ fun SwipeableFixedBillItem(
                                     text = if (!isToday && !isYesterday) formattedDateLabel else "Date",
                                     fontSize = 11.sp,
                                     fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (!isToday && !isYesterday) AccentPurple else TextDark
+                                    color = if (!isToday && !isYesterday) Primary700 else TextDark
                                 )
                                 Icon(
                                     imageVector = Icons.Default.CalendarToday,
                                     contentDescription = "Pick Date",
-                                    tint = if (!isToday && !isYesterday) AccentPurple else TextMuted,
+                                    tint = if (!isToday && !isYesterday) Primary600 else TextMuted,
                                     modifier = Modifier.size(13.dp)
                                 )
                             }
@@ -621,7 +621,7 @@ fun SwipeableFixedBillItem(
                     }
                 ) {
                     val confirmLabel = if (billType == TransactionType.INCOME) "Confirm Received" else "Confirm Paid"
-                    Text(confirmLabel, color = AccentPurple, fontWeight = FontWeight.Bold)
+                    Text(confirmLabel, color = Primary600, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -659,7 +659,7 @@ fun SwipeableFixedBillItem(
                             showCalendarPicker = false
                         }
                     ) {
-                        Text("Select", fontWeight = FontWeight.Bold, color = AccentPurple)
+                        Text("Select", fontWeight = FontWeight.Bold, color = Primary600)
                     }
                 },
                 dismissButton = {
