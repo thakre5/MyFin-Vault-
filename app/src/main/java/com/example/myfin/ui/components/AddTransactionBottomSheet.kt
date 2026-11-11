@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,15 +66,21 @@ fun AddTransactionBottomSheet(
 ) {
     val context = LocalContext.current
     val isEditing = editingTransaction != null
-    var selectedType by remember { mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE) }
+    val txKey = editingTransaction?.id ?: -1L
 
-    var title by remember {
+    var selectedType by remember(txKey) {
+        mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE)
+    }
+
+    var title by remember(txKey) {
         mutableStateOf(
             editingTransaction?.let { tx ->
                 val cleanTitle = tx.title.trim()
                 val cleanSubcat = tx.subcategory.trim()
                 when {
-                    cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
+                    cleanTitle.isBlank() ||
+                            cleanTitle.equals(cleanSubcat, ignoreCase = true) ||
+                            cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
                     cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
                         cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
                     }
@@ -83,7 +90,7 @@ fun AddTransactionBottomSheet(
         )
     }
 
-    var amountText by remember {
+    var amountText by remember(txKey) {
         mutableStateOf(
             editingTransaction?.amount?.let {
                 if (it > 0) {
@@ -93,10 +100,10 @@ fun AddTransactionBottomSheet(
         )
     }
 
-    var isRecurringCommitment by remember { mutableStateOf(false) }
-    var dueDayText by remember { mutableStateOf("") }
+    var isRecurringCommitment by remember(txKey) { mutableStateOf(false) }
+    var dueDayText by remember(txKey) { mutableStateOf("") }
 
-    var selectedTransferSubtype by remember {
+    var selectedTransferSubtype by remember(txKey) {
         mutableStateOf(
             editingTransaction?.transferSubtype?.takeIf { it != TransferSubtype.NONE }
                 ?: when (editingTransaction?.subcategory?.trim()) {
@@ -108,11 +115,11 @@ fun AddTransactionBottomSheet(
         )
     }
 
-    var selectedAccount by remember(accountList) {
+    var selectedAccount by remember(txKey, accountList) {
         mutableStateOf(editingTransaction?.accountName ?: accountList.firstOrNull().orEmpty())
     }
 
-    var selectedToAccount by remember(accountList, selectedAccount) {
+    var selectedToAccount by remember(txKey, accountList, selectedAccount) {
         mutableStateOf(
             editingTransaction?.toAccountName
                 ?: accountList.firstOrNull { !it.equals(selectedAccount, ignoreCase = true) }
@@ -120,21 +127,23 @@ fun AddTransactionBottomSheet(
         )
     }
 
-    var selectedDateMillis by remember { mutableStateOf(editingTransaction?.date ?: System.currentTimeMillis()) }
+    var selectedDateMillis by remember(txKey) {
+        mutableStateOf(editingTransaction?.date ?: System.currentTimeMillis())
+    }
     var showDatePickerDialog by remember { mutableStateOf(false) }
 
     val isToday = remember(selectedDateMillis) {
         val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
         val calNow = Calendar.getInstance()
         calSelected.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
-        calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
+                calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
     }
 
     val isYesterday = remember(selectedDateMillis) {
         val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
         val calYesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
         calSelected.get(Calendar.YEAR) == calYesterday.get(Calendar.YEAR) &&
-        calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
+                calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
     }
 
     val formattedDateLabel = remember(selectedDateMillis, isToday, isYesterday) {
@@ -150,21 +159,27 @@ fun AddTransactionBottomSheet(
         val cats = masterCategories.filter { it.type == selectedType }.toMutableList()
         if (editingTransaction != null && editingTransaction.type == selectedType && editingTransaction.category.isNotBlank()) {
             if (cats.none { it.name.equals(editingTransaction.category, ignoreCase = true) }) {
-                cats.add(CategoryEntity(name = editingTransaction.category, type = selectedType, isLegacy = true))
+                cats.add(0, CategoryEntity(name = editingTransaction.category, type = selectedType, isLegacy = true))
             }
         }
         cats
     }
 
-    var selectedCategory by remember(availableCategoryEntities) {
-        mutableStateOf(editingTransaction?.category ?: availableCategoryEntities.firstOrNull()?.name ?: "General")
+    var selectedCategory by remember(txKey, selectedType) {
+        val initialMatch = if (editingTransaction != null && editingTransaction.type == selectedType && editingTransaction.category.isNotBlank()) {
+            availableCategoryEntities.firstOrNull { it.name.equals(editingTransaction.category, ignoreCase = true) }?.name
+                ?: editingTransaction.category
+        } else null
+        mutableStateOf(initialMatch ?: availableCategoryEntities.firstOrNull()?.name ?: "General")
     }
 
-    LaunchedEffect(selectedType) {
-        if (selectedType != TransactionType.TRANSFER) {
-            val names = availableCategoryEntities.map { it.name }
-            if (names.isNotEmpty() && selectedCategory !in names) {
-                selectedCategory = names.firstOrNull() ?: "General"
+    LaunchedEffect(selectedType, availableCategoryEntities) {
+        if (selectedType != TransactionType.TRANSFER && availableCategoryEntities.isNotEmpty()) {
+            val matchesExisting = availableCategoryEntities.any {
+                it.name.equals(selectedCategory, ignoreCase = true)
+            }
+            if (!matchesExisting) {
+                selectedCategory = availableCategoryEntities.first().name
             }
         }
     }
@@ -178,20 +193,59 @@ fun AddTransactionBottomSheet(
             editingTransaction.category.equals(selectedCategory, ignoreCase = true) && editingTransaction.subcategory.isNotBlank()
         ) {
             if (subs.none { it.name.equals(editingTransaction.subcategory, ignoreCase = true) }) {
-                subs.add(SubcategoryEntity(parentCategory = selectedCategory, name = editingTransaction.subcategory, type = selectedType, isLegacy = true))
+                subs.add(0, SubcategoryEntity(parentCategory = selectedCategory, name = editingTransaction.subcategory, type = selectedType, isLegacy = true))
             }
         }
         subs
     }
 
-    var selectedSubcategory by remember(availableSubcategoryEntities) {
-        mutableStateOf(editingTransaction?.subcategory ?: availableSubcategoryEntities.firstOrNull()?.name ?: "General")
+    var selectedSubcategory by remember(txKey, selectedCategory, selectedType) {
+        val initialSubMatch = if (
+            editingTransaction != null &&
+            editingTransaction.type == selectedType &&
+            editingTransaction.category.equals(selectedCategory, ignoreCase = true) &&
+            editingTransaction.subcategory.isNotBlank()
+        ) {
+            availableSubcategoryEntities.firstOrNull { it.name.equals(editingTransaction.subcategory, ignoreCase = true) }?.name
+                ?: editingTransaction.subcategory
+        } else null
+        mutableStateOf(initialSubMatch ?: availableSubcategoryEntities.firstOrNull()?.name ?: "General")
     }
 
     LaunchedEffect(availableSubcategoryEntities) {
-        val names = availableSubcategoryEntities.map { it.name }
-        if (names.isNotEmpty() && selectedSubcategory !in names) {
-            selectedSubcategory = names.firstOrNull() ?: "General"
+        if (availableSubcategoryEntities.isNotEmpty()) {
+            val matchesExisting = availableSubcategoryEntities.any {
+                it.name.equals(selectedSubcategory, ignoreCase = true)
+            }
+            if (!matchesExisting) {
+                selectedSubcategory = availableSubcategoryEntities.first().name
+            }
+        }
+    }
+
+    // Auto-scroll LazyRows so active Category, Subcategory, and Vault chips are visible immediately
+    val categoryListState = rememberLazyListState()
+    val subcategoryListState = rememberLazyListState()
+    val accountListState = rememberLazyListState()
+
+    LaunchedEffect(selectedCategory, availableCategoryEntities) {
+        val idx = availableCategoryEntities.indexOfFirst { it.name.equals(selectedCategory, ignoreCase = true) }
+        if (idx >= 0) {
+            categoryListState.animateScrollToItem(idx)
+        }
+    }
+
+    LaunchedEffect(selectedSubcategory, availableSubcategoryEntities) {
+        val idx = availableSubcategoryEntities.indexOfFirst { it.name.equals(selectedSubcategory, ignoreCase = true) }
+        if (idx >= 0) {
+            subcategoryListState.animateScrollToItem(idx)
+        }
+    }
+
+    LaunchedEffect(selectedAccount, accountList) {
+        val idx = accountList.indexOfFirst { it.equals(selectedAccount, ignoreCase = true) }
+        if (idx >= 0) {
+            accountListState.animateScrollToItem(idx)
         }
     }
 
@@ -222,7 +276,7 @@ fun AddTransactionBottomSheet(
                     .width(40.dp)
                     .height(4.dp),
                 shape = CircleShape,
-                color = BorderLight
+                color = Neutral300
             ) {}
         }
     ) {
@@ -258,7 +312,7 @@ fun AddTransactionBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(BorderLight.copy(alpha = 0.5f))
+                    .background(Neutral100)
                     .padding(3.dp)
             ) {
                 listOf(
@@ -292,11 +346,11 @@ fun AddTransactionBottomSheet(
                             fontSize = 10.5.sp,
                             color = if (isSelected) {
                                 when (type) {
-                                    TransactionType.EXPENSE -> SoftRed
-                                    TransactionType.INCOME -> SoftGreen
+                                    TransactionType.EXPENSE -> Error500
+                                    TransactionType.INCOME -> Success500
                                     TransactionType.ASSET -> SoftTeal
-                                    TransactionType.CORPORATE -> Color(0xFFE57A28)
-                                    TransactionType.TRANSFER -> AccentPurple
+                                    TransactionType.CORPORATE -> Warning700
+                                    TransactionType.TRANSFER -> Primary600
                                 }
                             } else TextMuted,
                             maxLines = 1,
@@ -321,7 +375,7 @@ fun AddTransactionBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentPurple,
+                    focusedBorderColor = Primary600,
                     unfocusedBorderColor = BorderLight
                 )
             )
@@ -343,7 +397,7 @@ fun AddTransactionBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentPurple,
+                    focusedBorderColor = Primary600,
                     unfocusedBorderColor = BorderLight
                 )
             )
@@ -370,8 +424,8 @@ fun AddTransactionBottomSheet(
                         label = { Text("Today", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
 
@@ -387,8 +441,8 @@ fun AddTransactionBottomSheet(
                         label = { Text("Yesterday", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
 
@@ -398,8 +452,8 @@ fun AddTransactionBottomSheet(
                             .height(34.dp)
                             .clickable { showDatePickerDialog = true },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (!isToday && !isYesterday) AccentPurpleLight else CanvasLight,
-                        border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) AccentPurple else BorderLight)
+                        color = if (!isToday && !isYesterday) Primary50 else CanvasLight,
+                        border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) Primary600 else BorderLight)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp),
@@ -410,12 +464,12 @@ fun AddTransactionBottomSheet(
                                 text = if (!isToday && !isYesterday) formattedDateLabel else "Other Date",
                                 fontSize = 11.5.sp,
                                 fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
-                                color = if (!isToday && !isYesterday) AccentPurple else TextDark
+                                color = if (!isToday && !isYesterday) Primary700 else TextDark
                             )
                             Icon(
                                 imageVector = Icons.Default.CalendarToday,
                                 contentDescription = "Pick Date",
-                                tint = if (!isToday && !isYesterday) AccentPurple else TextMuted,
+                                tint = if (!isToday && !isYesterday) Primary600 else TextMuted,
                                 modifier = Modifier.size(14.dp)
                             )
                         }
@@ -451,8 +505,8 @@ fun AddTransactionBottomSheet(
                                 .clip(RoundedCornerShape(10.dp))
                                 .clickable { selectedTransferSubtype = subtype },
                             shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                            border = BorderStroke(0.8.dp, if (isSelected) AccentPurple else BorderLight)
+                            color = if (isSelected) Primary50 else CanvasLight,
+                            border = BorderStroke(0.8.dp, if (isSelected) Primary600 else BorderLight)
                         ) {
                             Box(
                                 modifier = Modifier.padding(horizontal = 14.dp),
@@ -462,7 +516,7 @@ fun AddTransactionBottomSheet(
                                     text = label,
                                     fontSize = 11.5.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) AccentPurple else TextDark
+                                    color = if (isSelected) Primary700 else TextDark
                                 )
                             }
                         }
@@ -474,7 +528,10 @@ fun AddTransactionBottomSheet(
                 Text("Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                 Spacer(modifier = Modifier.height(6.dp))
 
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyRow(
+                    state = categoryListState,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     items(
                         items = if (availableCategoryEntities.isEmpty()) listOf(CategoryEntity("General", selectedType)) else availableCategoryEntities,
                         key = { "${it.name}_${it.isLegacy}" }
@@ -491,17 +548,17 @@ fun AddTransactionBottomSheet(
                             },
                             label = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(catEntity.name, fontSize = 11.5.sp)
+                                    Text(catEntity.name, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     if (catEntity.isLegacy) {
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = "Legacy",
                                             fontSize = 8.5.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFE65100),
+                                            color = Warning700,
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(3.dp))
-                                                .background(Color(0xFFFFF3E0))
+                                                .background(Warning100)
                                                 .padding(horizontal = 3.dp, vertical = 0.5.dp)
                                         )
                                     } else if (catEntity.isNew) {
@@ -510,41 +567,40 @@ fun AddTransactionBottomSheet(
                                             modifier = Modifier
                                                 .size(5.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF4CAF50))
+                                                .background(Success500)
                                         )
                                     }
                                 }
                             },
                             shape = RoundedCornerShape(8.dp),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = if (catEntity.isLegacy) Color(0xFFFFF3E0) else AccentPurpleLight,
-                                selectedLabelColor = if (catEntity.isLegacy) Color(0xFFE65100) else AccentPurple
+                                selectedContainerColor = if (catEntity.isLegacy) Warning100 else Primary50,
+                                selectedLabelColor = if (catEntity.isLegacy) Warning700 else Primary700
                             ),
-                            border = if (catEntity.isLegacy) BorderStroke(0.8.dp, Color(0xFFFFB74D)) else null
+                            border = if (catEntity.isLegacy) BorderStroke(0.8.dp, Warning500) else null
                         )
                     }
                 }
 
-                // Informational Notice if user selects a legacy item
                 AnimatedVisibility(visible = isSelectedCategoryLegacy) {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp),
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFFFF9E6),
-                        border = BorderStroke(0.6.dp, Color(0xFFFFCC00).copy(alpha = 0.6f))
+                        color = Warning100.copy(alpha = 0.65f),
+                        border = BorderStroke(0.6.dp, Warning500.copy(alpha = 0.5f))
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFD48800), modifier = Modifier.size(13.dp))
+                            Icon(Icons.Default.Info, contentDescription = null, tint = Warning700, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "'$selectedCategory' is a legacy category and will be retired next month.",
                                 fontSize = 10.5.sp,
-                                color = Color(0xFF873800)
+                                color = Warning700
                             )
                         }
                     }
@@ -559,7 +615,10 @@ fun AddTransactionBottomSheet(
                         Text("(Primary Identification)", fontSize = 9.5.sp, color = TextMuted.copy(alpha = 0.7f))
                     }
                     Spacer(modifier = Modifier.height(6.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyRow(
+                        state = subcategoryListState,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         items(availableSubcategoryEntities, key = { "${it.name}_${it.isLegacy}" }) { subEntity ->
                             val isSelected = selectedSubcategory.equals(subEntity.name, ignoreCase = true)
                             FilterChip(
@@ -567,17 +626,17 @@ fun AddTransactionBottomSheet(
                                 onClick = { selectedSubcategory = subEntity.name },
                                 label = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(subEntity.name, fontSize = 11.5.sp)
+                                        Text(subEntity.name, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                         if (subEntity.isLegacy) {
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
                                                 text = "Legacy",
                                                 fontSize = 8.5.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFE65100),
+                                                color = Warning700,
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(3.dp))
-                                                    .background(Color(0xFFFFF3E0))
+                                                    .background(Warning100)
                                                     .padding(horizontal = 3.dp, vertical = 0.5.dp)
                                             )
                                         } else if (subEntity.isNew) {
@@ -586,17 +645,17 @@ fun AddTransactionBottomSheet(
                                                 modifier = Modifier
                                                     .size(5.dp)
                                                     .clip(CircleShape)
-                                                    .background(Color(0xFF4CAF50))
+                                                    .background(Success500)
                                             )
                                         }
                                     }
                                 },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = if (subEntity.isLegacy) Color(0xFFFFF3E0) else AccentPurpleLight,
-                                    selectedLabelColor = if (subEntity.isLegacy) Color(0xFFE65100) else AccentPurple
+                                    selectedContainerColor = if (subEntity.isLegacy) Warning100 else Primary50,
+                                    selectedLabelColor = if (subEntity.isLegacy) Warning700 else Primary700
                                 ),
-                                border = if (subEntity.isLegacy) BorderStroke(0.8.dp, Color(0xFFFFB74D)) else null
+                                border = if (subEntity.isLegacy) BorderStroke(0.8.dp, Warning500) else null
                             )
                         }
                     }
@@ -612,7 +671,10 @@ fun AddTransactionBottomSheet(
                 color = TextMuted
             )
             Spacer(modifier = Modifier.height(6.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(
+                state = accountListState,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 items(accountList) { acc ->
                     val isSelected = selectedAccount.equals(acc, ignoreCase = true)
                     FilterChip(
@@ -623,11 +685,11 @@ fun AddTransactionBottomSheet(
                                 selectedToAccount = accountList.firstOrNull { !it.equals(acc, ignoreCase = true) }.orEmpty()
                             }
                         },
-                        label = { Text(acc, fontSize = 11.5.sp) },
+                        label = { Text(acc, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
                 }
@@ -643,10 +705,10 @@ fun AddTransactionBottomSheet(
                         FilterChip(
                             selected = isSelected,
                             onClick = { selectedToAccount = acc },
-                            label = { Text(acc, fontSize = 11.5.sp) },
+                            label = { Text(acc, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                             shape = RoundedCornerShape(8.dp),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = SoftTeal.copy(alpha = 0.15f),
+                                selectedContainerColor = SoftTealLight,
                                 selectedLabelColor = SoftTeal
                             )
                         )
@@ -656,9 +718,9 @@ fun AddTransactionBottomSheet(
                 if (isSelfTransfer) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = SoftRed, modifier = Modifier.size(13.dp))
+                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Error500, modifier = Modifier.size(13.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Source and destination vaults must be distinct.", fontSize = 10.5.sp, color = SoftRed, fontWeight = FontWeight.SemiBold)
+                        Text("Source and destination vaults must be distinct.", fontSize = 10.5.sp, color = Error700, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -701,7 +763,7 @@ fun AddTransactionBottomSheet(
                                 },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
-                                    checkedTrackColor = AccentPurple,
+                                    checkedTrackColor = Primary600,
                                     uncheckedThumbColor = TextMuted,
                                     uncheckedTrackColor = BorderLight
                                 )
@@ -740,7 +802,7 @@ fun AddTransactionBottomSheet(
                                     modifier = Modifier.width(75.dp),
                                     shape = RoundedCornerShape(8.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = AccentPurple,
+                                        focusedBorderColor = Primary600,
                                         unfocusedBorderColor = BorderLight
                                     )
                                 )
@@ -801,12 +863,13 @@ fun AddTransactionBottomSheet(
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                colors = ButtonDefaults.buttonColors(containerColor = Primary600)
             ) {
                 Text(
                     text = if (isEditing) "Update Entry" else if (isRecurringCommitment) "Save & Create AutoPay" else "Save Entry",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    color = Color.White
                 )
             }
         }
@@ -843,7 +906,7 @@ fun AddTransactionBottomSheet(
                         showDatePickerDialog = false
                     }
                 ) {
-                    Text("Select", fontWeight = FontWeight.Bold, color = AccentPurple)
+                    Text("Select", fontWeight = FontWeight.Bold, color = Primary600)
                 }
             },
             dismissButton = {
