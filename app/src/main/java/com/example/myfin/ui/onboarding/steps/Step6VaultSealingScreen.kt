@@ -14,7 +14,6 @@ import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Payments
-import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -80,9 +79,9 @@ fun OnboardingStep6VaultSealing(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFF3E8FF),
-                        Color(0xFFEDE9FE).copy(alpha = 0.65f),
-                        Color(0xFFF8FAFC),
+                        Primary100.copy(alpha = 0.75f),
+                        Primary50.copy(alpha = 0.85f),
+                        Neutral50,
                         CanvasLight
                     )
                 )
@@ -156,8 +155,8 @@ fun OnboardingStep6VaultSealing(
                             .fillMaxWidth()
                             .height(44.dp),
                         shape = RoundedCornerShape(22.dp),
-                        color = AccentPurple.copy(alpha = 0.08f),
-                        border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.25f))
+                        color = Primary50,
+                        border = BorderStroke(0.8.dp, Primary200)
                     ) {
                         Row(
                             modifier = Modifier
@@ -171,7 +170,7 @@ fun OnboardingStep6VaultSealing(
                                     modifier = Modifier
                                         .size(8.dp)
                                         .clip(CircleShape)
-                                        .background(AccentPurple.copy(alpha = pulseAlpha))
+                                        .background(Primary600.copy(alpha = pulseAlpha))
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
@@ -184,7 +183,7 @@ fun OnboardingStep6VaultSealing(
 
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = AccentPurple.copy(alpha = 0.15f)
+                                color = Primary100
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
@@ -193,7 +192,7 @@ fun OnboardingStep6VaultSealing(
                                     Icon(
                                         imageVector = Icons.Outlined.Lock,
                                         contentDescription = null,
-                                        tint = AccentPurple,
+                                        tint = Primary700,
                                         modifier = Modifier.size(12.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -201,7 +200,7 @@ fun OnboardingStep6VaultSealing(
                                         text = "ENCRYPTING",
                                         fontSize = 9.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = AccentPurple,
+                                        color = Primary700,
                                         letterSpacing = 0.5.sp
                                     )
                                 }
@@ -247,7 +246,7 @@ fun OnboardingStep6VaultSealing(
                                     Surface(
                                         modifier = Modifier.size(32.dp),
                                         shape = CircleShape,
-                                        color = AccentPurple
+                                        color = Primary600
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             if (imageModel != null) {
@@ -266,7 +265,6 @@ fun OnboardingStep6VaultSealing(
                                                     }
                                                 )
                                             } else {
-                                                // Design System Monogram Initial Fallback
                                                 Text(
                                                     text = displayName.take(1).uppercase().ifBlank { "V" },
                                                     fontWeight = FontWeight.Black,
@@ -290,7 +288,7 @@ fun OnboardingStep6VaultSealing(
                                             text = if (emailAddress.isNotBlank()) emailAddress else "Offline Account",
                                             fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = AccentPurple,
+                                            color = Primary600,
                                             lineHeight = 11.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -352,13 +350,13 @@ fun OnboardingStep6VaultSealing(
                                     Surface(
                                         modifier = Modifier.size(32.dp),
                                         shape = CircleShape,
-                                        color = CanvasLight
+                                        color = Primary50
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
                                                 imageVector = if (is3Tier) Icons.Outlined.AccountBalance else Icons.Outlined.AccountBalanceWallet,
                                                 contentDescription = null,
-                                                tint = AccentPurple,
+                                                tint = Primary600,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -377,7 +375,7 @@ fun OnboardingStep6VaultSealing(
                                             text = if (is3Tier) "Operating • Commitments • Fortress" else "Unified Cash Flow Ledger",
                                             fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = AccentPurple,
+                                            color = Primary600,
                                             lineHeight = 11.sp
                                         )
                                     }
@@ -442,13 +440,13 @@ fun OnboardingStep6VaultSealing(
                                     Surface(
                                         modifier = Modifier.size(32.dp),
                                         shape = CircleShape,
-                                        color = CanvasLight
+                                        color = Primary50
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
                                                 imageVector = Icons.Outlined.Payments,
                                                 contentDescription = null,
-                                                tint = AccentPurple,
+                                                tint = Primary600,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -465,7 +463,7 @@ fun OnboardingStep6VaultSealing(
                                             text = "${country.currencySymbol} $formattedLiquidity Initial",
                                             fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = AccentPurple,
+                                            color = Primary600,
                                             lineHeight = 11.sp
                                         )
                                     }
@@ -497,7 +495,7 @@ fun OnboardingStep6VaultSealing(
                                             text = "${country.currencySymbol} $formattedCommitments",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = AccentPurple,
+                                            color = Primary600,
                                             lineHeight = 12.sp
                                         )
                                     }
@@ -517,7 +515,7 @@ fun OnboardingStep6VaultSealing(
                         Icon(
                             Icons.Outlined.Shield,
                             contentDescription = null,
-                            tint = AccentPurple.copy(alpha = 0.8f),
+                            tint = Primary600.copy(alpha = 0.85f),
                             modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -569,8 +567,8 @@ fun OnboardingStep6VaultSealing(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFFF3E8FF).copy(alpha = 0.95f),
-                            Color(0xFFF3E8FF).copy(alpha = 0.60f),
+                            Primary100.copy(alpha = 0.95f),
+                            Primary50.copy(alpha = 0.70f),
                             Color.Transparent
                         )
                     )
