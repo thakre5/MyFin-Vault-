@@ -58,12 +58,12 @@ private fun normalizeDobDigits(input: String): String {
     val clean = input.trim()
     val parts = clean.split('/', '-', '.')
     if (parts.size == 3) {
-        if (parts[0].length == 4) { // YYYY-MM-DD
+        if (parts[0].length == 4) {
             val y = parts[0]
             val m = parts[1].padStart(2, '0')
             val d = parts[2].padStart(2, '0')
             return "$d$m$y"
-        } else if (parts[2].length == 4) { // DD-MM-YYYY
+        } else if (parts[2].length == 4) {
             val d = parts[0].padStart(2, '0')
             val m = parts[1].padStart(2, '0')
             val y = parts[2]
@@ -93,8 +93,7 @@ fun PinLockScreen(
     var isPinError by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
 
-    // Multi-Step In-Place Password Recovery State
-    var recoveryStep by remember { mutableIntStateOf(1) } // 1 = Verify DOB, 2 = Set New PIN
+    var recoveryStep by remember { mutableIntStateOf(1) }
     var recoveryDobInput by remember { mutableStateOf("") }
     var newMasterPinInput by remember { mutableStateOf("") }
     var confirmNewPinInput by remember { mutableStateOf("") }
@@ -109,7 +108,6 @@ fun PinLockScreen(
         }
     }
 
-    // Auto-launch biometric fingerprint scanner on screen entry
     LaunchedEffect(Unit) {
         delay(300L)
         triggerBiometricPrompt()
@@ -120,7 +118,7 @@ fun PinLockScreen(
             .fillMaxSize()
             .background(CanvasLight)
     ) {
-        // Ambient Purple Glow
+        // Ambient Royal Blue Top Wash
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -128,8 +126,8 @@ fun PinLockScreen(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            AccentPurple.copy(alpha = 0.14f),
-                            AccentPurple.copy(alpha = 0.03f),
+                            Primary100.copy(alpha = 0.70f),
+                            Primary50.copy(alpha = 0.40f),
                             Color.Transparent
                         )
                     )
@@ -154,7 +152,7 @@ fun PinLockScreen(
                     modifier = Modifier.size(76.dp),
                     shape = CircleShape,
                     color = CardWhite,
-                    border = BorderStroke(2.dp, AccentPurple.copy(alpha = 0.35f)),
+                    border = BorderStroke(2.dp, Primary200),
                     shadowElevation = 4.dp
                 ) {
                     Box(
@@ -187,14 +185,14 @@ fun PinLockScreen(
                                     Surface(
                                         modifier = Modifier.fillMaxSize(),
                                         shape = CircleShape,
-                                        color = AccentPurple.copy(alpha = 0.12f)
+                                        color = Primary50
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Text(
                                                 text = profileName.take(1).uppercase().ifBlank { "M" },
                                                 fontSize = 28.sp,
                                                 fontWeight = FontWeight.Black,
-                                                color = AccentPurple
+                                                color = Primary600
                                             )
                                         }
                                     }
@@ -204,13 +202,13 @@ fun PinLockScreen(
                             Surface(
                                 modifier = Modifier.fillMaxSize(),
                                 shape = CircleShape,
-                                color = AccentPurple.copy(alpha = 0.12f)
+                                color = Primary50
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         imageVector = Icons.Default.Lock,
                                         contentDescription = "Vault Locked",
-                                        tint = AccentPurple,
+                                        tint = Primary600,
                                         modifier = Modifier.size(30.dp)
                                     )
                                 }
@@ -235,12 +233,11 @@ fun PinLockScreen(
                     text = if (isPinError) "Incorrect Master PIN" else "Enter Master PIN to decrypt ledger",
                     fontSize = 12.5.sp,
                     fontWeight = if (isPinError) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isPinError) SoftRed else TextMuted
+                    color = if (isPinError) Error500 else TextMuted
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Animated PIN Dot Indicators
                 val dotCount = if (enteredPin.length > 4) 6 else 4
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -255,9 +252,9 @@ fun PinLockScreen(
                         )
                         val dotColor by animateColorAsState(
                             targetValue = when {
-                                isPinError -> SoftRed
-                                isFilled -> AccentPurple
-                                else -> BorderLight.copy(alpha = 0.9f)
+                                isPinError -> Error500
+                                isFilled -> Primary600
+                                else -> Neutral200
                             },
                             animationSpec = tween(150),
                             label = "dotColor"
@@ -334,7 +331,7 @@ fun PinLockScreen(
                                             Icon(
                                                 imageVector = Icons.Default.Fingerprint,
                                                 contentDescription = "Unlock with Biometrics",
-                                                tint = AccentPurple,
+                                                tint = Primary600,
                                                 modifier = Modifier.size(28.dp)
                                             )
                                         }
@@ -355,7 +352,6 @@ fun PinLockScreen(
                                                     val newPin = enteredPin + key
                                                     enteredPin = newPin
 
-                                                    // Test PIN validity once length reaches 4 or higher
                                                     if (newPin.length >= 4 && securityManager.verifyPin(newPin)) {
                                                         enteredPin = ""
                                                         onUnlockSuccess()
@@ -373,7 +369,7 @@ fun PinLockScreen(
                                             },
                                         shape = CircleShape,
                                         color = CardWhite,
-                                        border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f))
+                                        border = BorderStroke(0.8.dp, BorderLight)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Text(
@@ -406,24 +402,24 @@ fun PinLockScreen(
                 Text(
                     text = "Forgot Master PIN?",
                     fontSize = 13.sp,
-                    color = AccentPurple,
+                    color = Primary600,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
 
-        // Non-destructive in-place password reset dialog
         if (showResetDialog) {
             AlertDialog(
                 onDismissRequest = {
                     showResetDialog = false
                     enteredPin = ""
                 },
+                containerColor = CardWhite,
                 icon = {
                     Icon(
                         imageVector = Icons.Default.LockReset,
                         contentDescription = null,
-                        tint = AccentPurple,
+                        tint = Primary600,
                         modifier = Modifier.size(32.dp)
                     )
                 },
@@ -458,7 +454,7 @@ fun PinLockScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AccentPurple,
+                                    focusedBorderColor = Primary600,
                                     unfocusedBorderColor = BorderLight
                                 )
                             )
@@ -479,7 +475,7 @@ fun PinLockScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AccentPurple,
+                                    focusedBorderColor = Primary600,
                                     unfocusedBorderColor = BorderLight
                                 )
                             )
@@ -493,7 +489,7 @@ fun PinLockScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AccentPurple,
+                                    focusedBorderColor = Primary600,
                                     unfocusedBorderColor = BorderLight
                                 )
                             )
@@ -531,12 +527,13 @@ fun PinLockScreen(
                                 }
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = TextDark),
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary600),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
                             text = if (recoveryStep == 1) "Verify DOB" else "Update PIN & Unlock",
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
                 },
