@@ -2,11 +2,9 @@ package com.example.myfin.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -21,8 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -544,144 +540,6 @@ fun MonthYearPickerDialog(
     }
 }
 
-// ============================================================================
-// 4. TRANSACTION DETAIL BOTTOM SHEET
-// ============================================================================
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TransactionDetailBottomSheet(
-    transaction: TransactionEntity,
-    currencySymbol: String,
-    onDismiss: () -> Unit,
-    onEdit: (TransactionEntity) -> Unit,
-    onDelete: (TransactionEntity) -> Unit
-) {
-    val dateFormatted = remember(transaction.date) {
-        SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.US).format(Date(transaction.date))
-    }
-
-    val typeColor = when (transaction.type) {
-        TransactionType.INCOME -> Success500
-        TransactionType.EXPENSE -> Error500
-        TransactionType.ASSET -> SoftTeal
-        TransactionType.TRANSFER -> Primary600
-        TransactionType.CORPORATE -> Warning500
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = CardWhite,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 22.dp, vertical = 12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = typeColor.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        text = transaction.type.name,
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Black,
-                        color = typeColor,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
-
-                Text(text = dateFormatted, fontSize = 11.5.sp, color = TextMuted)
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = transaction.title,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black,
-                color = TextDark
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "$currencySymbol${String.format(Locale.US, "%,.2f", transaction.amount)}",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Black,
-                color = typeColor
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                color = CanvasLight,
-                border = BorderStroke(0.8.dp, BorderLight)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DetailItemRow("Category", transaction.category)
-                    DetailItemRow("Subcategory", transaction.subcategory)
-                    if (transaction.type == TransactionType.TRANSFER && !transaction.toAccountName.isNullOrBlank()) {
-                        DetailItemRow("Route", "${transaction.accountName} ➔ ${transaction.toAccountName}")
-                    } else {
-                        DetailItemRow("Vault Account", transaction.accountName)
-                    }
-                    if (transaction.linkedFixedBillId != null) {
-                        DetailItemRow("Linked AutoPay", "Yes (Recurring Commitment)")
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { onDelete(transaction) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Error500.copy(alpha = 0.5f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Error500)
-                ) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(17.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Delete", fontWeight = FontWeight.Bold)
-                }
-
-                Button(
-                    onClick = { onEdit(transaction) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Primary600)
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(17.dp), tint = Color.White)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Edit Entry", fontWeight = FontWeight.Bold, color = Color.White)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-    }
-}
-
 @Composable
 private fun DetailItemRow(label: String, value: String) {
     Row(
@@ -695,7 +553,7 @@ private fun DetailItemRow(label: String, value: String) {
 }
 
 // ============================================================================
-// 5. INFO & ANALYTICS EXPLAINER BOTTOM SHEETS
+// 4. INFO & ANALYTICS EXPLAINER BOTTOM SHEETS
 // ============================================================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
