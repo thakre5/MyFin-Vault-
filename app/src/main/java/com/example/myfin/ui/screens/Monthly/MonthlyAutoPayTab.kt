@@ -160,8 +160,8 @@ fun MonthlyAutoPayTab(
     }
 
     val headingColor = if (isMidnightTheme) Color.White else TextDark
-    val subtextColor = if (isMidnightTheme) Color(0xFF94A3B8) else TextMuted
-    val filterRowBg = if (isMidnightTheme) Color.White.copy(alpha = 0.10f) else BorderLight.copy(alpha = 0.5f)
+    val subtextColor = if (isMidnightTheme) Neutral400 else TextMuted
+    val filterRowBg = if (isMidnightTheme) Color.White.copy(alpha = 0.10f) else Neutral100
 
     Column(modifier = Modifier.fillMaxSize()) {
         // 1. TOP HEADER
@@ -196,20 +196,20 @@ fun MonthlyAutoPayTab(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Add AutoPay",
                         modifier = Modifier.size(15.dp),
-                        tint = AccentPurple
+                        tint = if (isMidnightTheme) Primary400 else Primary600
                     )
                     Spacer(modifier = Modifier.width(3.dp))
                     Text(
                         text = "Add AutoPay",
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
-                        color = AccentPurple
+                        color = if (isMidnightTheme) Primary400 else Primary600
                     )
                 }
 
                 Spacer(modifier = Modifier.height(3.dp))
 
-                val (badgeText, badgeColor) = remember(
+                val (badgeText, badgeBg, badgeTextCol) = remember(
                     activeMacroFilter,
                     pendingOutflowTotal,
                     pendingInflowTotal,
@@ -222,28 +222,28 @@ fun MonthlyAutoPayTab(
                     when (activeMacroFilter) {
                         CommitmentMacroFilter.INFLOW -> {
                             val txt = if (isDiscreetMode) "•••• Expected" else "+$curr${String.format(Locale.US, "%,.0f", pendingInflowTotal)} Expected"
-                            txt to SoftTeal
+                            Triple(txt, Success100, Success700)
                         }
                         CommitmentMacroFilter.INTERNAL -> {
                             val txt = if (isDiscreetMode) "•••• Scheduled" else "⇄ $curr${String.format(Locale.US, "%,.0f", pendingInternalTotal)} Sweeps"
-                            txt to AccentPurple
+                            Triple(txt, Primary100, Primary700)
                         }
                         CommitmentMacroFilter.OUTFLOW -> {
                             if (overdueOutflowCount > 0) {
                                 val txt = if (isDiscreetMode) "•••• Due ($overdueOutflowCount Overdue)" else "-$curr${String.format(Locale.US, "%,.0f", pendingOutflowTotal)} Due ($overdueOutflowCount Overdue)"
-                                txt to SoftRed
+                                Triple(txt, Error100, Error700)
                             } else {
                                 val txt = if (isDiscreetMode) "•••• Due" else "-$curr${String.format(Locale.US, "%,.0f", pendingOutflowTotal)} Due"
-                                txt to SoftAmber
+                                Triple(txt, Warning100, Warning700)
                             }
                         }
                         CommitmentMacroFilter.ALL -> {
                             if (overdueOutflowCount > 0) {
                                 val txt = if (isDiscreetMode) "•••• Due ($overdueOutflowCount Overdue)" else "$curr${String.format(Locale.US, "%,.0f", pendingOutflowTotal)} Due ($overdueOutflowCount Overdue)"
-                                txt to SoftRed
+                                Triple(txt, Error100, Error700)
                             } else {
                                 val txt = if (isDiscreetMode) "•••• Pending" else "$curr${String.format(Locale.US, "%,.0f", pendingOutflowTotal)} Pending"
-                                txt to SoftAmber
+                                Triple(txt, Warning100, Warning700)
                             }
                         }
                     }
@@ -251,14 +251,14 @@ fun MonthlyAutoPayTab(
 
                 Surface(
                     shape = RoundedCornerShape(7.dp),
-                    color = badgeColor.copy(alpha = 0.12f),
-                    border = BorderStroke(0.6.dp, badgeColor.copy(alpha = 0.35f))
+                    color = badgeBg,
+                    border = BorderStroke(0.6.dp, badgeTextCol.copy(alpha = 0.30f))
                 ) {
                     Text(
                         text = badgeText,
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = badgeColor,
+                        color = badgeTextCol,
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
                     )
                 }
@@ -278,10 +278,10 @@ fun MonthlyAutoPayTab(
             CommitmentMacroFilter.entries.forEach { filter ->
                 val isSelected = activeMacroFilter == filter
                 val activeTint = when (filter) {
-                    CommitmentMacroFilter.ALL -> AccentPurple
-                    CommitmentMacroFilter.OUTFLOW -> SoftRed
-                    CommitmentMacroFilter.INFLOW -> SoftGreen
-                    CommitmentMacroFilter.INTERNAL -> AccentPurple
+                    CommitmentMacroFilter.ALL -> Primary600
+                    CommitmentMacroFilter.OUTFLOW -> Error500
+                    CommitmentMacroFilter.INFLOW -> Success500
+                    CommitmentMacroFilter.INTERNAL -> Primary600
                 }
 
                 Box(
@@ -350,12 +350,12 @@ fun MonthlyAutoPayTab(
                                         imageVector = Icons.Default.Refresh,
                                         contentDescription = null,
                                         modifier = Modifier.size(14.dp),
-                                        tint = AccentPurple
+                                        tint = Primary600
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = "Reset Filters",
-                                        color = AccentPurple,
+                                        color = Primary600,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
                                     )
@@ -380,7 +380,7 @@ fun MonthlyAutoPayTab(
                                     text = "ACTION NEEDED",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = SoftRed,
+                                    color = Error500,
                                     letterSpacing = 0.6.sp
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -401,7 +401,7 @@ fun MonthlyAutoPayTab(
                                 .shadow(2.dp, RoundedCornerShape(18.dp)),
                             shape = RoundedCornerShape(18.dp),
                             color = CardWhite,
-                            border = BorderStroke(0.9.dp, SoftRed.copy(alpha = 0.35f))
+                            border = BorderStroke(0.9.dp, Error500.copy(alpha = 0.35f))
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 overdueOrActionNeeded.forEachIndexed { index, bill ->
@@ -527,7 +527,7 @@ fun MonthlyAutoPayTab(
                                     Icon(
                                         imageVector = Icons.Default.CheckCircle,
                                         contentDescription = null,
-                                        tint = SoftGreen,
+                                        tint = Success500,
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -535,7 +535,7 @@ fun MonthlyAutoPayTab(
                                         text = "SETTLED & COMPLETED",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Black,
-                                        color = SoftGreen,
+                                        color = Success500,
                                         letterSpacing = 0.5.sp
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -575,7 +575,7 @@ fun MonthlyAutoPayTab(
                                     .fillMaxWidth()
                                     .shadow(1.dp, RoundedCornerShape(18.dp)),
                                 shape = RoundedCornerShape(18.dp),
-                                color = CardWhite.copy(alpha = 0.9f),
+                                color = CardWhite.copy(alpha = 0.92f),
                                 border = BorderStroke(0.7.dp, BorderLight.copy(alpha = 0.6f))
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -660,8 +660,8 @@ private fun AutoPayCommitmentRow(
             val direction = dismissState.dismissDirection
             val backgroundColor by animateColorAsState(
                 targetValue = when (dismissState.targetValue) {
-                    SwipeToDismissBoxValue.StartToEnd -> AccentPurple
-                    SwipeToDismissBoxValue.EndToStart -> SoftRed
+                    SwipeToDismissBoxValue.StartToEnd -> Primary600
+                    SwipeToDismissBoxValue.EndToStart -> Error500
                     SwipeToDismissBoxValue.Settled -> Color.Transparent
                 },
                 animationSpec = tween(200),
@@ -709,23 +709,24 @@ private fun AutoPayCommitmentRow(
             } else bill.category.ifBlank { accountRoute }
         }
 
+        // True Semantic 100 / 700 Triads for Crisp Status Badges
         val (statusText, statusBg, statusTint) = remember(bill.isPaid, bill.dueDay, currentDayOfMonth, isOutflow, isInflow) {
             if (bill.isPaid) {
-                Triple("Settled ✓", SoftGreen.copy(alpha = 0.12f), SoftGreen)
+                Triple("Settled ✓", Success100, Success700)
             } else {
                 val due = bill.dueDay
                 when {
-                    due == null -> Triple("Scheduled", BorderLight.copy(alpha = 0.7f), TextMuted)
+                    due == null -> Triple("Scheduled", Neutral100, Neutral600)
                     due < currentDayOfMonth -> {
                         if (isInflow) {
-                            Triple("Awaiting Deposit (Exp ${due}th)", SoftTeal.copy(alpha = 0.12f), SoftTeal)
+                            Triple("Awaiting Deposit (Exp ${due}th)", SoftTealLight, SoftTeal)
                         } else {
-                            Triple("Overdue (Due ${due}th)", SoftRed.copy(alpha = 0.12f), SoftRed)
+                            Triple("Overdue (Due ${due}th)", Error100, Error700)
                         }
                     }
-                    due == currentDayOfMonth -> Triple("Due Today", SoftAmber.copy(alpha = 0.12f), SoftAmber)
-                    due - currentDayOfMonth <= 3 -> Triple("Due in ${due - currentDayOfMonth}d", SoftAmber.copy(alpha = 0.12f), SoftAmber)
-                    else -> Triple("Due ${due}th", CanvasLight, TextMuted)
+                    due == currentDayOfMonth -> Triple("Due Today", Warning100, Warning700)
+                    due - currentDayOfMonth <= 3 -> Triple("Due in ${due - currentDayOfMonth}d", Warning100, Warning700)
+                    else -> Triple("Due ${due}th", Neutral100, Neutral600)
                 }
             }
         }
@@ -746,7 +747,7 @@ private fun AutoPayCommitmentRow(
                     modifier = Modifier
                         .size(24.dp)
                         .clip(CircleShape)
-                        .background(if (bill.isPaid) SoftGreen else Color.Transparent)
+                        .background(if (bill.isPaid) Success500 else Color.Transparent)
                         .then(
                             if (!bill.isPaid) {
                                 Modifier.clickable {
@@ -769,7 +770,7 @@ private fun AutoPayCommitmentRow(
                             modifier = Modifier.size(22.dp),
                             shape = CircleShape,
                             color = Color.Transparent,
-                            border = BorderStroke(1.5.dp, BorderLight.copy(alpha = 0.9f))
+                            border = BorderStroke(1.5.dp, Neutral300)
                         ) {}
                     }
                 }
@@ -784,7 +785,7 @@ private fun AutoPayCommitmentRow(
                         text = cleanTitle,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.5.sp,
-                        color = if (bill.isPaid) TextDark.copy(alpha = 0.6f) else TextDark,
+                        color = if (bill.isPaid) TextDark.copy(alpha = 0.55f) else TextDark,
                         maxLines = 1,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -819,11 +820,11 @@ private fun AutoPayCommitmentRow(
                     verticalArrangement = Arrangement.Center
                 ) {
                     val amountColor = when {
-                        bill.isPaid -> TextDark.copy(alpha = 0.5f)
-                        isInflow -> SoftGreen
+                        bill.isPaid -> TextDark.copy(alpha = 0.45f)
+                        isInflow -> Success700
                         bill.type == TransactionType.ASSET -> SoftTeal
-                        bill.type == TransactionType.TRANSFER -> AccentPurple
-                        bill.dueDay != null && bill.dueDay < currentDayOfMonth -> SoftRed
+                        bill.type == TransactionType.TRANSFER -> Primary600
+                        bill.dueDay != null && bill.dueDay < currentDayOfMonth -> Error700
                         else -> TextDark
                     }
 
@@ -839,7 +840,7 @@ private fun AutoPayCommitmentRow(
                     Surface(
                         shape = RoundedCornerShape(5.dp),
                         color = statusBg,
-                        border = BorderStroke(0.5.dp, statusTint.copy(alpha = 0.35f))
+                        border = BorderStroke(0.5.dp, statusTint.copy(alpha = 0.30f))
                     ) {
                         Text(
                             text = statusText,
