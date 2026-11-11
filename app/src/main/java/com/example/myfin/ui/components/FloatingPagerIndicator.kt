@@ -39,8 +39,8 @@ fun FloatingPagerIndicator(
     pageTitles: List<String>,
     modifier: Modifier = Modifier,
     isVisible: Boolean = true,
-    activeColor: Color = AccentPurple,
-    inactiveColor: Color = BorderLight.copy(alpha = 0.9f),
+    activeColor: Color = Primary600,
+    inactiveColor: Color = Neutral200,
     containerColor: Color = CardWhite
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -73,8 +73,8 @@ fun FloatingPagerIndicator(
                 .shadow(
                     elevation = 3.dp,
                     shape = RoundedCornerShape(14.dp),
-                    ambientColor = Color.Black.copy(alpha = 0.08f),
-                    spotColor = Color.Black.copy(alpha = 0.12f)
+                    ambientColor = Neutral900.copy(alpha = 0.08f),
+                    spotColor = Neutral900.copy(alpha = 0.12f)
                 )
                 .clip(RoundedCornerShape(14.dp))
                 .clickable(
@@ -89,7 +89,7 @@ fun FloatingPagerIndicator(
                 ),
             shape = RoundedCornerShape(14.dp),
             color = containerColor,
-            border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+            border = BorderStroke(0.8.dp, BorderLight)
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.5.dp),
