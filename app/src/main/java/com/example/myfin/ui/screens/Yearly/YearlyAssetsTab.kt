@@ -140,13 +140,13 @@ fun YearlyAssetsTab(
                                 text = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", wealthMetrics.realizableNetWorth)}",
                                 fontSize = 21.sp,
                                 fontWeight = FontWeight.Black,
-                                color = AccentPurple
+                                color = Primary600
                             )
                         }
 
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = SoftTeal.copy(alpha = 0.12f)
+                            color = SoftTealLight
                         ) {
                             Text(
                                 text = if (isDiscreetMode) "Gross: ••••" else "Gross $currencySymbol${String.format(Locale.US, "%,.0f", wealthMetrics.grossWealth)}",
@@ -181,7 +181,7 @@ fun YearlyAssetsTab(
                                 modifier = Modifier
                                     .weight(liquidShare.coerceAtLeast(0.01f))
                                     .fillMaxHeight()
-                                    .background(SoftGreen)
+                                    .background(Success500)
                             )
                         }
                     }
@@ -202,7 +202,7 @@ fun YearlyAssetsTab(
                             text = "Liquid: ${(liquidShare * 100).toInt()}%",
                             fontSize = 9.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = SoftGreen
+                            color = Success700
                         )
                     }
 
@@ -224,7 +224,7 @@ fun YearlyAssetsTab(
                             modifier = Modifier.weight(1f),
                             label = "Liquid Cash",
                             value = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", wealthMetrics.liquidReserves)}",
-                            tint = SoftGreen
+                            tint = Success500
                         )
                     }
 
@@ -238,13 +238,13 @@ fun YearlyAssetsTab(
                             modifier = Modifier.weight(1f),
                             label = "Active Loans Out",
                             value = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", wealthMetrics.activeReceivables)}",
-                            tint = AccentPurple
+                            tint = Primary600
                         )
                         QuickMetricTile(
                             modifier = Modifier.weight(1f),
                             label = "NPA Bad Debt",
                             value = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", wealthMetrics.npaWrittenOff)}",
-                            tint = SoftRed
+                            tint = Error500
                         )
                     }
                 }
@@ -267,7 +267,7 @@ fun YearlyAssetsTab(
                             whatItShows = "Displays total accumulated asset stock over time (Investments + Liquid Reserves - Capital Drawdowns) across multi-year cycles.",
                             visualElements = listOf(
                                 "Grey Bars" to "Past years' accumulated asset base.",
-                                "Violet Gradient Bar" to "Active year's current portfolio stock.",
+                                "Primary Gradient Bar" to "Active year's current portfolio stock.",
                                 "Growth Badge" to "Year-over-year asset expansion rate."
                             ),
                             whyItMatters = "Validates that your wealth base is compounding continuously across multi-year cycles.",
@@ -323,7 +323,7 @@ private fun CompactSplitGoalHeartCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = Color(0xFFEDE9FE),
+                        color = Primary100,
                         modifier = Modifier.clickable(onClick = onInfoClick)
                     ) {
                         Row(
@@ -333,7 +333,7 @@ private fun CompactSplitGoalHeartCard(
                             Icon(
                                 imageVector = Icons.Default.Shield,
                                 contentDescription = null,
-                                tint = AccentPurple,
+                                tint = Primary600,
                                 modifier = Modifier.size(11.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -341,21 +341,21 @@ private fun CompactSplitGoalHeartCard(
                                 text = targetBadgeLabel,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = AccentPurple
+                                color = Primary700
                             )
                         }
                     }
 
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = if (pct >= 100) SoftGreen.copy(alpha = 0.14f) else CanvasLight,
+                        color = if (pct >= 100) Success100 else CanvasLight,
                         border = BorderStroke(0.6.dp, BorderLight)
                     ) {
                         Text(
                             text = if (pct >= 100) "Milestone Achieved" else "Paced for Q4",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (pct >= 100) SoftGreen else TextMuted,
+                            color = if (pct >= 100) Success700 else TextMuted,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.5.dp)
                         )
                     }
@@ -422,7 +422,7 @@ private fun CompactSplitGoalHeartCard(
                                 .fillMaxHeight()
                                 .background(
                                     Brush.horizontalGradient(
-                                        listOf(AccentPurple, Color(0xFF10B981))
+                                        listOf(Primary600, Success500)
                                     )
                                 )
                         )
@@ -462,7 +462,7 @@ private fun CompactSplitGoalHeartCard(
                         text = "$pct%",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Black,
-                        color = Color.White,
+                        color = CardWhite,
                         letterSpacing = (-0.5).sp
                     )
                 }
@@ -515,8 +515,8 @@ private fun CleanLivingHeartCanvas(
             close()
         }
 
-        drawPath(path = heartPath, color = Color.White)
-        drawPath(path = heartPath, color = Color(0xFFF3E8FF).copy(alpha = 0.65f))
+        drawPath(path = heartPath, color = CardWhite)
+        drawPath(path = heartPath, color = Primary50.copy(alpha = 0.65f))
 
         clipPath(heartPath) {
             val safeFill = if (fillPercentage.isNaN() || fillPercentage.isInfinite()) 0.04f
@@ -542,7 +542,7 @@ private fun CleanLivingHeartCanvas(
             drawPath(
                 path = backWave,
                 brush = Brush.verticalGradient(
-                    colors = listOf(Color(0xFF8B5CF6).copy(alpha = 0.65f), Color(0xFF6D28D9)),
+                    colors = listOf(Primary500.copy(alpha = 0.65f), Primary800),
                     startY = fillTop - 8f,
                     endY = h
                 )
@@ -567,7 +567,7 @@ private fun CleanLivingHeartCanvas(
             drawPath(
                 path = frontWave,
                 brush = Brush.verticalGradient(
-                    colors = listOf(Color(0xFFA78BFA), Color(0xFF4C1D95)),
+                    colors = listOf(Primary400, Primary900),
                     startY = fillTop - 8f,
                     endY = h
                 )
@@ -575,14 +575,14 @@ private fun CleanLivingHeartCanvas(
 
             drawPath(
                 path = frontSurface,
-                color = Color.White.copy(alpha = 0.45f),
+                color = CardWhite.copy(alpha = 0.45f),
                 style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
             )
         }
 
         drawPath(
             path = heartPath,
-            color = Color(0xFFDDD6FE),
+            color = Primary200,
             style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round)
         )
     }
@@ -666,7 +666,7 @@ private fun MultiYearSegmentedPillarsCard(
                             text = "'${item.year.toString().takeLast(2)}",
                             fontSize = 10.sp,
                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isCurrent) AccentPurple else TextMuted
+                            color = if (isCurrent) Primary600 else TextMuted
                         )
                     }
                 }
@@ -680,7 +680,7 @@ private fun MultiYearSegmentedPillarsCard(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isCurrent) AccentPurple.copy(alpha = 0.08f) else Color.Transparent)
+                                .background(if (isCurrent) Primary50 else Color.Transparent)
                                 .padding(horizontal = 10.dp, vertical = 5.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -690,19 +690,19 @@ private fun MultiYearSegmentedPillarsCard(
                                     text = "Year ${item.year}",
                                     fontWeight = if (isCurrent) FontWeight.Black else FontWeight.Bold,
                                     fontSize = 12.sp,
-                                    color = if (isCurrent) AccentPurple else TextDark
+                                    color = if (isCurrent) Primary700 else TextDark
                                 )
                                 if (item.growthPercent != 0.0) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         shape = RoundedCornerShape(5.dp),
-                                        color = if (item.growthPercent >= 0) SoftGreen.copy(alpha = 0.12f) else SoftRed.copy(alpha = 0.12f)
+                                        color = if (item.growthPercent >= 0) Success100 else Error100
                                     ) {
                                         Text(
                                             text = if (item.growthPercent >= 0) "+${item.growthPercent.toInt()}%" else "${item.growthPercent.toInt()}%",
                                             fontSize = 8.5.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (item.growthPercent >= 0) SoftGreen else SoftRed,
+                                            color = if (item.growthPercent >= 0) Success700 else Error700,
                                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
                                         )
                                     }
@@ -713,7 +713,7 @@ private fun MultiYearSegmentedPillarsCard(
                                 text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", item.totalAssets)}",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.5.sp,
-                                color = if (isCurrent) AccentPurple else TextDark
+                                color = if (isCurrent) Primary700 else TextDark
                             )
                         }
                     }
@@ -748,13 +748,13 @@ private fun MultiYearSegmentedCanvas(
             drawRoundRect(
                 brush = if (isCurrent) {
                     Brush.verticalGradient(
-                        colors = listOf(Color(0xFF8B5CF6), Color(0xFF10B981)),
+                        colors = listOf(Primary600, Success500),
                         startY = baseY - barH,
                         endY = baseY
                     )
                 } else {
                     Brush.verticalGradient(
-                        colors = listOf(Color(0xFF94A3B8), Color(0xFFCBD5E1)),
+                        colors = listOf(Neutral400, Neutral300),
                         startY = baseY - barH,
                         endY = baseY
                     )
@@ -766,7 +766,7 @@ private fun MultiYearSegmentedCanvas(
         }
 
         drawLine(
-            color = Color(0xFFE5E7EB),
+            color = Neutral200,
             start = Offset(0f, h - 6.dp.toPx()),
             end = Offset(w, h - 6.dp.toPx()),
             strokeWidth = 1.dp.toPx()
