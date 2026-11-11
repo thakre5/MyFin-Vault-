@@ -4,13 +4,13 @@ import androidx.compose.ui.graphics.Color
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.theme.*
 
-// Canonical Onboarding Obsidian & Emerald Accents
-val VaultPrimaryEmerald = Color(0xFF10B981)
+// Canonical Onboarding Slate & Emerald / Cobalt Accents
+val VaultPrimaryEmerald = Success500
 val VaultMintHighlight = Color(0xFF34D399)
-val VaultDarkSurface = Color(0xFF131522)
-val VaultDarkBackground = Color(0xFF0B0C14)
-val VaultBorderStroke = Color(0xFF1E293B)
-val VaultTextMuted = Color(0xFF94A3B8)
+val VaultDarkSurface = Neutral800
+val VaultDarkBackground = Neutral900
+val VaultBorderStroke = Neutral700
+val VaultTextMuted = Neutral400
 
 data class CountryCurrencyMapping(
     val countryName: String,
