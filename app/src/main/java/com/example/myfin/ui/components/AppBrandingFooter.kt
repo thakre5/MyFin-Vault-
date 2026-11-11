@@ -16,8 +16,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.BuildConfig
-import com.example.myfin.ui.theme.AccentPurple
 import com.example.myfin.ui.theme.MyfinTheme
+import com.example.myfin.ui.theme.Neutral400
+import com.example.myfin.ui.theme.Primary300
+import com.example.myfin.ui.theme.Primary600
 import com.example.myfin.ui.theme.TextDark
 import com.example.myfin.ui.theme.TextMuted
 
@@ -31,8 +33,8 @@ fun AppBrandingFooter(
     onClick: (() -> Unit)? = null
 ) {
     val primaryTextColor = if (isDarkTheme) Color.White.copy(alpha = 0.90f) else TextDark
-    val secondaryTextColor = if (isDarkTheme) Color.White.copy(alpha = 0.50f) else TextMuted
-    val logoTint = if (isDarkTheme) Color.White else AccentPurple
+    val secondaryTextColor = if (isDarkTheme) Neutral400 else TextMuted
+    val logoTint = if (isDarkTheme) Primary300 else Primary600
 
     Column(
         modifier = modifier
@@ -50,7 +52,6 @@ fun AppBrandingFooter(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (showIcon) {
-            // Outline-style brand logo matching MyFinAppLogo
             MyFinAppLogo(
                 size = iconSize,
                 tint = logoTint
@@ -83,7 +84,7 @@ fun AppBrandingFooter(
 // PREVIEWS
 // ==========================================
 
-@Preview(name = "Footer - Light Canvas", showBackground = true, backgroundColor = 0xFFF7F8FA)
+@Preview(name = "Footer - Light Canvas", showBackground = true, backgroundColor = 0xFFF8FAFC)
 @Composable
 private fun PreviewAppBrandingFooterLight() {
     MyfinTheme {
@@ -94,7 +95,7 @@ private fun PreviewAppBrandingFooterLight() {
     }
 }
 
-@Preview(name = "Footer - Dark Canvas", showBackground = true, backgroundColor = 0xFF231B38)
+@Preview(name = "Footer - Dark Canvas", showBackground = true, backgroundColor = 0xFF0F172A)
 @Composable
 private fun PreviewAppBrandingFooterDark() {
     MyfinTheme {
