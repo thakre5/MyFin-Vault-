@@ -23,7 +23,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -144,7 +143,7 @@ fun MonthlyLedgerTab(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A))
+            .background(Neutral900)
             .nestedScroll(nestedScrollConnection)
     ) {
         // 1. FULL-BLEED MIDNIGHT COCKPIT DECK
@@ -152,7 +151,7 @@ fun MonthlyLedgerTab(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(deckHeightDp)
-                .background(Color(0xFF0F172A))
+                .background(Neutral900)
         ) {
             Row(
                 modifier = Modifier
@@ -171,7 +170,7 @@ fun MonthlyLedgerTab(
                         text = "ACTIVE VAULT BALANCE",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF94A3B8),
+                        color = Neutral400,
                         letterSpacing = 0.8.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -216,21 +215,21 @@ fun MonthlyLedgerTab(
                                 text = if (isDiscreetMode) "•••• in" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthlyInflow)} in",
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = SoftGreen
+                                color = Success500
                             )
-                            Text(text = "•", fontSize = 10.sp, color = Color(0xFF64748B))
+                            Text(text = "•", fontSize = 10.sp, color = Neutral500)
                             Text(
                                 text = if (isDiscreetMode) "•••• out" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthlyOutflow)} out",
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFFFCA5A5)
                             )
-                            Text(text = "•", fontSize = 10.sp, color = Color(0xFF64748B))
+                            Text(text = "•", fontSize = 10.sp, color = Neutral500)
                             Text(
                                 text = if (isDiscreetMode) "•••• left" else "${if (remainingFromInflow >= 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", remainingFromInflow)} left",
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (remainingFromInflow >= 0) Color(0xFF38BDF8) else SoftRed
+                                color = if (remainingFromInflow >= 0) Primary300 else Error500
                             )
                         }
                     }
@@ -243,21 +242,21 @@ fun MonthlyLedgerTab(
                         .height(98.dp)
                         .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
                 ) {
-                    // Layer 3: Blue Card Base
+                    // Layer 3: Royal Cobalt Blue Base
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color(0xFF2563EB))
+                            .background(Primary600)
                     )
-                    // Layer 2: Cyan Card Middle
+                    // Layer 2: Soft Teal Middle
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
                             .width(36.dp)
                             .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
-                            .background(Color(0xFF06B6D4))
+                            .background(SoftTeal)
                     )
-                    // Layer 1: Vibrant Yellow Card Front
+                    // Layer 1: Warm Amber Front
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
@@ -265,7 +264,7 @@ fun MonthlyLedgerTab(
                             .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
                             .background(
                                 Brush.verticalGradient(
-                                    listOf(Color(0xFFFDE047), Color(0xFFEAB308))
+                                    listOf(Color(0xFFFDE047), Warning500)
                                 )
                             )
                     )
@@ -298,7 +297,7 @@ fun MonthlyLedgerTab(
                             .width(36.dp)
                             .height(4.dp)
                             .clip(CircleShape)
-                            .background(BorderLight.copy(alpha = 0.9f))
+                            .background(Neutral300)
                     )
                 }
 
@@ -330,7 +329,7 @@ fun MonthlyLedgerTab(
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = CardWhite,
-                                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.8f)),
+                                border = BorderStroke(0.8.dp, BorderLight),
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(36.dp)
@@ -370,7 +369,7 @@ fun MonthlyLedgerTab(
                                                 color = TextDark,
                                                 fontWeight = FontWeight.Medium
                                             ),
-                                            cursorBrush = SolidColor(AccentPurple),
+                                            cursorBrush = SolidColor(Primary600),
                                             modifier = Modifier.fillMaxWidth()
                                         )
                                     }
@@ -414,7 +413,7 @@ fun MonthlyLedgerTab(
                                 Icon(
                                     imageVector = Icons.Default.Tune,
                                     contentDescription = "Filter",
-                                    tint = if (hasActiveCustomFilters) AccentPurple else TextDark,
+                                    tint = if (hasActiveCustomFilters) Primary600 else TextDark,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 if (hasActiveCustomFilters) {
@@ -422,7 +421,7 @@ fun MonthlyLedgerTab(
                                         modifier = Modifier
                                             .size(7.dp)
                                             .clip(CircleShape)
-                                            .background(AccentPurple)
+                                            .background(Primary600)
                                     )
                                 }
                             }
@@ -501,7 +500,7 @@ fun MonthlyLedgerTab(
                                     text = "Reset All",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = AccentPurple,
+                                    color = Primary600,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
                                 )
                             }
@@ -510,7 +509,7 @@ fun MonthlyLedgerTab(
                 }
 
                 HorizontalDivider(
-                    color = BorderLight.copy(alpha = 0.5f),
+                    color = BorderLight.copy(alpha = 0.6f),
                     thickness = 0.8.dp,
                     modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
                 )
@@ -550,12 +549,12 @@ fun MonthlyLedgerTab(
                                                 imageVector = Icons.Default.Refresh,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(15.dp),
-                                                tint = AccentPurple
+                                                tint = Primary600
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
                                                 text = "Reset Filters",
-                                                color = AccentPurple,
+                                                color = Primary600,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 12.sp
                                             )
@@ -629,7 +628,7 @@ fun MonthlyLedgerTab(
                                                         text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyInflow)}",
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 11.sp,
-                                                        color = SoftGreen
+                                                        color = Success700
                                                     )
                                                 }
                                                 if (dailyOutflow > 0.0) {
@@ -645,7 +644,7 @@ fun MonthlyLedgerTab(
                                                         text = if (isDiscreetMode) "••••" else "⇄ ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyTransferVolume)}",
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 11.sp,
-                                                        color = AccentPurple
+                                                        color = Primary600
                                                     )
                                                 }
                                             }
@@ -653,7 +652,7 @@ fun MonthlyLedgerTab(
                                     }
                                 }
 
-                                // GROUPED DAILY CONTAINER (Preserved clean inner card with dividers)
+                                // GROUPED DAILY CONTAINER
                                 item(key = "container_$dateHeader") {
                                     Surface(
                                         modifier = Modifier
@@ -712,9 +711,9 @@ fun MonthlyLedgerTab(
                                                         .size(6.dp)
                                                         .clip(CircleShape)
                                                         .background(
-                                                            if (dailyInflow > dailyOutflow) SoftGreen
-                                                            else if (dailyOutflow > 0) SoftRed
-                                                            else AccentPurple
+                                                            if (dailyInflow > dailyOutflow) Success500
+                                                            else if (dailyOutflow > 0) Error500
+                                                            else Primary600
                                                         )
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
@@ -742,7 +741,7 @@ fun MonthlyLedgerTab(
                                                         text = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", dailyInflow)}",
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 11.sp,
-                                                        color = SoftGreen
+                                                        color = Success700
                                                     )
                                                 }
                                                 if (dailyOutflow > 0.0) {
@@ -780,8 +779,8 @@ private fun RemovableFilterChip(
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = AccentPurple.copy(alpha = 0.10f),
-        border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.35f))
+        color = Primary50,
+        border = BorderStroke(0.6.dp, Primary200)
     ) {
         Row(
             modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
@@ -791,7 +790,7 @@ private fun RemovableFilterChip(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = AccentPurple,
+                    tint = Primary600,
                     modifier = Modifier.size(12.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
@@ -800,13 +799,13 @@ private fun RemovableFilterChip(
                 text = label,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = AccentPurple
+                color = Primary700
             )
             Spacer(modifier = Modifier.width(3.dp))
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = "Remove",
-                tint = AccentPurple,
+                tint = Primary600,
                 modifier = Modifier
                     .size(16.dp)
                     .clip(CircleShape)
