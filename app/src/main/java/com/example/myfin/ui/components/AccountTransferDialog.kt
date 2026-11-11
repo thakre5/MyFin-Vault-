@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,6 +65,19 @@ fun AccountTransferDialog(
         )
     }
 
+    val fromListState = rememberLazyListState()
+    val toListState = rememberLazyListState()
+
+    LaunchedEffect(fromAccount, accounts) {
+        val idx = accounts.indexOfFirst { it.equals(fromAccount, ignoreCase = true) }
+        if (idx >= 0) fromListState.animateScrollToItem(idx)
+    }
+
+    LaunchedEffect(toAccount, accounts) {
+        val idx = accounts.indexOfFirst { it.equals(toAccount, ignoreCase = true) }
+        if (idx >= 0) toListState.animateScrollToItem(idx)
+    }
+
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
 
@@ -80,16 +94,13 @@ fun AccountTransferDialog(
         }
     }
 
-    // Auto-resolve initial strategic subtype based on destination vault
     var selectedSubtype by remember(toAccount) {
         mutableStateOf(resolveSubtypeForAccount(toAccount))
     }
 
-    // Recurring Monthly Sweep Toggle States
     var isRecurringSweep by remember { mutableStateOf(false) }
     var dueDayText by remember { mutableStateOf("") }
 
-    // Date State & Dialog
     var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
 
@@ -97,14 +108,14 @@ fun AccountTransferDialog(
         val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
         val calNow = Calendar.getInstance()
         calSelected.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
-        calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
+                calSelected.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
     }
 
     val isYesterday = remember(selectedDateMillis) {
         val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
         val calYesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
         calSelected.get(Calendar.YEAR) == calYesterday.get(Calendar.YEAR) &&
-        calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
+                calSelected.get(Calendar.DAY_OF_YEAR) == calYesterday.get(Calendar.DAY_OF_YEAR)
     }
 
     val formattedDateLabel = remember(selectedDateMillis, isToday, isYesterday) {
@@ -139,7 +150,7 @@ fun AccountTransferDialog(
                     .width(40.dp)
                     .height(4.dp),
                 shape = CircleShape,
-                color = BorderLight
+                color = Neutral300
             ) {}
         }
     ) {
@@ -186,7 +197,10 @@ fun AccountTransferDialog(
             // Source Account Selector
             Text("Source Vault (From)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
             Spacer(modifier = Modifier.height(4.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyRow(
+                state = fromListState,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 items(accounts) { acc ->
                     val isSel = fromAccount.equals(acc, ignoreCase = true)
                     Surface(
@@ -200,14 +214,14 @@ fun AccountTransferDialog(
                                 }
                             },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
-                        border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
+                        color = if (isSel) Primary50 else CanvasLight,
+                        border = BorderStroke(0.8.dp, if (isSel) Primary600 else BorderLight)
                     ) {
                         Text(
                             text = acc,
                             fontSize = 11.5.sp,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSel) AccentPurple else TextDark,
+                            color = if (isSel) Primary700 else TextDark,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                         )
                     }
@@ -219,7 +233,10 @@ fun AccountTransferDialog(
             // Destination Account Selector
             Text("Destination Vault (To)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
             Spacer(modifier = Modifier.height(4.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyRow(
+                state = toListState,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 items(accounts) { acc ->
                     val isSel = toAccount.equals(acc, ignoreCase = true)
                     Surface(
@@ -233,14 +250,14 @@ fun AccountTransferDialog(
                                 selectedSubtype = resolveSubtypeForAccount(acc)
                             },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
-                        border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
+                        color = if (isSel) Primary50 else CanvasLight,
+                        border = BorderStroke(0.8.dp, if (isSel) Primary600 else BorderLight)
                     ) {
                         Text(
                             text = acc,
                             fontSize = 11.5.sp,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSel) AccentPurple else TextDark,
+                            color = if (isSel) Primary700 else TextDark,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                         )
                     }
@@ -250,9 +267,9 @@ fun AccountTransferDialog(
             if (isSelfTransfer) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = SoftRed, modifier = Modifier.size(13.dp))
+                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Error500, modifier = Modifier.size(13.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Source and destination vaults must be distinct.", fontSize = 10.5.sp, color = SoftRed, fontWeight = FontWeight.SemiBold)
+                    Text("Source and destination vaults must be distinct.", fontSize = 10.5.sp, color = Error700, fontWeight = FontWeight.SemiBold)
                 }
             }
 
@@ -278,14 +295,14 @@ fun AccountTransferDialog(
                             .clip(RoundedCornerShape(8.dp))
                             .clickable { selectedSubtype = subtype },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isSel) AccentPurple.copy(alpha = 0.14f) else CanvasLight,
-                        border = BorderStroke(0.6.dp, if (isSel) AccentPurple else BorderLight)
+                        color = if (isSel) Primary50 else CanvasLight,
+                        border = BorderStroke(0.8.dp, if (isSel) Primary600 else BorderLight)
                     ) {
                         Text(
                             text = label,
                             fontSize = 11.sp,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSel) AccentPurple else TextDark,
+                            color = if (isSel) Primary700 else TextDark,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                         )
@@ -316,8 +333,8 @@ fun AccountTransferDialog(
                         label = { Text("Today", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
 
@@ -333,8 +350,8 @@ fun AccountTransferDialog(
                         label = { Text("Yesterday", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
+                            selectedContainerColor = Primary50,
+                            selectedLabelColor = Primary700
                         )
                     )
 
@@ -344,8 +361,8 @@ fun AccountTransferDialog(
                             .height(34.dp)
                             .clickable { showDatePickerDialog = true },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (!isToday && !isYesterday) AccentPurpleLight else CanvasLight,
-                        border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) AccentPurple else BorderLight)
+                        color = if (!isToday && !isYesterday) Primary50 else CanvasLight,
+                        border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) Primary600 else BorderLight)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp),
@@ -356,12 +373,12 @@ fun AccountTransferDialog(
                                 text = if (!isToday && !isYesterday) formattedDateLabel else "Other Date",
                                 fontSize = 11.5.sp,
                                 fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
-                                color = if (!isToday && !isYesterday) AccentPurple else TextDark
+                                color = if (!isToday && !isYesterday) Primary700 else TextDark
                             )
                             Icon(
                                 imageVector = Icons.Default.CalendarToday,
                                 contentDescription = "Pick Date",
-                                tint = if (!isToday && !isYesterday) AccentPurple else TextMuted,
+                                tint = if (!isToday && !isYesterday) Primary600 else TextMuted,
                                 modifier = Modifier.size(14.dp)
                             )
                         }
@@ -385,7 +402,7 @@ fun AccountTransferDialog(
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentPurple,
+                    focusedBorderColor = Primary600,
                     unfocusedBorderColor = BorderLight
                 )
             )
@@ -403,7 +420,7 @@ fun AccountTransferDialog(
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentPurple,
+                    focusedBorderColor = Primary600,
                     unfocusedBorderColor = BorderLight
                 )
             )
@@ -446,7 +463,7 @@ fun AccountTransferDialog(
                             },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
-                                checkedTrackColor = AccentPurple,
+                                checkedTrackColor = Primary600,
                                 uncheckedThumbColor = TextMuted,
                                 uncheckedTrackColor = BorderLight
                             )
@@ -485,7 +502,7 @@ fun AccountTransferDialog(
                                 modifier = Modifier.width(75.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AccentPurple,
+                                    focusedBorderColor = Primary600,
                                     unfocusedBorderColor = BorderLight
                                 )
                             )
@@ -502,7 +519,9 @@ fun AccountTransferDialog(
             ) {
                 OutlinedButton(
                     onClick = onDismiss,
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextDark)
                 ) {
@@ -544,14 +563,17 @@ fun AccountTransferDialog(
                         }
                     },
                     enabled = isTransferValid,
-                    modifier = Modifier.weight(1.3f).height(48.dp),
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                 ) {
                     Text(
                         text = if (isRecurringSweep) "Transfer & Save AutoPay" else "Execute Transfer",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp
+                        fontSize = 13.5.sp,
+                        color = Color.White
                     )
                 }
             }
@@ -590,7 +612,7 @@ fun AccountTransferDialog(
                         showDatePickerDialog = false
                     }
                 ) {
-                    Text("Select", fontWeight = FontWeight.Bold, color = AccentPurple)
+                    Text("Select", fontWeight = FontWeight.Bold, color = Primary600)
                 }
             },
             dismissButton = {
