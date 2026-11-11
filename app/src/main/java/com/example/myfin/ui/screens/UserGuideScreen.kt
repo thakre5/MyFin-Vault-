@@ -2,6 +2,7 @@
 
 package com.example.myfin.ui.screens
 
+import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
@@ -33,12 +34,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.core.view.WindowCompat
 import com.example.myfin.BuildConfig
 import com.example.myfin.ui.components.AppBrandingFooter
 import com.example.myfin.ui.theme.*
@@ -63,6 +66,19 @@ fun UserGuideScreen(
 ) {
     val haptic = LocalHapticFeedback.current
     var expandedSection by rememberSaveable { mutableStateOf(GuideAccordionSection.ARCHITECTURE) }
+
+    // Ensure status bar icons are white against the Royal Cobalt Blue header banner
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        DisposableEffect(Unit) {
+            val window = (view.context as? Activity)?.window
+            val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+            controller?.isAppearanceLightStatusBars = false
+            onDispose {
+                controller?.isAppearanceLightStatusBars = true
+            }
+        }
+    }
 
     BackHandler {
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -98,9 +114,9 @@ fun UserGuideScreen(
                                 .background(
                                     Brush.verticalGradient(
                                         colors = listOf(
-                                            AccentPurple,
-                                            AccentPurple.copy(alpha = 0.88f),
-                                            Color(0xFF6C5CE7).copy(alpha = 0.24f)
+                                            Primary800,
+                                            Primary600,
+                                            Primary100
                                         )
                                     )
                                 )
@@ -154,7 +170,7 @@ fun UserGuideScreen(
                             Surface(
                                 modifier = Modifier.size(76.dp),
                                 shape = CircleShape,
-                                color = AccentPurple,
+                                color = Primary600,
                                 border = BorderStroke(3.dp, CardWhite),
                                 shadowElevation = 4.dp
                             ) {
@@ -229,7 +245,7 @@ fun UserGuideScreen(
 
                     GuideFeatureBullet(
                         title = "Local Data Sovereignty",
-                        desc = "Every transaction, budget target, and account record is committed directly to on-device SQLite storage via Android Room persistence."
+                        desc = "Every transaction, budget target, note, and account record is committed directly to on-device SQLite storage via Android Room persistence."
                     )
                     GuideFeatureBullet(
                         title = "Hardware-Backed Biometrics",
@@ -412,7 +428,7 @@ fun UserGuideScreen(
                     GuideSubheading("Tab 1: 12-Month Cycles & Outflow Mountain")
                     GuideFeatureBullet(
                         title = "3-Layer Outflow Mountain Silhouette",
-                        desc = "Stacked silhouette displaying Fixed Commitments (slate base), Lifestyle Burn (violet middle), and Assets SIP (cyan crest). Filter chips isolate individual streams."
+                        desc = "Stacked silhouette displaying Fixed Commitments, Lifestyle Burn, and Assets SIP. Filter chips isolate individual streams."
                     )
                     GuideFeatureBullet(
                         title = "Adaptive Cycle Spotlight",
@@ -430,8 +446,8 @@ fun UserGuideScreen(
                         desc = "Dual sine-wave animated liquid heart showing real-time progress toward your 25% annual wealth accumulation milestone."
                     )
                     GuideFeatureBullet(
-                        title = "Multi-Year Compounding Pillars (Option A)",
-                        desc = "Tracks multi-year asset stock accumulation (Investments + Liquid Reserves - Capital Drawdowns) with pre-seeded YoY growth percentages."
+                        title = "Multi-Year Compounding Pillars",
+                        desc = "Tracks multi-year asset stock accumulation (Investments + Liquid Reserves - Capital Drawdowns) with YoY growth percentages."
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
@@ -492,7 +508,7 @@ fun UserGuideScreen(
                 GuideAccordionCard(
                     icon = Icons.Default.TouchApp,
                     title = "7. Screen Directory & Navigation",
-                    subtitle = "Monthly, Planner, Master DB, Analytics & Vaults",
+                    subtitle = "Dashboard, Planner, Calculator, Notes & Vaults",
                     isExpanded = expandedSection == GuideAccordionSection.SCREEN_DIRECTORY,
                     onToggleExpand = {
                         expandedSection = if (expandedSection == GuideAccordionSection.SCREEN_DIRECTORY) GuideAccordionSection.NONE else GuideAccordionSection.SCREEN_DIRECTORY
@@ -522,6 +538,14 @@ fun UserGuideScreen(
                         title = "Vault Accounts Hub & Carousel",
                         desc = "Swipeable physical bank cards with card reordering, MAB badge editing, sweep threshold calibration, and instant inter-vault transfers."
                     )
+                    GuideFeatureBullet(
+                        title = "Calculator & SIP / EMI Estimator",
+                        desc = "Dual-mode financial calculator featuring a live history tape with 1-tap clipboard copy, plus an interactive SIP Wealth Compounder and Loan EMI estimator."
+                    )
+                    GuideFeatureBullet(
+                        title = "Notes & Financial Checklists",
+                        desc = "Dedicated workspace for financial memos, shopping lists, and IOU tracking with auto-summing checklist items and 1-tap starter templates."
+                    )
                 }
 
                 // Section 8: Data Backup & Export Engines
@@ -536,7 +560,7 @@ fun UserGuideScreen(
                 ) {
                     GuideFeatureBullet(
                         title = "Full Vault Snapshot (.json)",
-                        desc = "Serializes the complete database (UserProfile, Transactions, Categories, Accounts, Fixed Bills, Budget Plans) into an offline JSON backup for migrations and restores."
+                        desc = "Serializes the complete database (UserProfile, Transactions, Categories, Accounts, Fixed Bills, Budget Plans, and Financial Notes) into an offline JSON backup for migrations and restores."
                     )
                     GuideFeatureBullet(
                         title = "Accounting Statement (.xlsx)",
@@ -641,13 +665,13 @@ private fun GuideAccordionCard(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(CircleShape)
-                            .background(AccentPurple.copy(alpha = 0.1f)),
+                            .background(Primary50),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = AccentPurple,
+                            tint = Primary600,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -695,7 +719,7 @@ private fun GuideAccordionCard(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     HorizontalDivider(
-                        color = BorderLight.copy(alpha = 0.4f),
+                        color = BorderLight.copy(alpha = 0.5f),
                         thickness = 0.8.dp,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
@@ -722,20 +746,24 @@ private fun GuideSubheading(text: String) {
         text = text,
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
-        color = AccentPurple,
+        color = Primary700,
         modifier = Modifier.padding(top = 4.dp)
     )
 }
 
 @Composable
 private fun GuideFeatureBullet(title: String, desc: String) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .size(5.dp)
                     .clip(CircleShape)
-                    .background(AccentPurple)
+                    .background(Primary600)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
@@ -760,8 +788,8 @@ private fun GuideFormulaBox(formula: String, explanation: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = AccentPurple.copy(alpha = 0.06f),
-        border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.2f))
+        color = Primary50,
+        border = BorderStroke(0.8.dp, Primary200)
     ) {
         Column(
             modifier = Modifier
@@ -773,7 +801,7 @@ private fun GuideFormulaBox(formula: String, explanation: String) {
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
-                color = AccentPurple,
+                color = Primary700,
                 lineHeight = 16.sp
             )
             Spacer(modifier = Modifier.height(6.dp))
@@ -808,7 +836,7 @@ private fun GuideSymbolRow(symbol: String, meaning: String, formula: String) {
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.5.sp,
-                    color = AccentPurple
+                    color = Primary700
                 )
                 Text(
                     text = meaning,
