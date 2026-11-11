@@ -161,7 +161,7 @@ fun YearlyCashflowTab(
                         .clickable { onOpenMatrixSheet(CashflowMatrixSheetType.CORPORATE_FLOAT) },
                     shape = RoundedCornerShape(16.dp),
                     color = CardWhite,
-                    border = BorderStroke(0.8.dp, Warning500.copy(alpha = 0.35f))
+                    border = BorderStroke(0.8.dp, Color(0xFFE57A28).copy(alpha = 0.35f))
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
@@ -171,13 +171,13 @@ fun YearlyCashflowTab(
                             modifier = Modifier
                                 .size(38.dp)
                                 .clip(CircleShape)
-                                .background(Warning100),
+                                .background(Color(0xFFE57A28).copy(alpha = 0.12f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.WorkOutline,
                                 contentDescription = null,
-                                tint = Warning700,
+                                tint = Color(0xFFE57A28),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -196,7 +196,7 @@ fun YearlyCashflowTab(
                                     else -> "All corporate outlays fully settled."
                                 },
                                 fontSize = 10.5.sp,
-                                color = if (reimbursementStatus.isSettled) Success700 else Warning700,
+                                color = if (reimbursementStatus.isSettled) SoftGreen else Color(0xFFE57A28),
                                 lineHeight = 14.sp
                             )
                         }
@@ -214,7 +214,7 @@ fun YearlyCashflowTab(
                                 text = if (isDiscreetMode) "••••" else "${currencySymbol}${String.format(Locale.US, "%,.0f", displayAmt)}",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 13.5.sp,
-                                color = if (reimbursementStatus.isSettled) Success700 else Warning700
+                                color = if (reimbursementStatus.isSettled) SoftGreen else Color(0xFFE57A28)
                             )
                             Text(
                                 text = when {
@@ -262,7 +262,7 @@ fun YearlyCashflowTab(
                 quarterlyData.forEach { q ->
                     val hasActivity = q.totalIncome > 0.0 || q.totalExpenses > 0.0 || q.totalAssets > 0.0
                     val rateText = if (!hasActivity) "—" else "${q.savingsRate.toInt()}%"
-                    val rateColor = if (!hasActivity) TextMuted else if (q.netSurplus >= 0) SoftTeal else Error700
+                    val rateColor = if (!hasActivity) TextMuted else if (q.netSurplus >= 0) SoftTeal else SoftRed
                     val surplusText = if (!hasActivity) "Pending" else "${currencySymbol}${(q.netSurplus / 1000).toInt()}k"
 
                     Surface(
@@ -393,7 +393,7 @@ private fun DualSmoothWaveCard(
                                     text = "${mData.monthName} ${if (mData.isFuture) "(Plan)" else ""}",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.5.sp,
-                                    color = Primary600
+                                    color = AccentPurple
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 IconButton(
@@ -412,19 +412,19 @@ private fun DualSmoothWaveCard(
                                 Text(
                                     text = if (isDiscreet) "••••" else "In: $currencySymbol${String.format(Locale.US, "%,.0f", mInflow)}",
                                     fontSize = 10.sp,
-                                    color = Success700,
+                                    color = Color(0xFF10B981),
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
                                     text = if (isDiscreet) "••••" else "Burn: $currencySymbol${String.format(Locale.US, "%,.0f", mBurn)}",
                                     fontSize = 10.sp,
-                                    color = Primary600,
+                                    color = Color(0xFF8B5CF6),
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
                                     text = if (isDiscreet) "••••" else "${if (mSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", mSurplus)} ($mRate%)",
                                     fontSize = 10.sp,
-                                    color = if (mSurplus >= 0) SoftTeal else Error700,
+                                    color = if (mSurplus >= 0) SoftTeal else SoftRed,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -468,7 +468,7 @@ private fun DualSmoothWaveCard(
                         fontSize = 9.sp,
                         fontWeight = if (isSelected) FontWeight.Black else FontWeight.SemiBold,
                         color = when {
-                            isSelected -> Primary600
+                            isSelected -> AccentPurple
                             isFuture -> TextMuted.copy(alpha = 0.4f)
                             else -> TextDark
                         },
@@ -486,19 +486,19 @@ private fun DualSmoothWaveCard(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Success500))
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF10B981)))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Inflow", fontSize = 9.5.sp, color = TextDark, fontWeight = FontWeight.Bold)
 
                 Spacer(modifier = Modifier.width(14.dp))
 
-                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Primary500))
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF8B5CF6)))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Lifestyle Burn", fontSize = 9.5.sp, color = TextDark, fontWeight = FontWeight.Bold)
 
                 Spacer(modifier = Modifier.width(14.dp))
 
-                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Neutral300))
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFCBD5E1)))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Projected", fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
             }
@@ -525,7 +525,7 @@ private fun DualSmoothWaveCard(
                     Text(
                         text = if (peakMonth != null && peakMonth.lifestyleExpenses > 0) "Peak: ${peakMonth.monthName}" else "$activeMonthsCount active mos",
                         fontSize = 9.sp,
-                        color = Error700,
+                        color = SoftRed,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -536,13 +536,13 @@ private fun DualSmoothWaveCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = if (netOperatingSurplus >= 0) SoftTealLight else Error100
+                            color = (if (netOperatingSurplus >= 0) SoftTeal else SoftRed).copy(alpha = 0.12f)
                         ) {
                             Text(
                                 text = "$retentionPercentage% Retained",
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (netOperatingSurplus >= 0) SoftTeal else Error700,
+                                color = if (netOperatingSurplus >= 0) SoftTeal else SoftRed,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }
@@ -552,7 +552,7 @@ private fun DualSmoothWaveCard(
                         text = if (isDiscreet) "••••" else "${if (netOperatingSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", netOperatingSurplus)}",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Black,
-                        color = if (netOperatingSurplus >= 0) SoftTeal else Error700
+                        color = if (netOperatingSurplus >= 0) SoftTeal else SoftRed
                     )
                     Text(
                         text = "Net Operating Spread",
@@ -609,7 +609,7 @@ private fun MonthlyCashflowPulseCard(
                     Icon(
                         imageVector = Icons.Default.HelpOutline,
                         contentDescription = "Pulse Matrix",
-                        tint = Primary600,
+                        tint = AccentPurple,
                         modifier = Modifier.size(13.dp)
                     )
                 }
@@ -617,13 +617,13 @@ private fun MonthlyCashflowPulseCard(
                 val surplusMonths = yearlyMonths.count { !it.isFuture && it.netSavings > 0 }
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = Success100
+                    color = SoftGreen.copy(alpha = 0.12f)
                 ) {
                     Text(
                         text = "$surplusMonths / 12 Surplus",
                         fontSize = 8.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Success700,
+                        color = SoftGreen,
                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                     )
                 }
@@ -667,7 +667,7 @@ private fun MonthlyCashflowPulseCard(
                                     modifier = Modifier
                                         .size(4.dp)
                                         .clip(CircleShape)
-                                        .background(Neutral300)
+                                        .background(Color(0xFFCBD5E1))
                                 )
                             } else if (abs(net) < 1.0) {
                                 Box(
@@ -684,7 +684,7 @@ private fun MonthlyCashflowPulseCard(
                                         .height(barHeight)
                                         .offset(y = if (isPositive) (-barHeight / 2) else (barHeight / 2))
                                         .clip(RoundedCornerShape(2.dp))
-                                        .background(if (isPositive) Success500 else Error500)
+                                        .background(if (isPositive) SoftGreen else SoftRed)
                                 )
                             }
                         }
@@ -749,7 +749,7 @@ private fun AnnualThreePillarMatrixCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Primary600))
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(AccentPurple))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "ANNUAL 3-PILLAR ALLOCATION",
@@ -762,7 +762,7 @@ private fun AnnualThreePillarMatrixCard(
                     Icon(
                         imageVector = Icons.Default.HelpOutline,
                         contentDescription = "Pillar Matrix",
-                        tint = Primary600,
+                        tint = AccentPurple,
                         modifier = Modifier.size(13.dp)
                     )
                 }
@@ -786,16 +786,16 @@ private fun AnnualThreePillarMatrixCard(
                     .background(BorderLight.copy(alpha = 0.4f))
             ) {
                 if (totalFixed > 0) {
-                    Box(modifier = Modifier.weight((totalFixed / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Neutral600))
+                    Box(modifier = Modifier.weight((totalFixed / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Color(0xFF475569)))
                 }
                 if (totalVariable > 0) {
-                    Box(modifier = Modifier.weight((totalVariable / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Primary500))
+                    Box(modifier = Modifier.weight((totalVariable / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Color(0xFF8B5CF6)))
                 }
                 if (totalAssets > 0) {
-                    Box(modifier = Modifier.weight((totalAssets / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(SoftTeal))
+                    Box(modifier = Modifier.weight((totalAssets / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Color(0xFF06B6D4)))
                 }
                 if (netCashRetained > 0) {
-                    Box(modifier = Modifier.weight((netCashRetained / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Success500))
+                    Box(modifier = Modifier.weight((netCashRetained / totalDeployment).toFloat().coerceIn(0.01f, 1f)).fillMaxHeight().background(Color(0xFF10B981)))
                 }
             }
 
@@ -809,28 +809,28 @@ private fun AnnualThreePillarMatrixCard(
                     title = "Fixed Bills",
                     amount = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalFixed)}",
                     percentage = "${(fixedRatio * 100).toInt()}%",
-                    color = Neutral600,
+                    color = Color(0xFF475569),
                     modifier = Modifier.weight(1f)
                 )
                 PillarAllocationPill(
                     title = "Lifestyle",
                     amount = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalVariable)}",
                     percentage = "${(discretionaryRatio * 100).toInt()}%",
-                    color = Primary500,
+                    color = Color(0xFF8B5CF6),
                     modifier = Modifier.weight(1f)
                 )
                 PillarAllocationPill(
                     title = "Assets SIP",
                     amount = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalAssets)}",
                     percentage = "${(assetRatio * 100).toInt()}%",
-                    color = SoftTeal,
+                    color = Color(0xFF06B6D4),
                     modifier = Modifier.weight(1f)
                 )
                 PillarAllocationPill(
                     title = if (netCashRetained >= 0) "Retained" else "Deficit",
                     amount = if (isDiscreet) "••••" else "${if (netCashRetained < 0) "-" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", abs(netCashRetained))}",
                     percentage = "${(retainedRatio * 100).toInt()}%",
-                    color = if (netCashRetained >= 0) Success500 else Error500,
+                    color = if (netCashRetained >= 0) Color(0xFF10B981) else SoftRed,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -897,7 +897,7 @@ private fun AnnualForecastRunRateCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Warning500))
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFE57A28)))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "12-MONTH RUN-RATE FORECAST",
@@ -910,20 +910,20 @@ private fun AnnualForecastRunRateCard(
                     Icon(
                         imageVector = Icons.Default.HelpOutline,
                         contentDescription = "Forecast Matrix",
-                        tint = Primary600,
+                        tint = AccentPurple,
                         modifier = Modifier.size(13.dp)
                     )
                 }
 
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = Warning100
+                    color = Color(0xFFE57A28).copy(alpha = 0.12f)
                 ) {
                     Text(
                         text = "Paced on $activeMonths Active Mos",
                         fontSize = 8.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Warning700,
+                        color = Color(0xFFE57A28),
                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                     )
                 }
@@ -960,7 +960,7 @@ private fun AnnualForecastRunRateCard(
                         text = if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projectedBurn)}",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Error500
+                        color = SoftRed
                     )
                 }
 
@@ -978,7 +978,7 @@ private fun AnnualForecastRunRateCard(
                         text = if (isDiscreet) "••••" else "${if (projectedSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", projectedSurplus)}",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
-                        color = if (projectedSurplus >= 0) SoftTeal else Error500
+                        color = if (projectedSurplus >= 0) SoftTeal else SoftRed
                     )
                 }
             }
@@ -1037,7 +1037,7 @@ private fun DualWaveCanvas(
         for (i in 1..2) {
             val y = h * (i / 3f)
             drawLine(
-                color = Neutral100,
+                color = Color(0xFFF1F5F9),
                 start = Offset(0f, y),
                 end = Offset(w, y),
                 strokeWidth = 1.dp.toPx()
@@ -1048,12 +1048,12 @@ private fun DualWaveCanvas(
         if (firstFutureIndex != -1) {
             val futureStartX = firstFutureIndex * stepX
             drawRect(
-                color = Neutral50.copy(alpha = 0.75f),
+                color = Color(0xFFF8FAFC).copy(alpha = 0.75f),
                 topLeft = Offset(futureStartX, 0f),
                 size = Size(w - futureStartX, h)
             )
             drawLine(
-                color = Neutral300,
+                color = Color(0xFFCBD5E1),
                 start = Offset(futureStartX, 0f),
                 end = Offset(futureStartX, h),
                 strokeWidth = 1.dp.toPx(),
@@ -1110,8 +1110,8 @@ private fun DualWaveCanvas(
             )
         }
 
-        drawSmoothLineAndArea(ptsInflow, Success500, Success500)
-        drawSmoothLineAndArea(ptsBurn, Primary500, Primary500)
+        drawSmoothLineAndArea(ptsInflow, Color(0xFF10B981), Color(0xFF10B981))
+        drawSmoothLineAndArea(ptsBurn, Color(0xFF8B5CF6), Color(0xFF8B5CF6))
 
         val peakBurnIdx = personalBurns.indices.maxByOrNull { personalBurns[it] } ?: 0
         val peakInflowIdx = personalInflows.indices.maxByOrNull { personalInflows[it] } ?: 0
@@ -1119,19 +1119,19 @@ private fun DualWaveCanvas(
         if (ptsBurn.isNotEmpty() && personalBurns[peakBurnIdx] > 0) {
             val peakPt = ptsBurn[peakBurnIdx]
             drawCircle(color = Color.White, radius = 4.5.dp.toPx(), center = peakPt)
-            drawCircle(color = Primary500, radius = 3.dp.toPx(), center = peakPt)
+            drawCircle(color = Color(0xFF8B5CF6), radius = 3.dp.toPx(), center = peakPt)
         }
 
         if (ptsInflow.isNotEmpty() && personalInflows[peakInflowIdx] > 0) {
             val inPt = ptsInflow[peakInflowIdx]
             drawCircle(color = Color.White, radius = 4.5.dp.toPx(), center = inPt)
-            drawCircle(color = Success500, radius = 3.dp.toPx(), center = inPt)
+            drawCircle(color = Color(0xFF10B981), radius = 3.dp.toPx(), center = inPt)
         }
 
         if (selectedMonthIndex != null && selectedMonthIndex in ptsInflow.indices) {
             val scrubX = selectedMonthIndex * stepX
             drawLine(
-                color = Primary600.copy(alpha = 0.65f),
+                color = AccentPurple.copy(alpha = 0.65f),
                 start = Offset(scrubX, 0f),
                 end = Offset(scrubX, h),
                 strokeWidth = 1.4.dp.toPx(),
@@ -1140,11 +1140,11 @@ private fun DualWaveCanvas(
 
             val inPoint = ptsInflow[selectedMonthIndex]
             drawCircle(color = Color.White, radius = 5.dp.toPx(), center = inPoint)
-            drawCircle(color = Success500, radius = 3.5.dp.toPx(), center = inPoint)
+            drawCircle(color = Color(0xFF10B981), radius = 3.5.dp.toPx(), center = inPoint)
 
             val burnPoint = ptsBurn[selectedMonthIndex]
             drawCircle(color = Color.White, radius = 5.dp.toPx(), center = burnPoint)
-            drawCircle(color = Primary500, radius = 3.5.dp.toPx(), center = burnPoint)
+            drawCircle(color = Color(0xFF8B5CF6), radius = 3.5.dp.toPx(), center = burnPoint)
         }
     }
 }
