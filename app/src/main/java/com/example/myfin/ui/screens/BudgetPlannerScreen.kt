@@ -337,7 +337,7 @@ fun BudgetPlannerScreen(
                                     color = TextDark
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Primary600, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
@@ -353,7 +353,7 @@ fun BudgetPlannerScreen(
                         color = CardWhite,
                         border = BorderStroke(
                             1.dp,
-                            if (isOverAllocated) SoftRed.copy(alpha = 0.4f) else AccentPurple.copy(alpha = 0.18f)
+                            if (isOverAllocated) Error500.copy(alpha = 0.4f) else Primary200
                         )
                     ) {
                         Column(
@@ -361,9 +361,8 @@ fun BudgetPlannerScreen(
                                 .background(
                                     Brush.verticalGradient(
                                         colors = listOf(
-                                            Color(0xFFFFFFFF),
-                                            Color(0xFFFCFAFF),
-                                            if (isOverAllocated) SoftRed.copy(alpha = 0.04f) else AccentPurple.copy(alpha = 0.05f)
+                                            CardWhite,
+                                            if (isOverAllocated) Error100.copy(alpha = 0.35f) else Primary50.copy(alpha = 0.65f)
                                         )
                                     )
                                 )
@@ -385,10 +384,10 @@ fun BudgetPlannerScreen(
                                 Surface(
                                     shape = RoundedCornerShape(7.dp),
                                     color = when {
-                                        effectiveIncomeBaseline == 0.0 -> TextMuted.copy(alpha = 0.12f)
-                                        isOverAllocated -> SoftRed.copy(alpha = 0.12f)
-                                        isBalancedBudget -> SoftGreen.copy(alpha = 0.14f)
-                                        else -> AccentPurple.copy(alpha = 0.12f)
+                                        effectiveIncomeBaseline == 0.0 -> Neutral100
+                                        isOverAllocated -> Error100
+                                        isBalancedBudget -> Success100
+                                        else -> Primary50
                                     }
                                 ) {
                                     Text(
@@ -400,9 +399,9 @@ fun BudgetPlannerScreen(
                                         },
                                         color = when {
                                             effectiveIncomeBaseline == 0.0 -> TextMuted
-                                            isOverAllocated -> SoftRed
-                                            isBalancedBudget -> SoftGreen
-                                            else -> AccentPurple
+                                            isOverAllocated -> Error700
+                                            isBalancedBudget -> Success700
+                                            else -> Primary700
                                         },
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
@@ -430,7 +429,7 @@ fun BudgetPlannerScreen(
                                 },
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = if (isOverAllocated) SoftRed else if (isBalancedBudget) SoftGreen else TextMuted
+                                color = if (isOverAllocated) Error700 else if (isBalancedBudget) Success700 else TextMuted
                             )
 
                             Spacer(modifier = Modifier.height(8.dp))
@@ -444,14 +443,14 @@ fun BudgetPlannerScreen(
                                     .fillMaxWidth()
                                     .height(6.dp)
                                     .clip(RoundedCornerShape(3.dp))
-                                    .background(BorderLight.copy(alpha = 0.6f))
+                                    .background(Neutral200)
                             ) {
                                 if (expenseFraction >= 0.005f) {
                                     Box(
                                         modifier = Modifier
                                             .weight(expenseFraction)
                                             .fillMaxHeight()
-                                            .background(SoftRed)
+                                            .background(Error500)
                                     )
                                 }
                                 if (assetFraction >= 0.005f) {
@@ -481,7 +480,7 @@ fun BudgetPlannerScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(SoftRed))
+                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(Error500))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("Expenses: ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPlannedExpenses)}", fontSize = 10.sp, color = TextDark, fontWeight = FontWeight.SemiBold)
                                 }
@@ -501,14 +500,14 @@ fun BudgetPlannerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(11.dp))
-                            .background(BorderLight.copy(alpha = 0.5f))
+                            .background(Neutral100)
                             .padding(2.5.dp)
                     ) {
                         listOf(
-                            Triple(TransactionType.EXPENSE, "Expenses", SoftRed),
-                            Triple(TransactionType.INCOME, "Income", SoftGreen),
+                            Triple(TransactionType.EXPENSE, "Expenses", Error500),
+                            Triple(TransactionType.INCOME, "Income", Success500),
                             Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal),
-                            Triple(TransactionType.CORPORATE, "Corporate", Color(0xFFE57A28))
+                            Triple(TransactionType.CORPORATE, "Corporate", Warning700)
                         ).forEach { (type, label, color) ->
                             val isSelected = selectedSegment == type
                             Box(
@@ -637,7 +636,7 @@ fun BudgetPlannerScreen(
                             IconButton(onClick = { viewModel.selectYear(uiState.selectedYear - 1) }) {
                                 Icon(Icons.Default.ChevronLeft, contentDescription = "Prev Year")
                             }
-                            Text(text = "${uiState.selectedYear}", fontWeight = FontWeight.Black, fontSize = 16.sp)
+                            Text(text = "${uiState.selectedYear}", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Primary600)
                             IconButton(onClick = { viewModel.selectYear(uiState.selectedYear + 1) }) {
                                 Icon(Icons.Default.ChevronRight, contentDescription = "Next Year")
                             }
@@ -655,7 +654,7 @@ fun BudgetPlannerScreen(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(10.dp))
-                                                .background(if (isSelected) AccentPurple else CanvasLight)
+                                                .background(if (isSelected) Primary600 else CanvasLight)
                                                 .clickable {
                                                     viewModel.selectMonth(monthIdx)
                                                     showMonthPicker = false
@@ -683,10 +682,12 @@ fun BudgetPlannerScreen(
         lockedCategoryAlert?.let { cat ->
             AlertDialog(
                 onDismissRequest = { lockedCategoryAlert = null },
-                title = { Text("Budget Ceiling Frozen", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                containerColor = CardWhite,
+                title = { Text("Budget Ceiling Frozen", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark) },
                 text = {
                     Text(
-                        "Budget limits lock after the 5th of the month to preserve month-end discipline. Your planned limit of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.plannedAmount)} for '${cat.category}' is frozen.\n\nDo you need an emergency override?"
+                        "Budget limits lock after the 5th of the month to preserve month-end discipline. Your planned limit of ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", cat.plannedAmount)} for '${cat.category}' is frozen.\n\nDo you need an emergency override?",
+                        color = TextMuted
                     )
                 },
                 confirmButton = {
@@ -696,10 +697,10 @@ fun BudgetPlannerScreen(
                             lockedCategoryAlert = null
                             editingCategory = target
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = SoftRed),
+                        colors = ButtonDefaults.buttonColors(containerColor = Error500),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Emergency Override", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("Emergency Override", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
                     }
                 },
                 dismissButton = {
@@ -714,12 +715,13 @@ fun BudgetPlannerScreen(
         if (showCopyPlanDialog) {
             AlertDialog(
                 onDismissRequest = { showCopyPlanDialog = false },
-                title = { Text("Copy Last Month's Plan?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                containerColor = CardWhite,
+                title = { Text("Copy Last Month's Plan?", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark) },
                 text = {
                     Text(
                         "This will copy active planned category limits from the previous month into ${MONTH_NAMES[uiState.selectedMonth - 1]} ${uiState.selectedYear}. Retired legacy categories are excluded.",
                         fontSize = 13.sp,
-                        color = TextDark
+                        color = TextMuted
                     )
                 },
                 confirmButton = {
@@ -730,10 +732,10 @@ fun BudgetPlannerScreen(
                             }
                             showCopyPlanDialog = false
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary600),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Copy Plan", fontWeight = FontWeight.Bold)
+                        Text("Copy Plan", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 },
                 dismissButton = {
@@ -757,7 +759,7 @@ fun BudgetPlannerScreen(
                     Surface(
                         modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp),
                         shape = CircleShape,
-                        color = BorderLight
+                        color = Neutral300
                     ) {}
                 }
             ) {
@@ -820,7 +822,7 @@ fun BudgetPlannerScreen(
                                                 text = if (cat.plannedAmount > 0) "${userProfile.currencySymbol}${cat.plannedAmount.toInt()}" else "Unset",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 12.sp,
-                                                color = if (cat.plannedAmount > 0) AccentPurple else TextMuted
+                                                color = if (cat.plannedAmount > 0) Primary600 else TextMuted
                                             )
                                             if (cat.type == TransactionType.EXPENSE && cat.averageMonthlySpend > 0.0) {
                                                 Text(
@@ -871,7 +873,7 @@ fun BudgetPlannerScreen(
                     Surface(
                         modifier = Modifier.padding(vertical = 10.dp).width(40.dp).height(4.dp),
                         shape = CircleShape,
-                        color = BorderLight
+                        color = Neutral300
                     ) {}
                 }
             ) {
@@ -920,7 +922,7 @@ fun BudgetPlannerScreen(
                     Text(
                         text = infoSubtitle,
                         fontSize = 11.5.sp,
-                        color = if (committedAutoPay > 0) AccentPurple else TextMuted,
+                        color = if (committedAutoPay > 0) Primary600 else TextMuted,
                         fontWeight = if (committedAutoPay > 0) FontWeight.SemiBold else FontWeight.Normal
                     )
 
@@ -939,7 +941,7 @@ fun BudgetPlannerScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AccentPurple,
+                            focusedBorderColor = Primary600,
                             unfocusedBorderColor = BorderLight
                         )
                     )
@@ -960,8 +962,8 @@ fun BudgetPlannerScreen(
                                             customAmountText = roundedVal.toString()
                                         },
                                     shape = RoundedCornerShape(9.dp),
-                                    color = AccentPurple.copy(alpha = 0.10f),
-                                    border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.35f))
+                                    color = Primary50,
+                                    border = BorderStroke(0.8.dp, Primary200)
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -970,7 +972,7 @@ fun BudgetPlannerScreen(
                                         Icon(
                                             imageVector = Icons.Default.TrendingUp,
                                             contentDescription = null,
-                                            tint = AccentPurple,
+                                            tint = Primary600,
                                             modifier = Modifier.size(13.dp)
                                         )
                                         Spacer(modifier = Modifier.width(5.dp))
@@ -978,7 +980,7 @@ fun BudgetPlannerScreen(
                                             text = "Use 3M Avg (${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgSpend)})",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = AccentPurple
+                                            color = Primary700
                                         )
                                     }
                                 }
@@ -1029,14 +1031,14 @@ fun BudgetPlannerScreen(
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
-                                tint = Color(0xFFD48800),
+                                tint = Warning700,
                                 modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
                                 text = "Target is lower than your 3-month average (${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", avgSpend)}).",
                                 fontSize = 10.5.sp,
-                                color = Color(0xFF873800),
+                                color = Warning700,
                                 fontWeight = FontWeight.Medium
                             )
                         }
@@ -1087,8 +1089,8 @@ fun BudgetPlannerScreen(
                             },
                             modifier = Modifier.weight(1f).height(48.dp),
                             shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, SoftRed.copy(alpha = 0.5f)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftRed)
+                            border = BorderStroke(1.dp, Error500.copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Error700)
                         ) {
                             Text(
                                 text = if (committedAutoPay > 0 && (cat.type == TransactionType.EXPENSE || cat.type == TransactionType.ASSET)) "Reset to Floor" else "Reset",
@@ -1109,9 +1111,9 @@ fun BudgetPlannerScreen(
                             },
                             modifier = Modifier.weight(1.3f).height(48.dp),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                            colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                         ) {
-                            Text("Save Plan", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                            Text("Save Plan", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color.White)
                         }
                     }
 
@@ -1132,12 +1134,20 @@ private fun BudgetCategoryCleanCard(
     isNew: Boolean = false,
     onClick: () -> Unit
 ) {
-    val typeColor = when (category.type) {
-        TransactionType.INCOME -> SoftGreen
-        TransactionType.EXPENSE -> SoftRed
+    val (typeColor, typeBg) = when (category.type) {
+        TransactionType.INCOME -> Success700 to Success100
+        TransactionType.EXPENSE -> Error700 to Error100
+        TransactionType.ASSET -> SoftTeal to SoftTealLight
+        TransactionType.CORPORATE -> Warning700 to Warning100
+        TransactionType.TRANSFER -> Primary700 to Primary50
+    }
+
+    val barColor = when (category.type) {
+        TransactionType.INCOME -> Success500
+        TransactionType.EXPENSE -> Error500
         TransactionType.ASSET -> SoftTeal
-        TransactionType.CORPORATE -> Color(0xFFE57A28)
-        TransactionType.TRANSFER -> AccentPurple
+        TransactionType.CORPORATE -> Warning500
+        TransactionType.TRANSFER -> Primary600
     }
 
     val subtitleText = when (category.type) {
@@ -1186,10 +1196,10 @@ private fun BudgetCategoryCleanCard(
         border = BorderStroke(
             0.8.dp,
             when {
-                isOverBudget -> SoftRed.copy(alpha = 0.5f)
-                isLegacy -> Color(0xFFFFB74D).copy(alpha = 0.8f)
-                isGoalAchieved -> typeColor.copy(alpha = 0.4f)
-                else -> BorderLight.copy(alpha = 0.6f)
+                isOverBudget -> Error500.copy(alpha = 0.5f)
+                isLegacy -> Warning500.copy(alpha = 0.7f)
+                isGoalAchieved -> barColor.copy(alpha = 0.45f)
+                else -> BorderLight
             }
         )
     ) {
@@ -1211,14 +1221,14 @@ private fun BudgetCategoryCleanCard(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (isLegacy) Color(0xFFFFF3E0) else typeColor.copy(alpha = 0.12f)),
+                            .background(if (isLegacy) Warning100 else typeBg),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = category.category.take(1).uppercase(),
                             fontWeight = FontWeight.Black,
                             fontSize = 14.sp,
-                            color = if (isLegacy) Color(0xFFE65100) else typeColor
+                            color = if (isLegacy) Warning700 else typeColor
                         )
                     }
 
@@ -1243,14 +1253,14 @@ private fun BudgetCategoryCleanCard(
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
-                                    color = Color(0xFFFFF3E0),
-                                    border = BorderStroke(0.6.dp, Color(0xFFFFB74D))
+                                    color = Warning100,
+                                    border = BorderStroke(0.6.dp, Warning500)
                                 ) {
                                     Text(
                                         text = "Legacy",
                                         fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFE65100),
+                                        color = Warning700,
                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                     )
                                 }
@@ -1260,7 +1270,7 @@ private fun BudgetCategoryCleanCard(
                                     modifier = Modifier
                                         .size(5.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF4CAF50))
+                                        .background(Success500)
                                 )
                             }
 
@@ -1278,13 +1288,13 @@ private fun BudgetCategoryCleanCard(
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
-                                    color = SoftRed.copy(alpha = 0.12f)
+                                    color = Error100
                                 ) {
                                     Text(
                                         text = "Over",
                                         fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = SoftRed,
+                                        color = Error700,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                                     )
                                 }
@@ -1292,7 +1302,7 @@ private fun BudgetCategoryCleanCard(
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
-                                    color = typeColor.copy(alpha = 0.14f)
+                                    color = typeBg
                                 ) {
                                     Text(
                                         text = if (category.type == TransactionType.ASSET) "Funded" else "Achieved",
@@ -1310,7 +1320,7 @@ private fun BudgetCategoryCleanCard(
                         Text(
                             text = subtitleText,
                             fontSize = 11.sp,
-                            color = if (isOverBudget) SoftRed else if (committedAutoPay > 0.0) AccentPurple else TextMuted,
+                            color = if (isOverBudget) Error700 else if (committedAutoPay > 0.0) Primary600 else TextMuted,
                             fontWeight = if (committedAutoPay > 0.0 || isOverBudget) FontWeight.SemiBold else FontWeight.Normal,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -1320,7 +1330,6 @@ private fun BudgetCategoryCleanCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Stacked Right Column: Target Ceiling over 3-Month Average
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.Center
@@ -1349,7 +1358,6 @@ private fun BudgetCategoryCleanCard(
                 }
             }
 
-            // Inline Utilization Progress Bar
             if (category.plannedAmount > 0.0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
@@ -1358,8 +1366,8 @@ private fun BudgetCategoryCleanCard(
                         .fillMaxWidth()
                         .height(3.dp)
                         .clip(RoundedCornerShape(1.5.dp)),
-                    color = if (isOverBudget) SoftRed else typeColor,
-                    trackColor = BorderLight.copy(alpha = 0.5f)
+                    color = if (isOverBudget) Error500 else barColor,
+                    trackColor = Neutral200
                 )
             }
         }
