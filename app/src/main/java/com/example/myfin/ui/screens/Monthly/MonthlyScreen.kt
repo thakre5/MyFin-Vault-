@@ -126,7 +126,7 @@ fun MonthlyScreen(
         DisposableEffect(isDarkCanvas) {
             val window = (view.context as? Activity)?.window
             val insetsController = window?.let { WindowCompat.getInsetsController(it, view) }
-            
+
             // Dark canvas -> white icons (false); Light canvas -> dark icons (true)
             insetsController?.isAppearanceLightStatusBars = !isDarkCanvas
 
@@ -138,7 +138,7 @@ fun MonthlyScreen(
     }
 
     val topBarBg by animateColorAsState(
-        targetValue = if (isDarkCanvas) Color(0xFF0F172A) else CanvasLight,
+        targetValue = if (isDarkCanvas) Neutral900 else CanvasLight,
         animationSpec = tween(220),
         label = "topBarBg"
     )
@@ -169,7 +169,7 @@ fun MonthlyScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (isDarkCanvas) Color(0xFF0F172A) else CanvasLight)
+            .background(if (isDarkCanvas) Neutral900 else CanvasLight)
             .nestedScroll(scrollConnection)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -207,10 +207,10 @@ fun MonthlyScreen(
                             .clip(RoundedCornerShape(20.dp))
                             .clickable { showMonthPicker = true },
                         shape = RoundedCornerShape(20.dp),
-                        color = if (isDarkCanvas) Color.White.copy(alpha = 0.12f) else CardWhite,
+                        color = if (isDarkCanvas) Color.White.copy(alpha = 0.10f) else CardWhite,
                         border = BorderStroke(
                             0.8.dp,
-                            if (isDarkCanvas) Color.White.copy(alpha = 0.2f) else BorderLight.copy(alpha = 0.7f)
+                            if (isDarkCanvas) Color.White.copy(alpha = 0.18f) else BorderLight
                         ),
                         shadowElevation = if (isDarkCanvas) 0.dp else 1.5.dp
                     ) {
@@ -228,7 +228,7 @@ fun MonthlyScreen(
                             Icon(
                                 Icons.Default.ArrowDropDown,
                                 contentDescription = null,
-                                tint = if (isDarkCanvas) Color(0xFFA5B4FC) else AccentPurple,
+                                tint = if (isDarkCanvas) Primary300 else Primary600,
                                 modifier = Modifier.size(17.dp)
                             )
                         }
@@ -246,7 +246,7 @@ fun MonthlyScreen(
                                 Icon(
                                     imageVector = if (hideSettledCommitments) Icons.Default.CheckCircle else Icons.Default.CheckCircleOutline,
                                     contentDescription = "Toggle Settled Visibility",
-                                    tint = if (hideSettledCommitments) AccentPurple else TextMuted,
+                                    tint = if (hideSettledCommitments) Primary600 else if (isDarkCanvas) Neutral400 else TextMuted,
                                     modifier = Modifier.size(19.dp)
                                 )
                             }
@@ -271,7 +271,7 @@ fun MonthlyScreen(
                             Icon(
                                 imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = "Toggle Balance Privacy",
-                                tint = if (isDarkCanvas) Color.White else if (isDiscreetMode) AccentPurple else TextMuted,
+                                tint = if (isDarkCanvas) Color.White else if (isDiscreetMode) Primary600 else TextMuted,
                                 modifier = Modifier.size(19.dp)
                             )
                         }
