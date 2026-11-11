@@ -221,7 +221,7 @@ fun SimpleAccountsScreen(
                         Icon(
                             imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                             contentDescription = "Toggle Balance Privacy",
-                            tint = if (isDiscreetMode) AccentPurple else TextMuted,
+                            tint = if (isDiscreetMode) Primary600 else TextMuted,
                             modifier = Modifier.size(17.dp)
                         )
                     }
@@ -266,7 +266,7 @@ fun SimpleAccountsScreen(
                             Icon(
                                 Icons.Default.Settings,
                                 contentDescription = "Settings",
-                                tint = AccentPurple,
+                                tint = Primary600,
                                 modifier = Modifier.size(17.dp)
                             )
                         }
@@ -290,19 +290,11 @@ fun SimpleAccountsScreen(
                             .shadow(3.dp, RoundedCornerShape(22.dp)),
                         shape = RoundedCornerShape(22.dp),
                         color = CardWhite,
-                        border = BorderStroke(0.8.dp, AccentPurple.copy(alpha = 0.20f))
+                        border = BorderStroke(0.8.dp, Primary200)
                     ) {
                         Column(
                             modifier = Modifier
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(
-                                            Color(0xFFFFFFFF),
-                                            Color(0xFFFCFAFF),
-                                            AccentPurple.copy(alpha = 0.04f)
-                                        )
-                                    )
-                                )
+                                .background(HeroCardGradient)
                                 .padding(18.dp)
                         ) {
                             Text(
@@ -340,13 +332,13 @@ fun SimpleAccountsScreen(
                                             modifier = Modifier
                                                 .size(26.dp)
                                                 .clip(CircleShape)
-                                                .background(SoftGreen.copy(alpha = 0.15f)),
+                                                .background(Success100),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 Icons.AutoMirrored.Filled.TrendingUp,
                                                 contentDescription = null,
-                                                tint = SoftGreen,
+                                                tint = Success700,
                                                 modifier = Modifier.size(15.dp)
                                             )
                                         }
@@ -377,13 +369,13 @@ fun SimpleAccountsScreen(
                                             modifier = Modifier
                                                 .size(26.dp)
                                                 .clip(CircleShape)
-                                                .background(SoftRed.copy(alpha = 0.15f)),
+                                                .background(Error100),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 Icons.AutoMirrored.Filled.TrendingDown,
                                                 contentDescription = null,
-                                                tint = SoftRed,
+                                                tint = Error700,
                                                 modifier = Modifier.size(15.dp)
                                             )
                                         }
@@ -427,7 +419,7 @@ fun SimpleAccountsScreen(
                                     Icon(
                                         Icons.Default.SwapVert,
                                         contentDescription = "Reorder Accounts",
-                                        tint = AccentPurple,
+                                        tint = Primary600,
                                         modifier = Modifier.size(17.dp)
                                     )
                                 }
@@ -552,14 +544,14 @@ fun SimpleAccountsScreen(
                             if (isMabBreached) {
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = SoftRed.copy(alpha = 0.12f),
-                                    border = BorderStroke(0.6.dp, SoftRed.copy(alpha = 0.4f))
+                                    color = Error100,
+                                    border = BorderStroke(0.6.dp, Error500.copy(alpha = 0.4f))
                                 ) {
                                     Text(
                                         text = "! MAB Shortfall (-${userProfile.currencySymbol}${deficit.toInt()})",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = SoftRed,
+                                        color = Error700,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
@@ -574,7 +566,7 @@ fun SimpleAccountsScreen(
                                 .shadow(2.dp, RoundedCornerShape(18.dp)),
                             shape = RoundedCornerShape(18.dp),
                             color = CardWhite,
-                            border = BorderStroke(0.8.dp, if (isMabBreached) SoftRed.copy(alpha = 0.4f) else BorderLight.copy(alpha = 0.6f))
+                            border = BorderStroke(0.8.dp, if (isMabBreached) Error500.copy(alpha = 0.45f) else BorderLight.copy(alpha = 0.6f))
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(modifier = Modifier.fillMaxWidth()) {
@@ -593,7 +585,7 @@ fun SimpleAccountsScreen(
                                         title = "Ring-Fenced AutoPay",
                                         value = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingBills)}",
                                         icon = Icons.Default.Schedule,
-                                        iconColor = AccentPurple,
+                                        iconColor = Primary600,
                                         subtitle = "Queued for this account",
                                         modifier = Modifier.weight(1f)
                                     )
@@ -608,7 +600,7 @@ fun SimpleAccountsScreen(
                                         title = "Cycle Inflow",
                                         value = if (isDiscreetMode) "••••" else "+${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", accInflows)}",
                                         icon = Icons.AutoMirrored.Filled.TrendingUp,
-                                        iconColor = SoftGreen,
+                                        iconColor = Success500,
                                         subtitle = "Credits & incoming transfers",
                                         modifier = Modifier.weight(1f)
                                     )
@@ -619,7 +611,7 @@ fun SimpleAccountsScreen(
                                         title = "Net Flow",
                                         value = if (isDiscreetMode) "••••" else "${if (netDelta >= 0) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(netDelta))}",
                                         icon = if (netDelta >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                                        iconColor = if (netDelta >= 0) SoftGreen else SoftRed,
+                                        iconColor = if (netDelta >= 0) Success500 else Error500,
                                         subtitle = "Retained balance change",
                                         modifier = Modifier.weight(1f)
                                     )
@@ -633,13 +625,13 @@ fun SimpleAccountsScreen(
                                     shape = RoundedCornerShape(10.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = tier.color)
                                 ) {
-                                    Icon(Icons.Default.SyncAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.SyncAlt, contentDescription = null, tint = CardWhite, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Transfer to / from ${acc.accountName}",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.5.sp,
-                                        color = Color.White
+                                        color = CardWhite
                                     )
                                 }
                             }
@@ -693,9 +685,9 @@ fun SimpleAccountsScreen(
                                         Toast.makeText(context, "Account unarchived", Toast.LENGTH_SHORT).show()
                                     }
                                 ) {
-                                    Icon(Icons.Default.Unarchive, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Unarchive, contentDescription = null, tint = Primary600, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Restore", fontSize = 12.sp, color = AccentPurple, fontWeight = FontWeight.Bold)
+                                    Text("Restore", fontSize = 12.sp, color = Primary600, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -771,7 +763,7 @@ fun SimpleAccountsScreen(
                                 )
                             }
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete Account", tint = SoftRed, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Delete, contentDescription = "Delete Account", tint = Error500, modifier = Modifier.size(20.dp))
                         }
                     }
 
@@ -785,7 +777,7 @@ fun SimpleAccountsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary600, unfocusedBorderColor = BorderLight)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -830,7 +822,7 @@ fun SimpleAccountsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary600, unfocusedBorderColor = BorderLight)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -847,7 +839,7 @@ fun SimpleAccountsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary600, unfocusedBorderColor = BorderLight)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -868,7 +860,7 @@ fun SimpleAccountsScreen(
                         Switch(
                             checked = isArchivedState,
                             onCheckedChange = { isArchivedState = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = AccentPurple)
+                            colors = SwitchDefaults.colors(checkedThumbColor = CardWhite, checkedTrackColor = Primary600)
                         )
                     }
 
@@ -877,20 +869,20 @@ fun SimpleAccountsScreen(
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        color = CanvasLight,
-                        border = BorderStroke(0.7.dp, BorderLight)
+                        color = Primary50,
+                        border = BorderStroke(0.7.dp, Primary200)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Info, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(15.dp))
+                                Icon(Icons.Default.Info, contentDescription = null, tint = Primary700, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Modification Impact", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text("Modification Impact", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Primary800)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "• Renaming will automatically update all linked transactions and fixed bills.\n• Role changes reallocate this balance in your asset allocation chart.\n• Balance adjustments create an automated ledger entry for the difference.",
                                 fontSize = 10.5.sp,
-                                color = TextMuted,
+                                color = TextDark,
                                 lineHeight = 15.sp
                             )
                         }
@@ -916,9 +908,9 @@ fun SimpleAccountsScreen(
                         enabled = nameText.isNotBlank(),
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                     ) {
-                        Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = CardWhite)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -935,27 +927,28 @@ fun SimpleAccountsScreen(
 
             AlertDialog(
                 onDismissRequest = { pendingEditConfirmation = null },
-                title = { Text("Confirm Modifications?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                containerColor = CardWhite,
+                title = { Text("Confirm Modifications?", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (isNameChanged) {
-                            Text("• Rename: '${conf.originalAccount.accountName}' ➔ '${conf.updatedName}'")
+                            Text("• Rename: '${conf.originalAccount.accountName}' ➔ '${conf.updatedName}'", color = TextDark)
                         }
                         if (isRoleChanged) {
-                            Text("• Role: '${conf.originalAccount.accountType}' ➔ '${conf.updatedRole.title}'")
+                            Text("• Role: '${conf.originalAccount.accountType}' ➔ '${conf.updatedRole.title}'", color = TextDark)
                         }
                         if (isBalChanged) {
                             val diff = conf.targetBalance - conf.originalAccount.currentBalance
-                            Text("• Balance Adjustment: ${if (diff > 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", diff)}")
+                            Text("• Balance Adjustment: ${if (diff > 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", diff)}", color = TextDark)
                         }
                         if (isMabChanged) {
-                            Text("• Minimum Balance (MAB): ${userProfile.currencySymbol}${conf.minBalance.toInt()}")
+                            Text("• Minimum Balance (MAB): ${userProfile.currencySymbol}${conf.minBalance.toInt()}", color = TextDark)
                         }
                         if (isArchiveChanged) {
-                            Text("• Archive Status: ${if (conf.isArchived) "Archived" else "Active"}")
+                            Text("• Archive Status: ${if (conf.isArchived) "Archived" else "Active"}", color = TextDark)
                         }
                         if (!isNameChanged && !isRoleChanged && !isBalChanged && !isMabChanged && !isArchiveChanged) {
-                            Text("No changes detected.")
+                            Text("No changes detected.", color = TextMuted)
                         }
                     }
                 },
@@ -981,10 +974,10 @@ fun SimpleAccountsScreen(
                             editingAccount = null
                             Toast.makeText(context, "Account '${conf.updatedName}' updated", Toast.LENGTH_SHORT).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary600),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Confirm & Apply", fontWeight = FontWeight.Bold)
+                        Text("Confirm & Apply", fontWeight = FontWeight.Bold, color = CardWhite)
                     }
                 },
                 dismissButton = {
@@ -1061,7 +1054,7 @@ fun SimpleAccountsScreen(
                                             enabled = index > 0,
                                             modifier = Modifier.size(30.dp)
                                         ) {
-                                            Icon(Icons.Default.ArrowUpward, contentDescription = "Move Up", tint = if (index > 0) AccentPurple else TextMuted.copy(alpha = 0.4f))
+                                            Icon(Icons.Default.ArrowUpward, contentDescription = "Move Up", tint = if (index > 0) Primary600 else TextMuted.copy(alpha = 0.4f))
                                         }
 
                                         IconButton(
@@ -1077,7 +1070,7 @@ fun SimpleAccountsScreen(
                                             enabled = index < reorderedList.size - 1,
                                             modifier = Modifier.size(30.dp)
                                         ) {
-                                            Icon(Icons.Default.ArrowDownward, contentDescription = "Move Down", tint = if (index < reorderedList.size - 1) AccentPurple else TextMuted.copy(alpha = 0.4f))
+                                            Icon(Icons.Default.ArrowDownward, contentDescription = "Move Down", tint = if (index < reorderedList.size - 1) Primary600 else TextMuted.copy(alpha = 0.4f))
                                         }
                                     }
                                 }
@@ -1105,9 +1098,9 @@ fun SimpleAccountsScreen(
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                     ) {
-                        Text("Save New Order", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text("Save New Order", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = CardWhite)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -1118,8 +1111,9 @@ fun SimpleAccountsScreen(
         accountToDelete?.let { acc ->
             AlertDialog(
                 onDismissRequest = { accountToDelete = null },
-                title = { Text("Delete Account?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-                text = { Text("Are you sure you want to remove '${acc.accountName}'? Accounts with existing transactions cannot be removed without reassigning.", fontSize = 13.sp) },
+                containerColor = CardWhite,
+                title = { Text("Delete Account?", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark) },
+                text = { Text("Are you sure you want to remove '${acc.accountName}'? Accounts with existing transactions cannot be removed without reassigning.", fontSize = 13.sp, color = TextMuted) },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -1131,10 +1125,10 @@ fun SimpleAccountsScreen(
                             }
                             accountToDelete = null
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = SoftRed),
+                        colors = ButtonDefaults.buttonColors(containerColor = Error500),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Delete", fontWeight = FontWeight.Bold)
+                        Text("Delete", fontWeight = FontWeight.Bold, color = CardWhite)
                     }
                 },
                 dismissButton = {
@@ -1224,7 +1218,7 @@ fun SimpleAccountsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary600, unfocusedBorderColor = BorderLight)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -1269,7 +1263,7 @@ fun SimpleAccountsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary600, unfocusedBorderColor = BorderLight)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -1286,7 +1280,7 @@ fun SimpleAccountsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = BorderLight)
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary600, unfocusedBorderColor = BorderLight)
                     )
 
                     Spacer(modifier = Modifier.height(18.dp))
@@ -1309,9 +1303,9 @@ fun SimpleAccountsScreen(
                         enabled = name.isNotBlank(),
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                     ) {
-                        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = CardWhite)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -1368,7 +1362,7 @@ private fun BankAccountPhysicalCard(
         color = CardWhite,
         border = BorderStroke(
             width = if (isSelected) 1.5.dp else 0.8.dp,
-            color = if (isMabBreached) SoftRed else if (isSelected) tier.color else BorderLight.copy(alpha = 0.7f)
+            color = if (isMabBreached) Error500 else if (isSelected) tier.color else BorderLight.copy(alpha = 0.7f)
         )
     ) {
         Column(
@@ -1407,13 +1401,13 @@ private fun BankAccountPhysicalCard(
                     if (isMabBreached) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = SoftRed.copy(alpha = 0.15f)
+                            color = Error100
                         ) {
                             Text(
                                 text = "! MAB",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Black,
-                                color = SoftRed,
+                                color = Error700,
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                             )
                         }
@@ -1423,7 +1417,7 @@ private fun BankAccountPhysicalCard(
                     if (showRole) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = tier.color.copy(alpha = 0.14f)
+                            color = tier.bgTint
                         ) {
                             Text(
                                 text = tier.title,
@@ -1476,7 +1470,7 @@ private fun BankAccountPhysicalCard(
                     Text(
                         text = "MAB: $currencySymbol${account.minBalance.toInt()}",
                         fontSize = 10.sp,
-                        color = if (isMabBreached) SoftRed else TextMuted,
+                        color = if (isMabBreached) Error700 else TextMuted,
                         fontWeight = if (isMabBreached) FontWeight.Bold else FontWeight.Normal
                     )
                 }
@@ -1488,7 +1482,7 @@ private fun BankAccountPhysicalCard(
                 text = if (isDiscreetMode) "••••••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
-                color = if (account.currentBalance >= 0) TextDark else SoftRed
+                color = if (account.currentBalance >= 0) TextDark else Error700
             )
         }
     }
