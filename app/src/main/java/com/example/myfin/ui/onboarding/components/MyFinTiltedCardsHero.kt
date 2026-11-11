@@ -56,7 +56,7 @@ fun MyFinTiltedCardsHero(
             .height(235.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Back Card
+        // Back Card (Deep Slate-Navy Reserve Card)
         Box(
             modifier = Modifier
                 .offset(x = (-32).dp, y = (-10).dp)
@@ -70,9 +70,9 @@ fun MyFinTiltedCardsHero(
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            Color(0xFF231B38),
-                            Color(0xFF191228),
-                            Color(0xFF0F0B18)
+                            Neutral800,
+                            Color(0xFF132347),
+                            Neutral900
                         )
                     )
                 )
@@ -80,7 +80,7 @@ fun MyFinTiltedCardsHero(
         ) {
             Text(
                 text = "✦",
-                color = AccentPurpleLight.copy(alpha = 0.85f),
+                color = Primary300.copy(alpha = 0.90f),
                 fontSize = 14.sp
             )
             Column(modifier = Modifier.align(Alignment.BottomStart)) {
@@ -88,36 +88,36 @@ fun MyFinTiltedCardsHero(
                     text = secondaryCardLabel,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.65f)
+                    color = Neutral400
                 )
                 Spacer(modifier = Modifier.height(1.dp))
                 Text(
                     text = "$currencySymbol $secondaryBalance",
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFD0BCFF)
+                    color = Primary200
                 )
             }
         }
 
-        // Front Card
+        // Front Card (Royal Cobalt Blue Hero Card)
         Box(
             modifier = Modifier
                 .offset(x = 14.dp, y = 16.dp)
                 .graphicsLayer {
                     rotationZ = -11f
                 }
-                .shadow(24.dp, RoundedCornerShape(22.dp), spotColor = AccentPurple.copy(alpha = 0.45f))
+                .shadow(24.dp, RoundedCornerShape(22.dp), spotColor = Primary600.copy(alpha = 0.45f))
                 .clip(RoundedCornerShape(22.dp))
                 .width(245.dp)
                 .height(152.dp)
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            AccentPurpleDark,
-                            AccentPurple,
-                            Color(0xFF8B5CF6),
-                            Color(0xFF9F75FF)
+                            Primary800,
+                            Primary600,
+                            Primary500,
+                            Primary400
                         )
                     )
                 )
@@ -135,7 +135,7 @@ fun MyFinTiltedCardsHero(
                     text = primaryCardLabel,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.85f)
+                    color = Primary100
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -154,11 +154,11 @@ fun MyFinTiltedCardsHero(
                 .size(56.dp)
                 .align(Alignment.CenterEnd)
                 .offset(x = (-14).dp, y = (-40).dp)
-                .shadow(12.dp, CircleShape, spotColor = AccentPurple.copy(alpha = 0.5f))
+                .shadow(12.dp, CircleShape, spotColor = Primary600.copy(alpha = 0.5f))
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Color(0xFF2D1B69), Color(0xFF1A103C))
+                        colors = listOf(Primary900, Neutral900)
                     )
                 ),
             contentAlignment = Alignment.Center
@@ -166,7 +166,7 @@ fun MyFinTiltedCardsHero(
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val strokePx = 1.8.dp.toPx()
                 drawCircle(
-                    color = AccentPurple.copy(alpha = 0.6f),
+                    color = Primary400.copy(alpha = 0.65f),
                     radius = size.minDimension * 0.45f,
                     style = Stroke(width = strokePx)
                 )
@@ -187,7 +187,7 @@ fun MyFinTiltedCardsHero(
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Color(0xFF231B38), Color(0xFF0F0B18))
+                        colors = listOf(Neutral800, Neutral900)
                     )
                 ),
             contentAlignment = Alignment.Center
@@ -195,7 +195,7 @@ fun MyFinTiltedCardsHero(
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val strokePx = 2.dp.toPx()
                 drawCircle(
-                    color = Color(0xFFD0BCFF).copy(alpha = 0.5f),
+                    color = Primary300.copy(alpha = 0.55f),
                     radius = size.minDimension * 0.44f,
                     style = Stroke(width = strokePx)
                 )
@@ -205,7 +205,7 @@ fun MyFinTiltedCardsHero(
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Black,
                 fontFamily = FontFamily.Monospace,
-                color = Color(0xFFD0BCFF)
+                color = Primary200
             )
         }
     }
