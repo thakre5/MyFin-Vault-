@@ -63,7 +63,7 @@ enum class VaultTier(
     val icon: ImageVector
 ) {
     OPERATING("Operating", "Daily living & UPI spending", Warning500, Warning100, Icons.Default.AccountBalance),
-    COMMITMENTS("Commitments", "AutoPay ring-fence & fixed bills", Primary600, Primary50, Icons.Default.CreditCard),
+    COMMITMENTS("Commitments", "AutoPay ring-fence & fixed bills", Primary600, Primary100, Icons.Default.CreditCard),
     FORTRESS("Fortress", "Emergency savings & sweep FDs", SoftTeal, SoftTealLight, Icons.Default.Security),
     CASH("Cash", "Physical wallet & micro-spend", Success500, Success100, Icons.Default.Payments)
 }
@@ -583,7 +583,7 @@ fun VaultStrategyScreen(
                                             Brush.verticalGradient(
                                                 listOf(
                                                     CardWhite,
-                                                    SoftTealLight.copy(alpha = 0.35f)
+                                                    SoftTealLight.copy(alpha = 0.45f)
                                                 )
                                             )
                                         )
@@ -629,10 +629,10 @@ fun VaultStrategyScreen(
                                         Surface(
                                             shape = RoundedCornerShape(7.dp),
                                             color = when {
-                                                fortressCushionDeficit > 0 -> SoftAmberLight
+                                                fortressCushionDeficit > 0 -> Warning100
                                                 emergencyTarget > 0 && fdDeficit <= 0 -> SoftTealLight
                                                 fortressFd > 0 -> SoftTealLight
-                                                else -> SoftGreenLight
+                                                else -> Success100
                                             }
                                         ) {
                                             Text(
@@ -645,10 +645,10 @@ fun VaultStrategyScreen(
                                                 fontSize = 9.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = when {
-                                                    fortressCushionDeficit > 0 -> SoftAmberDark
+                                                    fortressCushionDeficit > 0 -> Warning700
                                                     emergencyTarget > 0 && fdDeficit <= 0 -> SoftTeal
                                                     fortressFd > 0 -> SoftTeal
-                                                    else -> SoftGreenDark
+                                                    else -> Success700
                                                 },
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
@@ -747,7 +747,7 @@ fun VaultStrategyScreen(
 
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (fortressCushionDeficit > 0) SoftAmberLight.copy(alpha = 0.65f) else SoftTealLight.copy(alpha = 0.65f),
+                                        color = if (fortressCushionDeficit > 0) Warning100 else SoftTealLight,
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         val targetDesc = if (userProfile.fortressManualTarget > 0.0) "manual" else "${userProfile.fortressEmergencyMonths}M"
@@ -764,7 +764,7 @@ fun VaultStrategyScreen(
                                         Text(
                                             text = statusNotice,
                                             fontSize = 9.5.sp,
-                                            color = if (fortressCushionDeficit > 0) SoftAmberDark else SoftTeal,
+                                            color = if (fortressCushionDeficit > 0) Warning700 else SoftTeal,
                                             fontWeight = FontWeight.Medium,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -893,8 +893,8 @@ fun VaultStrategyScreen(
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(8.dp),
-                                color = SoftRedLight.copy(alpha = 0.65f),
-                                border = BorderStroke(0.7.dp, SoftRed.copy(alpha = 0.4f))
+                                color = Error100,
+                                border = BorderStroke(0.7.dp, Error500.copy(alpha = 0.4f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -903,7 +903,7 @@ fun VaultStrategyScreen(
                                     Icon(
                                         imageVector = Icons.Default.Warning,
                                         contentDescription = null,
-                                        tint = SoftRedDark,
+                                        tint = Error700,
                                         modifier = Modifier.size(15.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -911,7 +911,7 @@ fun VaultStrategyScreen(
                                         text = "MAB Shortfall: -${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", deficit)} below minimum required balance",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = SoftRedDark
+                                        color = Error700
                                     )
                                 }
                             }
@@ -925,7 +925,7 @@ fun VaultStrategyScreen(
                                 .shadow(2.dp, RoundedCornerShape(18.dp)),
                             shape = RoundedCornerShape(18.dp),
                             color = CardWhite,
-                            border = BorderStroke(0.8.dp, if (isMabBreached) SoftRed.copy(alpha = 0.4f) else BorderLight.copy(alpha = 0.6f))
+                            border = BorderStroke(0.8.dp, if (isMabBreached) Error500.copy(alpha = 0.45f) else BorderLight.copy(alpha = 0.6f))
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(modifier = Modifier.fillMaxWidth()) {
@@ -933,7 +933,7 @@ fun VaultStrategyScreen(
                                         title = "Normalized Daily Burn",
                                         value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", normalizedDailyBurn)}/day",
                                         icon = Icons.Default.Whatshot,
-                                        iconColor = SoftRed,
+                                        iconColor = Error500,
                                         subtitle = "Baseline spend velocity",
                                         modifier = Modifier.weight(1f)
                                     )
@@ -944,7 +944,7 @@ fun VaultStrategyScreen(
                                         title = "Runway Buffer",
                                         value = "$runwayDays Days",
                                         icon = Icons.Default.Timer,
-                                        iconColor = if (runwayDays >= 30) SoftGreen else SoftAmber,
+                                        iconColor = if (runwayDays >= 30) Success500 else Warning500,
                                         subtitle = "Coverage at baseline burn",
                                         modifier = Modifier.weight(1f)
                                     )
@@ -972,7 +972,7 @@ fun VaultStrategyScreen(
                                         title = "Net Cashflow",
                                         value = "${if (netDelta >= 0) "+" else "-"}${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", abs(netDelta))}",
                                         icon = if (netDelta >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                                        iconColor = if (netDelta >= 0) SoftGreen else SoftRed,
+                                        iconColor = if (netDelta >= 0) Success500 else Error500,
                                         subtitle = "Retained ledger delta",
                                         modifier = Modifier.weight(1f)
                                     )
@@ -990,7 +990,7 @@ fun VaultStrategyScreen(
                                 .clickable { showRoutingDetailsSheet = true },
                             shape = RoundedCornerShape(18.dp),
                             color = CardWhite,
-                            border = BorderStroke(1.dp, activeTier.color.copy(alpha = 0.25f))
+                            border = BorderStroke(1.dp, activeTier.color.copy(alpha = 0.28f))
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
@@ -1096,7 +1096,7 @@ fun VaultStrategyScreen(
                                             },
                                             fontSize = 11.5.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (activeTier == VaultTier.COMMITMENTS && isMabBreached) SoftRed else TextDark
+                                            color = if (activeTier == VaultTier.COMMITMENTS && isMabBreached) Error700 else TextDark
                                         )
                                         Text("Tap to view complete mathematical breakdown", fontSize = 10.sp, color = TextMuted)
                                     }
@@ -1111,7 +1111,7 @@ fun VaultStrategyScreen(
                                         },
                                         shape = RoundedCornerShape(8.dp),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (activeTier == VaultTier.COMMITMENTS && isMabBreached) SoftRed else Primary600
+                                            containerColor = if (activeTier == VaultTier.COMMITMENTS && isMabBreached) Error500 else Primary600
                                         ),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                         modifier = Modifier.height(30.dp)
@@ -1258,7 +1258,7 @@ fun VaultStrategyScreen(
                                 )
                             }
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete Account", tint = SoftRed, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Delete, contentDescription = "Delete Account", tint = Error500, modifier = Modifier.size(20.dp))
                         }
                     }
 
@@ -1364,20 +1364,20 @@ fun VaultStrategyScreen(
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        color = CanvasLight,
-                        border = BorderStroke(0.7.dp, BorderLight)
+                        color = Primary50,
+                        border = BorderStroke(0.7.dp, Primary200)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Info, contentDescription = null, tint = Primary600, modifier = Modifier.size(15.dp))
+                                Icon(Icons.Default.Info, contentDescription = null, tint = Primary700, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Modification Impact", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                Text("Modification Impact", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Primary800)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "• Renaming will automatically update all linked transactions and fixed bills.\n• Role changes reallocate this balance in your asset allocation chart.\n• Balance adjustments create an automated ledger entry for the difference.",
                                 fontSize = 10.5.sp,
-                                color = TextMuted,
+                                color = TextDark,
                                 lineHeight = 15.sp
                             )
                         }
@@ -1405,7 +1405,7 @@ fun VaultStrategyScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                     ) {
-                        Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = CardWhite)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -1422,27 +1422,28 @@ fun VaultStrategyScreen(
 
             AlertDialog(
                 onDismissRequest = { pendingEditConfirmation = null },
-                title = { Text("Confirm Account Modifications?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                containerColor = CardWhite,
+                title = { Text("Confirm Account Modifications?", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (isNameChanged) {
-                            Text("• Rename: '${conf.originalAccount.accountName}' ➔ '${conf.updatedName}'")
+                            Text("• Rename: '${conf.originalAccount.accountName}' ➔ '${conf.updatedName}'", color = TextDark)
                         }
                         if (isRoleChanged) {
-                            Text("• Strategic Role: '${conf.originalAccount.accountType}' ➔ '${conf.updatedRole.title}'")
+                            Text("• Strategic Role: '${conf.originalAccount.accountType}' ➔ '${conf.updatedRole.title}'", color = TextDark)
                         }
                         if (isBalChanged) {
                             val diff = conf.targetBalance - conf.originalAccount.currentBalance
-                            Text("• Balance Adjustment: ${if (diff > 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", diff)}")
+                            Text("• Balance Adjustment: ${if (diff > 0) "+" else ""}${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", diff)}", color = TextDark)
                         }
                         if (isMabChanged) {
-                            Text("• Min Balance (MAB): ${userProfile.currencySymbol}${conf.minBalance.toInt()}")
+                            Text("• Min Balance (MAB): ${userProfile.currencySymbol}${conf.minBalance.toInt()}", color = TextDark)
                         }
                         if (isArchiveChanged) {
-                            Text("• Archive Status: ${if (conf.isArchived) "Archived" else "Active"}")
+                            Text("• Archive Status: ${if (conf.isArchived) "Archived" else "Active"}", color = TextDark)
                         }
                         if (!isNameChanged && !isRoleChanged && !isBalChanged && !isMabChanged && !isArchiveChanged) {
-                            Text("No changes detected.")
+                            Text("No changes detected.", color = TextMuted)
                         }
                     }
                 },
@@ -1471,7 +1472,7 @@ fun VaultStrategyScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = Primary600),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Confirm & Apply", fontWeight = FontWeight.Bold)
+                        Text("Confirm & Apply", fontWeight = FontWeight.Bold, color = CardWhite)
                     }
                 },
                 dismissButton = {
@@ -1594,7 +1595,7 @@ fun VaultStrategyScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                     ) {
-                        Text("Save New Order", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text("Save New Order", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = CardWhite)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -1759,13 +1760,13 @@ fun VaultStrategyScreen(
                             if (mabBuffer > 0.0) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text("MAB Protected Floor", fontSize = 11.5.sp, color = TextMuted)
-                                    Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", mabBuffer)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = SoftAmber)
+                                    Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", mabBuffer)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Warning700)
                                 }
                             }
                             if (totalPendingBillsAmount > 0.0) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text("Reserved for Queued AutoPay", fontSize = 11.5.sp, color = TextMuted)
-                                    Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
+                                    Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", totalPendingBillsAmount)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Error700)
                                 }
                             }
                             if (activeTier == VaultTier.OPERATING) {
@@ -1776,20 +1777,20 @@ fun VaultStrategyScreen(
                                 if (excessCompanyAdvance > 0.0) {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text("Ring-Fenced Company Advance", fontSize = 11.5.sp, color = TextMuted)
-                                        Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", excessCompanyAdvance)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = SoftRed)
+                                        Text("-${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", excessCompanyAdvance)}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Error700)
                                     }
                                 }
                                 HorizontalDivider(color = BorderLight, thickness = 0.6.dp)
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text("True Sweepable Surplus", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", calculatedSweepSurplus)}", fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = SoftGreen)
+                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", calculatedSweepSurplus)}", fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = Success700)
                                 }
                             } else if (activeTier == VaultTier.COMMITMENTS) {
                                 val effective = (activeAccount?.currentBalance ?: 0.0) - totalPendingBillsAmount - mabBuffer
                                 HorizontalDivider(color = BorderLight, thickness = 0.6.dp)
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(if (effective >= 0) "Surplus Commitment Margin" else "Commitment Shortfall Required", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", abs(effective))}", fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = if (effective >= 0) SoftGreen else SoftRed)
+                                    Text("${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", abs(effective))}", fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = if (effective >= 0) Success700 else Error700)
                                 }
                             } else if (activeTier == VaultTier.FORTRESS) {
                                 HorizontalDivider(color = BorderLight, thickness = 0.6.dp)
@@ -1824,7 +1825,8 @@ fun VaultStrategyScreen(
                                 VaultTier.CASH -> "Transfer Cash"
                             },
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = 13.sp,
+                            color = CardWhite
                         )
                     }
                     Spacer(modifier = Modifier.height(10.dp))
@@ -1836,8 +1838,9 @@ fun VaultStrategyScreen(
         accountToDelete?.let { acc ->
             AlertDialog(
                 onDismissRequest = { accountToDelete = null },
-                title = { Text("Delete Account?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-                text = { Text("Are you sure you want to remove '${acc.accountName}'? If it has linked transactions or AutoPay bills, deletion will be refused until reallocated.", fontSize = 13.sp) },
+                containerColor = CardWhite,
+                title = { Text("Delete Account?", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark) },
+                text = { Text("Are you sure you want to remove '${acc.accountName}'? If it has linked transactions or AutoPay bills, deletion will be refused until reallocated.", fontSize = 13.sp, color = TextMuted) },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -1849,10 +1852,10 @@ fun VaultStrategyScreen(
                             }
                             accountToDelete = null
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = SoftRed),
+                        colors = ButtonDefaults.buttonColors(containerColor = Error500),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Delete", fontWeight = FontWeight.Bold)
+                        Text("Delete", fontWeight = FontWeight.Bold, color = CardWhite)
                     }
                 },
                 dismissButton = {
@@ -2033,7 +2036,7 @@ fun VaultStrategyScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                     ) {
-                        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = CardWhite)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -2044,8 +2047,9 @@ fun VaultStrategyScreen(
         if (showHelpDialog) {
             AlertDialog(
                 onDismissRequest = { showHelpDialog = false },
+                containerColor = CardWhite,
                 icon = { Icon(Icons.Default.AccountBalance, contentDescription = null, tint = Primary600, modifier = Modifier.size(32.dp)) },
-                title = { Text("3-Vault Financial Architecture", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+                title = { Text("3-Vault Financial Architecture", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("1. Operating Vault: Receives income, handles daily living expenses, groceries, and UPI transfers. Kept at 1-2 months runway.", fontSize = 12.sp, color = TextDark)
@@ -2056,7 +2060,7 @@ fun VaultStrategyScreen(
                 },
                 confirmButton = {
                     Button(onClick = { showHelpDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = Primary600)) {
-                        Text("Got it")
+                        Text("Got it", color = CardWhite)
                     }
                 }
             )
@@ -2164,7 +2168,7 @@ private fun BankAccountPhysicalCard(
         color = CardWhite,
         border = BorderStroke(
             width = if (isSelected) 1.5.dp else 0.8.dp,
-            color = if (isMabBreached) SoftRed else if (isSelected) tier.color else BorderLight.copy(alpha = 0.7f)
+            color = if (isMabBreached) Error500 else if (isSelected) tier.color else BorderLight.copy(alpha = 0.7f)
         )
     ) {
         Column(
@@ -2203,13 +2207,13 @@ private fun BankAccountPhysicalCard(
                     if (isMabBreached) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = SoftRedLight
+                            color = Error100
                         ) {
                             Text(
                                 text = "! MAB",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Black,
-                                color = SoftRedDark,
+                                color = Error700,
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                             )
                         }
@@ -2272,7 +2276,7 @@ private fun BankAccountPhysicalCard(
                     Text(
                         text = "MAB: $currencySymbol${account.minBalance.toInt()}",
                         fontSize = 10.sp,
-                        color = if (isMabBreached) SoftRed else TextMuted,
+                        color = if (isMabBreached) Error700 else TextMuted,
                         fontWeight = if (isMabBreached) FontWeight.Bold else FontWeight.Normal
                     )
                 }
@@ -2284,7 +2288,7 @@ private fun BankAccountPhysicalCard(
                 text = "$currencySymbol${String.format(Locale.US, "%,.2f", account.currentBalance)}",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
-                color = if (account.currentBalance >= 0) TextDark else SoftRed
+                color = if (account.currentBalance >= 0) TextDark else Error700
             )
         }
     }
@@ -2315,7 +2319,7 @@ private fun FourWayDonutAllocationChart(
 
         if (slices.isEmpty()) {
             drawArc(
-                color = BorderLight,
+                color = Neutral200,
                 startAngle = 0f,
                 sweepAngle = 360f,
                 useCenter = false,
