@@ -138,7 +138,8 @@ fun CashflowActiveMatrixSheet(
                         title = "Cashflow Dynamics Matrix",
                         subtitle = "Personal Inflow vs Lifestyle Burn Audit",
                         badge = if (retentionPct >= 0) "$retentionPct% Retained" else "${abs(retentionPct)}% Deficit",
-                        badgeColor = if (retentionPct >= 20) SoftTeal else SoftRed
+                        badgeColor = if (retentionPct >= 20) SoftTeal else Error700,
+                        badgeBgColor = if (retentionPct >= 20) SoftTealLight else Error100
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -148,26 +149,26 @@ fun CashflowActiveMatrixSheet(
                             label = "Personal Inflow (YTD)",
                             value = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)}",
                             subtext = "Avg: $currencySymbol${String.format(Locale.US, "%,.0f", activeMonthlyIncome)}/mo active",
-                            tint = Color(0xFF10B981)
+                            tint = Success500
                         )
                         MatrixDataRow(
                             label = "Personal Lifestyle Burn (YTD)",
                             value = if (isDiscreetMode) "••••" else "-$currencySymbol${String.format(Locale.US, "%,.0f", annualExpenses)}",
                             subtext = "Avg: $currencySymbol${String.format(Locale.US, "%,.0f", activeMonthlyBurn)}/mo active",
-                            tint = Color(0xFF8B5CF6)
+                            tint = Primary600
                         )
                         MatrixDataRow(
                             label = "Peak Expenditure Cycle",
                             value = peakMonth?.monthName ?: "None",
                             subtext = if (peakMonth != null) "Burn: $currencySymbol${String.format(Locale.US, "%,.0f", peakMonth.lifestyleExpenses)}" else "",
-                            tint = SoftRed
+                            tint = Error500
                         )
                         HorizontalDivider(color = BorderLight, thickness = 0.8.dp)
                         MatrixDataRow(
                             label = "Net Operating Surplus Retained",
                             value = if (isDiscreetMode) "••••" else "${if (annualIncome >= annualExpenses) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", annualIncome - annualExpenses)}",
                             subtext = if (retentionPct >= 0) "$retentionPct% of personal earnings preserved" else "${abs(retentionPct)}% net operating deficit",
-                            tint = if (annualIncome >= annualExpenses) SoftTeal else SoftRed,
+                            tint = if (annualIncome >= annualExpenses) SoftTeal else Error500,
                             isBold = true
                         )
                     }
@@ -185,7 +186,8 @@ fun CashflowActiveMatrixSheet(
                         title = "12-Month Cashflow Pulse",
                         subtitle = "Tap month to inspect detailed breakdown",
                         badge = "$surplusMonths Surplus / $deficitMonths Deficit",
-                        badgeColor = SoftGreen
+                        badgeColor = Success700,
+                        badgeBgColor = Success100
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -198,7 +200,8 @@ fun CashflowActiveMatrixSheet(
                     ) {
                         items(yearlyMonths) { m ->
                             val isSurplus = m.netSavings >= 0
-                            val statusColor = if (m.isFuture) TextMuted else if (isSurplus) SoftGreen else SoftRed
+                            val statusTextColor = if (m.isFuture) TextMuted else if (isSurplus) Success700 else Error700
+                            val statusBgColor = if (m.isFuture) Neutral100 else if (isSurplus) Success100 else Error100
                             val mInflow = m.personalIncome
 
                             Surface(
@@ -231,13 +234,13 @@ fun CashflowActiveMatrixSheet(
 
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
-                                        color = statusColor.copy(alpha = 0.12f)
+                                        color = statusBgColor
                                     ) {
                                         Text(
                                             text = if (isDiscreetMode) "••••" else if (m.isFuture) "Planned" else "${if (isSurplus) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", m.netSavings)}",
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = statusColor,
+                                            color = statusTextColor,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
@@ -263,7 +266,8 @@ fun CashflowActiveMatrixSheet(
                         title = "Annual 3-Pillar Allocation",
                         subtitle = "Capital Distribution vs 50/30/20 Guidelines",
                         badge = "Total Inflow: $currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)}",
-                        badgeColor = AccentPurple
+                        badgeColor = Primary700,
+                        badgeBgColor = Primary100
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -275,7 +279,7 @@ fun CashflowActiveMatrixSheet(
                             percentage = "$fixedPct%",
                             benchmark = "Target: <50%",
                             isHealthy = fixedPct <= 50,
-                            color = Color(0xFF475569)
+                            color = Neutral600
                         )
                         PillarDetailedRow(
                             pillarName = "Pillar 2: Variable Lifestyle",
@@ -283,7 +287,7 @@ fun CashflowActiveMatrixSheet(
                             percentage = "$varPct%",
                             benchmark = "Target: <30%",
                             isHealthy = varPct <= 30,
-                            color = Color(0xFF8B5CF6)
+                            color = Primary600
                         )
                         PillarDetailedRow(
                             pillarName = "Pillar 3: Wealth SIP & Assets",
@@ -291,7 +295,7 @@ fun CashflowActiveMatrixSheet(
                             percentage = "$assetPct%",
                             benchmark = "Target: >20%",
                             isHealthy = assetPct >= 20,
-                            color = Color(0xFF06B6D4)
+                            color = SoftTeal
                         )
                         PillarDetailedRow(
                             pillarName = if (netRetained >= 0) "Pillar 4: Liquid Vault Buffer" else "Pillar 4: Net Capital Deficit",
@@ -299,7 +303,7 @@ fun CashflowActiveMatrixSheet(
                             percentage = "$retainedPct%",
                             benchmark = if (netRetained >= 0) "Operating Cushion" else "Outflows Exceed Inflow",
                             isHealthy = netRetained >= 0,
-                            color = if (netRetained >= 0) Color(0xFF10B981) else SoftRed
+                            color = if (netRetained >= 0) Success500 else Error500
                         )
                     }
 
@@ -318,22 +322,23 @@ fun CashflowActiveMatrixSheet(
                         title = "12-Month Run-Rate Math",
                         subtitle = "Velocity Extrapolated Across 12 Full Months",
                         badge = "$activeMonths Active Cycles",
-                        badgeColor = Color(0xFFE57A28)
+                        badgeColor = Warning700,
+                        badgeBgColor = Warning100
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = CanvasLight,
-                        border = BorderStroke(0.6.dp, BorderLight),
+                        color = Primary50,
+                        border = BorderStroke(0.6.dp, Primary200),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = "Formula: Projected = (YTD Total ÷ $activeMonths Active Months) × 12",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextMuted,
+                            color = Primary700,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                         )
                     }
@@ -341,11 +346,11 @@ fun CashflowActiveMatrixSheet(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MatrixDataRow("Projected Full-Year Inflow", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projInflow)}", "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)}", Color(0xFF10B981))
-                        MatrixDataRow("Projected Full-Year Burn", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projBurn)}", "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualExpenses)}", SoftRed)
-                        MatrixDataRow("Projected Annual SIP Assets", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projAssets)}", "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualAssets)}", Color(0xFF06B6D4))
+                        MatrixDataRow("Projected Full-Year Inflow", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projInflow)}", "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)}", Success500)
+                        MatrixDataRow("Projected Full-Year Burn", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projBurn)}", "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualExpenses)}", Error500)
+                        MatrixDataRow("Projected Annual SIP Assets", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projAssets)}", "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualAssets)}", SoftTeal)
                         HorizontalDivider(color = BorderLight, thickness = 0.8.dp)
-                        MatrixDataRow("Forecasted Year-End Surplus", if (isDiscreetMode) "••••" else "${if (projSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", projSurplus)}", "Net liquid capital expected by Dec 31", if (projSurplus >= 0) SoftTeal else SoftRed, isBold = true)
+                        MatrixDataRow("Forecasted Year-End Surplus", if (isDiscreetMode) "••••" else "${if (projSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", projSurplus)}", "Net liquid capital expected by Dec 31", if (projSurplus >= 0) SoftTeal else Error500, isBold = true)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -358,7 +363,8 @@ fun CashflowActiveMatrixSheet(
                         title = "Fiscal Quarter Retention Matrix",
                         subtitle = "Quarterly Cashflow Breakdown (Q1–Q4)",
                         badge = "4 Quarters",
-                        badgeColor = SoftTeal
+                        badgeColor = SoftTeal,
+                        badgeBgColor = SoftTealLight
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -381,13 +387,13 @@ fun CashflowActiveMatrixSheet(
                                         Text(q.quarterLabel, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
-                                            color = (if (q.netSurplus >= 0) SoftTeal else SoftRed).copy(alpha = 0.12f)
+                                            color = if (!hasData) Neutral100 else if (q.netSurplus >= 0) SoftTealLight else Error100
                                         ) {
                                             Text(
                                                 text = if (isDiscreetMode) "••••" else if (!hasData) "Pending" else "${q.savingsRate.toInt()}% Retained",
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (!hasData) TextMuted else if (q.netSurplus >= 0) SoftTeal else SoftRed,
+                                                color = if (!hasData) TextMuted else if (q.netSurplus >= 0) SoftTeal else Error700,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }
@@ -400,18 +406,18 @@ fun CashflowActiveMatrixSheet(
                                         Text(
                                             text = if (isDiscreetMode) "••••" else "In: $currencySymbol${String.format(Locale.US, "%,.0f", q.totalIncome)}",
                                             fontSize = 11.sp,
-                                            color = Color(0xFF10B981)
+                                            color = Success700
                                         )
                                         Text(
                                             text = if (isDiscreetMode) "••••" else "Burn: $currencySymbol${String.format(Locale.US, "%,.0f", q.totalExpenses)}",
                                             fontSize = 11.sp,
-                                            color = Color(0xFF8B5CF6)
+                                            color = Primary600
                                         )
                                         Text(
                                             text = if (isDiscreetMode) "••••" else "Surplus: ${if (q.netSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", q.netSurplus)}",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (q.netSurplus >= 0) SoftTeal else SoftRed
+                                            color = if (q.netSurplus >= 0) SoftTeal else Error700
                                         )
                                     }
                                 }
@@ -432,17 +438,18 @@ fun CashflowActiveMatrixSheet(
                         title = "Corporate Float & Claims Ledger",
                         subtitle = "Business Travel & Advance Ring-Fence",
                         badge = if (status.isSettled) "Settled" else "Pending Action",
-                        badgeColor = if (status.isSettled) SoftGreen else Color(0xFFE57A28)
+                        badgeColor = if (status.isSettled) Success700 else Warning700,
+                        badgeBgColor = if (status.isSettled) Success100 else Warning100
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MatrixDataRow("Work Expenses Logged (YTD)", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.totalWorkExpenses)}", "Business outlays paid by you this year", Color(0xFFE57A28))
-                        MatrixDataRow("Corporate Advances Held", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.excessAdvanceHeld)}", "Upfront company funds (Ring-fenced)", Color(0xFF0D9488))
-                        MatrixDataRow("Reimbursements Received (YTD)", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalReimbursementsReceived)}", "Settled company refunds this year", SoftGreen)
+                        MatrixDataRow("Work Expenses Logged (YTD)", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.totalWorkExpenses)}", "Business outlays paid by you this year", Warning500)
+                        MatrixDataRow("Corporate Advances Held", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.excessAdvanceHeld)}", "Upfront company funds (Ring-fenced)", SoftTeal)
+                        MatrixDataRow("Reimbursements Received (YTD)", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalReimbursementsReceived)}", "Settled company refunds this year", Success500)
                         HorizontalDivider(color = BorderLight, thickness = 0.8.dp)
-                        MatrixDataRow("All-Time Pending Claim Due", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.pendingReimbursement)}", "Balance owed back to your personal accounts", if (status.pendingReimbursement > 0) SoftRed else SoftGreen, isBold = true)
+                        MatrixDataRow("All-Time Pending Claim Due", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.pendingReimbursement)}", "Balance owed back to your personal accounts", if (status.pendingReimbursement > 0) Error500 else Success500, isBold = true)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -460,7 +467,7 @@ fun CashflowActiveMatrixSheet(
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = TextDark)
             ) {
-                Text("Done", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Done", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = CardWhite)
             }
         }
     }
@@ -472,7 +479,8 @@ private fun SheetHeader(
     title: String,
     subtitle: String,
     badge: String,
-    badgeColor: Color
+    badgeColor: Color,
+    badgeBgColor: Color = badgeColor.copy(alpha = 0.12f)
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -485,7 +493,7 @@ private fun SheetHeader(
         }
         Surface(
             shape = RoundedCornerShape(8.dp),
-            color = badgeColor.copy(alpha = 0.12f)
+            color = badgeBgColor
         ) {
             Text(
                 text = badge,
@@ -552,7 +560,7 @@ private fun PillarDetailedRow(
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Text(pillarName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                    Text(benchmark, fontSize = 10.sp, color = if (isHealthy) SoftGreen else Color(0xFFF59E0B))
+                    Text(benchmark, fontSize = 10.sp, color = if (isHealthy) Success700 else Warning700)
                 }
             }
 
@@ -577,7 +585,7 @@ private fun ProTipNotice(text: String) {
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(15.dp))
+            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Warning500, modifier = Modifier.size(15.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text(text, fontSize = 10.5.sp, color = TextDark.copy(alpha = 0.85f), lineHeight = 14.sp)
         }
@@ -617,11 +625,11 @@ fun GraphExplanationBottomSheet(
                 }
                 Surface(
                     shape = CircleShape,
-                    color = AccentPurple.copy(alpha = 0.12f),
+                    color = Primary50,
                     modifier = Modifier.size(36.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Info, contentDescription = null, tint = Primary600, modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -644,7 +652,7 @@ fun GraphExplanationBottomSheet(
                                 .padding(top = 5.dp)
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(AccentPurple)
+                                .background(Primary600)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
@@ -659,24 +667,24 @@ fun GraphExplanationBottomSheet(
 
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = CanvasLight,
-                border = BorderStroke(0.7.dp, BorderLight)
+                color = Primary50,
+                border = BorderStroke(0.7.dp, Primary200)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Warning500, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Why this matters for your wealth", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(guide.whyItMatters, fontSize = 11.5.sp, color = TextDark.copy(alpha = 0.8f), lineHeight = 16.sp)
+                    Text(guide.whyItMatters, fontSize = 11.5.sp, color = TextDark.copy(alpha = 0.85f), lineHeight = 16.sp)
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Pro Tip: ${guide.actionableTip}",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = AccentPurple,
+                        color = Primary700,
                         lineHeight = 15.sp
                     )
                 }
@@ -692,7 +700,7 @@ fun GraphExplanationBottomSheet(
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = TextDark)
             ) {
-                Text("Got it", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Got it", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = CardWhite)
             }
         }
     }
@@ -738,13 +746,13 @@ fun InspectedMonthBottomSheet(
 
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = if (mData.netSavings >= 0) SoftGreen.copy(alpha = 0.14f) else SoftRed.copy(alpha = 0.14f)
+                    color = if (mData.netSavings >= 0) Success100 else Error100
                 ) {
                     Text(
                         text = if (isDiscreetMode) "••••" else if (mData.netSavings >= 0) "+${currencySymbol}${String.format(Locale.US, "%,.0f", mData.netSavings)}" else "-${currencySymbol}${String.format(Locale.US, "%,.0f", abs(mData.netSavings))}",
                         fontWeight = FontWeight.Black,
                         fontSize = 13.sp,
-                        color = if (mData.netSavings >= 0) SoftGreen else SoftRed,
+                        color = if (mData.netSavings >= 0) Success700 else Error700,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
@@ -760,13 +768,13 @@ fun InspectedMonthBottomSheet(
                     modifier = Modifier.weight(1f),
                     label = "Personal Inflow",
                     value = if (isDiscreetMode) "••••" else "${currencySymbol}${String.format(Locale.US, "%,.0f", monthPersonalIncome)}",
-                    tint = SoftGreen
+                    tint = Success500
                 )
                 QuickMetricTile(
                     modifier = Modifier.weight(1f),
                     label = "Lifestyle Burn",
                     value = if (isDiscreetMode) "••••" else "${currencySymbol}${String.format(Locale.US, "%,.0f", mData.lifestyleExpenses)}",
-                    tint = AccentPurple
+                    tint = Primary600
                 )
                 QuickMetricTile(
                     modifier = Modifier.weight(1f),
@@ -780,8 +788,8 @@ fun InspectedMonthBottomSheet(
                 Spacer(modifier = Modifier.height(10.dp))
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFE57A28).copy(alpha = 0.08f),
-                    border = BorderStroke(0.6.dp, Color(0xFFE57A28).copy(alpha = 0.25f)),
+                    color = Warning100,
+                    border = BorderStroke(0.6.dp, Warning500.copy(alpha = 0.35f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -790,15 +798,15 @@ fun InspectedMonthBottomSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.WorkOutline, contentDescription = null, tint = Color(0xFFE57A28), modifier = Modifier.size(15.dp))
+                            Icon(Icons.Default.WorkOutline, contentDescription = null, tint = Warning700, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Corporate Float Active", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFE57A28))
+                            Text("Corporate Float Active", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Warning700)
                         }
                         Text(
                             text = if (isDiscreetMode) "••••" else "Outlay: ${currencySymbol}${String.format(Locale.US, "%,.0f", mData.workExpenses)} | Claims: ${currencySymbol}${String.format(Locale.US, "%,.0f", mData.corporateReimbursements)}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFE57A28)
+                            color = Warning700
                         )
                     }
                 }
@@ -832,7 +840,7 @@ fun InspectedMonthBottomSheet(
                             text = if (isDiscreetMode) "••••" else "${currencySymbol}${String.format(Locale.US, "%,.0f", amt)}",
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = AccentPurple
+                            color = Primary600
                         )
                     }
                 }
@@ -852,9 +860,9 @@ fun InspectedMonthBottomSheet(
                 colors = ButtonDefaults.buttonColors(containerColor = TextDark)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Open ${mData.monthName} Monthly Dashboard", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Open ${mData.monthName} Monthly Dashboard", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = CardWhite)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = CardWhite, modifier = Modifier.size(16.dp))
                 }
             }
         }
