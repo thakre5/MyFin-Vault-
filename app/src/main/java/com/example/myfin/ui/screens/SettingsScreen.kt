@@ -1,6 +1,7 @@
 package com.example.myfin.ui.screens
 
 import android.Manifest
+import android.app.Activity
 import android.app.AlarmManager
 import android.content.Context
 import android.content.ContextWrapper
@@ -53,16 +54,17 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -82,7 +84,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.max
 
 enum class SettingsAccordionSection {
     NONE,
@@ -259,6 +260,19 @@ fun SettingsScreen(
     val userProfile by viewModel.userProfile.collectAsState()
     val uiState by viewModel.monthlyUiState.collectAsState()
     val avgMonthlySpend by viewModel.averageMonthlySpend.collectAsState()
+
+    // Ensure status bar icons are white against the Royal Cobalt Blue header banner
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        DisposableEffect(Unit) {
+            val window = (view.context as? Activity)?.window
+            val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+            controller?.isAppearanceLightStatusBars = false
+            onDispose {
+                controller?.isAppearanceLightStatusBars = true
+            }
+        }
+    }
 
     var activeSheet by rememberSaveable { mutableStateOf(initialActiveSheet) }
     var showCorporateFloatSheet by remember { mutableStateOf(false) }
@@ -449,9 +463,9 @@ fun SettingsScreen(
                                 .background(
                                     Brush.verticalGradient(
                                         colors = listOf(
-                                            AccentPurple,
-                                            AccentPurple.copy(alpha = 0.88f),
-                                            AccentPurple.copy(alpha = 0.24f)
+                                            Primary800,
+                                            Primary600,
+                                            Primary100
                                         )
                                     )
                                 )
@@ -486,6 +500,7 @@ fun SettingsScreen(
                                     color = Color.White,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.White.copy(alpha = 0.16f))
                                         .clickable { activeSheet = SettingsActiveSheet.PERSONAL_INFO }
                                         .padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
@@ -505,8 +520,9 @@ fun SettingsScreen(
                                     .clip(CircleShape)
                                     .clickable { imagePickerLauncher.launch("image/*") },
                                 shape = CircleShape,
-                                color = AccentPurple.copy(alpha = 0.15f),
-                                border = BorderStroke(3.dp, CardWhite)
+                                color = Primary50,
+                                border = BorderStroke(3.dp, CardWhite),
+                                shadowElevation = 3.dp
                             ) {
                                 val profileUri = userProfile.profileImageUri
                                 val imageModel = remember(profileUri, avatarRefreshKey) {
@@ -531,14 +547,16 @@ fun SettingsScreen(
                                             contentScale = ContentScale.Crop,
                                             error = {
                                                 Box(
-                                                    modifier = Modifier.fillMaxSize().background(AccentPurple.copy(alpha = 0.15f)),
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .background(Primary50),
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Text(
                                                         text = userProfile.displayName.take(1).uppercase().ifBlank { "V" },
                                                         fontSize = 30.sp,
                                                         fontWeight = FontWeight.Black,
-                                                        color = AccentPurple
+                                                        color = Primary600
                                                     )
                                                 }
                                             }
@@ -548,7 +566,7 @@ fun SettingsScreen(
                                             text = userProfile.displayName.take(1).uppercase().ifBlank { "V" },
                                             fontSize = 30.sp,
                                             fontWeight = FontWeight.Black,
-                                            color = AccentPurple
+                                            color = Primary600
                                         )
                                     }
                                 }
@@ -561,7 +579,7 @@ fun SettingsScreen(
                                     .clip(CircleShape)
                                     .clickable { imagePickerLauncher.launch("image/*") },
                                 shape = CircleShape,
-                                color = AccentPurple,
+                                color = Primary600,
                                 border = BorderStroke(1.5.dp, CardWhite)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -871,7 +889,6 @@ fun SettingsScreen(
                         onClick = { openNotificationSettings(context) }
                     )
 
-                    // Warning banner for restricted exact alarms
                     if (!canScheduleExactAlarms && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         Surface(
                             modifier = Modifier
@@ -879,11 +896,11 @@ fun SettingsScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { openExactAlarmSettings(context) },
                             shape = RoundedCornerShape(8.dp),
-                            color = SoftAmber.copy(alpha = 0.12f),
-                            border = BorderStroke(0.6.dp, SoftAmber)
+                            color = Warning100,
+                            border = BorderStroke(0.6.dp, Warning500)
                         ) {
                             Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Warning, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = Warning700, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
@@ -899,12 +916,11 @@ fun SettingsScreen(
                                         lineHeight = 14.sp
                                     )
                                 }
-                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(16.dp))
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Warning700, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
 
-                    // Warning banner for battery optimizations
                     if (!isIgnoringBatteryOptimizations && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         Surface(
                             modifier = Modifier
@@ -912,7 +928,7 @@ fun SettingsScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { openBatteryOptimizationSettings(context) },
                             shape = RoundedCornerShape(8.dp),
-                            color = SoftTeal.copy(alpha = 0.12f),
+                            color = SoftTealLight,
                             border = BorderStroke(0.6.dp, SoftTeal)
                         ) {
                             Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1019,13 +1035,13 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(AccentPurple.copy(alpha = 0.1f)),
+                                    .background(Primary50),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.HelpOutline,
                                     contentDescription = null,
-                                    tint = AccentPurple,
+                                    tint = Primary600,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -1055,7 +1071,7 @@ fun SettingsScreen(
                         .clickable { activeSheet = SettingsActiveSheet.RESET_CONFIRM },
                     shape = RoundedCornerShape(20.dp),
                     color = CardWhite,
-                    border = BorderStroke(0.8.dp, SoftRed.copy(alpha = 0.4f))
+                    border = BorderStroke(0.8.dp, Error500.copy(alpha = 0.4f))
                 ) {
                     Row(
                         modifier = Modifier
@@ -1069,13 +1085,13 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(SoftRed.copy(alpha = 0.1f)),
+                                    .background(Error100),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.DeleteForever,
                                     contentDescription = null,
-                                    tint = SoftRed,
+                                    tint = Error500,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -1084,14 +1100,14 @@ fun SettingsScreen(
                                 text = "Reset Entire Financial Vault",
                                 fontSize = 14.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = SoftRed
+                                color = Error700
                             )
                         }
                         Text(
                             text = "Wipe",
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = SoftRed
+                            color = Error500
                         )
                     }
                 }
@@ -1110,7 +1126,7 @@ fun SettingsScreen(
                         },
                     shape = RoundedCornerShape(26.dp),
                     color = CardWhite,
-                    border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.6f))
+                    border = BorderStroke(1.dp, BorderLight)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxSize(),
@@ -1151,11 +1167,12 @@ fun SettingsScreen(
                 showRestoreConfirmDialog = false
                 pendingRestoreUri = null
             },
-            icon = { Icon(Icons.Default.Backup, contentDescription = null, tint = AccentPurple) },
-            title = { Text("Restore Vault Snapshot?", fontWeight = FontWeight.Bold) },
+            containerColor = CardWhite,
+            icon = { Icon(Icons.Default.Backup, contentDescription = null, tint = Primary600) },
+            title = { Text("Restore Vault Snapshot?", fontWeight = FontWeight.Bold, color = TextDark) },
             text = {
                 Text(
-                    "Restoring this backup will replace all current ledger records, accounts, and budget plans with the data from the selected snapshot. Are you sure you want to proceed?",
+                    "Restoring this backup will replace all current ledger records, accounts, notes, and budget plans with the data from the selected snapshot. Are you sure you want to proceed?",
                     fontSize = 13.sp,
                     color = TextDark,
                     lineHeight = 17.sp
@@ -1168,14 +1185,14 @@ fun SettingsScreen(
                         showRestoreConfirmDialog = false
                         pendingRestoreUri = null
                         if (uriToRestore != null) {
-                            viewModel.restoreVaultFromEncryptedJson(context, uriToRestore) { success: Boolean, msg: String ->
+                            viewModel.restoreVaultFromEncryptedJson(context, uriToRestore) { _: Boolean, msg: String ->
                                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                 ) {
-                    Text("Restore Snapshot", fontWeight = FontWeight.Bold)
+                    Text("Restore Snapshot", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             },
             dismissButton = {
@@ -1183,7 +1200,7 @@ fun SettingsScreen(
                     showRestoreConfirmDialog = false
                     pendingRestoreUri = null
                 }) {
-                    Text("Cancel")
+                    Text("Cancel", color = TextMuted)
                 }
             }
         )
@@ -1240,7 +1257,7 @@ fun SettingsScreen(
                             onClick = { useDobFallback = true; pinErrorMessage = null },
                             modifier = Modifier.align(Alignment.End)
                         ) {
-                            Text("Forgot current PIN? Use DOB recovery", fontSize = 11.5.sp, color = AccentPurple)
+                            Text("Forgot current PIN? Use DOB recovery", fontSize = 11.5.sp, color = Primary600)
                         }
                     } else {
                         OutlinedTextField(
@@ -1258,13 +1275,13 @@ fun SettingsScreen(
                             onClick = { useDobFallback = false; pinErrorMessage = null },
                             modifier = Modifier.align(Alignment.End)
                         ) {
-                            Text("Verify with Current PIN instead", fontSize = 11.5.sp, color = AccentPurple)
+                            Text("Verify with Current PIN instead", fontSize = 11.5.sp, color = Primary600)
                         }
                     }
 
                     if (pinErrorMessage != null) {
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(pinErrorMessage.orEmpty(), color = SoftRed, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                        Text(pinErrorMessage.orEmpty(), color = Error500, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -1289,9 +1306,9 @@ fun SettingsScreen(
                             .fillMaxWidth()
                             .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                     ) {
-                        Text("Verify Identity", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Verify Identity", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                     }
                 } else {
                     OutlinedTextField(
@@ -1320,7 +1337,7 @@ fun SettingsScreen(
 
                     if (pinErrorMessage != null) {
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(pinErrorMessage.orEmpty(), color = SoftRed, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                        Text(pinErrorMessage.orEmpty(), color = Error500, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -1341,9 +1358,9 @@ fun SettingsScreen(
                             .fillMaxWidth()
                             .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                     ) {
-                        Text("Save New PIN", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Save New PIN", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                     }
                 }
 
@@ -1446,9 +1463,9 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                 ) {
-                    Text("Save & Activate Reminder", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Save & Activate Reminder", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                 }
 
                 if (userProfile.reminderEnabled) {
@@ -1467,8 +1484,8 @@ fun SettingsScreen(
                             .fillMaxWidth()
                             .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftRed),
-                        border = BorderStroke(1.dp, SoftRed.copy(alpha = 0.5f))
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Error700),
+                        border = BorderStroke(1.dp, Error500.copy(alpha = 0.5f))
                     ) {
                         Text("Turn Off Daily Reminder", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
@@ -1581,9 +1598,9 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                 ) {
-                    Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Save Changes", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -1658,7 +1675,7 @@ fun SettingsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = CircleShape,
-                                color = AccentPurple,
+                                color = Primary600,
                                 modifier = Modifier.size(38.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -1689,7 +1706,7 @@ fun SettingsScreen(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = AccentPurple,
+                            tint = Primary600,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1782,9 +1799,9 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                 ) {
-                    Text("Save Savings Cap", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Save Savings Cap", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -1792,7 +1809,7 @@ fun SettingsScreen(
         }
     }
 
-    // Fortress Safety Net Target Sheet (Dynamic Months or Manual Fixed Target)
+    // Fortress Safety Net Target Sheet
     if (activeSheet == SettingsActiveSheet.FORTRESS_SAFETY_NET) {
         var isManualMode by remember(userProfile) { mutableStateOf(userProfile.fortressManualTarget > 0.0) }
         var selectedMonths by remember(userProfile) { mutableIntStateOf(userProfile.fortressEmergencyMonths.takeIf { it > 0 } ?: 6) }
@@ -1835,12 +1852,11 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Mode Selector
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(BorderLight.copy(alpha = 0.5f))
+                        .background(Neutral100)
                         .padding(3.dp)
                 ) {
                     Box(
@@ -1856,7 +1872,7 @@ fun SettingsScreen(
                             text = "Runway Months",
                             fontWeight = if (!isManualMode) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 11.5.sp,
-                            color = if (!isManualMode) AccentPurple else TextMuted
+                            color = if (!isManualMode) Primary600 else TextMuted
                         )
                     }
 
@@ -1873,7 +1889,7 @@ fun SettingsScreen(
                             text = "Fixed Target Amount",
                             fontWeight = if (isManualMode) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 11.5.sp,
-                            color = if (isManualMode) AccentPurple else TextMuted
+                            color = if (isManualMode) Primary600 else TextMuted
                         )
                     }
                 }
@@ -1896,7 +1912,7 @@ fun SettingsScreen(
                             text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", effectiveGoalAmount)}",
                             fontSize = 26.sp,
                             fontWeight = FontWeight.Black,
-                            color = AccentPurple
+                            color = Primary600
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
@@ -1930,15 +1946,15 @@ fun SettingsScreen(
                                 modifier = Modifier.weight(1f),
                                 contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (isSel) AccentPurple.copy(alpha = 0.12f) else Color.Transparent
+                                    containerColor = if (isSel) Primary50 else Color.Transparent
                                 ),
-                                border = BorderStroke(1.dp, if (isSel) AccentPurple else BorderLight)
+                                border = BorderStroke(1.dp, if (isSel) Primary600 else BorderLight)
                             ) {
                                 Text(
                                     text = "$months M",
                                     fontSize = 12.sp,
                                     fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSel) AccentPurple else TextDark
+                                    color = if (isSel) Primary700 else TextDark
                                 )
                             }
                         }
@@ -1991,9 +2007,9 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                 ) {
-                    Text("Apply Target Goal", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Apply Target Goal", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -2037,13 +2053,13 @@ fun SettingsScreen(
                     Surface(
                         modifier = Modifier.size(38.dp),
                         shape = CircleShape,
-                        color = Color(0xFFE57A28).copy(alpha = 0.12f)
+                        color = Warning100
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Work,
                                 contentDescription = null,
-                                tint = Color(0xFFE57A28),
+                                tint = Warning700,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -2090,8 +2106,8 @@ fun SettingsScreen(
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable { selectedFloatMode = mode },
                             shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) Color(0xFFE57A28).copy(alpha = 0.08f) else CanvasLight,
-                            border = BorderStroke(1.dp, if (isSelected) Color(0xFFE57A28) else BorderLight)
+                            color = if (isSelected) Warning100.copy(alpha = 0.65f) else CanvasLight,
+                            border = BorderStroke(1.dp, if (isSelected) Warning500 else BorderLight)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -2107,7 +2123,7 @@ fun SettingsScreen(
                                 RadioButton(
                                     selected = isSelected,
                                     onClick = { selectedFloatMode = mode },
-                                    colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFE57A28))
+                                    colors = RadioButtonDefaults.colors(selectedColor = Warning700)
                                 )
                             }
                         }
@@ -2162,7 +2178,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = TextDark)
                 ) {
-                    Text("Save Opening Float", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Save Opening Float", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -2245,7 +2261,7 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .height(52.dp),
                     shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (userProfile.isBiometricEnabled) SoftRed else AccentPurple)
+                    colors = ButtonDefaults.buttonColors(containerColor = if (userProfile.isBiometricEnabled) Error500 else Primary600)
                 ) {
                     Text(
                         text = if (userProfile.isBiometricEnabled) "Disable Biometrics" else "Enable Biometric Unlock",
@@ -2269,8 +2285,8 @@ fun SettingsScreen(
                 val q = countrySearchQuery.trim().lowercase()
                 SupportedCountries.filter {
                     it.countryName.lowercase().contains(q) ||
-                    it.currencyCode.lowercase().contains(q) ||
-                    it.currencySymbol.lowercase().contains(q)
+                            it.currencyCode.lowercase().contains(q) ||
+                            it.currencySymbol.lowercase().contains(q)
                 }
             }
         }
@@ -2386,8 +2402,8 @@ fun SettingsScreen(
                                         Toast.makeText(context, "Country set to ${item.countryName} (${item.currencySymbol})", Toast.LENGTH_SHORT).show()
                                     },
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (isSel) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                                border = BorderStroke(0.7.dp, if (isSel) AccentPurple else BorderLight)
+                                color = if (isSel) Primary50 else CanvasLight,
+                                border = BorderStroke(0.7.dp, if (isSel) Primary600 else BorderLight)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -2405,7 +2421,7 @@ fun SettingsScreen(
                                         }
                                     }
                                     if (isSel) {
-                                        Icon(Icons.Default.Check, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = Primary600, modifier = Modifier.size(18.dp))
                                     }
                                 }
                             }
@@ -2425,11 +2441,12 @@ fun SettingsScreen(
 
         AlertDialog(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
-            title = { Text("Reset Entire Financial Vault?", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = SoftRed) },
+            containerColor = CardWhite,
+            title = { Text("Reset Entire Financial Vault?", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Error700) },
             text = {
                 Column {
                     Text(
-                        "This action permanently wipes all transactions, accounts, fixed bills, and custom categories. To proceed, type RESET in all caps below:",
+                        "This action permanently wipes all transactions, accounts, fixed bills, notes, and custom categories. To proceed, type RESET in all caps below:",
                         fontSize = 13.sp,
                         color = TextDark,
                         lineHeight = 17.sp
@@ -2457,12 +2474,12 @@ fun SettingsScreen(
                     },
                     enabled = isConfirmed,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = SoftRed,
-                        disabledContainerColor = SoftRed.copy(alpha = 0.3f)
+                        containerColor = Error500,
+                        disabledContainerColor = Error500.copy(alpha = 0.3f)
                     ),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("Wipe All Data", fontWeight = FontWeight.Bold)
+                    Text("Wipe All Data", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             },
             dismissButton = {
@@ -2506,13 +2523,13 @@ private fun ExpandableSettingsCard(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(AccentPurple.copy(alpha = 0.1f)),
+                            .background(Primary50),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = AccentPurple,
+                            tint = Primary600,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -2552,7 +2569,7 @@ private fun ExpandableSettingsCard(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     HorizontalDivider(
-                        color = BorderLight.copy(alpha = 0.4f),
+                        color = BorderLight.copy(alpha = 0.5f),
                         thickness = 0.8.dp,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
@@ -2582,7 +2599,9 @@ private fun SettingsChildNavRow(
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             color = TextDark,
-            modifier = Modifier.weight(1f).padding(end = 8.dp)
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 8.dp)
         )
 
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2624,7 +2643,9 @@ private fun SettingsChildSwitchRow(
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             color = TextDark,
-            modifier = Modifier.weight(1f).padding(end = 8.dp)
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 8.dp)
         )
 
         Switch(
@@ -2632,9 +2653,9 @@ private fun SettingsChildSwitchRow(
             onCheckedChange = onToggle,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = AccentPurple,
+                checkedTrackColor = Primary600,
                 uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = Color(0xFF8E8E93)
+                uncheckedTrackColor = Neutral300
             )
         )
     }
@@ -2653,14 +2674,14 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
             cubicTo(w * 0.05f, h * 0.45f, w * 0.10f, h * 0.20f, w * 0.25f, h * 0.15f)
             close()
         }
-        drawPath(blobPath, color = Color(0xFFEDE9FE))
+        drawPath(blobPath, color = Primary100)
 
         val fpCenter = Offset(w * 0.42f, h * 0.48f)
         for (i in 1..6) {
             val rX = (i * 7.5f).dp.toPx()
             val rY = (i * 10.5f).dp.toPx()
             drawArc(
-                color = AccentPurple,
+                color = Primary600,
                 startAngle = -160f,
                 sweepAngle = 300f,
                 useCenter = false,
@@ -2676,7 +2697,7 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
         val lockH = 36.dp.toPx()
 
         drawArc(
-            color = AccentPurpleDark,
+            color = Primary800,
             startAngle = 180f,
             sweepAngle = 180f,
             useCenter = false,
@@ -2686,7 +2707,7 @@ private fun BiometricIllustrationCanvas(modifier: Modifier = Modifier) {
         )
 
         drawRoundRect(
-            color = AccentPurpleDark,
+            color = Primary800,
             topLeft = Offset(lockLeft, lockTop),
             size = Size(lockW, lockH),
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
@@ -2708,13 +2729,13 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
         val cX = w / 2f
 
         drawRoundRect(
-            color = AccentPurple.copy(alpha = 0.15f),
+            color = Primary600.copy(alpha = 0.15f),
             topLeft = Offset(w * 0.15f, h * 0.50f),
             size = Size(w * 0.35f, h * 0.35f),
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
         )
         drawRoundRect(
-            color = AccentPurpleDark.copy(alpha = 0.15f),
+            color = Primary800.copy(alpha = 0.15f),
             topLeft = Offset(w * 0.52f, h * 0.50f),
             size = Size(w * 0.35f, h * 0.35f),
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
@@ -2729,7 +2750,7 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
             lineTo(bankLeft, h * 0.35f)
             close()
         }
-        drawPath(triangle, color = AccentPurple)
+        drawPath(triangle, color = Primary600)
 
         drawCircle(
             color = Color.White,
@@ -2738,7 +2759,7 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
         )
 
         drawRect(
-            color = AccentPurple.copy(alpha = 0.9f),
+            color = Primary600.copy(alpha = 0.9f),
             topLeft = Offset(bankLeft, h * 0.35f),
             size = Size(bankW, 7.dp.toPx())
         )
@@ -2751,7 +2772,7 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
         for (i in 0..3) {
             val colX = bankLeft + (i * (columnW + colGap))
             drawRoundRect(
-                color = AccentPurple,
+                color = Primary600,
                 topLeft = Offset(colX, columnTop),
                 size = Size(columnW, columnH),
                 cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
@@ -2766,7 +2787,7 @@ private fun NeoclassicalBankCanvas(modifier: Modifier = Modifier) {
         )
 
         drawRect(
-            color = AccentPurple.copy(alpha = 0.9f),
+            color = Primary600.copy(alpha = 0.9f),
             topLeft = Offset(bankLeft - 8.dp.toPx(), columnTop + columnH),
             size = Size(bankW + 16.dp.toPx(), 8.dp.toPx())
         )
