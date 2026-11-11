@@ -5,8 +5,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -67,7 +65,7 @@ fun CalculatorScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A))
+            .background(Neutral900)
     ) {
         // 1. MIDNIGHT COCKPIT TOP BAR + SEGMENTED SWITCHER
         Column(
@@ -111,7 +109,7 @@ fun CalculatorScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(17.dp))
-                                .background(if (isSelected) AccentPurple else Color.Transparent)
+                                .background(if (isSelected) Primary600 else Color.Transparent)
                                 .clickable { selectedTab = idx }
                                 .padding(horizontal = 16.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
@@ -120,7 +118,7 @@ fun CalculatorScreen(
                                 text = title,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 12.sp,
-                                color = if (isSelected) Color.White else Color(0xFF94A3B8)
+                                color = if (isSelected) Color.White else Neutral400
                             )
                         }
                     }
@@ -204,7 +202,6 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                 .padding(horizontal = 22.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Top Row: Tape Header + Clear Action
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -214,7 +211,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                     Icon(
                         imageVector = Icons.Default.History,
                         contentDescription = null,
-                        tint = Color(0xFF64748B),
+                        tint = Neutral500,
                         modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(5.dp))
@@ -222,7 +219,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                         text = "HISTORY TAPE",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFF64748B),
+                        color = Neutral500,
                         letterSpacing = 0.8.sp
                     )
                 }
@@ -230,7 +227,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                 if (tapeHistory.isNotEmpty()) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = SoftRed.copy(alpha = 0.15f),
+                        color = Error500.copy(alpha = 0.16f),
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .clickable { tapeHistory.clear() }
@@ -261,7 +258,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                         Text(
                             text = "Tap '=' to log calculations to tape • Tap any entry to reuse",
                             fontSize = 11.sp,
-                            color = Color(0xFF475569),
+                            color = Neutral600,
                             textAlign = TextAlign.End
                         )
                     }
@@ -296,7 +293,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                                     Text(
                                         text = item.expression,
                                         fontSize = 12.sp,
-                                        color = Color(0xFF94A3B8),
+                                        color = Neutral400,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f)
@@ -305,7 +302,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                                         text = "= $currencySymbol${item.resultFormatted}",
                                         fontSize = 12.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFA5B4FC)
+                                        color = Primary300
                                     )
                                 }
                             }
@@ -323,7 +320,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                     text = expression.ifBlank { "0" },
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF94A3B8),
+                    color = Neutral400,
                     textAlign = TextAlign.End,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -336,7 +333,6 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Copy Pill Button
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = Color.White.copy(alpha = 0.08f),
@@ -359,7 +355,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                             Icon(
                                 imageVector = Icons.Default.ContentCopy,
                                 contentDescription = "Copy",
-                                tint = Color(0xFFA5B4FC),
+                                tint = Primary300,
                                 modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(5.dp))
@@ -367,12 +363,11 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                                 text = "Copy",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFA5B4FC)
+                                color = Primary300
                             )
                         }
                     }
 
-                    // Main Total
                     Text(
                         text = "$currencySymbol$formattedResult",
                         fontSize = 36.sp,
@@ -402,7 +397,6 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                     .padding(horizontal = 18.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Drag indicator bar
                 Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
@@ -412,7 +406,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                             .width(36.dp)
                             .height(4.dp)
                             .clip(CircleShape)
-                            .background(BorderLight)
+                            .background(Neutral300)
                     )
                 }
 
@@ -445,18 +439,18 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                                 val isUtil = key in setOf("⌫", "%")
 
                                 val keyBg = when {
-                                    isEquals -> Color(0xFF4338CA)
-                                    isOperator -> Color(0xFFEEF2FF)
-                                    isClear -> SoftRed.copy(alpha = 0.12f)
-                                    isUtil -> Color(0xFFF1F5F9)
+                                    isEquals -> Primary600
+                                    isOperator -> Primary50
+                                    isClear -> Error100
+                                    isUtil -> Neutral100
                                     else -> CardWhite
                                 }
 
                                 val keyContentColor = when {
                                     isEquals -> Color.White
-                                    isOperator -> Color(0xFF4338CA)
-                                    isClear -> SoftRed
-                                    isUtil -> Color(0xFF475569)
+                                    isOperator -> Primary700
+                                    isClear -> Error700
+                                    isUtil -> Neutral600
                                     else -> TextDark
                                 }
 
@@ -503,9 +497,9 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                                     color = keyBg,
                                     border = BorderStroke(
                                         0.8.dp,
-                                        if (isEquals) Color(0xFF4F46E5)
-                                        else if (isOperator) Color(0xFFC7D2FE)
-                                        else BorderLight.copy(alpha = 0.65f)
+                                        if (isEquals) Primary700
+                                        else if (isOperator) Primary200
+                                        else BorderLight
                                     )
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
@@ -569,7 +563,7 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(BorderLight.copy(alpha = 0.55f))
+                    .background(Neutral100)
                     .padding(4.dp)
             ) {
                 listOf(
@@ -590,7 +584,7 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                             text = label,
                             fontSize = 12.sp,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selected) AccentPurple else TextMuted
+                            color = if (selected) Primary600 else TextMuted
                         )
                     }
                 }
@@ -608,20 +602,20 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                 val wealthGained = (maturityValue - totalInvested).coerceAtLeast(0.0)
                 val investedRatio = if (maturityValue > 0) (totalInvested / maturityValue).toFloat().coerceIn(0.05f, 0.95f) else 0.5f
 
-                // Hero Card
+                // Hero Card (Royal Cobalt Blue Gradient)
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .shadow(5.dp, RoundedCornerShape(24.dp)),
                     shape = RoundedCornerShape(24.dp),
-                    color = Color(0xFF3730A3)
+                    color = Primary800
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
                                 Brush.linearGradient(
-                                    listOf(Color(0xFF4338CA), Color(0xFF312E81))
+                                    listOf(Primary700, Primary900)
                                 )
                             )
                             .padding(20.dp)
@@ -635,7 +629,7 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                                 text = "PROJECTED MATURITY VALUE",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Black,
-                                color = Color(0xFFC7D2FE),
+                                color = Primary200,
                                 letterSpacing = 0.8.sp
                             )
                             Surface(
@@ -665,7 +659,6 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Visual Split Bar
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -676,13 +669,13 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                                 modifier = Modifier
                                     .weight(investedRatio)
                                     .fillMaxHeight()
-                                    .background(Color(0xFF38BDF8))
+                                    .background(Primary300)
                             )
                             Box(
                                 modifier = Modifier
                                     .weight(1f - investedRatio)
                                     .fillMaxHeight()
-                                    .background(Color(0xFF34D399))
+                                    .background(Success500)
                             )
                         }
 
@@ -695,7 +688,7 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                             EstimatorMetricBox(
                                 label = "Principal Invested",
                                 value = "$currencySymbol${String.format(Locale.US, "%,.0f", totalInvested)}",
-                                tint = Color(0xFF38BDF8),
+                                tint = Primary200,
                                 modifier = Modifier.weight(1f)
                             )
                             EstimatorMetricBox(
@@ -760,7 +753,7 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                         .fillMaxWidth()
                         .shadow(5.dp, RoundedCornerShape(24.dp)),
                     shape = RoundedCornerShape(24.dp),
-                    color = Color(0xFF0F172A)
+                    color = Neutral900
                 ) {
                     Column(
                         modifier = Modifier
@@ -771,7 +764,7 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                             text = "MONTHLY LOAN EMI",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
-                            color = Color(0xFF94A3B8),
+                            color = Neutral400,
                             letterSpacing = 0.8.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -795,13 +788,13 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                                 modifier = Modifier
                                     .weight(principalRatio)
                                     .fillMaxHeight()
-                                    .background(Color(0xFFA5B4FC))
+                                    .background(Primary400)
                             )
                             Box(
                                 modifier = Modifier
                                     .weight(1f - principalRatio)
                                     .fillMaxHeight()
-                                    .background(Color(0xFFF87171))
+                                    .background(Error500)
                             )
                         }
 
@@ -820,7 +813,7 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                             EstimatorMetricBox(
                                 label = "Total Payable",
                                 value = "$currencySymbol${String.format(Locale.US, "%,.0f", totalPayable)}",
-                                tint = Color(0xFFC7D2FE),
+                                tint = Primary200,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -903,13 +896,13 @@ private fun SliderControlRow(
             Text(text = title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = AccentPurple.copy(alpha = 0.12f)
+                color = Primary50
             ) {
                 Text(
                     text = valueDisplay,
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.Black,
-                    color = AccentPurple,
+                    color = Primary700,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                 )
             }
@@ -919,8 +912,8 @@ private fun SliderControlRow(
             onValueChange = onValueChange,
             valueRange = valueRange,
             colors = SliderDefaults.colors(
-                thumbColor = AccentPurple,
-                activeTrackColor = AccentPurple
+                thumbColor = Primary600,
+                activeTrackColor = Primary600
             )
         )
     }
