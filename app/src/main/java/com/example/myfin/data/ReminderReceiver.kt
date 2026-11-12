@@ -71,24 +71,36 @@ class ReminderReceiver : BroadcastReceiver() {
                 val currentYear = cal.get(Calendar.YEAR)
                 val maxDayThisMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
 
-                val fixedBills = dao.getFixedBillsForMonthDirect(currentMonth, currentYear)
-                    .filter { !it.isPaid && 
-                        it.type != TransactionType.INCOME && 
-                        !(it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
-                        it.dueDay != null && it.dueDay in 1..31 
-                    }
+                val isActionableOutflowBill = { bill: FixedBillEntity ->
+                    !bill.isPaid &&
+                    bill.type != TransactionType.INCOME &&
+                    !(bill.type == TransactionType.CORPORATE && bill.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
+                    bill.dueDay != null && bill.dueDay in 1..31
+                }
 
-                val dueToday = fixedBills.filter { it.dueDay == currentDay }
+                val fixedBills = dao.getFixedBillsForMonthDirect(currentMonth, currentYear)
+                    .filter(isActionableOutflowBill)
+
+                // Clamp dueDay to maxDayThisMonth so 30th/31st bills fire on the last day of shorter months
+                val dueToday = fixedBills.filter { bill ->
+                    val effectiveDueDay = minOf(bill.dueDay ?: 1, maxDayThisMonth)
+                    effectiveDueDay == currentDay
+                }
 
                 // Check for bills due within 48h, handling end-of-month rollover to next month's 1st/2nd
                 val dueWithin48h = if (profile.isAutoPayReminderEnabled) {
-                    val withinCurrentMonth = fixedBills.filter { it.dueDay in (currentDay + 1)..(currentDay + 2) }
+                    val withinCurrentMonth = fixedBills.filter { bill ->
+                        val effectiveDueDay = minOf(bill.dueDay ?: 1, maxDayThisMonth)
+                        effectiveDueDay in (currentDay + 1)..(currentDay + 2)
+                    }
                     if (currentDay >= maxDayThisMonth - 1) {
+                        val maxRolloverDay = if (currentDay == maxDayThisMonth) 2 else 1
                         val nextMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, 1) }
                         val nextMonth = nextMonthCal.get(Calendar.MONTH) + 1
                         val nextYear = nextMonthCal.get(Calendar.YEAR)
                         val nextMonthBills = dao.getFixedBillsForMonthDirect(nextMonth, nextYear)
-                            .filter { !it.isPaid && it.dueDay != null && it.dueDay in 1..2 }
+                            .filter(isActionableOutflowBill)
+                            .filter { (it.dueDay ?: 0) in 1..maxRolloverDay }
                         withinCurrentMonth + nextMonthBills
                     } else {
                         withinCurrentMonth
@@ -116,7 +128,8 @@ class ReminderReceiver : BroadcastReceiver() {
                     dueWithin48h.isNotEmpty() -> {
                         val names = dueWithin48h.joinToString(", ") { bill ->
                             val formattedAmt = String.format(Locale.US, "%,.0f", bill.amount)
-                            "${formatBillDisplayName(bill)} ($currency$formattedAmt, Due ${bill.dueDay}th)"
+                            val dayOrd = formatOrdinalDay(bill.dueDay ?: 1)
+                            "${formatBillDisplayName(bill)} ($currency$formattedAmt, Due $dayOrd)"
                         }
                         "Upcoming AutoPay in 48h: $names. Ensure funding vault is staged."
                     }
@@ -178,12 +191,24 @@ class ReminderReceiver : BroadcastReceiver() {
         }
     }
 
+    private fun formatOrdinalDay(day: Int): String {
+        val suffix = when {
+            day in 11..13 -> "th"
+            day % 10 == 1 -> "st"
+            day % 10 == 2 -> "nd"
+            day % 10 == 3 -> "rd"
+            else -> "th"
+        }
+        return "$day$suffix"
+    }
+
     private fun formatBillDisplayName(bill: FixedBillEntity): String {
         val friendlySubcat = if (bill.type == TransactionType.TRANSFER) {
             when (bill.subcategory.trim()) {
                 "WEALTH_ALLOCATION" -> "Fortress Sweep"
                 "BILL_FUNDING" -> "Bill Funding"
                 "REBALANCE" -> "Vault Rebalance"
+                "CASH_WITHDRAWAL" -> "Cash ATM Withdrawal"
                 else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
             }
         } else {
