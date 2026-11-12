@@ -20,7 +20,7 @@ import java.util.Calendar
         UserProfile::class,
         NoteEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -39,7 +39,6 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE accounts ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE transactions ADD COLUMN transferSubtype TEXT NOT NULL DEFAULT 'NONE'")
                 db.execSQL("ALTER TABLE user_profile ADD COLUMN vaultMode TEXT NOT NULL DEFAULT '3-VAULT'")
-                db.execSQL("ALTER TABLE user_profile ADD COLUMN fortressThreshold REAL NOT NULL DEFAULT 0.0")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_isArchived ON accounts(isArchived)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_sortOrder ON accounts(sortOrder)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_linkedFixedBillId ON transactions(linkedFixedBillId)")
@@ -90,6 +89,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_transactions_accountName_type_category` ON `transactions` (`accountName`, `type`, `category`)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -97,12 +104,18 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "myfin_vault.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6
+                    )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
-                            seedMasterTaxonomy(db)
+                            seedMasterTaxonomy(db, forceSeed = true)
                         }
 
                         override fun onOpen(db: SupportSQLiteDatabase) {
@@ -112,40 +125,61 @@ abstract class AppDatabase : RoomDatabase() {
                             } catch (_: Exception) {
                                 db.execSQL("PRAGMA foreign_keys = ON;")
                             }
-                            seedMasterTaxonomy(db)
+                            seedMasterTaxonomy(db, forceSeed = false)
                         }
 
-                        private fun seedMasterTaxonomy(db: SupportSQLiteDatabase) {
+                        private fun seedMasterTaxonomy(db: SupportSQLiteDatabase, forceSeed: Boolean) {
                             db.beginTransaction()
                             try {
-                                db.execSQL("""
-                                    UPDATE categories 
-                                    SET isLegacy = 1 
-                                    WHERE (name = 'Work & Professional' AND type = 'EXPENSE')
-                                       OR (name = 'Reimbursements & Corporate Inflow' AND type = 'INCOME')
-                                """)
-                                db.execSQL("""
-                                    UPDATE subcategories 
-                                    SET isLegacy = 1 
-                                    WHERE (parentCategory = 'Work & Professional' AND type = 'EXPENSE')
-                                       OR (parentCategory = 'Reimbursements & Corporate Inflow' AND type = 'INCOME')
-                                """)
-
-                                CategoryEntity.defaultCategories.forEach { category ->
-                                    val catNameEscaped = category.name.replace("'", "''")
-                                    val isNewInt = if (category.isNew) 1 else 0
-                                    db.execSQL(
-                                        "INSERT OR IGNORE INTO categories (name, type, isLegacy, isNew) VALUES ('$catNameEscaped', '${category.type.name}', 0, $isNewInt)"
-                                    )
+                                var needsInitialTaxonomySeed = forceSeed
+                                if (!needsInitialTaxonomySeed) {
+                                    // Check if taxonomy grace period was already initialized or if categories table is empty
+                                    db.query("SELECT taxonomyGraceMonth FROM user_profile WHERE id = 1 LIMIT 1").use { cursor ->
+                                        needsInitialTaxonomySeed = if (cursor.moveToFirst()) {
+                                            cursor.getInt(0) == -1
+                                        } else {
+                                            true
+                                        }
+                                    }
+                                    if (!needsInitialTaxonomySeed) {
+                                        db.query("SELECT COUNT(*) FROM categories").use { cursor ->
+                                            if (cursor.moveToFirst() && cursor.getInt(0) == 0) {
+                                                needsInitialTaxonomySeed = true
+                                            }
+                                        }
+                                    }
                                 }
 
-                                SubcategoryEntity.defaultSubcategories.forEach { subcategory ->
-                                    val parentEscaped = subcategory.parentCategory.replace("'", "''")
-                                    val subNameEscaped = subcategory.name.replace("'", "''")
-                                    val isNewInt = if (subcategory.isNew) 1 else 0
-                                    db.execSQL(
-                                        "INSERT OR IGNORE INTO subcategories (parentCategory, name, type, isLegacy, isNew) VALUES ('$parentEscaped', '$subNameEscaped', '${subcategory.type.name}', 0, $isNewInt)"
-                                    )
+                                if (needsInitialTaxonomySeed) {
+                                    db.execSQL("""
+                                        UPDATE categories 
+                                        SET isLegacy = 1 
+                                        WHERE (name = 'Work & Professional' AND type = 'EXPENSE')
+                                           OR (name = 'Reimbursements & Corporate Inflow' AND type = 'INCOME')
+                                    """)
+                                    db.execSQL("""
+                                        UPDATE subcategories 
+                                        SET isLegacy = 1 
+                                        WHERE (parentCategory = 'Work & Professional' AND type = 'EXPENSE')
+                                           OR (parentCategory = 'Reimbursements & Corporate Inflow' AND type = 'INCOME')
+                                    """)
+
+                                    CategoryEntity.defaultCategories.forEach { category ->
+                                        val catNameEscaped = category.name.replace("'", "''")
+                                        val isNewInt = if (category.isNew) 1 else 0
+                                        db.execSQL(
+                                            "INSERT OR IGNORE INTO categories (name, type, isLegacy, isNew) VALUES ('$catNameEscaped', '${category.type.name}', 0, $isNewInt)"
+                                        )
+                                    }
+
+                                    SubcategoryEntity.defaultSubcategories.forEach { subcategory ->
+                                        val parentEscaped = subcategory.parentCategory.replace("'", "''")
+                                        val subNameEscaped = subcategory.name.replace("'", "''")
+                                        val isNewInt = if (subcategory.isNew) 1 else 0
+                                        db.execSQL(
+                                            "INSERT OR IGNORE INTO subcategories (parentCategory, name, type, isLegacy, isNew) VALUES ('$parentEscaped', '$subNameEscaped', '${subcategory.type.name}', 0, $isNewInt)"
+                                        )
+                                    }
                                 }
 
                                 val cal = Calendar.getInstance()
