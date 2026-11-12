@@ -81,52 +81,64 @@ interface BudgetDao {
 
     @Query("""
         SELECT 
-            a.accountName, 
-            a.startingBalance, 
-            a.accountType,
-            COALESCE(a.minBalance, 0.0) AS minBalance,
-            COALESCE(a.isArchived, 0) AS isArchived,
-            a.sortOrder,
-            (a.startingBalance + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'INCOME' OR (t.type = 'CORPORATE' AND t.category = 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) - 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET' OR (t.type = 'CORPORATE' AND t.category != 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0) - 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
-            ) AS currentBalance,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'INCOME' OR (t.type = 'CORPORATE' AND t.category = 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0)
-            ) AS totalInflow,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET' OR (t.type = 'CORPORATE' AND t.category != 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
-            ) AS totalOutflow
-        FROM accounts a
-        ORDER BY a.isArchived ASC, a.sortOrder ASC, a.accountName ASC
+            accountName,
+            startingBalance,
+            accountType,
+            minBalance,
+            isArchived,
+            sortOrder,
+            (startingBalance + totalInflow - totalOutflow) AS currentBalance,
+            totalInflow,
+            totalOutflow
+        FROM (
+            SELECT 
+                a.accountName, 
+                a.startingBalance, 
+                a.accountType,
+                COALESCE(a.minBalance, 0.0) AS minBalance,
+                COALESCE(a.isArchived, 0) AS isArchived,
+                a.sortOrder,
+                (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'INCOME' OR (t.type = 'CORPORATE' AND t.category = 'Reimbursements & Claims' COLLATE NOCASE)) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+                 COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0)
+                ) AS totalInflow,
+                (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET' OR (t.type = 'CORPORATE' AND t.category != 'Reimbursements & Claims' COLLATE NOCASE)) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+                 COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
+                ) AS totalOutflow
+            FROM accounts a
+        )
+        ORDER BY isArchived ASC, sortOrder ASC, accountName ASC
     """)
     fun getAccountBalances(): Flow<List<AccountBalanceResult>>
 
     @Query("""
         SELECT 
-            a.accountName, 
-            a.startingBalance, 
-            a.accountType,
-            COALESCE(a.minBalance, 0.0) AS minBalance,
-            COALESCE(a.isArchived, 0) AS isArchived,
-            a.sortOrder,
-            (a.startingBalance + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'INCOME' OR (t.type = 'CORPORATE' AND t.category = 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) - 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET' OR (t.type = 'CORPORATE' AND t.category != 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0) - 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
-            ) AS currentBalance,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'INCOME' OR (t.type = 'CORPORATE' AND t.category = 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0)
-            ) AS totalInflow,
-            (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET' OR (t.type = 'CORPORATE' AND t.category != 'Reimbursements & Claims')) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
-            ) AS totalOutflow
-        FROM accounts a
-        WHERE a.isArchived = 0
-        ORDER BY a.sortOrder ASC, a.accountName ASC
+            accountName,
+            startingBalance,
+            accountType,
+            minBalance,
+            isArchived,
+            sortOrder,
+            (startingBalance + totalInflow - totalOutflow) AS currentBalance,
+            totalInflow,
+            totalOutflow
+        FROM (
+            SELECT 
+                a.accountName, 
+                a.startingBalance, 
+                a.accountType,
+                COALESCE(a.minBalance, 0.0) AS minBalance,
+                COALESCE(a.isArchived, 0) AS isArchived,
+                a.sortOrder,
+                (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'INCOME' OR (t.type = 'CORPORATE' AND t.category = 'Reimbursements & Claims' COLLATE NOCASE)) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+                 COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.toAccountName = a.accountName COLLATE NOCASE), 0.0)
+                ) AS totalInflow,
+                (COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE (t.type = 'EXPENSE' OR t.type = 'ASSET' OR (t.type = 'CORPORATE' AND t.category != 'Reimbursements & Claims' COLLATE NOCASE)) AND t.accountName = a.accountName COLLATE NOCASE), 0.0) + 
+                 COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.type = 'TRANSFER' AND t.accountName = a.accountName COLLATE NOCASE), 0.0)
+                ) AS totalOutflow
+            FROM accounts a
+            WHERE a.isArchived = 0
+        )
+        ORDER BY sortOrder ASC, accountName ASC
     """)
     fun getActiveAccountBalances(): Flow<List<AccountBalanceResult>>
 
@@ -153,11 +165,24 @@ interface BudgetDao {
     """)
     fun getCategoriesByType(type: TransactionType, includeLegacy: Boolean): Flow<List<CategoryEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCategory(category: CategoryEntity)
+    // Uses IGNORE so re-inserting an existing category never triggers ON DELETE CASCADE on child subcategories
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertCategoryIgnore(category: CategoryEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCategories(categories: List<CategoryEntity>)
+    @Transaction
+    suspend fun insertCategory(category: CategoryEntity) {
+        val rowId = insertCategoryIgnore(category)
+        if (rowId == -1L) {
+            updateCategory(category)
+        }
+    }
+
+    @Transaction
+    suspend fun insertCategories(categories: List<CategoryEntity>) {
+        categories.forEach { category ->
+            insertCategory(category)
+        }
+    }
 
     @Update
     suspend fun updateCategory(category: CategoryEntity)
@@ -191,11 +216,23 @@ interface BudgetDao {
     """)
     fun getSubcategoriesForCategory(parentCat: String, type: TransactionType, includeLegacy: Boolean): Flow<List<SubcategoryEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSubcategory(subcategory: SubcategoryEntity)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertSubcategoryIgnore(subcategory: SubcategoryEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSubcategories(subcategories: List<SubcategoryEntity>)
+    @Transaction
+    suspend fun insertSubcategory(subcategory: SubcategoryEntity) {
+        val rowId = insertSubcategoryIgnore(subcategory)
+        if (rowId == -1L) {
+            updateSubcategory(subcategory)
+        }
+    }
+
+    @Transaction
+    suspend fun insertSubcategories(subcategories: List<SubcategoryEntity>) {
+        subcategories.forEach { subcategory ->
+            insertSubcategory(subcategory)
+        }
+    }
 
     @Update
     suspend fun updateSubcategory(subcategory: SubcategoryEntity)
@@ -277,8 +314,14 @@ interface BudgetDao {
     @Query("DELETE FROM fixed_bills WHERE category = :category AND isPaid = 0 AND ((year > :currentYear) OR (year = :currentYear AND month >= :currentMonth))")
     suspend fun deleteFutureUnpaidFixedBillsByCategory(category: String, currentMonth: Int, currentYear: Int)
 
+    @Query("DELETE FROM fixed_bills WHERE category = :category AND type = :type AND isPaid = 0 AND ((year > :currentYear) OR (year = :currentYear AND month >= :currentMonth))")
+    suspend fun deleteFutureUnpaidFixedBillsByCategoryAndType(category: String, type: TransactionType, currentMonth: Int, currentYear: Int)
+
     @Query("DELETE FROM fixed_bills WHERE category = :category AND subcategory = :subcategory AND isPaid = 0 AND ((year > :currentYear) OR (year = :currentYear AND month >= :currentMonth))")
     suspend fun deleteFutureUnpaidFixedBillsBySubcategory(category: String, subcategory: String, currentMonth: Int, currentYear: Int)
+
+    @Query("DELETE FROM fixed_bills WHERE category = :category AND subcategory = :subcategory AND type = :type AND isPaid = 0 AND ((year > :currentYear) OR (year = :currentYear AND month >= :currentMonth))")
+    suspend fun deleteFutureUnpaidFixedBillsBySubcategoryAndType(category: String, subcategory: String, type: TransactionType, currentMonth: Int, currentYear: Int)
 
     // ========================================================================
     // 5. Budget Plans
@@ -300,6 +343,9 @@ interface BudgetDao {
 
     @Query("DELETE FROM budget_plans WHERE category = :category")
     suspend fun deleteBudgetPlansForCategory(category: String)
+
+    @Query("DELETE FROM budget_plans WHERE category = :category AND type = :type")
+    suspend fun deleteBudgetPlansForCategoryAndType(category: String, type: TransactionType)
 
     @Query("DELETE FROM budget_plans")
     suspend fun clearAllBudgetPlans()
@@ -335,7 +381,7 @@ interface BudgetDao {
     suspend fun clearAllTransactions()
 
     // ========================================================================
-    // 7. Cascading Rename & Non-Destructive Cleanup
+    // 7. Cascading Rename & Non-Destructive Cleanup (Type-Safe + Legacy Overloads)
     // ========================================================================
     @Query("UPDATE transactions SET accountName = :newName WHERE accountName = :oldName COLLATE NOCASE")
     suspend fun cascadeRenameAccountInTransactions(oldName: String, newName: String)
@@ -352,20 +398,38 @@ interface BudgetDao {
     @Query("UPDATE transactions SET category = :newName WHERE category = :oldName")
     suspend fun cascadeRenameCategoryInTransactions(oldName: String, newName: String)
 
+    @Query("UPDATE transactions SET category = :newName WHERE category = :oldName AND type = :type")
+    suspend fun cascadeRenameCategoryAndTypeInTransactions(oldName: String, newName: String, type: TransactionType)
+
     @Query("UPDATE budget_plans SET category = :newName WHERE category = :oldName")
     suspend fun cascadeRenameCategoryInBudgetPlans(oldName: String, newName: String)
+
+    @Query("UPDATE budget_plans SET category = :newName WHERE category = :oldName AND type = :type")
+    suspend fun cascadeRenameCategoryAndTypeInBudgetPlans(oldName: String, newName: String, type: TransactionType)
 
     @Query("UPDATE fixed_bills SET category = :newName WHERE category = :oldName")
     suspend fun cascadeRenameCategoryInFixedBills(oldName: String, newName: String)
 
+    @Query("UPDATE fixed_bills SET category = :newName WHERE category = :oldName AND type = :type")
+    suspend fun cascadeRenameCategoryAndTypeInFixedBills(oldName: String, newName: String, type: TransactionType)
+
     @Query("UPDATE subcategories SET parentCategory = :newName WHERE parentCategory = :oldName")
     suspend fun cascadeRenameCategoryInSubcategories(oldName: String, newName: String)
+
+    @Query("UPDATE subcategories SET parentCategory = :newName WHERE parentCategory = :oldName AND type = :type")
+    suspend fun cascadeRenameCategoryAndTypeInSubcategories(oldName: String, newName: String, type: TransactionType)
 
     @Query("UPDATE transactions SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName")
     suspend fun cascadeRenameSubcategoryInTransactions(parentCat: String, oldName: String, newName: String)
 
+    @Query("UPDATE transactions SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName AND type = :type")
+    suspend fun cascadeRenameSubcategoryAndTypeInTransactions(parentCat: String, oldName: String, newName: String, type: TransactionType)
+
     @Query("UPDATE fixed_bills SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName")
     suspend fun cascadeRenameSubcategoryInFixedBills(parentCat: String, oldName: String, newName: String)
+
+    @Query("UPDATE fixed_bills SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName AND type = :type")
+    suspend fun cascadeRenameSubcategoryAndTypeInFixedBills(parentCat: String, oldName: String, newName: String, type: TransactionType)
 
     // ========================================================================
     // 8. Atomic Operations (Safe Preservation of Historical Ledger Data)
@@ -422,17 +486,17 @@ interface BudgetDao {
         }
 
         insertCategory(CategoryEntity(name = trimmedNew, type = oldCategory.type, isLegacy = false, isNew = false))
-        cascadeRenameCategoryInTransactions(oldCategory.name, trimmedNew)
-        cascadeRenameCategoryInBudgetPlans(oldCategory.name, trimmedNew)
-        cascadeRenameCategoryInFixedBills(oldCategory.name, trimmedNew)
-        cascadeRenameCategoryInSubcategories(oldCategory.name, trimmedNew)
+        cascadeRenameCategoryAndTypeInTransactions(oldCategory.name, trimmedNew, oldCategory.type)
+        cascadeRenameCategoryAndTypeInBudgetPlans(oldCategory.name, trimmedNew, oldCategory.type)
+        cascadeRenameCategoryAndTypeInFixedBills(oldCategory.name, trimmedNew, oldCategory.type)
+        cascadeRenameCategoryAndTypeInSubcategories(oldCategory.name, trimmedNew, oldCategory.type)
         deleteCategory(oldCategory)
     }
 
     @Transaction
     suspend fun deleteCategoryAndCascade(category: CategoryEntity) {
         deleteSubcategoriesForParentAndType(category.name, category.type)
-        deleteBudgetPlansForCategory(category.name)
+        deleteBudgetPlansForCategoryAndType(category.name, category.type)
         deleteCategory(category)
     }
 
@@ -456,8 +520,18 @@ interface BudgetDao {
                 isNew = false
             )
         )
-        cascadeRenameSubcategoryInTransactions(oldSubcategory.parentCategory, oldSubcategory.name, trimmedNew)
-        cascadeRenameSubcategoryInFixedBills(oldSubcategory.parentCategory, oldSubcategory.name, trimmedNew)
+        cascadeRenameSubcategoryAndTypeInTransactions(
+            parentCat = oldSubcategory.parentCategory,
+            oldName = oldSubcategory.name,
+            newName = trimmedNew,
+            type = oldSubcategory.type
+        )
+        cascadeRenameSubcategoryAndTypeInFixedBills(
+            parentCat = oldSubcategory.parentCategory,
+            oldName = oldSubcategory.name,
+            newName = trimmedNew,
+            type = oldSubcategory.type
+        )
         deleteSubcategory(oldSubcategory)
     }
 
@@ -483,7 +557,7 @@ interface BudgetDao {
             UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8
             UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12
         ) m
-        LEFT JOIN transactions t ON m.month = t.month AND t.year = :year AND t.type != 'TRANSFER'
+        LEFT JOIN transactions t ON m.month = t.month AND m.month IS NOT NULL AND t.year = :year AND t.type != 'TRANSFER'
         GROUP BY m.month
         ORDER BY m.month ASC
     """)
@@ -513,7 +587,7 @@ interface BudgetDao {
     @Query("SELECT MIN(year * 12 + month) FROM transactions WHERE type != 'TRANSFER'")
     suspend fun getEarliestTransactionMonthKey(): Int?
 
-        // ========================================================================
+    // ========================================================================
     // 11. Financial Notes & Checklists
     // ========================================================================
     @Query("SELECT * FROM notes ORDER BY isPinned DESC, updatedAt DESC")
@@ -536,5 +610,4 @@ interface BudgetDao {
 
     @Query("DELETE FROM notes")
     suspend fun clearAllNotes()
-
 }
