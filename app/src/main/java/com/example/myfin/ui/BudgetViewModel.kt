@@ -259,6 +259,58 @@ class BudgetViewModel(
         "General"
     )
 
+    // Unified Transaction Classification Predicates (Supports Active + Legacy Corporate & Non-Personal Inflows)
+    private val isCorporateOutlayTx: (TransactionEntity) -> Boolean = { tx ->
+        (tx.type == TransactionType.CORPORATE && !tx.category.equals("Reimbursements & Claims", ignoreCase = true)) ||
+        (tx.type == TransactionType.EXPENSE && tx.category.equals("Work & Professional", ignoreCase = true))
+    }
+
+    private val isCorporateReimbursementTx: (TransactionEntity) -> Boolean = { tx ->
+        (tx.type == TransactionType.CORPORATE && tx.category.equals("Reimbursements & Claims", ignoreCase = true)) ||
+        (tx.type == TransactionType.INCOME && (
+            tx.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true) ||
+            tx.category.equals("Reimbursements & Claims", ignoreCase = true)
+        ))
+    }
+
+    private val isLoanRepaymentTx: (TransactionEntity) -> Boolean = { tx ->
+        tx.type == TransactionType.INCOME &&
+        (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
+         tx.title.contains("Loan Payback", ignoreCase = true))
+    }
+
+    private val isTaxOrPurchaseRefundTx: (TransactionEntity) -> Boolean = { tx ->
+        tx.type == TransactionType.INCOME &&
+        (tx.subcategory.contains("Tax & Purchase Refunds", ignoreCase = true) ||
+         tx.title.contains("Refund", ignoreCase = true))
+    }
+
+    private val isCapitalDrawdownTx: (TransactionEntity) -> Boolean = { tx ->
+        tx.type == TransactionType.INCOME &&
+        (tx.category.equals("Passive & Capital Drawdowns", ignoreCase = true) ||
+         tx.subcategory.contains("Capital Gains", ignoreCase = true) ||
+         tx.subcategory.contains("Realization", ignoreCase = true) ||
+         tx.subcategory.contains("Emergency Fund Drawdown", ignoreCase = true) ||
+         tx.subcategory.contains("FD / Deposit Maturity", ignoreCase = true))
+    }
+
+    private val isLoanGivenTx: (TransactionEntity) -> Boolean = { tx ->
+        tx.type == TransactionType.ASSET &&
+        (tx.subcategory.contains("Personal Loans", ignoreCase = true) ||
+         tx.subcategory.contains("Loaned", ignoreCase = true))
+    }
+
+    private val isNpaWriteOffTx: (TransactionEntity) -> Boolean = { tx ->
+        tx.type == TransactionType.ASSET &&
+        (tx.subcategory.contains("NPA", ignoreCase = true) ||
+         tx.subcategory.contains("Bad Debt", ignoreCase = true) ||
+         tx.category.equals("NPA", ignoreCase = true))
+    }
+
+    private val isGenuineSavingsOrAssetTx: (TransactionEntity) -> Boolean = { tx ->
+        tx.type == TransactionType.ASSET && !isLoanGivenTx(tx) && !isNpaWriteOffTx(tx)
+    }
+
     val userProfile: StateFlow<UserProfile> = dao.getUserProfile()
         .map { it ?: UserProfile(id = 1) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, UserProfile(id = 1))
@@ -278,17 +330,17 @@ class BudgetViewModel(
         Tuple4(month, year, filter, profile)
     }.flatMapLatest { (month, year, filter, profile) ->
         val targetMonthKey = year * 12 + month
-        val earliestKey = withContext(Dispatchers.IO) {
-            try { dao.getEarliestTransactionMonthKey() ?: targetMonthKey } catch (_: Exception) { targetMonthKey }
-        }
-        val completedMonths = (targetMonthKey - earliestKey).coerceIn(1, 3)
 
+        // Reactive core flow: re-fetches allTimeTxs on every Room invalidation of transactions/accounts/bills
         val coreDataFlow = combine(
             dao.getTransactionsForMonth(month, year),
             dao.getFixedBillsForMonth(month, year),
             dao.getAccountBalances()
         ) { transactions, fixedBills, accounts ->
-            Triple(transactions, fixedBills, accounts)
+            val allTimeTxs = withContext(Dispatchers.IO) {
+                try { dao.getAllTransactions() } catch (_: Exception) { emptyList() }
+            }
+            Tuple4(transactions, fixedBills, accounts, allTimeTxs)
         }
 
         val metadataFlow = combine(
@@ -300,19 +352,20 @@ class BudgetViewModel(
             Tuple4(plans, masterCats, masterSubcats, trailingRollups)
         }
 
-        val globalHistoryFlow = flow {
-            emit(try { dao.getAllTransactions() } catch (_: Exception) { emptyList() })
-        }
-
         val bannerFlow = combine(showRolloverBanner, rolloverBannerMessage) { show, msg -> show to msg }
 
-        combine(coreDataFlow, metadataFlow, globalHistoryFlow, bannerFlow) { coreData, metaData, allTimeTxs, bannerInfo ->
-            val (transactions, fixedBills, allAccounts) = coreData
+        combine(coreDataFlow, metadataFlow, bannerFlow) { coreData, metaData, bannerInfo ->
+            val (transactions, fixedBills, allAccounts, allTimeTxs) = coreData
             val (plans, masterCats, masterSubcats, trailingRollups) = metaData
             val (isBannerVisible, bannerMsg) = bannerInfo
 
+            val earliestKey = allTimeTxs
+                .filter { it.type != TransactionType.TRANSFER }
+                .minOfOrNull { it.year * 12 + it.month } ?: targetMonthKey
+            val completedMonths = (targetMonthKey - earliestKey).coerceIn(1, 3)
+
             val averagesMap = trailingRollups
-                .filter { it.type == TransactionType.EXPENSE }
+                .filter { it.type == TransactionType.EXPENSE && !it.category.equals("Work & Professional", ignoreCase = true) }
                 .associate { it.category to (it.totalAmount / completedMonths.toDouble()) }
 
             val todayCal = Calendar.getInstance()
@@ -374,17 +427,16 @@ class BudgetViewModel(
 
             val regularTxs = transactions.filter { it.type != TransactionType.TRANSFER }
 
-            val actualIncome = regularTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-            val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+            // Exclude legacy corporate transactions from personal income and personal living expenses
+            val actualIncome = regularTxs.filter { it.type == TransactionType.INCOME && !isCorporateReimbursementTx(it) }.sumOf { it.amount }
+            val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE && !isCorporateOutlayTx(it) }.sumOf { it.amount }
             val actualAssets = regularTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
 
-            val corporateTxs = regularTxs.filter { it.type == TransactionType.CORPORATE }
-            val workExpenses = corporateTxs.filter { !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
-            val corporateReimbursements = corporateTxs.filter { it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
+            val workExpenses = regularTxs.filter(isCorporateOutlayTx).sumOf { it.amount }
+            val corporateReimbursements = regularTxs.filter(isCorporateReimbursementTx).sumOf { it.amount }
 
-            val allTimeCorporateTxs = allTimeTxs.filter { it.type == TransactionType.CORPORATE }
-            val allTimeWorkExpenses = allTimeCorporateTxs.filter { !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
-            val allTimeClaimsReceived = allTimeCorporateTxs.filter { it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
+            val allTimeWorkExpenses = allTimeTxs.filter(isCorporateOutlayTx).sumOf { it.amount }
+            val allTimeClaimsReceived = allTimeTxs.filter(isCorporateReimbursementTx).sumOf { it.amount }
 
             val effectiveAllTimeWorkExpenses = allTimeWorkExpenses + profile.initialReimbursementClaim
             val effectiveAllTimeClaimsReceived = allTimeClaimsReceived + profile.initialCompanyAdvance
@@ -402,62 +454,27 @@ class BudgetViewModel(
                 excessAdvanceHeld = excessAdvanceHeld
             )
 
-            val isLoanRepayment = { tx: TransactionEntity ->
-                tx.type == TransactionType.INCOME &&
-                (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
-                 tx.title.contains("Loan Payback", ignoreCase = true))
-            }
-
-            val isTaxOrPurchaseRefund = { tx: TransactionEntity ->
-                tx.type == TransactionType.INCOME &&
-                (tx.subcategory.contains("Tax & Purchase Refunds", ignoreCase = true) ||
-                 tx.title.contains("Refund", ignoreCase = true))
-            }
-
-            val isCapitalDrawdown = { tx: TransactionEntity ->
-                tx.type == TransactionType.INCOME &&
-                (tx.category.equals("Passive & Capital Drawdowns", ignoreCase = true) ||
-                 tx.subcategory.contains("Capital Gains", ignoreCase = true) ||
-                 tx.subcategory.contains("Realization", ignoreCase = true) ||
-                 tx.subcategory.contains("Emergency Fund Drawdown", ignoreCase = true) ||
-                 tx.subcategory.contains("FD / Deposit Maturity", ignoreCase = true))
-            }
-
             val nonPersonalInflow = regularTxs.filter {
-                isLoanRepayment(it) || isTaxOrPurchaseRefund(it) || isCapitalDrawdown(it)
+                !isCorporateReimbursementTx(it) &&
+                (isLoanRepaymentTx(it) || isTaxOrPurchaseRefundTx(it) || isCapitalDrawdownTx(it))
             }.sumOf { it.amount }
 
             val lifestyleExpenses = actualExpenses
             val personalIncome = (actualIncome - nonPersonalInflow).coerceAtLeast(0.0)
 
-            val isLoanGiven = { tx: TransactionEntity ->
-                tx.type == TransactionType.ASSET &&
-                (tx.subcategory.contains("Personal Loans", ignoreCase = true) ||
-                 tx.subcategory.contains("Loaned", ignoreCase = true))
-            }
-
-            val isNpaWriteOff = { tx: TransactionEntity ->
-                tx.type == TransactionType.ASSET &&
-                (tx.subcategory.contains("NPA", ignoreCase = true) ||
-                 tx.subcategory.contains("Bad Debt", ignoreCase = true) ||
-                 tx.category.equals("NPA", ignoreCase = true))
-            }
-
-            val isGenuineSavingsOrAsset = { tx: TransactionEntity ->
-                tx.type == TransactionType.ASSET && !isLoanGiven(tx) && !isNpaWriteOff(tx)
-            }
-
-            val actualSavingsAndInvestments = regularTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
+            val actualSavingsAndInvestments = regularTxs.filter(isGenuineSavingsOrAssetTx).sumOf { it.amount }
 
             val allCategoryNames = (sortedMasterCats.map { it.name to it.type } +
                     plans.map { it.category to it.type } +
                     fixedBills.map { it.category to it.type } +
-                    regularTxs.map { it.category to it.type }).distinct()
+                    regularTxs.map { it.category to it.type }).distinctBy { "${it.first.trim().lowercase()}:::${it.second.name}" }
 
             val matrixList = allCategoryNames.mapNotNull { (catName, catType) ->
                 if (catType == TransactionType.TRANSFER) return@mapNotNull null
 
-                val isCorporateCat = catType == TransactionType.CORPORATE
+                val isCorporateCat = catType == TransactionType.CORPORATE ||
+                        (catType == TransactionType.EXPENSE && catName.equals("Work & Professional", ignoreCase = true)) ||
+                        (catType == TransactionType.INCOME && catName.equals("Reimbursements & Corporate Inflow", ignoreCase = true))
 
                 val catTxs = regularTxs.filter { tx ->
                     tx.category.equals(catName, ignoreCase = true) && tx.type == catType
@@ -475,7 +492,7 @@ class BudgetViewModel(
                     .map { (subName, txs) -> SubcategoryPerformance(subName, txs.sumOf { it.amount }) }
                     .filter { it.amount != 0.0 }
 
-                val catAvg = if (catType == TransactionType.EXPENSE) {
+                val catAvg = if (catType == TransactionType.EXPENSE && !isCorporateCat) {
                     averagesMap.entries.firstOrNull { it.key.equals(catName, ignoreCase = true) }?.value ?: 0.0
                 } else 0.0
 
@@ -490,18 +507,28 @@ class BudgetViewModel(
                 )
             }
 
-            val plannedIncome = matrixList.filter { it.type == TransactionType.INCOME }.sumOf { it.plannedAmount }
-            val plannedExpenses = matrixList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.plannedAmount }
+            val plannedIncome = matrixList.filter { it.type == TransactionType.INCOME && !it.isReimbursableFloat }.sumOf { it.plannedAmount }
+            val plannedExpenses = matrixList.filter { it.type == TransactionType.EXPENSE && !it.isReimbursableFloat }.sumOf { it.plannedAmount }
             val plannedAssets = matrixList.filter { it.type == TransactionType.ASSET }.sumOf { it.plannedAmount }
 
             val allFixedCommitments = fixedBills.filter {
                 it.type == TransactionType.EXPENSE || it.type == TransactionType.TRANSFER || it.type == TransactionType.ASSET
             }
             val fixedExpenseTotal = allFixedCommitments.sumOf { it.amount }
-            val pendingFixedCommitments = allFixedCommitments.filter { !it.isPaid }.sumOf { it.amount }
 
-            val pendingAssetCommitment = (plannedAssets - actualSavingsAndInvestments).coerceAtLeast(0.0)
-            val totalPendingCommitments = pendingFixedCommitments + pendingAssetCommitment
+            // Avoid double-counting unpaid ASSET fixed bills: separate non-asset fixed bills from planned asset SIPs
+            val pendingNonAssetFixedCommitments = allFixedCommitments.filter {
+                !it.isPaid && it.type != TransactionType.ASSET
+            }.sumOf { it.amount }
+            val pendingAssetFixedBills = allFixedCommitments.filter {
+                !it.isPaid && it.type == TransactionType.ASSET
+            }.sumOf { it.amount }
+
+            val pendingAssetCommitment = max(
+                pendingAssetFixedBills,
+                (plannedAssets - actualSavingsAndInvestments).coerceAtLeast(0.0)
+            )
+            val totalPendingCommitments = pendingNonAssetFixedCommitments + pendingAssetCommitment
 
             val baseIncome = when {
                 max(plannedIncome, personalIncome) > 0.0 -> max(plannedIncome, personalIncome)
@@ -566,17 +593,19 @@ class BudgetViewModel(
 
             val completedHistoricalMonthsSpend = allTimeTxs.filter { tx ->
                 tx.type == TransactionType.EXPENSE &&
+                !isCorporateOutlayTx(tx) &&
                 ((tx.year < sysYear) || (tx.year == sysYear && tx.month < sysMonth))
             }.groupBy { "${it.year}-${it.month}" }
              .values
              .map { it.sumOf { tx -> tx.amount } }
              .filter { it > 0.0 }
 
-            val historicalMonthsSpend = allTimeTxs.filter { it.type == TransactionType.EXPENSE }
-                .groupBy { "${it.year}-${it.month}" }
-                .values
-                .map { it.sumOf { tx -> tx.amount } }
-                .filter { it > 0.0 }
+            val historicalMonthsSpend = allTimeTxs.filter {
+                it.type == TransactionType.EXPENSE && !isCorporateOutlayTx(it)
+            }.groupBy { "${it.year}-${it.month}" }
+             .values
+             .map { it.sumOf { tx -> tx.amount } }
+             .filter { it > 0.0 }
 
             val livingBufferTarget = when {
                 completedHistoricalMonthsSpend.isNotEmpty() -> completedHistoricalMonthsSpend.average()
@@ -596,7 +625,7 @@ class BudgetViewModel(
             val liquidPoolAccounts = activeAccounts.filter { !isFortressAccount(it) }
 
             val totalLiquidAboveMab = liquidPoolAccounts.sumOf {
-                (it.currentBalance - it.minBalance).coerceAtLeast(0.0)
+                it.spendableBalance
             }.coerceAtLeast(0.0)
 
             val pendingFixedBills = allFixedCommitments.filter { bill ->
@@ -609,7 +638,7 @@ class BudgetViewModel(
                 .coerceAtLeast(0.0)
 
             val personalDiscretionaryExpenses = regularTxs.filter { tx ->
-                tx.type == TransactionType.EXPENSE && tx.linkedFixedBillId == null
+                tx.type == TransactionType.EXPENSE && !isCorporateOutlayTx(tx) && tx.linkedFixedBillId == null
             }.sumOf { it.amount }
 
             val rawTheoreticalSafeToSpend = baseIncome - totalPendingCommitments - personalDiscretionaryExpenses
@@ -716,6 +745,10 @@ class BudgetViewModel(
                 tx.month == month && tx.year == year
             }
 
+            val fortressTotalBalance = activeAccounts
+                .filter { isFortressAccount(it) }
+                .sumOf { it.currentBalance }
+
             val paydaySuggestion = if (salaryTx != null && is3VaultMode && isCurrentSystemMonth && !isPaydayAllocated) {
                 val salaryAmt = salaryTx.amount
 
@@ -737,8 +770,12 @@ class BudgetViewModel(
                     tx.month == month && tx.year == year
                 }.sumOf { it.amount }
 
-                val dynamicFortressTargetSweep = if (profile.fortressSweepThreshold > 0.0) profile.fortressSweepThreshold else (profile.baseMonthlyIncome * 0.1)
-                val pendingFortressBase = max(0.0, dynamicFortressTargetSweep - transferredToFortressThisMonth)
+                // Target 20% of salary (or any deficit below the liquid Fortress cushion cap, if smaller/applicable)
+                val cushionDeficit = if (profile.fortressSweepThreshold > 0.0) {
+                    (profile.fortressSweepThreshold - fortressTotalBalance).coerceAtLeast(0.0)
+                } else 0.0
+                val baselineMonthlyFortressTarget = max(salaryAmt * 0.20, cushionDeficit.coerceAtMost(salaryAmt * 0.30))
+                val pendingFortressBase = max(0.0, baselineMonthlyFortressTarget - transferredToFortressThisMonth)
                 val toFortressBase = min(remainingAfterCommitments, pendingFortressBase)
 
                 val totalOperatingRetained = toOperating + max(0.0, remainingAfterCommitments - toFortressBase)
@@ -754,7 +791,11 @@ class BudgetViewModel(
                     remainingCommitmentsShortfall = max(0.0, totalCommitmentsShortfall - toCommitments),
                     isShortfallFullyFunded = toCommitments >= totalCommitmentsShortfall,
                     isOperatingFullyFunded = toOperating >= livingBufferTarget,
-                    pendingBillsCount = fixedBills.count { !it.isPaid && it.type != TransactionType.INCOME }
+                    pendingBillsCount = fixedBills.count {
+                        !it.isPaid &&
+                        it.type != TransactionType.INCOME &&
+                        !(it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true))
+                    }
                 )
             } else null
 
@@ -767,8 +808,9 @@ class BudgetViewModel(
 
             val operatingAccountsList = activeAccounts.filter(isOperatingOrCashAccount)
 
+            // Clamp per-account spendable balance so a deficit in one account doesn't hide surplus in another
             val operatingLiquidCash = operatingAccountsList.sumOf {
-                it.currentBalance - it.minBalance
+                it.spendableBalance
             }.coerceAtLeast(0.0)
 
             val unpaidOperatingBills = fixedBills.filter { bill ->
@@ -810,10 +852,6 @@ class BudgetViewModel(
                 )
             } else null
 
-            val fortressTotalBalance = activeAccounts
-                .filter { isFortressAccount(it) }
-                .sumOf { it.currentBalance }
-
             val currentFdReserve = max(0.0, fortressTotalBalance - profile.fortressSweepThreshold)
 
             val computedFortressTarget = if (profile.fortressManualTarget > 0.0) {
@@ -833,7 +871,9 @@ class BudgetViewModel(
                         tx.category.contains(filter.query, ignoreCase = true) ||
                         tx.subcategory.contains(filter.query, ignoreCase = true)
                 val matchesType = filter.type == null || tx.type == filter.type
-                val matchesAccount = filter.account == "ALL" || tx.accountName == filter.account || tx.toAccountName == filter.account
+                val matchesAccount = filter.account == "ALL" ||
+                        tx.accountName.equals(filter.account, ignoreCase = true) ||
+                        tx.toAccountName.equals(filter.account, ignoreCase = true)
                 val matchesDate = (filter.startDate == null || tx.date >= filter.startDate) &&
                         (filter.endDate == null || tx.date <= filter.endDate)
 
@@ -901,7 +941,7 @@ class BudgetViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthlyUiState())
 
-    val category3MonthAverages: StateFlow<Map<String, Double>> = monthlyUiState
+    val category3MonthAverages: StateFlow> = monthlyUiState
         .map { it.category3MonthAverages }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
@@ -924,44 +964,6 @@ class BudgetViewModel(
             val thisYear = nowCal.get(Calendar.YEAR)
             val thisMonth = nowCal.get(Calendar.MONTH) + 1
 
-            val isLoanRepayment = { tx: TransactionEntity ->
-                tx.type == TransactionType.INCOME &&
-                (tx.subcategory.contains("Loan Paybacks Received", ignoreCase = true) ||
-                 tx.title.contains("Loan Payback", ignoreCase = true))
-            }
-
-            val isTaxOrPurchaseRefund = { tx: TransactionEntity ->
-                tx.type == TransactionType.INCOME &&
-                (tx.subcategory.contains("Tax & Purchase Refunds", ignoreCase = true) ||
-                 tx.title.contains("Refund", ignoreCase = true))
-            }
-
-            val isCapitalDrawdown = { tx: TransactionEntity ->
-                tx.type == TransactionType.INCOME &&
-                (tx.category.equals("Passive & Capital Drawdowns", ignoreCase = true) ||
-                 tx.subcategory.contains("Capital Gains", ignoreCase = true) ||
-                 tx.subcategory.contains("Realization", ignoreCase = true) ||
-                 tx.subcategory.contains("Emergency Fund Drawdown", ignoreCase = true) ||
-                 tx.subcategory.contains("FD / Deposit Maturity", ignoreCase = true))
-            }
-
-            val isLoanGiven = { tx: TransactionEntity ->
-                tx.type == TransactionType.ASSET &&
-                (tx.subcategory.contains("Personal Loans", ignoreCase = true) ||
-                 tx.subcategory.contains("Loaned", ignoreCase = true))
-            }
-
-            val isNpaWriteOff = { tx: TransactionEntity ->
-                tx.type == TransactionType.ASSET &&
-                (tx.subcategory.contains("NPA", ignoreCase = true) ||
-                 tx.subcategory.contains("Bad Debt", ignoreCase = true) ||
-                 tx.category.equals("NPA", ignoreCase = true))
-            }
-
-            val isGenuineSavingsOrAsset = { tx: TransactionEntity ->
-                tx.type == TransactionType.ASSET && !isLoanGiven(tx) && !isNpaWriteOff(tx)
-            }
-
             val allYearTransactions = allTransactions.filter { tx ->
                 tx.year == year && tx.type != TransactionType.TRANSFER
             }
@@ -970,27 +972,29 @@ class BudgetViewModel(
                 val isFutureMonth = (year == thisYear && m > thisMonth) || (year > thisYear)
                 val monthTxs = allYearTransactions.filter { tx -> tx.month == m }
 
-                val inc = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-                val exp = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+                val inc = monthTxs.filter { it.type == TransactionType.INCOME && !isCorporateReimbursementTx(it) }.sumOf { it.amount }
+                val exp = monthTxs.filter { it.type == TransactionType.EXPENSE && !isCorporateOutlayTx(it) }.sumOf { it.amount }
                 val ast = monthTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
 
                 val fixedExp = monthTxs.filter {
                     it.type == TransactionType.EXPENSE &&
+                    !isCorporateOutlayTx(it) &&
                     (it.linkedFixedBillId != null ||
                      it.category.equals("Utilities & Living Bills", ignoreCase = true) ||
                      it.category.equals("Debt & Financial Obligations", ignoreCase = true))
                 }.sumOf { it.amount }
 
-                val varExp = exp - fixedExp
-                val workExp = monthTxs.filter { it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
-                val corpReimb = monthTxs.filter { it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
+                val varExp = (exp - fixedExp).coerceAtLeast(0.0)
+                val workExp = monthTxs.filter(isCorporateOutlayTx).sumOf { it.amount }
+                val corpReimb = monthTxs.filter(isCorporateReimbursementTx).sumOf { it.amount }
                 val lifestyleExp = exp
 
                 val monthNonPersonalInflows = monthTxs.filter {
-                    isLoanRepayment(it) || isTaxOrPurchaseRefund(it) || isCapitalDrawdown(it)
+                    !isCorporateReimbursementTx(it) &&
+                    (isLoanRepaymentTx(it) || isTaxOrPurchaseRefundTx(it) || isCapitalDrawdownTx(it))
                 }.sumOf { it.amount }
                 val monthPersonalIncome = (inc - monthNonPersonalInflows).coerceAtLeast(0.0)
-                val monthGenuineAssets = monthTxs.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
+                val monthGenuineAssets = monthTxs.filter(isGenuineSavingsOrAssetTx).sumOf { it.amount }
 
                 val truePersonalNetSavings = monthPersonalIncome - lifestyleExp - monthGenuineAssets
 
@@ -1012,8 +1016,8 @@ class BudgetViewModel(
                 )
             }
 
-            val totalIncome = allYearTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-            val totalExpense = allYearTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+            val totalIncome = allYearTransactions.filter { it.type == TransactionType.INCOME && !isCorporateReimbursementTx(it) }.sumOf { it.amount }
+            val totalExpense = allYearTransactions.filter { it.type == TransactionType.EXPENSE && !isCorporateOutlayTx(it) }.sumOf { it.amount }
             val totalAssets = allYearTransactions.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
 
             val allTxYears = allTransactions.map { it.year }.distinct()
@@ -1028,9 +1032,9 @@ class BudgetViewModel(
             allTransactions.forEach { tx ->
                 val txYear = tx.year
                 if (txYear in startYear..year) {
-                    if (isGenuineSavingsOrAsset(tx)) {
+                    if (isGenuineSavingsOrAssetTx(tx)) {
                         annualNetAssetMap[txYear] = (annualNetAssetMap[txYear] ?: 0.0) + tx.amount
-                    } else if (isCapitalDrawdown(tx)) {
+                    } else if (isCapitalDrawdownTx(tx)) {
                         annualNetAssetMap[txYear] = (annualNetAssetMap[txYear] ?: 0.0) - tx.amount
                     }
                 }
@@ -1039,8 +1043,8 @@ class BudgetViewModel(
             var runningCumulativeAssets = allTransactions.filter { tx ->
                 tx.year < startYear
             }.sumOf { tx ->
-                if (isGenuineSavingsOrAsset(tx)) tx.amount
-                else if (isCapitalDrawdown(tx)) -tx.amount
+                if (isGenuineSavingsOrAssetTx(tx)) tx.amount
+                else if (isCapitalDrawdownTx(tx)) -tx.amount
                 else 0.0
             }.coerceAtLeast(0.0)
 
@@ -1061,13 +1065,13 @@ class BudgetViewModel(
                 MultiYearAssetMetric(year = y, totalAssets = currentCum, growthPercent = growth)
             }
 
-            val allTimeInvestmentsInflow = allTransactions.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
-            val allTimeCapitalDrawdowns = allTransactions.filter(isCapitalDrawdown).sumOf { it.amount }
+            val allTimeInvestmentsInflow = allTransactions.filter(isGenuineSavingsOrAssetTx).sumOf { it.amount }
+            val allTimeCapitalDrawdowns = allTransactions.filter(isCapitalDrawdownTx).sumOf { it.amount }
             val totalActiveInvestments = (allTimeInvestmentsInflow - allTimeCapitalDrawdowns).coerceAtLeast(0.0)
 
-            val activeLoanedReceivables = allTransactions.filter(isLoanGiven).sumOf { it.amount }
-            val npaWrittenOff = allTransactions.filter(isNpaWriteOff).sumOf { it.amount }
-            val repaymentsReceived = allTransactions.filter(isLoanRepayment).sumOf { it.amount }
+            val activeLoanedReceivables = allTransactions.filter(isLoanGivenTx).sumOf { it.amount }
+            val npaWrittenOff = allTransactions.filter(isNpaWriteOffTx).sumOf { it.amount }
+            val repaymentsReceived = allTransactions.filter(isLoanRepaymentTx).sumOf { it.amount }
 
             val effectiveReceivables = (activeLoanedReceivables - repaymentsReceived - npaWrittenOff).coerceAtLeast(0.0)
             val liquidReserves = allAccounts.filter { !it.isArchived }.sumOf { it.currentBalance }
@@ -1084,20 +1088,21 @@ class BudgetViewModel(
                 realizableNetWorth = realizableNetWorth
             )
 
-            val annualWorkExpenses = allYearTransactions.filter { it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
-            val annualReimbursements = allYearTransactions.filter { it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
+            val annualWorkExpenses = allYearTransactions.filter(isCorporateOutlayTx).sumOf { it.amount }
+            val annualReimbursements = allYearTransactions.filter(isCorporateReimbursementTx).sumOf { it.amount }
             val annualLifestyleExpenses = totalExpense
 
             val annualNonPersonalInflows = allYearTransactions.filter {
-                isLoanRepayment(it) || isTaxOrPurchaseRefund(it) || isCapitalDrawdown(it)
+                !isCorporateReimbursementTx(it) &&
+                (isLoanRepaymentTx(it) || isTaxOrPurchaseRefundTx(it) || isCapitalDrawdownTx(it))
             }.sumOf { it.amount }
             val annualPersonalIncome = (totalIncome - annualNonPersonalInflows).coerceAtLeast(0.0)
-            val annualGenuineAssets = allYearTransactions.filter(isGenuineSavingsOrAsset).sumOf { it.amount }
+            val annualGenuineAssets = allYearTransactions.filter(isGenuineSavingsOrAssetTx).sumOf { it.amount }
 
             val annualNetSurplus = annualPersonalIncome - annualLifestyleExpenses - annualGenuineAssets
 
-            val allTimeWork = allTransactions.filter { it.type == TransactionType.CORPORATE && !it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
-            val allTimeReimb = allTransactions.filter { it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true) }.sumOf { it.amount }
+            val allTimeWork = allTransactions.filter(isCorporateOutlayTx).sumOf { it.amount }
+            val allTimeReimb = allTransactions.filter(isCorporateReimbursementTx).sumOf { it.amount }
 
             val effectiveAllTimeWork = allTimeWork + profile.initialReimbursementClaim
             val effectiveAllTimeReimb = allTimeReimb + profile.initialCompanyAdvance
@@ -1149,7 +1154,7 @@ class BudgetViewModel(
         } else {
             val curActual = monthly.metrics.lifestyleExpenses
             val planned = monthly.metrics.plannedExpenses
-            val fixedLiving = monthly.categories.filter { it.type == TransactionType.EXPENSE }.sumOf { it.plannedAmount }
+            val fixedLiving = monthly.categories.filter { it.type == TransactionType.EXPENSE && !it.isReimbursableFloat }.sumOf { it.plannedAmount }
             when {
                 curActual > 0.0 -> curActual
                 planned > 0.0 -> planned
@@ -1459,7 +1464,7 @@ class BudgetViewModel(
             val balances = dao.getAccountBalances().first()
             val currentBal = balances.find { it.accountName.equals(accountName, ignoreCase = true) }?.currentBalance ?: 0.0
             val diff = targetBalance - currentBal
-            if (diff != 0.0) {
+            if (abs(diff) >= 0.01) {
                 val txType = if (diff > 0.0) TransactionType.INCOME else TransactionType.EXPENSE
                 val cal = Calendar.getInstance()
                 dao.insertTransaction(
@@ -1568,6 +1573,7 @@ class BudgetViewModel(
             dao.clearAllTransactions()
             dao.clearAllFixedBills()
             dao.clearAllBudgetPlans()
+            dao.clearAllNotes()
             dao.clearAllAccounts()
             dao.clearUserProfile()
             dao.clearAllCategories()
@@ -1588,11 +1594,21 @@ class BudgetViewModel(
             val prevYear = if (currentMonth.value == 1) currentYear.value - 1 else currentYear.value
             val previousPlans = dao.getBudgetPlansForMonthDirect(prevMonth, prevYear)
 
-            val activeCategories = dao.getAllCategoriesDirect().filter { !it.isLegacy }.map { it.name }.toSet()
+            val profile = dao.getUserProfileDirect() ?: userProfile.value
+            val todayCal = Calendar.getInstance()
+            val isGrace = profile.taxonomyGraceYear == todayCal.get(Calendar.YEAR) &&
+                    profile.taxonomyGraceMonth == (todayCal.get(Calendar.MONTH) + 1)
 
-            val clonedPlans = previousPlans.filter { activeCategories.contains(it.category) }.map { plan ->
+            val validCategoryKeys = dao.getAllCategoriesDirect()
+                .filter { isGrace || !it.isLegacy }
+                .map { "${it.name.trim().lowercase()}:::${it.type.name}" }
+                .toSet()
+
+            val clonedPlans = previousPlans.filter {
+                validCategoryKeys.contains("${it.category.trim().lowercase()}:::${it.type.name}")
+            }.map { plan ->
                 BudgetPlanEntity(
-                    category = plan.category,
+                    category = plan.category.trim(),
                     plannedAmount = plan.plannedAmount,
                     type = plan.type,
                     month = currentMonth.value,
@@ -1608,14 +1624,17 @@ class BudgetViewModel(
 
     fun updateCategoryBudget(category: String, amount: Double, type: TransactionType) {
         viewModelScope.launch(Dispatchers.IO) {
+            val cleanCategory = category.trim()
             val currentPlans = dao.getBudgetPlansForMonthDirect(currentMonth.value, currentYear.value)
-            val existing = currentPlans.find { it.category == category && it.type == type }
+            val existing = currentPlans.find {
+                it.category.equals(cleanCategory, ignoreCase = true) && it.type == type
+            }
             if (existing != null) {
-                dao.insertBudgetPlan(existing.copy(plannedAmount = amount))
+                dao.insertBudgetPlan(existing.copy(category = cleanCategory, plannedAmount = amount))
             } else {
                 dao.insertBudgetPlan(
                     BudgetPlanEntity(
-                        category = category,
+                        category = cleanCategory,
                         plannedAmount = amount,
                         type = type,
                         month = currentMonth.value,
@@ -1798,7 +1817,7 @@ class BudgetViewModel(
         subtype: TransferSubtype = TransferSubtype.NONE,
         date: Long = System.currentTimeMillis()
     ) {
-        val resolvedNote = if (note.isBlank()) "Vault Transfer ($fromAccount âž” $toAccount)" else note.trim()
+        val resolvedNote = if (note.isBlank()) "Vault Transfer ($fromAccount ➔ $toAccount)" else note.trim()
         saveTransaction(
             title = resolvedNote,
             amount = amount,
@@ -1824,7 +1843,7 @@ class BudgetViewModel(
                     fromAccount = operatingAccount,
                     toAccount = commitmentsAccount,
                     amount = plan.toCommitments,
-                    note = "Payday Allocation âž” Commitments Bill Funding",
+                    note = "Payday Allocation ➔ Commitments Bill Funding",
                     subtype = TransferSubtype.BILL_FUNDING
                 )
             }
@@ -1833,7 +1852,7 @@ class BudgetViewModel(
                     fromAccount = operatingAccount,
                     toAccount = fortressAccount,
                     amount = plan.totalToFortress,
-                    note = "Payday Allocation âž” Fortress Emergency Base",
+                    note = "Payday Allocation ➔ Fortress Emergency Base",
                     subtype = TransferSubtype.WEALTH_ALLOCATION
                 )
             }
@@ -1851,7 +1870,7 @@ class BudgetViewModel(
                     fromAccount = operatingAccount,
                     toAccount = fortressAccount,
                     amount = plan.sweepAmount,
-                    note = "Month-End Wealth Sweep âž” Fortress Extra",
+                    note = "Month-End Wealth Sweep ➔ Fortress Extra",
                     subtype = TransferSubtype.WEALTH_ALLOCATION
                 )
             }
@@ -1871,7 +1890,9 @@ class BudgetViewModel(
     }
 
     fun addCategory(name: String, type: TransactionType) {
-        viewModelScope.launch(Dispatchers.IO) { dao.insertCategory(CategoryEntity(name = name.trim(), type = type, isLegacy = false, isNew = false)) }
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.insertCategory(CategoryEntity(name = name.trim(), type = type, isLegacy = false, isNew = false))
+        }
     }
 
     fun updateCategory(category: CategoryEntity, newName: String) {
@@ -1887,7 +1908,7 @@ class BudgetViewModel(
         }
         viewModelScope.launch(Dispatchers.IO) {
             dao.deleteCategoryAndCascade(category)
-            dao.deleteFutureUnpaidFixedBillsByCategory(category.name, currentMonth.value, currentYear.value)
+            dao.deleteFutureUnpaidFixedBillsByCategoryAndType(category.name, category.type, currentMonth.value, currentYear.value)
             withContext(Dispatchers.Main) {
                 onResult(true, "Category deleted. Historical logs safely preserved.")
             }
@@ -1895,7 +1916,9 @@ class BudgetViewModel(
     }
 
     fun addSubcategory(parentCategory: String, name: String, type: TransactionType = TransactionType.EXPENSE) {
-        viewModelScope.launch(Dispatchers.IO) { dao.insertSubcategory(SubcategoryEntity(parentCategory = parentCategory, name = name.trim(), type = type, isLegacy = false, isNew = false)) }
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.insertSubcategory(SubcategoryEntity(parentCategory = parentCategory, name = name.trim(), type = type, isLegacy = false, isNew = false))
+        }
     }
 
     fun updateSubcategory(sub: SubcategoryEntity, newName: String) {
@@ -1907,7 +1930,7 @@ class BudgetViewModel(
     fun deleteSubcategory(sub: SubcategoryEntity) {
         viewModelScope.launch(Dispatchers.IO) {
             dao.deleteSubcategory(sub)
-            dao.deleteFutureUnpaidFixedBillsBySubcategory(sub.parentCategory, sub.name, currentMonth.value, currentYear.value)
+            dao.deleteFutureUnpaidFixedBillsBySubcategoryAndType(sub.parentCategory, sub.name, sub.type, currentMonth.value, currentYear.value)
         }
     }
 
@@ -2029,41 +2052,20 @@ class BudgetViewModel(
             val updatedStatus = !bill.isPaid
 
             if (updatedStatus) {
+                // Keep the bill anchored to its scheduled billing cycle while recording the payment transaction
+                val paidBill = bill.copy(isPaid = true, amount = customAmount)
+                dao.updateFixedBill(paidBill)
+
+                // Clean up any stale linked transaction before inserting the settled transaction
+                dao.deleteTransactionByLinkedBill(paidBill.id)
+
                 val calTx = Calendar.getInstance().apply { timeInMillis = customDateMillis }
                 val txMonth = calTx.get(Calendar.MONTH) + 1
                 val txYear = calTx.get(Calendar.YEAR)
 
-                val alignedBill = if (bill.month != txMonth || bill.year != txYear) {
-                    val targetMonthBills = dao.getFixedBillsForMonthDirect(txMonth, txYear)
-                    val existingInTarget = targetMonthBills.firstOrNull { it.id == bill.id }
-                        ?: targetMonthBills.firstOrNull { candidate ->
-                            val bTitle = bill.title.trim()
-                            val cTitle = candidate.title.trim()
-                            val isTitleMatch = bTitle.equals(cTitle, ignoreCase = true) ||
-                                ((bTitle.isBlank() || bTitle.equals(bill.subcategory, ignoreCase = true)) &&
-                                 (cTitle.isBlank() || cTitle.equals(candidate.subcategory, ignoreCase = true)))
-
-                            candidate.type == bill.type &&
-                            candidate.category.equals(bill.category, ignoreCase = true) &&
-                            candidate.subcategory.equals(bill.subcategory, ignoreCase = true) &&
-                            isTitleMatch &&
-                            candidate.accountName.equals(bill.accountName, ignoreCase = true)
-                        }
-
-                    if (existingInTarget != null) {
-                        existingInTarget.copy(isPaid = true, amount = customAmount)
-                    } else {
-                        bill.copy(month = txMonth, year = txYear, isPaid = true, amount = customAmount)
-                    }
-                } else {
-                    bill.copy(isPaid = true, amount = customAmount)
-                }
-
-                dao.updateFixedBill(alignedBill)
-
-                val subtype = if (alignedBill.type == TransactionType.TRANSFER) {
+                val subtype = if (paidBill.type == TransactionType.TRANSFER) {
                     try {
-                        TransferSubtype.valueOf(alignedBill.subcategory)
+                        TransferSubtype.valueOf(paidBill.subcategory)
                     } catch (_: Exception) {
                         TransferSubtype.BILL_FUNDING
                     }
@@ -2071,17 +2073,17 @@ class BudgetViewModel(
 
                 dao.insertTransaction(
                     TransactionEntity(
-                        title = alignedBill.title.ifBlank { alignedBill.subcategory },
+                        title = paidBill.title.ifBlank { paidBill.subcategory },
                         amount = customAmount,
-                        category = alignedBill.category,
-                        subcategory = alignedBill.subcategory.ifBlank { alignedBill.title },
-                        accountName = alignedBill.accountName,
-                        toAccountName = alignedBill.toAccountName,
-                        type = alignedBill.type,
+                        category = paidBill.category,
+                        subcategory = paidBill.subcategory.ifBlank { paidBill.title },
+                        accountName = paidBill.accountName,
+                        toAccountName = paidBill.toAccountName,
+                        type = paidBill.type,
                         date = customDateMillis,
                         month = txMonth,
                         year = txYear,
-                        linkedFixedBillId = alignedBill.id,
+                        linkedFixedBillId = paidBill.id,
                         transferSubtype = subtype
                     )
                 )
@@ -2187,10 +2189,7 @@ class BudgetViewModel(
     fun deleteAccount(account: AccountEntity, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val txCount = dao.getTransactionCountForAccount(account.accountName)
-            val billCount = dao.getAllFixedBills().count {
-                it.accountName.equals(account.accountName, ignoreCase = true) ||
-                it.toAccountName.equals(account.accountName, ignoreCase = true)
-            }
+            val billCount = dao.getLinkedBillCountForAccount(account.accountName)
 
             if (txCount > 0 || billCount > 0) {
                 val reasons = mutableListOf<String>()
@@ -2217,7 +2216,8 @@ class BudgetViewModel(
             val allAccounts = dao.getAllAccountsDirect()
             val allFixedBills = dao.getAllFixedBills()
             val allBudgetPlans = dao.getAllBudgetPlans()
-            val currentProfile = userProfile.value
+            val allNotes = dao.getAllNotesDirect()
+            val currentProfile = dao.getUserProfileDirect() ?: userProfile.value
 
             val profileObj = JSONObject().apply {
                 put("displayName", currentProfile.displayName)
@@ -2336,6 +2336,21 @@ class BudgetViewModel(
             }
             root.put("budgetPlans", plansArray)
 
+            val notesArray = JSONArray()
+            allNotes.forEach { n ->
+                notesArray.put(JSONObject().apply {
+                    put("id", n.id)
+                    put("title", n.title)
+                    put("content", n.content)
+                    put("tag", n.tag)
+                    put("isPinned", n.isPinned)
+                    put("isChecklist", n.isChecklist)
+                    put("checklistJson", n.checklistJson)
+                    put("updatedAt", n.updatedAt)
+                })
+            }
+            root.put("notes", notesArray)
+
             context.contentResolver.openOutputStream(uri)?.use { os ->
                 os.write(root.toString(2).toByteArray(Charsets.UTF_8))
             }
@@ -2363,6 +2378,7 @@ class BudgetViewModel(
                 dao.clearAllTransactions()
                 dao.clearAllFixedBills()
                 dao.clearAllBudgetPlans()
+                dao.clearAllNotes()
             }
             if (root.has("categories") && wipeExisting) {
                 dao.clearAllCategories()
@@ -2488,6 +2504,26 @@ class BudgetViewModel(
                         )
                     )
                 }
+            }
+            if (root.has("notes")) {
+                val notesArray = root.getJSONArray("notes")
+                val notesList = mutableListOf<NoteEntity>()
+                for (i in 0 until notesArray.length()) {
+                    val n = notesArray.getJSONObject(i)
+                    notesList.add(
+                        NoteEntity(
+                            id = n.optLong("id", 0L),
+                            title = n.getString("title"),
+                            content = n.optString("content", ""),
+                            tag = n.optString("tag", "General"),
+                            isPinned = n.optBoolean("isPinned", false),
+                            isChecklist = n.optBoolean("isChecklist", false),
+                            checklistJson = n.optString("checklistJson", "[]"),
+                            updatedAt = n.optLong("updatedAt", System.currentTimeMillis())
+                        )
+                    )
+                }
+                dao.insertNotes(notesList)
             }
 
             var updatedProfile = userProfile.value.copy(id = 1, isOnboardingCompleted = true)
@@ -2616,7 +2652,7 @@ class BudgetViewModel(
         val dataMap = FloatArray(daysInMonth) { 0f }
         val calTx = Calendar.getInstance()
 
-        transactions.filter { it.type == TransactionType.EXPENSE }.forEach { tx ->
+        transactions.filter { it.type == TransactionType.EXPENSE && !isCorporateOutlayTx(it) }.forEach { tx ->
             calTx.timeInMillis = tx.date
             val day = calTx.get(Calendar.DAY_OF_MONTH)
             if (day in 1..daysInMonth) {
