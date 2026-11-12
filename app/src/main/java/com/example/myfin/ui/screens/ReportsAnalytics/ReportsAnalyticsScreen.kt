@@ -384,7 +384,6 @@ fun ReportsAnalyticsScreen(
             VelocityRange.THREE_M -> {
                 val points = mutableListOf<TrajectoryPointData>()
                 var runActual = 0.0
-                val totalTarget = basePlan * 3.0
 
                 for (offset in 2 downTo 0) {
                     val targetCal = Calendar.getInstance().apply { add(Calendar.MONTH, -offset) }
@@ -515,7 +514,7 @@ fun ReportsAnalyticsScreen(
                             Icon(
                                 imageVector = if (isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = "Toggle Balance Privacy",
-                                tint = if (isDiscreetMode) AccentPurple else TextMuted,
+                                tint = if (isDiscreetMode) Primary600 else TextMuted,
                                 modifier = Modifier.size(17.dp)
                             )
                         }
@@ -548,7 +547,7 @@ fun ReportsAnalyticsScreen(
                                 Icon(
                                     imageVector = Icons.Default.ArrowDropDown,
                                     contentDescription = null,
-                                    tint = AccentPurple,
+                                    tint = Primary600,
                                     modifier = Modifier.size(17.dp)
                                 )
                             }
