@@ -94,6 +94,8 @@ class SecurityManager(private val context: Context) {
             .putString(KEY_PIN_HASH, hashBase64)
             .putString(KEY_PIN_SALT, saltBase64)
             .remove(KEY_PIN_LEGACY)
+            .putBoolean(KEY_IS_SESSION_LOCKED, false)
+            .putLong(KEY_LAST_BACKGROUND_TIME, 0L)
             .commit()
     }
 
@@ -272,25 +274,43 @@ class SecurityManager(private val context: Context) {
     // ========================================================================
 
     fun recordAppBackgrounded() {
-        sharedPreferences.edit()
-            .putLong(KEY_LAST_BACKGROUND_TIME, System.currentTimeMillis())
-            .apply()
+        if (!isPinSet()) return
+        // Do not overwrite the background timestamp if the session is already locked
+        if (sharedPreferences.getBoolean(KEY_IS_SESSION_LOCKED, false)) return
+        val existingTimestamp = sharedPreferences.getLong(KEY_LAST_BACKGROUND_TIME, 0L)
+        if (existingTimestamp == 0L) {
+            sharedPreferences.edit()
+                .putLong(KEY_LAST_BACKGROUND_TIME, System.currentTimeMillis())
+                .apply()
+        }
     }
 
     fun recordAppForegrounded() {
-        clearSessionLock()
+        if (!shouldLockOnResume()) {
+            clearSessionLock()
+        }
     }
 
     fun shouldLockOnResume(timeoutMillis: Long = DEFAULT_LOCK_TIMEOUT_MILLIS): Boolean {
         if (!isPinSet()) return false
+        if (sharedPreferences.getBoolean(KEY_IS_SESSION_LOCKED, false)) return true
+
         val lastBackground = sharedPreferences.getLong(KEY_LAST_BACKGROUND_TIME, 0L)
         if (lastBackground == 0L) return false
+
         val elapsed = System.currentTimeMillis() - lastBackground
-        return elapsed >= timeoutMillis
+        if (elapsed >= timeoutMillis) {
+            sharedPreferences.edit()
+                .putBoolean(KEY_IS_SESSION_LOCKED, true)
+                .apply()
+            return true
+        }
+        return false
     }
 
     fun clearSessionLock() {
         sharedPreferences.edit()
+            .putBoolean(KEY_IS_SESSION_LOCKED, false)
             .putLong(KEY_LAST_BACKGROUND_TIME, 0L)
             .apply()
     }
@@ -313,6 +333,7 @@ class SecurityManager(private val context: Context) {
         private const val KEY_RECOVERY_DOB = "recovery_dob"
         private const val KEY_BIOMETRIC_ENABLED = "biometric_auth_enabled"
         private const val KEY_LAST_BACKGROUND_TIME = "last_background_timestamp"
+        private const val KEY_IS_SESSION_LOCKED = "is_session_locked"
 
         private const val HASH_ITERATIONS = 10000
         private const val HASH_KEY_LENGTH = 256
