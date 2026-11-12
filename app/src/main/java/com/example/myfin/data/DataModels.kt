@@ -28,6 +28,32 @@ data class AccountBalanceResult(
      */
     val spendableBalance: Double
         get() = (currentBalance - minBalance).coerceAtLeast(0.0)
+
+    /**
+     * Balance remaining after deducting queued unpaid AutoPay bills for this account.
+     */
+    fun effectiveBalance(pendingBills: Double = 0.0): Double =
+        currentBalance - pendingBills.coerceAtLeast(0.0)
+
+    /**
+     * True if the balance after deducting queued unpaid bills drops below the MAB floor.
+     */
+    fun isEffectiveMabBreached(pendingBills: Double = 0.0): Boolean =
+        minBalance > 0.0 && effectiveBalance(pendingBills) < minBalance
+
+    /**
+     * Shortfall amount needed to cover both the MAB floor and queued unpaid bills.
+     */
+    fun effectiveMabDeficit(pendingBills: Double = 0.0): Double =
+        if (isEffectiveMabBreached(pendingBills)) {
+            (minBalance - effectiveBalance(pendingBills)).coerceAtLeast(0.0)
+        } else 0.0
+
+    /**
+     * Truly disposable surplus above both the MAB floor and queued unpaid bills.
+     */
+    fun effectiveSpendableBalance(pendingBills: Double = 0.0): Double =
+        (effectiveBalance(pendingBills) - minBalance).coerceAtLeast(0.0)
 }
 
 data class MonthlySummary(
