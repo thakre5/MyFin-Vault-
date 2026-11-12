@@ -10,6 +10,7 @@ import androidx.room.PrimaryKey
         Index(value = ["month", "year"]),
         Index(value = ["date"]),
         Index(value = ["accountName"]),
+        Index(value = ["accountName", "type", "category"]),
         Index(value = ["toAccountName"]),
         Index(value = ["category"]),
         Index(value = ["type"]),
