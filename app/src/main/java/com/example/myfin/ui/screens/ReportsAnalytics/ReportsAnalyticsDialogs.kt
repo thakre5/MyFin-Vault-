@@ -118,15 +118,15 @@ fun ChartMetricInfoBottomSheet(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    color = AccentPurple.copy(alpha = 0.08f),
-                    border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.25f))
+                    color = Primary50,
+                    border = BorderStroke(0.6.dp, Primary200)
                 ) {
                     Text(
                         text = info.formula,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.5.sp,
-                        color = AccentPurple,
+                        color = Primary700,
                         modifier = Modifier.padding(10.dp)
                     )
                 }
@@ -139,7 +139,7 @@ fun ChartMetricInfoBottomSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     info.visualElements.forEach { (tag, desc) ->
                         Row(verticalAlignment = Alignment.Top) {
-                            Box(modifier = Modifier.padding(top = 4.dp).size(5.dp).clip(CircleShape).background(AccentPurple))
+                            Box(modifier = Modifier.padding(top = 4.dp).size(5.dp).clip(CircleShape).background(Primary600))
                             Spacer(modifier = Modifier.width(6.dp))
                             Column {
                                 Text(tag, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextDark)
@@ -159,7 +159,7 @@ fun ChartMetricInfoBottomSheet(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Warning500, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(info.advice, fontSize = 11.sp, color = TextDark, lineHeight = 15.sp)
                     }
@@ -208,13 +208,13 @@ fun StrategyArchitectureBottomSheet(
                 Text("Vault Strategy Architecture", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = if (is3Vault) AccentPurple.copy(alpha = 0.12f) else TextDark.copy(alpha = 0.08f)
+                    color = if (is3Vault) Primary100 else Neutral100
                 ) {
                     Text(
                         text = if (is3Vault) "3-Vault Active" else "Simple Mode Active",
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (is3Vault) AccentPurple else TextDark,
+                        color = if (is3Vault) Primary700 else TextDark,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
@@ -238,25 +238,29 @@ fun StrategyArchitectureBottomSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     StrategyTierInfoRow(
                         icon = Icons.Default.AccountBalance,
-                        color = Color(0xFFE57A28), // Aligned with Operating tier
+                        color = VaultTier.OPERATING.color,
+                        bgTint = VaultTier.OPERATING.bgTint,
                         title = "Operating Vault Tier",
                         desc = "Covers everyday groceries and variable daily lifestyle spend."
                     )
                     StrategyTierInfoRow(
                         icon = Icons.Default.CreditCard,
-                        color = AccentPurple, // Aligned with Commitments tier
+                        color = VaultTier.COMMITMENTS.color,
+                        bgTint = VaultTier.COMMITMENTS.bgTint,
                         title = "Commitments Vault Tier",
                         desc = "Dedicated lockbox protecting AutoPay bills and EMI obligations."
                     )
                     StrategyTierInfoRow(
                         icon = Icons.Default.Security,
-                        color = SoftTeal, // Aligned with Fortress tier
+                        color = VaultTier.FORTRESS.color,
+                        bgTint = VaultTier.FORTRESS.bgTint,
                         title = "Fortress Vault Tier",
                         desc = "Liquid emergency reserve safeguarding against unforeseen life events."
                     )
                     StrategyTierInfoRow(
                         icon = Icons.Default.Payments,
-                        color = SoftGreen, // Aligned with Cash tier
+                        color = VaultTier.CASH.color,
+                        bgTint = VaultTier.CASH.bgTint,
                         title = "Physical Cash Tier",
                         desc = "Physical wallet buffer for cash transactions and petty expenses."
                     )
@@ -291,12 +295,12 @@ fun StrategyArchitectureBottomSheet(
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                colors = ButtonDefaults.buttonColors(containerColor = Primary600)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Customize Strategy in Settings", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Customize Strategy in Settings", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = CardWhite)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = CardWhite, modifier = Modifier.size(16.dp))
                 }
             }
         }
@@ -307,6 +311,7 @@ fun StrategyArchitectureBottomSheet(
 private fun StrategyTierInfoRow(
     icon: ImageVector,
     color: Color,
+    bgTint: Color,
     title: String,
     desc: String
 ) {
@@ -321,7 +326,7 @@ private fun StrategyTierInfoRow(
                 modifier = Modifier
                     .size(34.dp)
                     .clip(CircleShape)
-                    .background(color.copy(alpha = 0.14f)),
+                    .background(bgTint),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(17.dp))
