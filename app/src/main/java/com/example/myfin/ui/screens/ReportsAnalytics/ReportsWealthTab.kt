@@ -68,7 +68,7 @@ fun ReportsWealthTab(
             formula = "Realizable Net Worth = Liquid Reserves + Active Investments + Receivables",
             breakdown = "Liquid Vaults: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)}\nInvested Portfolio: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)}\nRealizable Net Worth: $userProfileCurrency${String.format(Locale.US, "%,.0f", realizableNetWorth)}",
             visualElements = listOf(
-                "Violet Silhouette Layer" to "Liquid defensive buffer held across bank and cash accounts.",
+                "Cobalt Silhouette Layer" to "Liquid defensive buffer held across bank and cash accounts.",
                 "Teal Silhouette Layer" to "Compounding market portfolio stock (Mutual funds, gold, SIPs)."
             ),
             advice = "Visualizes your liquid defensive buffer alongside appreciating capital. Aim to grow the teal compounding layer faster than the liquid baseline."
@@ -82,9 +82,9 @@ fun ReportsWealthTab(
             formula = "Total Capital = Bank Reserves + Cash Buffer + Invested Assets",
             breakdown = "Bank Reserves: $userProfileCurrency${String.format(Locale.US, "%,.0f", bankAmount)}\nCash Buffer: $userProfileCurrency${String.format(Locale.US, "%,.0f", cashAmount)}\nInvested Portfolio: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)}",
             visualElements = listOf(
-                "Purple Bubble" to "Bank balances held in operating and commitments accounts.",
+                "Cobalt Bubble" to "Bank balances held in operating and commitments accounts.",
                 "Teal Bubble" to "Long-term investment assets, mutual funds, and wealth accounts.",
-                "Green Bubble" to "Physical cash and petty expense buffers."
+                "Emerald Bubble" to "Physical cash and petty expense buffers."
             ),
             advice = "Maintain small, focused cash reserves while routing excess bank liquidity into compounding investments."
         )
@@ -157,8 +157,8 @@ fun ReportsWealthTab(
                     .clip(RoundedCornerShape(10.dp))
                     .clickable { onOpenStrategyInfo() },
                 shape = RoundedCornerShape(10.dp),
-                color = if (is3Vault) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                border = BorderStroke(0.7.dp, if (is3Vault) AccentPurple else BorderLight)
+                color = if (is3Vault) Primary50 else CanvasLight,
+                border = BorderStroke(0.7.dp, if (is3Vault) Primary600 else BorderLight)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -167,7 +167,7 @@ fun ReportsWealthTab(
                     Icon(
                         imageVector = if (is3Vault) Icons.Default.Layers else Icons.Default.AccountBalanceWallet,
                         contentDescription = null,
-                        tint = if (is3Vault) AccentPurple else TextDark,
+                        tint = if (is3Vault) Primary600 else TextDark,
                         modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -175,7 +175,7 @@ fun ReportsWealthTab(
                         text = if (is3Vault) "3-Vault" else "Simple",
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (is3Vault) AccentPurple else TextDark
+                        color = if (is3Vault) Primary700 else TextDark
                     )
                 }
             }
@@ -267,7 +267,7 @@ fun ReportsWealthTab(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .background(SoftTeal.copy(alpha = 0.12f))
+                    .background(SoftTealLight)
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
@@ -332,13 +332,13 @@ fun ReportsWealthTab(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (acc.accountType.equals("Cash", true)) SoftTeal.copy(alpha = 0.12f) else AccentPurple.copy(alpha = 0.12f)),
+                            .background(if (acc.accountType.equals("Cash", true)) SoftTealLight else Primary50),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = if (acc.accountType.equals("Cash", true)) Icons.Default.Payments else Icons.Default.AccountBalance,
                             contentDescription = null,
-                            tint = if (acc.accountType.equals("Cash", true)) SoftTeal else AccentPurple,
+                            tint = if (acc.accountType.equals("Cash", true)) SoftTeal else Primary600,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -349,7 +349,7 @@ fun ReportsWealthTab(
                             Text(if (is3Vault) "${acc.accountType} Tier" else "${acc.accountType} Vault", fontSize = 11.sp, color = TextMuted)
                             if (acc.minBalance > 0.0) {
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("• MAB: $userProfileCurrency${String.format(Locale.US, "%,.0f", acc.minBalance)}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                                Text("• MAB: $userProfileCurrency${String.format(Locale.US, "%,.0f", acc.minBalance)}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Primary600)
                             }
                         }
                     }
@@ -412,7 +412,7 @@ private fun LayeredMountainAreaChartCanvas(
             }
             drawPath(
                 p1,
-                brush = Brush.verticalGradient(listOf(AccentPurple.copy(alpha = 0.45f), AccentPurple.copy(alpha = 0.05f)))
+                brush = Brush.verticalGradient(listOf(Primary600.copy(alpha = 0.45f), Primary50))
             )
 
             val p2 = Path().apply {
@@ -424,7 +424,7 @@ private fun LayeredMountainAreaChartCanvas(
             }
             drawPath(
                 p2,
-                brush = Brush.verticalGradient(listOf(SoftTeal.copy(alpha = 0.55f), SoftTeal.copy(alpha = 0.05f)))
+                brush = Brush.verticalGradient(listOf(SoftTeal.copy(alpha = 0.55f), SoftTealLight.copy(alpha = 0.15f)))
             )
         }
 
@@ -435,7 +435,7 @@ private fun LayeredMountainAreaChartCanvas(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(AccentPurple))
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Primary600))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Liquid Cash", fontSize = 10.sp, color = TextDark, fontWeight = FontWeight.Bold)
             }
@@ -469,13 +469,13 @@ private fun ThreeBubbleAllocationCanvas(
             modifier = Modifier
                 .size(86.dp)
                 .clip(CircleShape)
-                .background(AccentPurple.copy(alpha = 0.88f)),
+                .background(Primary600),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Banks", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
+                Text("Banks", fontSize = 10.sp, color = CardWhite.copy(alpha = 0.85f))
                 val label = if (isDiscreet) "••••" else if (bankAmount >= 1000) "$currency${(bankAmount / 1000).toInt()}k" else "$currency${bankAmount.toInt()}"
-                Text(label, fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = Color.White)
+                Text(label, fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = CardWhite)
             }
         }
 
@@ -483,13 +483,13 @@ private fun ThreeBubbleAllocationCanvas(
             modifier = Modifier
                 .size(74.dp)
                 .clip(CircleShape)
-                .background(SoftTeal.copy(alpha = 0.88f)),
+                .background(SoftTeal),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Portfolio", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
+                Text("Portfolio", fontSize = 10.sp, color = CardWhite.copy(alpha = 0.85f))
                 val label = if (isDiscreet) "••••" else if (assetAmount >= 1000) "$currency${(assetAmount / 1000).toInt()}k" else "$currency${assetAmount.toInt()}"
-                Text(label, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                Text(label, fontSize = 13.sp, fontWeight = FontWeight.Black, color = CardWhite)
             }
         }
 
@@ -497,13 +497,13 @@ private fun ThreeBubbleAllocationCanvas(
             modifier = Modifier
                 .size(60.dp)
                 .clip(CircleShape)
-                .background(SoftGreen.copy(alpha = 0.88f)),
+                .background(Success500),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Cash", fontSize = 9.sp, color = Color.White.copy(alpha = 0.8f))
+                Text("Cash", fontSize = 9.sp, color = CardWhite.copy(alpha = 0.85f))
                 val label = if (isDiscreet) "••••" else if (cashAmount >= 1000) "$currency${(cashAmount / 1000).toInt()}k" else "$currency${cashAmount.toInt()}"
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White)
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Black, color = CardWhite)
             }
         }
     }
