@@ -60,8 +60,9 @@ class MainActivity : FragmentActivity() {
                 Lifecycle.Event.ON_START -> {
                     if (securityManager.shouldLockOnResume()) {
                         viewModel.lockApp()
+                    } else {
+                        securityManager.recordAppForegrounded()
                     }
-                    securityManager.clearSessionLock()
                 }
                 else -> {}
             }
@@ -72,7 +73,8 @@ class MainActivity : FragmentActivity() {
                 val userProfile by viewModel.userProfile.collectAsState()
                 val isUnlocked by viewModel.isAppUnlocked.collectAsState()
 
-                val isFirstLaunch = !userProfile.isOnboardingCompleted
+                // Fast-path pin check prevents flash of onboarding for returning users
+                val isFirstLaunch = !userProfile.isOnboardingCompleted && !securityManager.isPinSet()
 
                 // Enforce FLAG_SECURE whenever app is locked or anti-spy is active
                 LaunchedEffect(userProfile.isScreenCaptureAllowed, isFirstLaunch, isUnlocked) {
@@ -162,6 +164,7 @@ class MainActivity : FragmentActivity() {
                             if (isDrawerOpen) {
                                 isDrawerOpen = false
                             } else if (currentTarget == NavigationTarget.USER_GUIDE) {
+                                settingsInitialSheet = SettingsActiveSheet.NONE
                                 currentTarget = NavigationTarget.SETTINGS
                             } else if (currentTarget != NavigationTarget.MONTHLY_VIEW) {
                                 settingsInitialSheet = SettingsActiveSheet.NONE
@@ -204,45 +207,101 @@ class MainActivity : FragmentActivity() {
                                         MonthlyScreen(
                                             viewModel = viewModel,
                                             onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
-                                            onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
-                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
-                                            onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
+                                            onNavigateToPlanner = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.BUDGET_PLANNER
+                                            },
+                                            onNavigateToTaxonomy = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.DATA_SET
+                                            },
+                                            onNavigateToVaults = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.VAULT_ACCOUNTS
+                                            },
+                                            onNavigateToAnalytics = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.REPORTS_ANALYTICS
+                                            }
                                         )
                                     }
                                     NavigationTarget.BUDGET_PLANNER -> {
                                         BudgetPlannerScreen(
                                             viewModel = viewModel,
                                             onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
-                                            onNavigateToMonthly = { currentTarget = NavigationTarget.MONTHLY_VIEW },
-                                            onNavigateToYearly = { currentTarget = NavigationTarget.YEARLY_VIEW },
-                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
-                                            onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
+                                            onNavigateToTaxonomy = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.DATA_SET
+                                            },
+                                            onNavigateToMonthly = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.MONTHLY_VIEW
+                                            },
+                                            onNavigateToYearly = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.YEARLY_VIEW
+                                            },
+                                            onNavigateToVaults = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.VAULT_ACCOUNTS
+                                            },
+                                            onNavigateToAnalytics = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.REPORTS_ANALYTICS
+                                            }
                                         )
                                     }
                                     NavigationTarget.DATA_SET -> {
                                         MasterDataSetScreen(
                                             viewModel = viewModel,
                                             onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
-                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
-                                            onNavigateToMonthly = { currentTarget = NavigationTarget.MONTHLY_VIEW },
-                                            onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
+                                            onNavigateToPlanner = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.BUDGET_PLANNER
+                                            },
+                                            onNavigateToVaults = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.VAULT_ACCOUNTS
+                                            },
+                                            onNavigateToMonthly = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.MONTHLY_VIEW
+                                            },
+                                            onNavigateToAnalytics = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.REPORTS_ANALYTICS
+                                            }
                                         )
                                     }
                                     NavigationTarget.YEARLY_VIEW -> {
                                         YearlyScreen(
                                             viewModel = viewModel,
                                             onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateToMonth = { _, _ ->
+                                            onNavigateToMonth = { year, month ->
+                                                viewModel.setSelectedMonth(month, year)
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
                                                 currentTarget = NavigationTarget.MONTHLY_VIEW
                                             },
-                                            onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
-                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
-                                            onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
-                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
-                                            onNavigateToAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS }
+                                            onNavigateToDashboard = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.MONTHLY_VIEW
+                                            },
+                                            onNavigateToPlanner = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.BUDGET_PLANNER
+                                            },
+                                            onNavigateToTaxonomy = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.DATA_SET
+                                            },
+                                            onNavigateToVaults = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.VAULT_ACCOUNTS
+                                            },
+                                            onNavigateToAnalytics = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.REPORTS_ANALYTICS
+                                            }
                                         )
                                     }
                                     NavigationTarget.VAULT_ACCOUNTS -> {
@@ -250,21 +309,51 @@ class MainActivity : FragmentActivity() {
                                             SimpleAccountsScreen(
                                                 viewModel = viewModel,
                                                 onOpenDrawer = { isDrawerOpen = true },
-                                                onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
-                                                onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
-                                                onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
-                                                onNavigateToVaultAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS },
-                                                onNavigateToVaultSettings = { currentTarget = NavigationTarget.SETTINGS }
+                                                onNavigateToDashboard = {
+                                                    settingsInitialSheet = SettingsActiveSheet.NONE
+                                                    currentTarget = NavigationTarget.MONTHLY_VIEW
+                                                },
+                                                onNavigateToPlanner = {
+                                                    settingsInitialSheet = SettingsActiveSheet.NONE
+                                                    currentTarget = NavigationTarget.BUDGET_PLANNER
+                                                },
+                                                onNavigateToTaxonomy = {
+                                                    settingsInitialSheet = SettingsActiveSheet.NONE
+                                                    currentTarget = NavigationTarget.DATA_SET
+                                                },
+                                                onNavigateToVaultAnalytics = {
+                                                    settingsInitialSheet = SettingsActiveSheet.NONE
+                                                    currentTarget = NavigationTarget.REPORTS_ANALYTICS
+                                                },
+                                                onNavigateToVaultSettings = {
+                                                    settingsInitialSheet = SettingsActiveSheet.NONE
+                                                    currentTarget = NavigationTarget.SETTINGS
+                                                }
                                             )
                                         } else {
                                             VaultStrategyScreen(
                                                 viewModel = viewModel,
                                                 onOpenDrawer = { isDrawerOpen = true },
-                                                onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
-                                                onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
-                                                onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
-                                                onNavigateToVaultAnalytics = { currentTarget = NavigationTarget.REPORTS_ANALYTICS },
-                                                onNavigateToVaultSettings = { currentTarget = NavigationTarget.SETTINGS }
+                                                onNavigateToDashboard = {
+                                                    settingsInitialSheet = SettingsActiveSheet.NONE
+                                                    currentTarget = NavigationTarget.MONTHLY_VIEW
+                                                },
+                                                onNavigateToPlanner = {
+                                                    settingsInitialSheet = SettingsActiveSheet.NONE
+                                                    currentTarget = NavigationTarget.BUDGET_PLANNER
+                                                },
+                                                onNavigateToTaxonomy = {
+                                                    settingsInitialSheet = SettingsActiveSheet.NONE
+                                                    currentTarget = NavigationTarget.DATA_SET
+                                                },
+                                                onNavigateToVaultAnalytics = {
+                                                    settingsInitialSheet = SettingsActiveSheet.NONE
+                                                    currentTarget = NavigationTarget.REPORTS_ANALYTICS
+                                                },
+                                                onNavigateToVaultSettings = {
+                                                    settingsInitialSheet = SettingsActiveSheet.NONE
+                                                    currentTarget = NavigationTarget.SETTINGS
+                                                }
                                             )
                                         }
                                     }
@@ -272,18 +361,36 @@ class MainActivity : FragmentActivity() {
                                         ReportsAnalyticsScreen(
                                             viewModel = viewModel,
                                             onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateToDashboard = { currentTarget = NavigationTarget.MONTHLY_VIEW },
-                                            onNavigateToTaxonomy = { currentTarget = NavigationTarget.DATA_SET },
-                                            onNavigateToPlanner = { currentTarget = NavigationTarget.BUDGET_PLANNER },
-                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS },
-                                            onNavigateToSettings = { currentTarget = NavigationTarget.SETTINGS }
+                                            onNavigateToDashboard = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.MONTHLY_VIEW
+                                            },
+                                            onNavigateToTaxonomy = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.DATA_SET
+                                            },
+                                            onNavigateToPlanner = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.BUDGET_PLANNER
+                                            },
+                                            onNavigateToVaults = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.VAULT_ACCOUNTS
+                                            },
+                                            onNavigateToSettings = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.SETTINGS
+                                            }
                                         )
                                     }
                                     NavigationTarget.CALCULATOR -> {
                                         CalculatorScreen(
                                             currencySymbol = userProfile.currencySymbol,
                                             onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateBack = { currentTarget = NavigationTarget.MONTHLY_VIEW }
+                                            onNavigateBack = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.MONTHLY_VIEW
+                                            }
                                         )
                                     }
                                     NavigationTarget.NOTES -> {
@@ -291,7 +398,10 @@ class MainActivity : FragmentActivity() {
                                             budgetDao = database.budgetDao(),
                                             currencySymbol = userProfile.currencySymbol,
                                             onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateBack = { currentTarget = NavigationTarget.MONTHLY_VIEW }
+                                            onNavigateBack = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.MONTHLY_VIEW
+                                            }
                                         )
                                     }
                                     NavigationTarget.SETTINGS -> {
@@ -299,13 +409,22 @@ class MainActivity : FragmentActivity() {
                                             viewModel = viewModel,
                                             initialActiveSheet = settingsInitialSheet,
                                             onOpenDrawer = { isDrawerOpen = true },
-                                            onNavigateToGuide = { currentTarget = NavigationTarget.USER_GUIDE },
-                                            onNavigateToVaults = { currentTarget = NavigationTarget.VAULT_ACCOUNTS }
+                                            onNavigateToGuide = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.USER_GUIDE
+                                            },
+                                            onNavigateToVaults = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.VAULT_ACCOUNTS
+                                            }
                                         )
                                     }
                                     NavigationTarget.USER_GUIDE -> {
                                         UserGuideScreen(
-                                            onBack = { currentTarget = NavigationTarget.SETTINGS }
+                                            onBack = {
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = NavigationTarget.SETTINGS
+                                            }
                                         )
                                     }
                                 }
