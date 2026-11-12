@@ -6,7 +6,7 @@ import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.max
+import kotlin.math.abs
 
 object PdfExportManager {
 
@@ -27,16 +27,20 @@ object PdfExportManager {
             val page = pdfDocument.startPage(pageInfo)
             val canvas: Canvas = page.canvas
 
-            // Colors
-            val colorPrimary = Color.parseColor("#6C5CE7")      // AccentPurple
-            val colorPrimaryDark = Color.parseColor("#4D38C9")
-            val colorTextDark = Color.parseColor("#0F172A")     // Slate 900
-            val colorTextMuted = Color.parseColor("#64748B")    // Slate 500
-            val colorBorder = Color.parseColor("#E2E8F0")       // Slate 200
-            val colorCardBg = Color.parseColor("#F8FAFC")       // Slate 50
-            val colorGreen = Color.parseColor("#10B981")        // Emerald 500
-            val colorRed = Color.parseColor("#EF4444")          // Rose 500
-            val colorPurpleTint = Color.parseColor("#F5F3FF")   // Purple 50
+            // Royal Cobalt Blue & Cool Slate Design Tokens
+            val colorPrimary = Color.parseColor("#2563EB")      // Primary600
+            val colorPrimaryDark = Color.parseColor("#1E40AF")  // Primary800
+            val colorPrimaryTint = Color.parseColor("#EFF6FF")  // Primary50
+            val colorPrimaryBorder = Color.parseColor("#DBEAFE")// Primary100
+            val colorTextDark = Color.parseColor("#0F172A")     // Neutral900
+            val colorTextMuted = Color.parseColor("#64748B")    // Neutral500
+            val colorBorder = Color.parseColor("#E2E8F0")       // Neutral200
+            val colorRowDivider = Color.parseColor("#F1F5F9")   // Neutral100
+            val colorCardBg = Color.parseColor("#F8FAFC")       // Neutral50
+            val colorGreen = Color.parseColor("#10B981")        // Success500
+            val colorGreenDark = Color.parseColor("#047857")    // Success700
+            val colorRed = Color.parseColor("#EF4444")          // Error500
+            val colorRedDark = Color.parseColor("#B91C1C")      // Error700
 
             // Common Paints
             val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -81,9 +85,11 @@ object PdfExportManager {
             textPaint.textSize = 18f
             canvas.drawText("MyFin", marginStart + 46f, y + 16f, textPaint)
 
-            fillPaint.color = colorPurpleTint
+            fillPaint.color = colorPrimaryTint
             val vaultBadge = RectF(marginStart + 104f, y + 3f, marginStart + 158f, y + 19f)
             canvas.drawRoundRect(vaultBadge, 4f, 4f, fillPaint)
+            strokePaint.color = colorPrimaryBorder
+            canvas.drawRoundRect(vaultBadge, 4f, 4f, strokePaint)
 
             textPaint.textSize = 8.5f
             textPaint.color = colorPrimary
@@ -131,7 +137,7 @@ object PdfExportManager {
             val cards = listOf(
                 Triple("TOTAL PERSONAL INFLOW", totalIncome, colorGreen),
                 Triple("LIFESTYLE EXPENSES", totalExpenses, colorRed),
-                Triple("NET CAPITAL RETAINED", netSurplus, colorPrimary),
+                Triple("NET CAPITAL RETAINED", netSurplus, if (netSurplus >= 0.0) colorPrimary else colorRed),
                 Triple("SAFE-TO-SPEND RUNWAY", safeToSpend, colorPrimaryDark)
             )
 
@@ -162,8 +168,9 @@ object PdfExportManager {
                 // Card Value
                 textPaint.textSize = 15f
                 textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                textPaint.color = colorTextDark
-                val formattedVal = "$currencySymbol${String.format(Locale.US, "%,.2f", value)}"
+                textPaint.color = if (value < 0.0) colorRedDark else colorTextDark
+                val prefix = if (value < 0.0) "-" else ""
+                val formattedVal = "$prefix$currencySymbol${String.format(Locale.US, "%,.2f", abs(value))}"
                 canvas.drawText(formattedVal, cX + 14f, cY + 46f, textPaint)
             }
 
@@ -174,7 +181,12 @@ object PdfExportManager {
 
             val savingsRate = if (totalIncome > 0.0) {
                 ((netSurplus / totalIncome) * 100).toInt().coerceIn(-100, 100)
-            } else 0
+            } else if (netSurplus < 0.0) {
+                -100
+            } else {
+                0
+            }
+            val isDeficit = netSurplus < 0.0
 
             val healthCardRect = RectF(marginStart, y, marginEnd, y + 48f)
             fillPaint.color = colorCardBg
@@ -189,8 +201,17 @@ object PdfExportManager {
             canvas.drawText("NET CAPITAL RETENTION RATE", marginStart + 16f, y + 19f, textPaint)
 
             textPaint.textAlign = Paint.Align.RIGHT
-            textPaint.color = if (savingsRate >= 20) colorGreen else if (savingsRate >= 0) colorPrimary else colorRed
-            canvas.drawText("$savingsRate% of Inflow Retained", marginEnd - 16f, y + 19f, textPaint)
+            textPaint.color = when {
+                isDeficit -> colorRedDark
+                savingsRate >= 20 -> colorGreenDark
+                else -> colorPrimary
+            }
+            val retentionStatusText = when {
+                isDeficit && totalIncome > 0.0 -> "${abs(savingsRate)}% Net Deficit"
+                isDeficit -> "Net Outflow Deficit"
+                else -> "$savingsRate% of Inflow Retained"
+            }
+            canvas.drawText(retentionStatusText, marginEnd - 16f, y + 19f, textPaint)
 
             // Progress Bar Track
             val barY = y + 28f
@@ -199,11 +220,13 @@ object PdfExportManager {
             val barWidth = barXEnd - barXStart
             val barHeight = 6f
 
-            fillPaint.color = Color.parseColor("#E2E8F0")
+            fillPaint.color = colorBorder
             canvas.drawRoundRect(RectF(barXStart, barY, barXEnd, barY + barHeight), 3f, 3f, fillPaint)
 
             // Progress Bar Fill
-            val fillWidth = if (savingsRate > 0) (barWidth * (savingsRate / 100f)).coerceIn(8f, barWidth) else 0f
+            val fillWidth = if (!isDeficit && savingsRate > 0) {
+                (barWidth * (savingsRate / 100f)).coerceIn(8f, barWidth)
+            } else 0f
             if (fillWidth > 0f) {
                 fillPaint.color = if (savingsRate >= 20) colorGreen else colorPrimary
                 canvas.drawRoundRect(RectF(barXStart, barY, barXStart + fillWidth, barY + barHeight), 3f, 3f, fillPaint)
@@ -222,8 +245,10 @@ object PdfExportManager {
             y += 10f
             // Table Header Bar
             val tableHeaderRect = RectF(marginStart, y, marginEnd, y + 26f)
-            fillPaint.color = colorPurpleTint
+            fillPaint.color = colorPrimaryTint
             canvas.drawRoundRect(tableHeaderRect, 6f, 6f, fillPaint)
+            strokePaint.color = colorPrimaryBorder
+            canvas.drawRoundRect(tableHeaderRect, 6f, 6f, strokePaint)
 
             textPaint.textSize = 8.5f
             textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -237,9 +262,9 @@ object PdfExportManager {
 
             data class TableRowItem(val title: String, val subtitle: String, val flow: String, val flowColor: Int, val amount: Double)
             val tableItems = listOf(
-                TableRowItem("Personal Monthly Inflow", "Salary, professional & genuine income", "INFLOW (+)", colorGreen, totalIncome),
-                TableRowItem("Lifestyle Living Expenses", "Essential living, bills, EMI & discretionary spend", "OUTFLOW (-)", colorRed, totalExpenses),
-                TableRowItem("Net Capital Retained", "Net surplus available for investment & reserves", if (netSurplus >= 0) "SURPLUS (=)" else "DEFICIT (=)", if (netSurplus >= 0) colorPrimary else colorRed, netSurplus),
+                TableRowItem("Personal Monthly Inflow", "Salary, professional & genuine income", "INFLOW (+)", colorGreenDark, totalIncome),
+                TableRowItem("Lifestyle Living Expenses", "Essential living, bills, EMI & discretionary spend", "OUTFLOW (-)", colorRedDark, totalExpenses),
+                TableRowItem("Net Capital Retained", "Net surplus available for investment & reserves", if (netSurplus >= 0.0) "SURPLUS (=)" else "DEFICIT (=)", if (netSurplus >= 0.0) colorPrimary else colorRedDark, netSurplus),
                 TableRowItem("Safe-to-Spend Runway", "Ring-fenced liquid buffer above all bills & commitments", "RUNWAY", colorPrimaryDark, safeToSpend)
             )
 
@@ -248,12 +273,12 @@ object PdfExportManager {
 
                 // Alternating row background
                 if (idx % 2 == 1) {
-                    fillPaint.color = Color.parseColor("#F8FAFC")
+                    fillPaint.color = colorCardBg
                     canvas.drawRect(rowRect, fillPaint)
                 }
 
                 // Divider line below row
-                strokePaint.color = Color.parseColor("#F1F5F9")
+                strokePaint.color = colorRowDivider
                 canvas.drawLine(marginStart, y + 36f, marginEnd, y + 36f, strokePaint)
 
                 // Title & Subtitle
@@ -277,8 +302,9 @@ object PdfExportManager {
                 // Amount (Right aligned)
                 textPaint.textAlign = Paint.Align.RIGHT
                 textPaint.textSize = 10f
-                textPaint.color = colorTextDark
-                val amtStr = "$currencySymbol${String.format(Locale.US, "%,.2f", item.amount)}"
+                textPaint.color = if (item.amount < 0.0) colorRedDark else colorTextDark
+                val prefix = if (item.amount < 0.0) "-" else ""
+                val amtStr = "$prefix$currencySymbol${String.format(Locale.US, "%,.2f", abs(item.amount))}"
                 canvas.drawText(amtStr, marginEnd - 12f, y + 20f, textPaint)
 
                 y += 36f
@@ -289,9 +315,9 @@ object PdfExportManager {
             // ================================================================
             y += 24f
             val sealRect = RectF(marginStart, y, marginEnd, y + 68f)
-            fillPaint.color = Color.parseColor("#F8FAFC")
+            fillPaint.color = colorPrimaryTint
             canvas.drawRoundRect(sealRect, 8f, 8f, fillPaint)
-            strokePaint.color = colorBorder
+            strokePaint.color = colorPrimaryBorder
             canvas.drawRoundRect(sealRect, 8f, 8f, strokePaint)
 
             textPaint.textAlign = Paint.Align.LEFT
@@ -302,7 +328,7 @@ object PdfExportManager {
 
             textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             textPaint.textSize = 7.8f
-            textPaint.color = colorTextMuted
+            textPaint.color = colorTextDark
             canvas.drawText("• Compiled offline from your device hardware SQLite encrypted database (AES-256 GCM).", marginStart + 14f, y + 32f, textPaint)
             canvas.drawText("• Zero telemetry, server transmission, or third-party sync. Figures reflect local ledger state at export.", marginStart + 14f, y + 44f, textPaint)
             canvas.drawText("• Verified by MyFin 3-Tier Wealth segregation engine (Operating • Commitments • Fortress).", marginStart + 14f, y + 56f, textPaint)
