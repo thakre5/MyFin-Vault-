@@ -92,8 +92,8 @@ fun ReportsSummaryTab(
             formula = "Retention % = ((Personal Inflow - Lifestyle Burn - Assets) / Personal Inflow) * 100",
             breakdown = "Personal Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome)} | Net Retained: $userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} (${String.format(Locale.US, "%,.1f", retentionRate)}%)\nMeasured across ${spendData.size} active segments in ${selectedTimeRange.label}.",
             visualElements = listOf(
-                "Cyan/Blue Top Wave" to "Total daily/weekly outflow volume trajectory.",
-                "Rose/Violet Lower Wave" to "Essential fixed non-negotiable commitments baseline.",
+                "Teal/Cobalt Top Wave" to "Total daily/weekly outflow volume trajectory.",
+                "Coral/Slate Lower Wave" to "Essential fixed non-negotiable commitments baseline.",
                 "Wave Spread" to "Distance between ribbons represents variable lifestyle burn.",
                 "Retained Badge" to "Total liquid and invested capital preserved in this cycle."
             ),
@@ -108,8 +108,8 @@ fun ReportsSummaryTab(
             formula = "Commitment Load % = (Fixed Outflow / Total Budget) * 100",
             breakdown = "Fixed AutoPay: $userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)} (${commitmentLoad.toInt()}% of budget)\nVariable Spend: $userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}\nBudget Protected: ${retentionRate.coerceAtLeast(0.0).toInt()}%",
             visualElements = listOf(
-                "Outer Violet Ring" to "Variable discretionary living spend volume.",
-                "Inner Red Ring" to "Fixed non-negotiable AutoPay obligations and bills.",
+                "Outer Cobalt Ring" to "Variable discretionary living spend volume.",
+                "Inner Coral Ring" to "Fixed non-negotiable AutoPay obligations and bills.",
                 "Center Percentage" to "Share of budget retained after all expenses."
             ),
             advice = "Keeping Fixed AutoPay commitments under 50% guarantees an ample safe-to-spend buffer for unpredicted costs."
@@ -123,8 +123,8 @@ fun ReportsSummaryTab(
             formula = "Daily Burn = Total Outflow / Elapsed Days",
             breakdown = "Active cycle burn velocity: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}/day across ${selectedTimeRange.label}.",
             visualElements = listOf(
-                "Red Base Segment" to "Essential fixed bill proportion.",
-                "Violet Top Segment" to "Variable discretionary spend proportion.",
+                "Coral Base Segment" to "Essential fixed bill proportion.",
+                "Cobalt Top Segment" to "Variable discretionary spend proportion.",
                 "Bar Height" to "Total daily or weekly cash outflow."
             ),
             advice = "Track spike intervals to isolate whether fixed bills or discretionary surges caused the surge."
@@ -153,10 +153,10 @@ fun ReportsSummaryTab(
             breakdown = "Target budget ceiling: $userProfileCurrency${String.format(Locale.US, "%,.0f", finalTarget)} across ${selectedVelocityRange.label}.",
             visualElements = listOf(
                 "Teal Straight Line" to "Linear target pace limit.",
-                "Purple Curved Line" to "Your actual cumulative spending burn-down curve.",
+                "Cobalt Curved Line" to "Your actual cumulative spending burn-down curve.",
                 "Final End Point" to "Total realized burn at the latest measured interval."
             ),
-            advice = "If the purple curve stays below the teal line, you are operating strictly within your planned budget allowance."
+            advice = "If the cobalt curve stays below the teal line, you are operating strictly within your planned budget allowance."
         )
     }
 
@@ -208,7 +208,7 @@ fun ReportsSummaryTab(
                         text = if (isDiscreet) "••••" else if (netSurplus >= 0) "$userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} retained" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", abs(netSurplus))} deficit",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (netSurplus >= 0) SoftTeal else SoftRed
+                        color = if (netSurplus >= 0) SoftTeal else Error700
                     )
                 }
 
@@ -331,7 +331,7 @@ fun ReportsSummaryTab(
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(SoftRed)
+                                .background(Error500)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
@@ -362,7 +362,7 @@ fun ReportsSummaryTab(
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(AccentPurple)
+                                .background(Primary600)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
@@ -524,7 +524,7 @@ fun ReportsSummaryTab(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) AccentPurple else Color.Transparent)
+                        .background(if (isSelected) Primary600 else Color.Transparent)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onSelectVelocityRange(range)
@@ -536,7 +536,7 @@ fun ReportsSummaryTab(
                         text = range.label,
                         fontSize = 12.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) Color.White else TextMuted
+                        color = if (isSelected) CardWhite else TextMuted
                     )
                 }
             }
@@ -598,7 +598,7 @@ fun ReportsSummaryTab(
                 title = "AutoPay Load",
                 value = "${commitmentLoad.toInt()}%",
                 badgeText = "Committed",
-                accentColor = SoftRed,
+                accentColor = Error500,
                 onClick = {
                     onOpenMetricInfo(
                         ChartMetricInfo(
@@ -616,7 +616,7 @@ fun ReportsSummaryTab(
                 title = "Runway Burn",
                 value = if (isDiscreet) "••••/d" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}/d",
                 badgeText = "Pacing",
-                accentColor = AccentPurple,
+                accentColor = Primary600,
                 onClick = {
                     onOpenMetricInfo(
                         ChartMetricInfo(
@@ -775,24 +775,24 @@ private fun InteractiveDualGlowWaveCanvas(
             drawPath(
                 path = fill1,
                 brush = Brush.verticalGradient(
-                    colors = listOf(Color(0xFF38BDF8).copy(alpha = 0.55f), Color(0xFF6366F1).copy(alpha = 0.25f), Color.Transparent)
+                    colors = listOf(SoftTeal.copy(alpha = 0.50f), Primary500.copy(alpha = 0.22f), Color.Transparent)
                 )
             )
             drawPath(
                 path = stroke1,
-                brush = Brush.horizontalGradient(listOf(Color(0xFF38BDF8), Color(0xFF6366F1))),
+                brush = Brush.horizontalGradient(listOf(SoftTeal, Primary600)),
                 style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
             )
 
             drawPath(
                 path = fill2,
                 brush = Brush.verticalGradient(
-                    colors = listOf(Color(0xFFF43F5E).copy(alpha = 0.50f), Color(0xFFA855F7).copy(alpha = 0.20f), Color.Transparent)
+                    colors = listOf(Error500.copy(alpha = 0.45f), Primary400.copy(alpha = 0.18f), Color.Transparent)
                 )
             )
             drawPath(
                 path = stroke2,
-                brush = Brush.horizontalGradient(listOf(Color(0xFFF43F5E), Color(0xFFA855F7))),
+                brush = Brush.horizontalGradient(listOf(Error500, Primary400)),
                 style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
             )
 
@@ -800,12 +800,12 @@ private fun InteractiveDualGlowWaveCanvas(
                 val pt = ptsWave1.getOrNull(idx)
                 if (pt != null) {
                     drawLine(
-                        color = AccentPurple.copy(alpha = 0.6f),
+                        color = Primary600.copy(alpha = 0.6f),
                         start = Offset(pt.x, 0f),
                         end = Offset(pt.x, h),
                         strokeWidth = 1.dp.toPx()
                     )
-                    drawCircle(color = AccentPurple, radius = 3.5.dp.toPx(), center = pt)
+                    drawCircle(color = Primary600, radius = 3.5.dp.toPx(), center = pt)
                 }
             }
         }
@@ -816,7 +816,7 @@ private fun InteractiveDualGlowWaveCanvas(
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = CardWhite,
-                    border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.3f)),
+                    border = BorderStroke(0.6.dp, Primary200),
                     shadowElevation = 4.dp,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
@@ -846,7 +846,7 @@ private fun ConcentricRingsDonutCanvas(
 
         val outerRadius = (diameter / 2f) - (strokeWidth / 2f)
         drawCircle(
-            color = AccentPurple.copy(alpha = 0.12f),
+            color = Primary100,
             radius = outerRadius,
             center = center,
             style = Stroke(width = strokeWidth)
@@ -855,7 +855,7 @@ private fun ConcentricRingsDonutCanvas(
         val total = (fixedAmount + variableAmount).coerceAtLeast(1.0)
         val variableSweep = ((variableAmount / total) * 360f).toFloat().coerceIn(10f, 340f)
         drawArc(
-            color = AccentPurple,
+            color = Primary600,
             startAngle = -90f,
             sweepAngle = variableSweep,
             useCenter = false,
@@ -866,7 +866,7 @@ private fun ConcentricRingsDonutCanvas(
 
         val innerRadius = outerRadius - strokeWidth - 10.dp.toPx()
         drawCircle(
-            color = SoftRed.copy(alpha = 0.12f),
+            color = Error100,
             radius = innerRadius,
             center = center,
             style = Stroke(width = strokeWidth)
@@ -874,7 +874,7 @@ private fun ConcentricRingsDonutCanvas(
 
         val fixedSweep = ((fixedAmount / total) * 360f).toFloat().coerceIn(10f, 340f)
         drawArc(
-            color = SoftRed,
+            color = Error500,
             startAngle = 40f,
             sweepAngle = fixedSweep,
             useCenter = false,
@@ -941,7 +941,7 @@ private fun StackedOutflowBarsCanvas(
 
                     drawRoundRect(
                         color = if (data.totalAmount > 0) {
-                            if (isSelected) AccentPurple.copy(alpha = 0.8f) else AccentPurple
+                            if (isSelected) Primary800 else Primary600
                         } else BorderLight.copy(alpha = 0.4f),
                         topLeft = Offset(x, barTop),
                         size = Size(barWidth, totalH),
@@ -950,7 +950,7 @@ private fun StackedOutflowBarsCanvas(
 
                     if (redH > 0f && data.totalAmount > 0) {
                         drawRoundRect(
-                            color = SoftRed,
+                            color = Error500,
                             topLeft = Offset(x, size.height - redH),
                             size = Size(barWidth, redH),
                             cornerRadius = cornerRadius
@@ -1035,7 +1035,7 @@ private fun MicroFrequencyStripCanvas(transactions: List<TransactionEntity>) {
             val barH = size.height * hRatio
             drawRoundRect(
                 color = if (count > 0) {
-                    if (i % 3 == 0) SoftTeal else AccentPurple.copy(alpha = 0.85f)
+                    if (i % 3 == 0) SoftTeal else Primary600
                 } else BorderLight.copy(alpha = 0.45f),
                 topLeft = Offset(i * spacing, size.height - barH),
                 size = Size(barW, barH),
@@ -1152,14 +1152,14 @@ private fun DualTrajectoryLineCanvas(
 
                     drawPath(
                         path = actualPath,
-                        color = AccentPurple,
+                        color = Primary600,
                         style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
                     )
 
                     if (actualPoints.size >= 2) {
                         val lastPt = actualPoints.last()
                         drawCircle(color = CardWhite, radius = 4.5.dp.toPx(), center = lastPt)
-                        drawCircle(color = AccentPurple, radius = 3.dp.toPx(), center = lastPt)
+                        drawCircle(color = Primary600, radius = 3.dp.toPx(), center = lastPt)
                     }
                 }
 
@@ -1169,7 +1169,7 @@ private fun DualTrajectoryLineCanvas(
                         Surface(
                             shape = RoundedCornerShape(6.dp),
                             color = CardWhite,
-                            border = BorderStroke(0.6.dp, AccentPurple.copy(alpha = 0.3f)),
+                            border = BorderStroke(0.6.dp, Primary200),
                             shadowElevation = 3.dp,
                             modifier = Modifier.align(Alignment.TopCenter)
                         ) {
