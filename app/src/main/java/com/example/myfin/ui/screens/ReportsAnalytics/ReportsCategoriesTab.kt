@@ -144,8 +144,8 @@ fun ReportsCategoriesTab(
             formula = "Needs (50%) + Wants (30%) + SIP Wealth (20%)",
             breakdown = "Needs: $userProfileCurrency${String.format(Locale.US, "%,.0f", needsSum)} ($needsPct%)\nWants: $userProfileCurrency${String.format(Locale.US, "%,.0f", wantsSum)} ($wantsPct%)\nAssets / SIPs: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalAssets)} ($assetPct%)",
             visualElements = listOf(
-                "Red Top Band" to "Needs (Contractual rent, bills, groceries, non-negotiable living).",
-                "Purple Middle Band" to "Wants (Dining, leisure, discretionary shopping).",
+                "Coral Top Band" to "Needs (Contractual rent, bills, groceries, non-negotiable living).",
+                "Cobalt Middle Band" to "Wants (Dining, leisure, discretionary shopping).",
                 "Teal Lower Band" to "Wealth SIPs (Compounding investment assets and mutual funds)."
             ),
             advice = "Aim to contain essential survival costs within 50% to maximize monthly wealth compounding."
@@ -198,7 +198,7 @@ fun ReportsCategoriesTab(
                     .clickable { onOpenMetricInfo(corporateFloatInfo) },
                 shape = RoundedCornerShape(16.dp),
                 color = CardWhite,
-                border = BorderStroke(0.8.dp, Color(0xFFE57A28).copy(alpha = 0.35f))
+                border = BorderStroke(0.8.dp, Warning500.copy(alpha = 0.35f))
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp)
@@ -211,13 +211,13 @@ fun ReportsCategoriesTab(
                             modifier = Modifier
                                 .size(38.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFE57A28).copy(alpha = 0.12f)),
+                                .background(Warning100),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.WorkOutline,
                                 contentDescription = null,
-                                tint = Color(0xFFE57A28),
+                                tint = Warning700,
                                 modifier = Modifier.size(19.dp)
                             )
                         }
@@ -246,13 +246,13 @@ fun ReportsCategoriesTab(
                                 text = if (isDiscreet) "••••" else "${if (netFloat > 0) "+" else ""}$userProfileCurrency${String.format(Locale.US, "%,.0f", abs(netFloat))}",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 14.sp,
-                                color = if (netFloat <= 0) SoftGreen else Color(0xFFE57A28)
+                                color = if (netFloat <= 0) Success700 else Warning700
                             )
                             Text(
                                 text = if (netFloat > 0) "Claim Due" else if (netFloat < 0) "Advance Held" else "Settled",
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (netFloat <= 0) SoftGreen else Color(0xFFE57A28)
+                                color = if (netFloat <= 0) Success700 else Warning700
                             )
                         }
                     }
@@ -261,7 +261,7 @@ fun ReportsCategoriesTab(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFE57A28).copy(alpha = 0.08f),
+                        color = Warning100,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -272,14 +272,14 @@ fun ReportsCategoriesTab(
                                 modifier = Modifier
                                     .size(5.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFFE57A28))
+                                    .background(Warning700)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Ring-Fenced: Excluded from personal living burn calculations",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFFE57A28),
+                                color = Warning700,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -370,7 +370,7 @@ fun ReportsCategoriesTab(
                                     text = "$catRatio%",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = AccentPurple
+                                    color = Primary600
                                 )
                             }
                         }
@@ -443,15 +443,15 @@ fun ReportsCategoriesTab(
                     .fillMaxWidth()
                     .clickable { onOpenMetricInfo(surgeMetricInfo) },
                 shape = RoundedCornerShape(14.dp),
-                color = SoftAmber.copy(alpha = 0.12f),
-                border = BorderStroke(0.7.dp, SoftAmber.copy(alpha = 0.35f))
+                color = Warning100,
+                border = BorderStroke(0.7.dp, Warning500.copy(alpha = 0.35f))
             ) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.TrendingUp, contentDescription = null, tint = SoftAmber, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.TrendingUp, contentDescription = null, tint = Warning700, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text("Month-over-Month Velocity Surge", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextDark)
-                        Text("${topSurge.first} increased by +${topSurge.second}% vs last cycle", fontSize = 11.sp, color = TextMuted)
+                        Text("${topSurge.first} increased by +${topSurge.second}% vs last cycle", fontSize = 11.sp, color = Warning700)
                     }
                 }
             }
@@ -525,7 +525,7 @@ fun ReportsCategoriesTab(
                             text = if (isDiscreet) "•••• (${(ratio * 100).toInt()}%)" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)} (${(ratio * 100).toInt()}%)",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = AccentPurple
+                            color = Primary600
                         )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
@@ -541,7 +541,7 @@ fun ReportsCategoriesTab(
                                 .fillMaxWidth(ratio.coerceIn(0.04f, 1f))
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Brush.horizontalGradient(listOf(SoftTeal, AccentPurple)))
+                                .background(Brush.horizontalGradient(listOf(SoftTeal, Primary600)))
                         )
                     }
                 }
@@ -621,13 +621,13 @@ fun ReportsCategoriesTab(
                             val py = size.height * (1f - (tx.amount / maxCatTx).toFloat().coerceIn(0.1f, 0.9f))
                             if (i == 0) p.moveTo(px, py) else p.lineTo(px, py)
                         }
-                        drawPath(p, color = AccentPurple, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
+                        drawPath(p, color = Primary600, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
                     } else {
                         val p = Path().apply {
                             moveTo(0f, size.height * 0.75f)
                             lineTo(size.width, size.height * 0.4f)
                         }
-                        drawPath(p, color = AccentPurple, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
+                        drawPath(p, color = Primary600, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
                     }
                 }
 
@@ -637,7 +637,7 @@ fun ReportsCategoriesTab(
                     text = if (isDiscreet) "••••" else "-$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)}",
                     fontWeight = FontWeight.Black,
                     fontSize = 14.sp,
-                    color = SoftRed
+                    color = Error700
                 )
             }
             HorizontalDivider(color = BorderLight.copy(alpha = 0.35f), thickness = 0.7.dp)
@@ -691,12 +691,12 @@ private fun CategoryRadarWebCanvas(
         }
         polyPath.close()
 
-        drawPath(polyPath, color = AccentPurple.copy(alpha = 0.22f))
-        drawPath(polyPath, color = AccentPurple, style = Stroke(width = 2.dp.toPx()))
+        drawPath(polyPath, color = Primary600.copy(alpha = 0.22f))
+        drawPath(polyPath, color = Primary600, style = Stroke(width = 2.dp.toPx()))
 
         for (pt in vertexPoints) {
-            drawCircle(color = Color.White, radius = 4.dp.toPx(), center = pt)
-            drawCircle(color = AccentPurple, radius = 2.5.dp.toPx(), center = pt)
+            drawCircle(color = CardWhite, radius = 4.dp.toPx(), center = pt)
+            drawCircle(color = Primary600, radius = 2.5.dp.toPx(), center = pt)
         }
     }
 }
@@ -737,7 +737,7 @@ private fun SymmetricalFunnelRibbonCanvas(
                 cubicTo(w * 0.65f, band1Bottom, w * 0.35f, h * 0.35f, 0f, h * 0.35f)
                 close()
             }
-            drawPath(path1, color = SoftRed.copy(alpha = 0.85f))
+            drawPath(path1, color = Error500.copy(alpha = 0.85f))
 
             val path2 = Path().apply {
                 moveTo(0f, h * 0.35f)
@@ -746,7 +746,7 @@ private fun SymmetricalFunnelRibbonCanvas(
                 cubicTo(w * 0.65f, band2Bottom, w * 0.35f, h * 0.65f, 0f, h * 0.65f)
                 close()
             }
-            drawPath(path2, color = AccentPurple.copy(alpha = 0.85f))
+            drawPath(path2, color = Primary600.copy(alpha = 0.85f))
 
             val path3 = Path().apply {
                 moveTo(0f, h * 0.65f)
@@ -765,12 +765,12 @@ private fun SymmetricalFunnelRibbonCanvas(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SoftRed))
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Error500))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Needs $needsPct%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextDark)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(AccentPurple))
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Primary600))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Wants $wantsPct%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextDark)
             }
