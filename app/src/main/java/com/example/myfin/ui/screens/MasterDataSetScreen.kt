@@ -465,24 +465,36 @@ fun MasterDataSetScreen(
                 } else {
                     items(filteredCategories, key = { "${it.type.name}_${it.name}_${it.isLegacy}" }) { cat ->
                         val isProtected = viewModel.protectedCategories.contains(cat.name) && !cat.isLegacy
-                        val isExpanded = if (searchQuery.isNotBlank()) true else (expandedCategories[cat.name] ?: false)
+                        val mapKey = "${cat.type.name}_${cat.name}"
+                        val isExpanded = if (searchQuery.isNotBlank()) true else (expandedCategories[mapKey] ?: false)
 
-                        val subList = remember(segmentSubcategories, cat.name, searchQuery) {
-                            val allSubs = segmentSubcategories.filter { it.parentCategory.equals(cat.name, ignoreCase = true) }
+                        val allSubsForCat = remember(segmentSubcategories, cat.name) {
+                            segmentSubcategories.filter { it.parentCategory.equals(cat.name, ignoreCase = true) }
+                        }
+
+                        val subList = remember(allSubsForCat, cat.name, searchQuery) {
                             if (searchQuery.isBlank() || cat.name.contains(searchQuery, ignoreCase = true)) {
-                                allSubs
+                                allSubsForCat
                             } else {
-                                allSubs.filter { it.name.contains(searchQuery, ignoreCase = true) }
+                                allSubsForCat.filter { it.name.contains(searchQuery, ignoreCase = true) }
                             }
                         }
 
                         IntegratedCategoryTreeCard(
                             category = cat,
                             subcategories = subList,
+                            totalMappedCount = allSubsForCat.size,
+                            isSearchActive = searchQuery.isNotBlank() && subList.size != allSubsForCat.size,
                             isProtected = isProtected,
                             isExpanded = isExpanded,
-                            onToggleExpand = { expandedCategories[cat.name] = !isExpanded },
-                            onSwipeEditCategory = { categoryToEdit = cat },
+                            onToggleExpand = { expandedCategories[mapKey] = !isExpanded },
+                            onSwipeEditCategory = {
+                                if (isProtected) {
+                                    alertNoticeMessage = "'${cat.name}' is an active core system category used by automated calculation engines and cannot be renamed. You can still freely add or edit subcategories inside it."
+                                } else {
+                                    categoryToEdit = cat
+                                }
+                            },
                             onSwipeDeleteCategory = {
                                 if (isProtected) {
                                     alertNoticeMessage = "'${cat.name}' is an active core system category and cannot be deleted."
@@ -868,6 +880,12 @@ fun MasterDataSetScreen(
                                     if (alreadyExists) {
                                         Toast.makeText(context, "A category named '$trimmedNew' already exists", Toast.LENGTH_SHORT).show()
                                     } else {
+                                        val oldKey = "${cat.type.name}_${cat.name}"
+                                        val newKey = "${cat.type.name}_$trimmedNew"
+                                        if (expandedCategories.containsKey(oldKey)) {
+                                            val wasExp = expandedCategories.remove(oldKey) ?: false
+                                            expandedCategories[newKey] = wasExp
+                                        }
                                         viewModel.updateCategory(cat, trimmedNew)
                                         categoryToEdit = null
                                     }
@@ -973,6 +991,8 @@ fun MasterDataSetScreen(
 private fun IntegratedCategoryTreeCard(
     category: CategoryEntity,
     subcategories: List<SubcategoryEntity>,
+    totalMappedCount: Int = subcategories.size,
+    isSearchActive: Boolean = false,
     isProtected: Boolean,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
@@ -1045,7 +1065,7 @@ private fun IntegratedCategoryTreeCard(
                     val isLockedCore = isProtected && !category.isLegacy
                     val backgroundColor by animateColorAsState(
                         targetValue = when (dismissState.targetValue) {
-                            SwipeToDismissBoxValue.StartToEnd -> Primary600
+                            SwipeToDismissBoxValue.StartToEnd -> if (isLockedCore) Neutral500 else Primary600
                             SwipeToDismissBoxValue.EndToStart -> if (isLockedCore) Neutral500 else Error500
                             SwipeToDismissBoxValue.Settled -> Color.Transparent
                         },
@@ -1062,9 +1082,19 @@ private fun IntegratedCategoryTreeCard(
                     ) {
                         if (direction == SwipeToDismissBoxValue.StartToEnd) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(18.dp))
+                                Icon(
+                                    imageVector = if (isLockedCore) Icons.Default.Lock else Icons.Default.Edit,
+                                    contentDescription = "Edit",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(if (category.isLegacy) "Adopt" else "Rename", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(
+                                    text = if (category.isLegacy) "Adopt" else if (isLockedCore) "Locked Core" else "Rename",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
                             }
                         } else if (direction == SwipeToDismissBoxValue.EndToStart) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1175,9 +1205,14 @@ private fun IntegratedCategoryTreeCard(
                                 Spacer(modifier = Modifier.height(2.dp))
 
                                 Text(
-                                    text = "${subcategories.size} subcategories mapped",
+                                    text = if (isSearchActive) {
+                                        "${subcategories.size} of $totalMappedCount subcategories matched"
+                                    } else {
+                                        "$totalMappedCount subcategories mapped"
+                                    },
                                     fontSize = 11.sp,
-                                    color = TextMuted
+                                    color = if (isSearchActive) Primary600 else TextMuted,
+                                    fontWeight = if (isSearchActive) FontWeight.SemiBold else FontWeight.Normal
                                 )
                             }
                         }
