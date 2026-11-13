@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.example.myfin.ui.theme.*
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.pow
 
 @Composable
@@ -172,21 +173,30 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
         if (liveResult == null || liveResult.isNaN() || liveResult.isInfinite()) {
             "0"
         } else {
-            formatCleanNumber(liveResult)
+            formatCleanNumber(abs(liveResult))
         }
     }
 
     fun appendToken(token: String) {
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-        val operators = setOf('+', '-', '×', '÷', '%')
-        if (token.length == 1 && token[0] in operators) {
+        val binaryOps = setOf('+', '-', '×', '÷')
+        if (token.length == 1 && token[0] in binaryOps) {
             if (expression.isEmpty()) {
                 if (token == "-") expression = "-"
                 return
             }
             val lastChar = expression.last()
-            if (lastChar in operators) {
+            if (lastChar in binaryOps) {
                 expression = expression.dropLast(1) + token
+                return
+            }
+        } else if (token == "%") {
+            if (expression.isEmpty() || expression.last() in binaryOps || expression.last() == '%') return
+        } else if (token == ".") {
+            val lastNumberSegment = expression.split('+', '-', '×', '÷').lastOrNull() ?: ""
+            if (lastNumberSegment.contains('.')) return
+            if (lastNumberSegment.isEmpty()) {
+                expression += "0."
                 return
             }
         }
@@ -236,7 +246,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                             text = "Clear Tape",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFCA5A5),
+                            color = Error100,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
@@ -280,7 +290,15 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                                         val cleanVal = if (item.rawResult % 1.0 == 0.0) {
                                             item.rawResult.toLong().toString()
                                         } else item.rawResult.toString()
-                                        appendToken(cleanVal)
+
+                                        val binaryOps = setOf('+', '-', '×', '÷')
+                                        if (expression.isEmpty() || expression.last() in binaryOps) {
+                                            expression += cleanVal
+                                        } else {
+                                            // Replace active trailing operand
+                                            val lastOpIdx = expression.indexOfLast { it in binaryOps }
+                                            expression = if (lastOpIdx == -1) cleanVal else expression.substring(0, lastOpIdx + 1) + cleanVal
+                                        }
                                     }
                             ) {
                                 Row(
@@ -299,7 +317,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
-                                        text = "= $currencySymbol${item.resultFormatted}",
+                                        text = "= ${if (item.rawResult < 0) "-" else ""}$currencySymbol${item.resultFormatted}",
                                         fontSize = 12.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Primary300
@@ -345,7 +363,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                                     if (liveResult % 1.0 == 0.0) liveResult.toLong().toString() else String.format(Locale.US, "%.2f", liveResult)
                                 } else "0"
                                 clipboard.setPrimaryClip(ClipData.newPlainText("Calc Result", rawCopy))
-                                Toast.makeText(context, "Copied $currencySymbol$formattedResult", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Copied ${if ((liveResult ?: 0.0) < 0) "-" else ""}$currencySymbol$formattedResult", Toast.LENGTH_SHORT).show()
                             }
                     ) {
                         Row(
@@ -369,7 +387,7 @@ private fun StandardTapeCalculatorTab(currencySymbol: String) {
                     }
 
                     Text(
-                        text = "$currencySymbol$formattedResult",
+                        text = "${if ((liveResult ?: 0.0) < 0) "-" else ""}$currencySymbol$formattedResult",
                         fontSize = 36.sp,
                         fontWeight = FontWeight.Black,
                         color = Color.White,
@@ -641,7 +659,7 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                                     text = "${String.format(Locale.US, "%.1fx", multiplier)} Return",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF34D399),
+                                    color = Success100,
                                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
                                 )
                             }
@@ -694,7 +712,7 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                             EstimatorMetricBox(
                                 label = "Est. Wealth Gained",
                                 value = "+$currencySymbol${String.format(Locale.US, "%,.0f", wealthGained)}",
-                                tint = Color(0xFF34D399),
+                                tint = Success100,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -807,7 +825,7 @@ private fun SipAndEmiEstimatorTab(currencySymbol: String) {
                             EstimatorMetricBox(
                                 label = "Total Interest",
                                 value = "$currencySymbol${String.format(Locale.US, "%,.0f", totalInterest)}",
-                                tint = Color(0xFFFCA5A5),
+                                tint = Error100,
                                 modifier = Modifier.weight(1f)
                             )
                             EstimatorMetricBox(
@@ -933,7 +951,6 @@ private fun evaluateMathExpression(expr: String): Double? {
         .replace("÷", "/")
         .replace(",", "")
         .trim()
-        .trimEnd('+', '-', '*', '/', '.')
 
     if (sanitized.isEmpty()) return null
 
@@ -966,8 +983,15 @@ private fun evaluateMathExpression(expr: String): Double? {
                 var x = parseTerm()
                 while (true) {
                     when {
-                        eat('+'.code) -> x += parseTerm()
-                        eat('-'.code) -> x -= parseTerm()
+                        eat('+'.code) -> {
+                            val term = parseTerm()
+                            // If term is percentage-based (e.g. 1000 + 18%), compute as x + (x * pct)
+                            x += if (sanitized.getOrNull(pos - 1) == '%') x * term else term
+                        }
+                        eat('-'.code) -> {
+                            val term = parseTerm()
+                            x -= if (sanitized.getOrNull(pos - 1) == '%') x * term else term
+                        }
                         else -> return x
                     }
                 }
@@ -977,7 +1001,10 @@ private fun evaluateMathExpression(expr: String): Double? {
                 var x = parseFactor()
                 while (true) {
                     when {
-                        eat('*'.code) -> x *= parseFactor()
+                        eat('*'.code) -> {
+                            val factor = parseFactor()
+                            x *= factor
+                        }
                         eat('/'.code) -> {
                             val divisor = parseFactor()
                             x = if (divisor == 0.0) Double.NaN else x / divisor
