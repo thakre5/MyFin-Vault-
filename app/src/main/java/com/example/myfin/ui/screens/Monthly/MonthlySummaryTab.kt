@@ -45,6 +45,17 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
 
+private fun formatOrdinalDay(day: Int): String {
+    val suffix = when {
+        day in 11..13 -> "th"
+        day % 10 == 1 -> "st"
+        day % 10 == 2 -> "nd"
+        day % 10 == 3 -> "rd"
+        else -> "th"
+    }
+    return "$day$suffix"
+}
+
 @Composable
 fun MonthlySummaryTab(
     viewModel: BudgetViewModel,
@@ -101,7 +112,7 @@ fun MonthlySummaryTab(
         buildList {
             if (uiState.commitmentsShortfall.isShortfall) {
                 val shortfall = uiState.commitmentsShortfall
-                val dueText = if (shortfall.earliestDueDay != null) " by ${shortfall.earliestDueDay}th" else ""
+                val dueText = shortfall.earliestDueDay?.let { " by ${formatOrdinalDay(it)}" } ?: ""
                 add(
                     NowBarAlert(
                         id = "shortfall",
@@ -211,7 +222,7 @@ fun MonthlySummaryTab(
 
     val expenseCategories = remember(uiState.categories) {
         uiState.categories
-            .filter { it.type == TransactionType.EXPENSE && it.actualAmount > 0.0 }
+            .filter { it.type == TransactionType.EXPENSE && !it.isReimbursableFloat && it.actualAmount > 0.0 }
             .sortedByDescending { it.actualAmount }
     }
     val totalExpenseSpent = remember(expenseCategories) {
@@ -438,11 +449,12 @@ fun MonthlySummaryTab(
                         )
                     }
 
+                    val nextPaydayOrd = formatOrdinalDay(uiState.metrics.nextPaydayDay)
                     Text(
                         text = when {
                             isPastMonth -> "Month closed • Final safe ledger balance"
-                            uiState.metrics.isSalaryDelayed -> "Salary expected (${uiState.metrics.nextPaydayDay}th) • 1-day safety runway reserved"
-                            isCurrentMonth && isHealthy -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", safeDailyVelocity)}/day safe pace • $daysUntilSalary days until payday (${uiState.metrics.nextPaydayDay}th)"
+                            uiState.metrics.isSalaryDelayed -> "Salary expected ($nextPaydayOrd) • 1-day safety runway reserved"
+                            isCurrentMonth && isHealthy -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", safeDailyVelocity)}/day safe pace • $daysUntilSalary days until payday ($nextPaydayOrd)"
                             isCurrentMonth -> "Runway deficit: Spending exceeds safe buffer before next payday"
                             else -> "Projected runway reserved for $daysUntilSalary days"
                         },
@@ -463,14 +475,14 @@ fun MonthlySummaryTab(
                         FrostedCardPill(
                             title = "Inflow",
                             amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayInflow)}",
-                            tintColor = Color(0xFF34D399),
+                            tintColor = Success100,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigateToLedgerWithFilter(TransactionType.INCOME) }
                         )
                         FrostedCardPill(
                             title = "Fixed Bills",
                             amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
-                            tintColor = Color(0xFFFCA5A5),
+                            tintColor = Error100,
                             modifier = Modifier.weight(1f),
                             onClick = onNavigateToCommitments
                         )
@@ -795,12 +807,13 @@ fun MonthlySummaryTab(
                             val isNew = remember(uiState.masterCategories, cat) {
                                 uiState.masterCategories.any { it.name.equals(cat.category, ignoreCase = true) && it.type == cat.type && it.isNew }
                             }
+                            val mapKey = "${cat.type.name}_${cat.category}"
 
                             CategoryMatrixRow(
                                 cat = cat,
-                                isExpanded = expandedCategories[cat.category] ?: false,
+                                isExpanded = expandedCategories[mapKey] ?: false,
                                 onToggleExpand = {
-                                    expandedCategories[cat.category] = !(expandedCategories[cat.category] ?: false)
+                                    expandedCategories[mapKey] = !(expandedCategories[mapKey] ?: false)
                                 },
                                 currencySymbol = userProfile.currencySymbol,
                                 isDiscreetMode = isDiscreetMode,
@@ -919,7 +932,13 @@ private fun CategoryMatrixRow(
         label = "arrowRotation"
     )
 
-    val isTargetOriented = cat.type == TransactionType.INCOME || cat.type == TransactionType.ASSET
+    val isTargetOriented = cat.type == TransactionType.INCOME ||
+            cat.type == TransactionType.ASSET ||
+            (cat.type == TransactionType.CORPORATE && cat.category.equals("Reimbursements & Claims", ignoreCase = true))
+
+    val isOverBudgetRow = cat.plannedAmount > 0.0 &&
+            cat.actualAmount > cat.plannedAmount &&
+            !isTargetOriented
 
     val progressFraction = if (cat.plannedAmount > 0) {
         (cat.actualAmount / cat.plannedAmount).toFloat().coerceIn(0f, 1f)
@@ -930,7 +949,7 @@ private fun CategoryMatrixRow(
     } else 100
 
     val progressColor = when {
-        cat.isOverBudget && !isTargetOriented -> Error500
+        isOverBudgetRow -> Error500
         cat.type == TransactionType.INCOME -> Success500
         cat.type == TransactionType.ASSET -> SoftTeal
         cat.type == TransactionType.CORPORATE -> Warning500
@@ -1011,7 +1030,7 @@ private fun CategoryMatrixRow(
                             )
                         }
 
-                        if (cat.isOverBudget && !isTargetOriented) {
+                        if (isOverBudgetRow) {
                             Spacer(modifier = Modifier.width(5.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
@@ -1051,17 +1070,18 @@ private fun CategoryMatrixRow(
                             }
                         }
                     } else {
+                        val maskedOrActual = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", cat.actualAmount)}"
                         if (isLegacy) {
-                            "Retiring next month • Logged: $currencySymbol${String.format(Locale.US, "%,.0f", cat.actualAmount)}"
+                            "Retiring next month • Logged: $maskedOrActual"
                         } else if (cat.type == TransactionType.CORPORATE) {
-                            "Logged actual: $currencySymbol${String.format(Locale.US, "%,.0f", cat.actualAmount)}"
+                            "Logged actual: $maskedOrActual"
                         } else {
                             "No target limit configured"
                         }
                     }
 
                     val statusColor = when {
-                        cat.isOverBudget && !isTargetOriented -> Error700
+                        isOverBudgetRow -> Error700
                         isTargetOriented && cat.plannedAmount > 0 && cat.actualAmount >= cat.plannedAmount -> Success700
                         else -> TextMuted
                     }
@@ -1069,7 +1089,7 @@ private fun CategoryMatrixRow(
                     Text(
                         text = statusText,
                         fontSize = 11.sp,
-                        fontWeight = if (cat.isOverBudget && !isTargetOriented) FontWeight.SemiBold else FontWeight.Normal,
+                        fontWeight = if (isOverBudgetRow) FontWeight.SemiBold else FontWeight.Normal,
                         color = statusColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -1085,7 +1105,7 @@ private fun CategoryMatrixRow(
                         text = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", cat.actualAmount)}",
                         fontWeight = FontWeight.Black,
                         fontSize = 14.sp,
-                        color = if (cat.isOverBudget && !isTargetOriented) Error700 else TextDark
+                        color = if (isOverBudgetRow) Error700 else TextDark
                     )
                     if (cat.plannedAmount > 0) {
                         Text(
