@@ -1,7 +1,6 @@
 package com.example.myfin.ui.screens
 
 import androidx.compose.animation.*
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -41,6 +40,17 @@ enum class CommitmentMacroFilter(val label: String) {
     OUTFLOW("Outflow"),
     INFLOW("Inflow"),
     INTERNAL("Internal")
+}
+
+private fun formatOrdinalDay(day: Int): String {
+    val suffix = when {
+        day in 11..13 -> "th"
+        day % 10 == 1 -> "st"
+        day % 10 == 2 -> "nd"
+        day % 10 == 3 -> "rd"
+        else -> "th"
+    }
+    return "$day$suffix"
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -413,6 +423,8 @@ fun MonthlyAutoPayTab(
                                             isOutflow = isOutflow(bill),
                                             isInflow = isInflow(bill),
                                             currentDayOfMonth = currentDayOfMonth,
+                                            isCurrentMonth = isCurrentMonth,
+                                            isPastMonth = isPastMonth,
                                             onTap = { onTapBill(bill) },
                                             onEdit = { onEditBill(bill) },
                                             onDelete = { onDeleteBill(bill) },
@@ -483,6 +495,8 @@ fun MonthlyAutoPayTab(
                                             isOutflow = isOutflow(bill),
                                             isInflow = isInflow(bill),
                                             currentDayOfMonth = currentDayOfMonth,
+                                            isCurrentMonth = isCurrentMonth,
+                                            isPastMonth = isPastMonth,
                                             onTap = { onTapBill(bill) },
                                             onEdit = { onEditBill(bill) },
                                             onDelete = { onDeleteBill(bill) },
@@ -588,6 +602,8 @@ fun MonthlyAutoPayTab(
                                                 isOutflow = isOutflow(bill),
                                                 isInflow = isInflow(bill),
                                                 currentDayOfMonth = currentDayOfMonth,
+                                                isCurrentMonth = isCurrentMonth,
+                                                isPastMonth = isPastMonth,
                                                 onTap = { onTapBill(bill) },
                                                 onEdit = { onEditBill(bill) },
                                                 onDelete = { onDeleteBill(bill) },
@@ -624,6 +640,8 @@ private fun AutoPayCommitmentRow(
     isOutflow: Boolean,
     isInflow: Boolean,
     currentDayOfMonth: Int,
+    isCurrentMonth: Boolean,
+    isPastMonth: Boolean,
     onTap: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -709,24 +727,34 @@ private fun AutoPayCommitmentRow(
             } else bill.category.ifBlank { accountRoute }
         }
 
-        // True Semantic 100 / 700 Triads for Crisp Status Badges
-        val (statusText, statusBg, statusTint) = remember(bill.isPaid, bill.dueDay, currentDayOfMonth, isOutflow, isInflow) {
+        val (statusText, statusBg, statusTint) = remember(bill.isPaid, bill.dueDay, currentDayOfMonth, isCurrentMonth, isPastMonth, isOutflow, isInflow) {
             if (bill.isPaid) {
                 Triple("Settled ✓", Success100, Success700)
             } else {
                 val due = bill.dueDay
                 when {
                     due == null -> Triple("Scheduled", Neutral100, Neutral600)
-                    due < currentDayOfMonth -> {
-                        if (isInflow) {
-                            Triple("Awaiting Deposit (Exp ${due}th)", SoftTealLight, SoftTeal)
-                        } else {
-                            Triple("Overdue (Due ${due}th)", Error100, Error700)
+                    isPastMonth -> {
+                        val dueOrd = formatOrdinalDay(due)
+                        if (isInflow) Triple("Awaiting Deposit (Due $dueOrd)", SoftTealLight, SoftTeal)
+                        else Triple("Overdue (Due $dueOrd)", Error100, Error700)
+                    }
+                    isCurrentMonth -> {
+                        val dueOrd = formatOrdinalDay(due)
+                        when {
+                            due < currentDayOfMonth -> {
+                                if (isInflow) Triple("Awaiting Deposit (Due $dueOrd)", SoftTealLight, SoftTeal)
+                                else Triple("Overdue (Due $dueOrd)", Error100, Error700)
+                            }
+                            due == currentDayOfMonth -> Triple("Due Today", Warning100, Warning700)
+                            due - currentDayOfMonth <= 3 -> Triple("Due in ${due - currentDayOfMonth}d", Warning100, Warning700)
+                            else -> Triple("Due $dueOrd", Neutral100, Neutral600)
                         }
                     }
-                    due == currentDayOfMonth -> Triple("Due Today", Warning100, Warning700)
-                    due - currentDayOfMonth <= 3 -> Triple("Due in ${due - currentDayOfMonth}d", Warning100, Warning700)
-                    else -> Triple("Due ${due}th", Neutral100, Neutral600)
+                    else -> {
+                        // Future month
+                        Triple("Scheduled (${formatOrdinalDay(due)})", Neutral100, Neutral600)
+                    }
                 }
             }
         }
@@ -824,7 +852,7 @@ private fun AutoPayCommitmentRow(
                         isInflow -> Success700
                         bill.type == TransactionType.ASSET -> SoftTeal
                         bill.type == TransactionType.TRANSFER -> Primary600
-                        bill.dueDay != null && bill.dueDay < currentDayOfMonth -> Error700
+                        isCurrentMonth && bill.dueDay != null && bill.dueDay < currentDayOfMonth -> Error700
                         else -> TextDark
                     }
 
