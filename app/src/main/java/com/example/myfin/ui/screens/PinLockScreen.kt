@@ -113,6 +113,21 @@ fun PinLockScreen(
         triggerBiometricPrompt()
     }
 
+    // Auto-clear wrong 4 or 5 digit PINs if user pauses after entering 4+ digits without unlocking
+    LaunchedEffect(enteredPin) {
+        if (enteredPin.length in 4..5 && !isPinError) {
+            delay(650L)
+            if (enteredPin.length in 4..5 && !securityManager.verifyPin(enteredPin)) {
+                isPinError = true
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                Toast.makeText(context, "Incorrect PIN", Toast.LENGTH_SHORT).show()
+                delay(350L)
+                enteredPin = ""
+                isPinError = false
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -504,7 +519,7 @@ fun PinLockScreen(
                                 val storedNormalized = normalizeDobDigits(recoveryDob)
 
                                 val isDobMatched = securityManager.verifyRecoveryDob(recoveryDobInput) ||
-                                        (storedNormalized.isNotBlank() && inputNormalized == storedNormalized)
+                                        (storedNormalized.length == 8 && inputNormalized.length == 8 && inputNormalized == storedNormalized)
 
                                 if (isDobMatched) {
                                     recoveryStep = 2
