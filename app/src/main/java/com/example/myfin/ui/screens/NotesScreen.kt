@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,15 +89,24 @@ fun NotesScreen(
     var selectedTag by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
     var editingNote by remember { mutableStateOf<NoteEntity?>(null) }
+    var notePendingDelete by remember { mutableStateOf<NoteEntity?>(null) }
     var defaultNewChecklistMode by remember { mutableStateOf(false) }
     var showEditorSheet by remember { mutableStateOf(false) }
 
     val filteredNotes = remember(allNotes, selectedTag, searchQuery) {
+        val cleanQuery = searchQuery.trim()
         allNotes.filter { note ->
             val matchesTag = selectedTag == "All" || note.tag.equals(selectedTag, ignoreCase = true)
-            val matchesQuery = searchQuery.isBlank() ||
-                    note.title.contains(searchQuery, ignoreCase = true) ||
-                    note.content.contains(searchQuery, ignoreCase = true)
+            val matchesQuery = if (cleanQuery.isBlank()) {
+                true
+            } else {
+                note.title.contains(cleanQuery, ignoreCase = true) ||
+                note.content.contains(cleanQuery, ignoreCase = true) ||
+                note.tag.contains(cleanQuery, ignoreCase = true) ||
+                (note.isChecklist && parseChecklistJson(note.checklistJson).any { item ->
+                    item.text.contains(cleanQuery, ignoreCase = true)
+                })
+            }
             matchesTag && matchesQuery
         }
     }
@@ -386,9 +396,7 @@ fun NotesScreen(
                                 }
                             },
                             onDelete = {
-                                coroutineScope.launch {
-                                    budgetDao.deleteNote(note)
-                                }
+                                notePendingDelete = note
                             },
                             onToggleChecklistItem = { itemIndex ->
                                 val list = parseChecklistJson(note.checklistJson).toMutableList()
@@ -410,6 +418,41 @@ fun NotesScreen(
                 }
             }
         }
+    }
+
+    // Delete Note Confirmation Dialog
+    notePendingDelete?.let { noteToDelete ->
+        AlertDialog(
+            onDismissRequest = { notePendingDelete = null },
+            containerColor = CardWhite,
+            title = { Text("Delete Note?", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextDark) },
+            text = {
+                Text(
+                    "Are you sure you want to delete '${noteToDelete.title.ifBlank { "Untitled Note" }}'? This action cannot be undone.",
+                    fontSize = 13.sp,
+                    color = TextMuted
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            budgetDao.deleteNote(noteToDelete)
+                        }
+                        notePendingDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Error500),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Delete", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { notePendingDelete = null }) {
+                    Text("Cancel", color = TextDark)
+                }
+            }
+        )
     }
 
     if (showEditorSheet) {
@@ -612,7 +655,7 @@ private fun NoteCardItem(
     onDelete: () -> Unit,
     onToggleChecklistItem: (Int) -> Unit
 ) {
-    val checklistItems = remember(note.checklistJson) {
+    val checklistItems = remember(note.checklistJson, note.isChecklist) {
         if (note.isChecklist) parseChecklistJson(note.checklistJson) else emptyList()
     }
 
@@ -861,14 +904,15 @@ private fun NoteEditorModalSheet(
     onDismiss: () -> Unit,
     onSave: (NoteEntity) -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val noteKey = initialNote?.id ?: -1L
-    var title by remember(noteKey) { mutableStateOf(initialNote?.title ?: "") }
-    var content by remember(noteKey) { mutableStateOf(initialNote?.content ?: "") }
-    var tag by remember(noteKey) { mutableStateOf(initialNote?.tag ?: "General") }
-    var isPinned by remember(noteKey) { mutableStateOf(initialNote?.isPinned ?: false) }
-    var isChecklist by remember(noteKey) { mutableStateOf(initialNote?.isChecklist ?: defaultChecklistMode) }
+    var title by remember(noteKey, defaultChecklistMode) { mutableStateOf(initialNote?.title ?: "") }
+    var content by remember(noteKey, defaultChecklistMode) { mutableStateOf(initialNote?.content ?: "") }
+    var tag by remember(noteKey, defaultChecklistMode) { mutableStateOf(initialNote?.tag ?: "General") }
+    var isPinned by remember(noteKey, defaultChecklistMode) { mutableStateOf(initialNote?.isPinned ?: false) }
+    var isChecklist by remember(noteKey, defaultChecklistMode) { mutableStateOf(initialNote?.isChecklist ?: defaultChecklistMode) }
 
-    val checklistItems = remember(noteKey) {
+    val checklistItems = remember(noteKey, defaultChecklistMode) {
         mutableStateListOf<NoteChecklistItem>().apply {
             if (initialNote != null && initialNote.isChecklist) {
                 addAll(parseChecklistJson(initialNote.checklistJson))
@@ -876,11 +920,12 @@ private fun NoteEditorModalSheet(
         }
     }
 
-    var newItemText by remember(noteKey) { mutableStateOf("") }
-    var newItemAmount by remember(noteKey) { mutableStateOf("") }
+    var newItemText by remember(noteKey, defaultChecklistMode) { mutableStateOf("") }
+    var newItemAmount by remember(noteKey, defaultChecklistMode) { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = CardWhite,
         shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
     ) {
@@ -890,6 +935,7 @@ private fun NoteEditorModalSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 10.dp)
                 .navigationBarsPadding()
+                .imePadding()
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -931,11 +977,13 @@ private fun NoteEditorModalSheet(
                 onValueChange = { title = it },
                 label = { Text("Title") },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Primary600,
-                    unfocusedBorderColor = BorderLight
+                    unfocusedBorderColor = BorderLight,
+                    focusedLabelColor = Primary600
                 )
             )
 
@@ -968,11 +1016,13 @@ private fun NoteEditorModalSheet(
                 label = { Text("Notes / Details") },
                 minLines = 3,
                 maxLines = 6,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Primary600,
-                    unfocusedBorderColor = BorderLight
+                    unfocusedBorderColor = BorderLight,
+                    focusedLabelColor = Primary600
                 )
             )
 
@@ -996,6 +1046,7 @@ private fun NoteEditorModalSheet(
                         onValueChange = { newItemText = it },
                         placeholder = { Text("Item name", fontSize = 12.sp) },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         modifier = Modifier.weight(1.4f),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -1005,10 +1056,14 @@ private fun NoteEditorModalSheet(
                     )
                     OutlinedTextField(
                         value = newItemAmount,
-                        onValueChange = { newItemAmount = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val parts = filtered.split('.')
+                            newItemAmount = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                        },
                         placeholder = { Text("$currencySymbol Amt", fontSize = 12.sp) },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(0.9f),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -1098,7 +1153,7 @@ private fun NoteEditorModalSheet(
                     onSave(
                         NoteEntity(
                             id = initialNote?.id ?: 0L,
-                            title = title.trim().ifBlank { "Quick Note" },
+                            title = title.trim().ifBlank { if (isChecklist) "Quick Checklist" else "Quick Note" },
                             content = content.trim(),
                             tag = tag,
                             isPinned = isPinned,
