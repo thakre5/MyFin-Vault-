@@ -100,7 +100,7 @@ fun BudgetPlannerScreen(
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
 
     // Discipline Timeline (5th of the month budget ceiling lock)
-    val todayCal = remember { Calendar.getInstance() }
+    val todayCal = remember(uiState.selectedMonth, uiState.selectedYear) { Calendar.getInstance() }
     val currentCalendarMonth = todayCal.get(Calendar.MONTH) + 1
     val currentCalendarYear = todayCal.get(Calendar.YEAR)
     val currentDayOfMonth = todayCal.get(Calendar.DAY_OF_MONTH)
@@ -179,7 +179,7 @@ fun BudgetPlannerScreen(
                 DockFabAction(
                     icon = Icons.Default.Autorenew,
                     label = "Manage Fixed Bills",
-                    onClick = { onNavigateToVaults() }
+                    onClick = { onNavigateToMonthly() }
                 ),
                 DockFabAction(
                     icon = Icons.Default.History,
@@ -1182,8 +1182,14 @@ private fun BudgetCategoryCleanCard(
         (category.actualAmount / category.plannedAmount).toFloat().coerceIn(0f, 1f)
     } else 0f
 
-    val isOverBudget = category.isOverBudget && (category.type == TransactionType.EXPENSE || category.type == TransactionType.CORPORATE)
-    val isGoalAchieved = (category.type == TransactionType.INCOME || category.type == TransactionType.ASSET) &&
+    val isOverBudget = category.plannedAmount > 0.0 &&
+            category.actualAmount > category.plannedAmount &&
+            (category.type == TransactionType.EXPENSE ||
+             (category.type == TransactionType.CORPORATE && !category.category.equals("Reimbursements & Claims", ignoreCase = true)))
+
+    val isGoalAchieved = (category.type == TransactionType.INCOME ||
+             category.type == TransactionType.ASSET ||
+             (category.type == TransactionType.CORPORATE && category.category.equals("Reimbursements & Claims", ignoreCase = true))) &&
             category.plannedAmount > 0.0 && category.actualAmount >= category.plannedAmount
 
     Surface(
