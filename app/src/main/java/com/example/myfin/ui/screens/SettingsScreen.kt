@@ -245,6 +245,15 @@ private fun triggerBiometricVerificationScan(
     }
 }
 
+@Composable
+private fun settingsTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = Primary600,
+    unfocusedBorderColor = BorderLight,
+    focusedLabelColor = Primary600,
+    unfocusedLabelColor = TextMuted,
+    cursorColor = Primary600
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -761,6 +770,7 @@ fun SettingsScreen(
                                     triggerBiometricVerificationScan(
                                         context = context,
                                         onSuccess = {
+                                            viewModel.securityManager.setBiometricEnabled(true)
                                             viewModel.updateBiometricEnabled(true)
                                             Toast.makeText(context, "Biometric unlock activated", Toast.LENGTH_SHORT).show()
                                         },
@@ -770,6 +780,7 @@ fun SettingsScreen(
                                     )
                                 }
                             } else {
+                                viewModel.securityManager.setBiometricEnabled(false)
                                 viewModel.updateBiometricEnabled(false)
                                 Toast.makeText(context, "Biometrics disabled", Toast.LENGTH_SHORT).show()
                             }
@@ -1208,6 +1219,7 @@ fun SettingsScreen(
 
     // Modify PIN Modal Sheet
     if (activeSheet == SettingsActiveSheet.CHANGE_PIN) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var isCurrentAuthVerified by remember { mutableStateOf(false) }
         var useDobFallback by remember { mutableStateOf(false) }
 
@@ -1219,6 +1231,7 @@ fun SettingsScreen(
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            sheetState = sheetState,
             containerColor = CardWhite,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
@@ -1248,7 +1261,8 @@ fun SettingsScreen(
                             visualTransformation = PasswordVisualTransformation(),
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            colors = settingsTextFieldColors()
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -1266,7 +1280,8 @@ fun SettingsScreen(
                             label = { Text("Recovery Key (DOB: DD/MM/YYYY or YYYY-MM-DD)") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            colors = settingsTextFieldColors()
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -1288,11 +1303,13 @@ fun SettingsScreen(
 
                     Button(
                         onClick = {
+                            val enteredDigits = verifyDobInput.replace("[^0-9]".toRegex(), "")
+                            val storedDigits = userProfile.dateOfBirth.replace("[^0-9]".toRegex(), "")
                             val isValid = if (!useDobFallback) {
                                 viewModel.securityManager.verifyPin(currentPinInput)
                             } else {
                                 viewModel.securityManager.verifyRecoveryDob(verifyDobInput) ||
-                                        (userProfile.dateOfBirth.isNotBlank() && verifyDobInput.replace("[^0-9]".toRegex(), "") == userProfile.dateOfBirth.replace("[^0-9]".toRegex(), ""))
+                                        (enteredDigits.length >= 6 && enteredDigits == storedDigits)
                             }
 
                             if (isValid) {
@@ -1319,7 +1336,8 @@ fun SettingsScreen(
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        colors = settingsTextFieldColors()
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -1332,7 +1350,8 @@ fun SettingsScreen(
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        colors = settingsTextFieldColors()
                     )
 
                     if (pinErrorMessage != null) {
@@ -1371,11 +1390,13 @@ fun SettingsScreen(
 
     // Daily Reminder Time Picker Bottom Sheet
     if (activeSheet == SettingsActiveSheet.DAILY_REMINDER || activeSheet == SettingsActiveSheet.REMINDERS || activeSheet == SettingsActiveSheet.NOTIFICATIONS) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var hourText by remember(userProfile) { mutableStateOf(String.format(Locale.US, "%02d", userProfile.reminderHour)) }
         var minText by remember(userProfile) { mutableStateOf(String.format(Locale.US, "%02d", userProfile.reminderMinute)) }
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            sheetState = sheetState,
             containerColor = CardWhite,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
@@ -1394,13 +1415,13 @@ fun SettingsScreen(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    color = CanvasLight,
-                    border = BorderStroke(0.6.dp, BorderLight)
+                    color = Primary50,
+                    border = BorderStroke(0.6.dp, Primary200)
                 ) {
                     Text(
                         text = "• Alarms are scheduled locally on your device hardware.\n• Zero battery drain, telemetry, or network access.\n• Ensure notification permission is allowed on Android 13+.",
                         fontSize = 11.5.sp,
-                        color = TextMuted,
+                        color = TextDark,
                         lineHeight = 16.sp,
                         modifier = Modifier.padding(14.dp)
                     )
@@ -1422,7 +1443,8 @@ fun SettingsScreen(
                         label = { Text("Hour (0-23)") },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = settingsTextFieldColors()
                     )
 
                     OutlinedTextField(
@@ -1435,7 +1457,8 @@ fun SettingsScreen(
                         label = { Text("Minute (0-59)") },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = settingsTextFieldColors()
                     )
                 }
 
@@ -1498,6 +1521,7 @@ fun SettingsScreen(
 
     // Personal Info Modal Sheet
     if (activeSheet == SettingsActiveSheet.PERSONAL_INFO) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var nameInput by remember(userProfile) { mutableStateOf(userProfile.displayName) }
         var emailInput by remember(userProfile) { mutableStateOf(userProfile.email) }
         var dobInput by remember(userProfile) { mutableStateOf(userProfile.dateOfBirth) }
@@ -1507,6 +1531,7 @@ fun SettingsScreen(
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            sheetState = sheetState,
             containerColor = CardWhite,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
@@ -1529,7 +1554,8 @@ fun SettingsScreen(
                     placeholder = { Text("e.g. Alex Doe") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    colors = settingsTextFieldColors()
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -1542,7 +1568,8 @@ fun SettingsScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    colors = settingsTextFieldColors()
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -1555,7 +1582,8 @@ fun SettingsScreen(
                     supportingText = { Text("Your DOB serves as the immutable security key for PIN resets", fontSize = 10.5.sp) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    colors = settingsTextFieldColors()
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -1571,7 +1599,8 @@ fun SettingsScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = settingsTextFieldColors()
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -1610,8 +1639,10 @@ fun SettingsScreen(
 
     // Vault Strategy Sheet
     if (activeSheet == SettingsActiveSheet.VAULT_STRATEGY || activeSheet == SettingsActiveSheet.STRATEGY) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            sheetState = sheetState,
             containerColor = CardWhite,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
@@ -1719,7 +1750,6 @@ fun SettingsScreen(
                         val targetMode = if (is3VaultActive) "SIMPLE" else "3-VAULT"
                         val updated = userProfile.copy(id = 1, vaultMode = targetMode)
                         viewModel.saveUserProfile(updated)
-                        try { viewModel.updateVaultMode(targetMode) } catch (_: Exception) {}
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, if (targetMode == "3-VAULT") "Switched to 3-Vault Strategy" else "Switched to Simple Mode", Toast.LENGTH_SHORT).show()
                     },
@@ -1744,6 +1774,7 @@ fun SettingsScreen(
 
     // Auto-Sweep Threshold Sheet
     if (activeSheet == SettingsActiveSheet.AUTO_SWEEP_THRESHOLD) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var thresholdInput by remember(userProfile) {
             mutableStateOf(
                 if (userProfile.fortressSweepThreshold > 0.0) {
@@ -1754,6 +1785,7 @@ fun SettingsScreen(
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            sheetState = sheetState,
             containerColor = CardWhite,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
@@ -1781,7 +1813,8 @@ fun SettingsScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = settingsTextFieldColors()
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -1791,7 +1824,6 @@ fun SettingsScreen(
                         val parsed = thresholdInput.toDoubleOrNull() ?: 0.0
                         val updated = userProfile.copy(id = 1, fortressSweepThreshold = parsed)
                         viewModel.saveUserProfile(updated)
-                        try { viewModel.updateFortressSweepThreshold(parsed) } catch (_: Exception) {}
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, "Fortress savings cap set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", parsed)}", Toast.LENGTH_SHORT).show()
                     },
@@ -1811,6 +1843,7 @@ fun SettingsScreen(
 
     // Fortress Safety Net Target Sheet
     if (activeSheet == SettingsActiveSheet.FORTRESS_SAFETY_NET) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var isManualMode by remember(userProfile) { mutableStateOf(userProfile.fortressManualTarget > 0.0) }
         var selectedMonths by remember(userProfile) { mutableIntStateOf(userProfile.fortressEmergencyMonths.takeIf { it > 0 } ?: 6) }
         var manualTargetInput by remember(userProfile) {
@@ -1837,6 +1870,7 @@ fun SettingsScreen(
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            sheetState = sheetState,
             containerColor = CardWhite,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
@@ -1972,7 +2006,8 @@ fun SettingsScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = settingsTextFieldColors()
                     )
                 }
 
@@ -1980,6 +2015,7 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
+                        // Single atomic save prevents updateFortressEmergencyMonths from overwriting fortressManualTarget
                         val updated = if (isManualMode) {
                             val manualAmt = manualTargetInput.toDoubleOrNull() ?: 0.0
                             val derivedMonths = if (baselineBurn > 0.0) (manualAmt / baselineBurn).toInt().coerceAtLeast(1) else 6
@@ -1997,8 +2033,6 @@ fun SettingsScreen(
                         }
 
                         viewModel.saveUserProfile(updated)
-                        try { viewModel.updateFortressEmergencyMonths(updated.fortressEmergencyMonths) } catch (_: Exception) {}
-                        try { viewModel.updateFortressManualTarget(updated.fortressManualTarget) } catch (_: Exception) {}
 
                         activeSheet = SettingsActiveSheet.NONE
                         Toast.makeText(context, "Fortress target set to ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", effectiveGoalAmount)}", Toast.LENGTH_SHORT).show()
@@ -2019,6 +2053,7 @@ fun SettingsScreen(
 
     // Opening Corporate Float Modal Sheet
     if (showCorporateFloatSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var selectedFloatMode by remember(userProfile) {
             mutableStateOf(
                 when {
@@ -2039,6 +2074,7 @@ fun SettingsScreen(
 
         ModalBottomSheet(
             onDismissRequest = { showCorporateFloatSheet = false },
+            sheetState = sheetState,
             containerColor = CardWhite,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
@@ -2149,7 +2185,8 @@ fun SettingsScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = settingsTextFieldColors()
                     )
                 }
 
@@ -2157,7 +2194,7 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        val parsedAmt = amountInput.toDoubleOrNull() ?: 0.0
+                        val parsedAmt = (amountInput.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
                         val initialClaim = if (selectedFloatMode == "CLAIM_DUE") parsedAmt else 0.0
                         val initialAdvance = if (selectedFloatMode == "ADVANCE_HELD") parsedAmt else 0.0
 
@@ -2167,7 +2204,6 @@ fun SettingsScreen(
                             initialCompanyAdvance = initialAdvance
                         )
                         viewModel.saveUserProfile(updated)
-                        try { viewModel.updateOpeningCorporateFloat(initialClaim, initialAdvance) } catch (_: Exception) {}
 
                         showCorporateFloatSheet = false
                         Toast.makeText(context, "Opening float status updated", Toast.LENGTH_SHORT).show()
@@ -2188,8 +2224,10 @@ fun SettingsScreen(
 
     // Biometrics Sheet
     if (activeSheet == SettingsActiveSheet.BIOMETRIC_CONFIRM || activeSheet == SettingsActiveSheet.SECURITY) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            sheetState = sheetState,
             containerColor = CardWhite,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
@@ -2242,6 +2280,7 @@ fun SettingsScreen(
                                 triggerBiometricVerificationScan(
                                     context = context,
                                     onSuccess = {
+                                        viewModel.securityManager.setBiometricEnabled(true)
                                         viewModel.updateBiometricEnabled(true)
                                         activeSheet = SettingsActiveSheet.NONE
                                         Toast.makeText(context, "Biometrics Enabled", Toast.LENGTH_SHORT).show()
@@ -2252,6 +2291,7 @@ fun SettingsScreen(
                                 )
                             }
                         } else {
+                            viewModel.securityManager.setBiometricEnabled(false)
                             viewModel.updateBiometricEnabled(false)
                             activeSheet = SettingsActiveSheet.NONE
                             Toast.makeText(context, "Biometrics Disabled", Toast.LENGTH_SHORT).show()
@@ -2278,6 +2318,7 @@ fun SettingsScreen(
 
     // Currency & Country Sheet
     if (activeSheet == SettingsActiveSheet.COUNTRY_CURRENCY_PICKER || activeSheet == SettingsActiveSheet.CURRENCY) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var countrySearchQuery by remember { mutableStateOf("") }
         val filteredCountries = remember(countrySearchQuery) {
             if (countrySearchQuery.isBlank()) SupportedCountries
@@ -2293,6 +2334,7 @@ fun SettingsScreen(
 
         ModalBottomSheet(
             onDismissRequest = { activeSheet = SettingsActiveSheet.NONE },
+            sheetState = sheetState,
             containerColor = CardWhite,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
@@ -2396,7 +2438,6 @@ fun SettingsScreen(
                                     .clickable {
                                         val updated = userProfile.copy(id = 1, currencySymbol = item.currencySymbol)
                                         viewModel.saveUserProfile(updated)
-                                        try { viewModel.updateCurrencySymbol(item.currencySymbol) } catch (_: Exception) {}
 
                                         activeSheet = SettingsActiveSheet.NONE
                                         Toast.makeText(context, "Country set to ${item.countryName} (${item.currencySymbol})", Toast.LENGTH_SHORT).show()
@@ -2458,7 +2499,8 @@ fun SettingsScreen(
                         placeholder = { Text("Type RESET to confirm") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        colors = settingsTextFieldColors()
                     )
                 }
             },
