@@ -259,7 +259,6 @@ class BudgetViewModel(
         "General"
     )
 
-    // Unified Transaction Classification Predicates (Supports Active + Legacy Corporate & Non-Personal Inflows)
     private val isCorporateOutlayTx: (TransactionEntity) -> Boolean = { tx ->
         (tx.type == TransactionType.CORPORATE && !tx.category.equals("Reimbursements & Claims", ignoreCase = true)) ||
         (tx.type == TransactionType.EXPENSE && tx.category.equals("Work & Professional", ignoreCase = true))
@@ -311,7 +310,7 @@ class BudgetViewModel(
         tx.type == TransactionType.ASSET && !isLoanGivenTx(tx) && !isNpaWriteOffTx(tx)
     }
 
-    val userProfile: StateFlow<UserProfile> = dao.getUserProfile()
+    val userProfile = dao.getUserProfile()
         .map { it ?: UserProfile(id = 1) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, UserProfile(id = 1))
 
@@ -324,14 +323,13 @@ class BudgetViewModel(
         }
     }
 
-    val monthlyUiState: StateFlow<MonthlyUiState> = combine(
+    val monthlyUiState = combine(
         currentMonth, currentYear, filterCriteria, userProfile
     ) { month, year, filter, profile ->
         Tuple4(month, year, filter, profile)
     }.flatMapLatest { (month, year, filter, profile) ->
         val targetMonthKey = year * 12 + month
 
-        // Reactive core flow: re-fetches allTimeTxs on every Room invalidation of transactions/accounts/bills
         val coreDataFlow = combine(
             dao.getTransactionsForMonth(month, year),
             dao.getFixedBillsForMonth(month, year),
@@ -427,7 +425,6 @@ class BudgetViewModel(
 
             val regularTxs = transactions.filter { it.type != TransactionType.TRANSFER }
 
-            // Exclude legacy corporate transactions from personal income and personal living expenses
             val actualIncome = regularTxs.filter { it.type == TransactionType.INCOME && !isCorporateReimbursementTx(it) }.sumOf { it.amount }
             val actualExpenses = regularTxs.filter { it.type == TransactionType.EXPENSE && !isCorporateOutlayTx(it) }.sumOf { it.amount }
             val actualAssets = regularTxs.filter { it.type == TransactionType.ASSET }.sumOf { it.amount }
@@ -516,7 +513,6 @@ class BudgetViewModel(
             }
             val fixedExpenseTotal = allFixedCommitments.sumOf { it.amount }
 
-            // Avoid double-counting unpaid ASSET fixed bills: separate non-asset fixed bills from planned asset SIPs
             val pendingNonAssetFixedCommitments = allFixedCommitments.filter {
                 !it.isPaid && it.type != TransactionType.ASSET
             }.sumOf { it.amount }
@@ -770,7 +766,6 @@ class BudgetViewModel(
                     tx.month == month && tx.year == year
                 }.sumOf { it.amount }
 
-                // Target 20% of salary (or any deficit below the liquid Fortress cushion cap, if smaller/applicable)
                 val cushionDeficit = if (profile.fortressSweepThreshold > 0.0) {
                     (profile.fortressSweepThreshold - fortressTotalBalance).coerceAtLeast(0.0)
                 } else 0.0
@@ -808,7 +803,6 @@ class BudgetViewModel(
 
             val operatingAccountsList = activeAccounts.filter(isOperatingOrCashAccount)
 
-            // Clamp per-account spendable balance so a deficit in one account doesn't hide surplus in another
             val operatingLiquidCash = operatingAccountsList.sumOf {
                 it.spendableBalance
             }.coerceAtLeast(0.0)
@@ -941,11 +935,11 @@ class BudgetViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthlyUiState())
 
-    val category3MonthAverages: StateFlow> = monthlyUiState
+    val category3MonthAverages = monthlyUiState
         .map { it.category3MonthAverages }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    val yearlyUiState: StateFlow<YearlyUiState> = combine(
+    val yearlyUiState = combine(
         currentYear,
         dao.getAccountBalances(),
         userProfile
@@ -1138,7 +1132,7 @@ class BudgetViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), YearlyUiState())
 
-    val averageMonthlySpend: StateFlow<Double> = combine(yearlyUiState, monthlyUiState) { yearly, monthly ->
+    val averageMonthlySpend = combine(yearlyUiState, monthlyUiState) { yearly, monthly ->
         val nowCal = Calendar.getInstance()
         val currentSysYear = nowCal.get(Calendar.YEAR)
         val currentSysMonth = nowCal.get(Calendar.MONTH) + 1
@@ -1817,7 +1811,7 @@ class BudgetViewModel(
         subtype: TransferSubtype = TransferSubtype.NONE,
         date: Long = System.currentTimeMillis()
     ) {
-        val resolvedNote = if (note.isBlank()) "Vault Transfer ($fromAccount ➔ $toAccount)" else note.trim()
+        val resolvedNote = if (note.isBlank()) "Vault Transfer ($fromAccount \u2794 $toAccount)" else note.trim()
         saveTransaction(
             title = resolvedNote,
             amount = amount,
@@ -1843,7 +1837,7 @@ class BudgetViewModel(
                     fromAccount = operatingAccount,
                     toAccount = commitmentsAccount,
                     amount = plan.toCommitments,
-                    note = "Payday Allocation ➔ Commitments Bill Funding",
+                    note = "Payday Allocation \u2794 Commitments Bill Funding",
                     subtype = TransferSubtype.BILL_FUNDING
                 )
             }
@@ -1852,7 +1846,7 @@ class BudgetViewModel(
                     fromAccount = operatingAccount,
                     toAccount = fortressAccount,
                     amount = plan.totalToFortress,
-                    note = "Payday Allocation ➔ Fortress Emergency Base",
+                    note = "Payday Allocation \u2794 Fortress Emergency Base",
                     subtype = TransferSubtype.WEALTH_ALLOCATION
                 )
             }
@@ -1870,7 +1864,7 @@ class BudgetViewModel(
                     fromAccount = operatingAccount,
                     toAccount = fortressAccount,
                     amount = plan.sweepAmount,
-                    note = "Month-End Wealth Sweep ➔ Fortress Extra",
+                    note = "Month-End Wealth Sweep \u2794 Fortress Extra",
                     subtype = TransferSubtype.WEALTH_ALLOCATION
                 )
             }
@@ -2052,11 +2046,8 @@ class BudgetViewModel(
             val updatedStatus = !bill.isPaid
 
             if (updatedStatus) {
-                // Keep the bill anchored to its scheduled billing cycle while recording the payment transaction
                 val paidBill = bill.copy(isPaid = true, amount = customAmount)
                 dao.updateFixedBill(paidBill)
-
-                // Clean up any stale linked transaction before inserting the settled transaction
                 dao.deleteTransactionByLinkedBill(paidBill.id)
 
                 val calTx = Calendar.getInstance().apply { timeInMillis = customDateMillis }
