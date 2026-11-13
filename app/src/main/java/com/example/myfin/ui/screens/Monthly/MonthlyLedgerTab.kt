@@ -98,10 +98,14 @@ fun MonthlyLedgerTab(
     val dateKeys = remember(uiState.groupedTransactions) {
         uiState.groupedTransactions.keys.toList()
     }
-    val expandedDates = remember(uiState.groupedTransactions, isSearchingOrFiltered) {
-        mutableStateMapOf<String, Boolean>().apply {
-            dateKeys.forEachIndexed { index, dateKey ->
-                put(dateKey, if (isSearchingOrFiltered) true else index < 2)
+    
+    // Stable expanded state map that doesn't reset on every transaction mutation
+    val expandedDates = remember { mutableStateMapOf<String, Boolean>() }
+    
+    LaunchedEffect(dateKeys, isSearchingOrFiltered) {
+        dateKeys.forEachIndexed { index, dateKey ->
+            if (!expandedDates.containsKey(dateKey)) {
+                expandedDates[dateKey] = if (isSearchingOrFiltered) true else index < 2
             }
         }
     }
@@ -222,7 +226,7 @@ fun MonthlyLedgerTab(
                                 text = if (isDiscreetMode) "•••• out" else "-${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", monthlyOutflow)} out",
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFFCA5A5)
+                                color = Error100
                             )
                             Text(text = "•", fontSize = 10.sp, color = Neutral500)
                             Text(
@@ -264,7 +268,7 @@ fun MonthlyLedgerTab(
                             .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
                             .background(
                                 Brush.verticalGradient(
-                                    listOf(Color(0xFFFDE047), Warning500)
+                                    listOf(Warning100, Warning500)
                                 )
                             )
                     )
@@ -667,7 +671,7 @@ fun MonthlyLedgerTab(
                                             sortedTxList.forEachIndexed { index, tx ->
                                                 SwipeableTransactionItem(
                                                     transaction = tx,
-                                                    currencySymbol = userProfile.currencySymbol,
+                                                    currencySymbol = if (isDiscreetMode) "•••• " else userProfile.currencySymbol,
                                                     onTap = { onViewTx(it) },
                                                     onEdit = { onEditTx(it) },
                                                     onDelete = { onDeleteTx(it) }
