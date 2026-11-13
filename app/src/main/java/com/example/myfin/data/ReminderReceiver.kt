@@ -34,6 +34,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 val database = AppDatabase.getDatabase(context.applicationContext)
                 val dao = database.budgetDao()
                 val profile = dao.getUserProfileDirect() ?: UserProfile(id = 1)
+                val isAnyReminderActive = profile.reminderEnabled || profile.isAutoPayReminderEnabled
 
                 val isBoot = action == Intent.ACTION_BOOT_COMPLETED ||
                         action == Intent.ACTION_MY_PACKAGE_REPLACED ||
@@ -42,7 +43,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
                 if (isBoot) {
                     Log.d("ReminderReceiver", "System reboot detected. Rescheduling alarms...")
-                    if (profile.reminderEnabled) {
+                    if (isAnyReminderActive) {
                         ReminderScheduler.scheduleDailyReminder(
                             context.applicationContext,
                             profile.reminderHour,
@@ -54,8 +55,8 @@ class ReminderReceiver : BroadcastReceiver() {
 
                 val isTest = action == ReminderScheduler.ACTION_TEST_NOTIFICATION
 
-                // Re-arm the next day's alarm cycle
-                if (profile.reminderEnabled && !isTest) {
+                // Re-arm the next day's alarm cycle if either Daily Reminder or AutoPay Alerts is enabled
+                if (isAnyReminderActive && !isTest) {
                     ReminderScheduler.scheduleDailyReminder(
                         context.applicationContext,
                         profile.reminderHour,
@@ -106,6 +107,11 @@ class ReminderReceiver : BroadcastReceiver() {
                         withinCurrentMonth
                     }
                 } else emptyList()
+
+                // If Daily Review Reminder is OFF and only AutoPay Alerts are ON, skip generic daily check-in if no bills are due
+                if (!isTest && !profile.reminderEnabled && dueToday.isEmpty() && dueWithin48h.isEmpty()) {
+                    return@launch
+                }
 
                 val currency = profile.currencySymbol
 
