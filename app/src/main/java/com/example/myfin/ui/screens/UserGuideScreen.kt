@@ -597,7 +597,7 @@ fun UserGuideScreen(
                         )
                         GuideFeatureBullet(
                             title = "Accounting Statement (.xlsx)",
-                            desc = "Generates a styled Excel workbook containing Monthly Statements, Category Rollups, and Vault Account Balances."
+                            desc = "Generates a styled multi-sheet Excel workbook containing Executive Summary, Vault Accounts, AutoPay Commitments, and the complete Transaction Ledger."
                         )
                         GuideFeatureBullet(
                             title = "Universal Flat Ledger (.csv)",
@@ -623,7 +623,7 @@ fun UserGuideScreen(
                     ) {
                         GuideSymbolRow(symbol = "I_personal", meaning = "Pure Personal Inflow", formula = "I_actual - NonPersonal_Inflows")
                         GuideSymbolRow(symbol = "E_lifestyle", meaning = "Pure Lifestyle Outflow", formula = "Type == EXPENSE (Pure living)")
-                        GuideSymbolRow(symbol = "C_fixed", meaning = "Total Fixed Commitments", formula = "Σ Bills_(EXPENSE + TRANSFER)")
+                        GuideSymbolRow(symbol = "C_fixed", meaning = "Total Fixed Commitments", formula = "Σ Bills_(EXPENSE + TRANSFER + ASSET)")
                         GuideSymbolRow(symbol = "C_pending", meaning = "Queued Unpaid Commitments", formula = "Σ Unpaid_Bills + Pending_SIP")
                         GuideSymbolRow(symbol = "MAB", meaning = "Minimum Average Balance Floor", formula = "Protected Account Minimum")
                         GuideSymbolRow(symbol = "Surplus", meaning = "Spendable Cash Above Floor", formula = "max(0, Balance - MAB)")
