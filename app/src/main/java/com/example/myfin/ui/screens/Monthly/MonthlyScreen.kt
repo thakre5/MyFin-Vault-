@@ -111,7 +111,7 @@ fun MonthlyScreen(
             ?: activeAccounts.getOrNull(2)?.accountName ?: "TERTIARY BANK"
     }
 
-    val todayCal = remember { Calendar.getInstance() }
+    val todayCal = remember(uiState.selectedMonth, uiState.selectedYear) { Calendar.getInstance() }
     val isCurrentMonth = uiState.selectedYear == todayCal.get(Calendar.YEAR) &&
             uiState.selectedMonth == (todayCal.get(Calendar.MONTH) + 1)
     val isPastMonth = (uiState.selectedYear < todayCal.get(Calendar.YEAR)) ||
@@ -481,14 +481,18 @@ fun MonthlyScreen(
         }
 
         if (showTransferSheet) {
+            val accountTypesMap = remember(activeAccounts) {
+                activeAccounts.associate { it.accountName to it.accountType }
+            }
             AccountTransferDialog(
                 accounts = accountsList,
+                accountTypes = accountTypesMap,
                 currencySymbol = userProfile.currencySymbol,
                 onDismiss = { showTransferSheet = false },
                 onTransfer = { from, to, amount, note, subtype, date, isRecurring, dueDay ->
                     if (isRecurring) {
                         viewModel.addFixedBill(
-                            title = note.ifBlank { "Vault Transfer ($from ➤ $to)" },
+                            title = note.ifBlank { "Vault Transfer ($from \u2794 $to)" },
                             amount = amount,
                             category = "Transfer",
                             subcategory = subtype.name,
@@ -509,8 +513,9 @@ fun MonthlyScreen(
                             subtype = subtype,
                             date = date
                         )
-                        Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)} to $to", Toast.LENGTH_SHORT).show()
                     }
+                    showTransferSheet = false
                 }
             )
         }
@@ -562,7 +567,13 @@ fun MonthlyScreen(
                         }
                     } else TransferSubtype.NONE
 
-                    if (isRecurring && id == 0L) {
+                    val existingLinkedBillId = editingTx?.linkedFixedBillId
+
+                    if (isRecurring && existingLinkedBillId == null) {
+                        // If converting an existing unlinked transaction into a recurring commitment, remove the unlinked copy first
+                        editingTx?.let { oldTx ->
+                            if (id != 0L) viewModel.deleteTransaction(oldTx)
+                        }
                         viewModel.addFixedBill(
                             title = title,
                             amount = amount,
