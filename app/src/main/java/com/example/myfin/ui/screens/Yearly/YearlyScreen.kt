@@ -116,9 +116,12 @@ fun YearlyScreen(
         } else emptyList()
     }
 
-    // Direct index allocation with (tx.month - 1)
+    // Pure lifestyle expense trajectories (excluding legacy Work & Professional float)
     val categoryTrajectories = remember(allYearTransactions, annualExpenses) {
-        val expenseTxs = allYearTransactions.filter { it.type == TransactionType.EXPENSE }
+        val expenseTxs = allYearTransactions.filter {
+            it.type == TransactionType.EXPENSE &&
+            !it.category.equals("Work & Professional", ignoreCase = true)
+        }
         val grouped = expenseTxs.groupBy { it.category.trim() }
 
         grouped.map { (cat, txs) ->
@@ -140,8 +143,11 @@ fun YearlyScreen(
         }.sortedByDescending { it.annualTotal }
     }
 
+    // Isolated to EXPENSE segment so shared names like 'General' in other segments don't overwrite ceilings
     val plannedCategoryCeilings = remember(uiState.categories) {
-        uiState.categories.associate { it.category.trim() to (it.plannedAmount * 12.0) }
+        uiState.categories
+            .filter { it.type == TransactionType.EXPENSE && !it.isReimbursableFloat }
+            .associate { it.category.trim() to (it.plannedAmount * 12.0) }
     }
 
     val xlsxExportLauncher = rememberLauncherForActivityResult(
@@ -332,7 +338,11 @@ fun YearlyScreen(
                         categoryTrajectories = categoryTrajectories,
                         plannedCategoryCeilings = plannedCategoryCeilings,
                         isCategoryLegacy = { catName ->
-                            uiState.masterCategories.any { it.name.equals(catName, ignoreCase = true) && it.isLegacy }
+                            uiState.masterCategories.any {
+                                it.type == TransactionType.EXPENSE &&
+                                it.name.equals(catName, ignoreCase = true) &&
+                                it.isLegacy
+                            }
                         },
                         currencySymbol = userProfile.currencySymbol,
                         isDiscreetMode = isDiscreetMode,
@@ -383,7 +393,8 @@ fun YearlyScreen(
                 isDiscreetMode = isDiscreetMode,
                 onDismiss = { activeMatrixSheet = null },
                 onNavigateToMonth = { monthIdx ->
-                    viewModel.selectMonth(monthIdx)
+                    activeMatrixSheet = null
+                    viewModel.setSelectedMonth(monthIdx, selectedYear)
                     onNavigateToMonth(selectedYear, monthIdx)
                 }
             )
@@ -406,7 +417,8 @@ fun YearlyScreen(
                 isDiscreetMode = isDiscreetMode,
                 onDismiss = { inspectedMonth = null },
                 onOpenMonth = { monthIdx ->
-                    viewModel.selectMonth(monthIdx)
+                    inspectedMonth = null
+                    viewModel.setSelectedMonth(monthIdx, selectedYear)
                     onNavigateToMonth(selectedYear, monthIdx)
                 }
             )
