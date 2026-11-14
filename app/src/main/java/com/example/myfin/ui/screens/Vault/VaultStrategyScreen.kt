@@ -113,6 +113,11 @@ fun VaultStrategyScreen(
 
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
 
+    // Reset ledger filters upon entering Vault strategy to ensure full cashflow accuracy
+    LaunchedEffect(Unit) {
+        viewModel.resetFilters()
+    }
+
     var showHelpDialog by remember { mutableStateOf(false) }
     var receiptPayload by remember { mutableStateOf<SuccessReceiptPayload?>(null) }
 
@@ -304,8 +309,8 @@ fun VaultStrategyScreen(
     val mabBuffer = remember(activeAccount) { activeAccount?.minBalance ?: 0.0 }
     val excessCompanyAdvance = uiState.reimbursementStatus.excessAdvanceHeld
 
+    // Account-specific sweep surplus calculation (prevents global pool surplus bleed onto small balance accounts)
     val calculatedSweepSurplus = remember(
-        uiState.monthEndSweepSuggestion,
         activeAccount?.currentBalance,
         totalPendingBillsAmount,
         normalizedDailyBurn,
@@ -313,14 +318,9 @@ fun VaultStrategyScreen(
         mabBuffer,
         excessCompanyAdvance
     ) {
-        val sweepSuggestion = uiState.monthEndSweepSuggestion
-        if (sweepSuggestion != null && sweepSuggestion.sweepAmount > 0.0) {
-            sweepSuggestion.sweepAmount
-        } else {
-            val bal = activeAccount?.currentBalance ?: 0.0
-            val spendProtection = normalizedDailyBurn * daysRemaining
-            (bal - mabBuffer - totalPendingBillsAmount - spendProtection - excessCompanyAdvance).coerceAtLeast(0.0)
-        }
+        val bal = activeAccount?.currentBalance ?: 0.0
+        val spendProtection = normalizedDailyBurn * daysRemaining
+        (bal - mabBuffer - totalPendingBillsAmount - spendProtection - excessCompanyAdvance).coerceAtLeast(0.0)
     }
 
     val fabActions = remember {
@@ -848,6 +848,7 @@ fun VaultStrategyScreen(
                                     tier = tier,
                                     isSelected = isSelected,
                                     showRole = true,
+                                    pendingBillsAmount = totalPendingBillsAmount,
                                     onSelect = {
                                         activeSelectedCardIndex = idx
                                         coroutineScope.launch {
@@ -875,7 +876,7 @@ fun VaultStrategyScreen(
                 activeAccount?.let { acc ->
                     item(key = "focused_account_${acc.accountName}") {
                         val activeTier = getVaultTier(acc.accountType)
-                        val effectiveAvailableBalance = acc.currentBalance - totalPendingBillsAmount
+                        val effectiveAvailableBalance = acc.currentBalance - totalPendingBillsAttribute(acc.accountName, uiState.fixedBills)
                         val isMabBreached = acc.minBalance > 0 && effectiveAvailableBalance < acc.minBalance
                         val deficit = (acc.minBalance - effectiveAvailableBalance).coerceAtLeast(0.0)
 
@@ -887,7 +888,7 @@ fun VaultStrategyScreen(
                             color = TextDark
                         )
 
-                        // Dedicated Alert Banner on Line 2 (Fixes Vertical Letter Stacking)
+                        // Dedicated Alert Banner on Line 2
                         if (isMabBreached) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Surface(
@@ -957,7 +958,7 @@ fun VaultStrategyScreen(
                                 Row(modifier = Modifier.fillMaxWidth()) {
                                     MatrixMetricCell(
                                         title = "Ring-Fenced AutoPay",
-                                        value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPendingBillsAmount)}",
+                                        value = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalPendingBillsAttribute(acc.accountName, uiState.fixedBills))}",
                                         icon = Icons.Default.Schedule,
                                         iconColor = Primary600,
                                         subtitle = "${pendingBillsForAccount.size} queued obligations",
@@ -1375,7 +1376,7 @@ fun VaultStrategyScreen(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "• Renaming will automatically update all linked transactions and fixed bills.\n• Role changes reallocate this balance in your asset allocation chart.\n• Balance adjustments create an automated ledger entry for the difference.",
+                                text = "• Renaming will automatically update all linked transactions and fixed bills.\n• Role changes reallocate this balance in your asset allocation chart.\n• Balance adjustments update starting balances directly without polluting personal cashflow ledgers.",
                                 fontSize = 10.5.sp,
                                 color = TextDark,
                                 lineHeight = 15.sp
@@ -1387,12 +1388,21 @@ fun VaultStrategyScreen(
 
                     Button(
                         onClick = {
+                            val cleanName = nameText.trim().uppercase()
                             val targetBal = balanceText.toDoubleOrNull() ?: acc.currentBalance
                             val minBal = minBalanceText.toDoubleOrNull() ?: acc.minBalance
-                            if (nameText.isNotBlank()) {
+
+                            // Check duplicate name guard (if renaming to a different name)
+                            if (cleanName.isNotBlank()) {
+                                val nameExists = displayAccounts.any { it.accountName.equals(cleanName, ignoreCase = true) && !it.accountName.equals(acc.accountName, ignoreCase = true) }
+                                if (nameExists) {
+                                    Toast.makeText(context, "An account named '$cleanName' already exists", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+
                                 pendingEditConfirmation = PendingEditConfirmation(
                                     originalAccount = acc,
-                                    updatedName = nameText.trim().uppercase(),
+                                    updatedName = cleanName,
                                     updatedRole = selectedRole,
                                     targetBalance = targetBal,
                                     minBalance = minBal,
@@ -1451,19 +1461,19 @@ fun VaultStrategyScreen(
                     Button(
                         onClick = {
                             val orig = conf.originalAccount
+                            // Adjust starting balance directly by the balance delta so no synthetic Adjustment transaction is logged
+                            val balanceDelta = conf.targetBalance - orig.currentBalance
+                            val adjustedStartingBalance = orig.startingBalance + balanceDelta
+
                             viewModel.updateAccountDetails(
                                 oldName = orig.accountName,
                                 newName = conf.updatedName,
-                                startingBalance = orig.startingBalance,
+                                startingBalance = adjustedStartingBalance,
                                 accountType = conf.updatedRole.title,
                                 minBalance = conf.minBalance,
                                 isArchived = conf.isArchived,
                                 sortOrder = orig.sortOrder
                             )
-
-                            if (isBalChanged) {
-                                viewModel.adjustAccountBalance(conf.updatedName, conf.targetBalance)
-                            }
 
                             pendingEditConfirmation = null
                             editingAccount = null
@@ -1622,7 +1632,6 @@ fun VaultStrategyScreen(
                         .navigationBarsPadding()
                         .padding(horizontal = 22.dp, vertical = 8.dp)
                 ) {
-                    // Option A: 3-Vault Guard Chip placed above the title
                     Surface(
                         shape = RoundedCornerShape(7.dp),
                         color = activeTier.bgTint,
@@ -1879,7 +1888,7 @@ fun VaultStrategyScreen(
                 onTransfer = { from, to, amount, note, subtype, date, isRecurring, dueDay ->
                     if (isRecurring) {
                         viewModel.addFixedBill(
-                            title = note.ifBlank { "Vault Transfer ($from ➔ $to)" },
+                            title = note.ifBlank { "Vault Transfer ($from \u2794 $to)" },
                             amount = amount,
                             category = "Transfer",
                             subcategory = subtype.name,
@@ -1903,7 +1912,7 @@ fun VaultStrategyScreen(
                         receiptPayload = SuccessReceiptPayload(
                             subtitle = "Vault Sweep Completed",
                             headline = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)}",
-                            description = "$from ➔ $to (${subtype.name})",
+                            description = "$from \u2794 $to (${subtype.name})",
                             buttonText = "Done"
                         )
                     }
@@ -2018,17 +2027,25 @@ fun VaultStrategyScreen(
 
                     Button(
                         onClick = {
-                            if (name.isNotBlank()) {
+                            val cleanName = name.trim().uppercase()
+                            if (cleanName.isNotBlank()) {
+                                val nameExists = displayAccounts.any { it.accountName.equals(cleanName, ignoreCase = true) } ||
+                                        archivedAccounts.any { it.accountName.equals(cleanName, ignoreCase = true) }
+                                if (nameExists) {
+                                    Toast.makeText(context, "An account named '$cleanName' already exists", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+
                                 val bal = balanceText.toDoubleOrNull() ?: 0.0
                                 val minBal = minBalanceText.toDoubleOrNull() ?: 0.0
                                 viewModel.addAccount(
-                                    name = name.trim().uppercase(),
+                                    name = cleanName,
                                     startingBalance = bal,
                                     type = selectedTier.title,
                                     minBalance = minBal
                                 )
                                 showAddAccountSheet = false
-                                Toast.makeText(context, "Account '${name.trim().uppercase()}' registered", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Account '$cleanName' registered", Toast.LENGTH_SHORT).show()
                             }
                         },
                         enabled = name.isNotBlank(),
@@ -2121,6 +2138,15 @@ fun VaultStrategyScreen(
     }
 }
 
+private fun totalPendingBillsAttribute(accountName: String, fixedBills: List<com.example.myfin.data.FixedBillEntity>): Double {
+    return fixedBills.filter {
+        !it.isPaid &&
+        it.type != TransactionType.INCOME &&
+        !(it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
+        it.accountName.equals(accountName, ignoreCase = true)
+    }.sumOf { it.amount }
+}
+
 @Composable
 private fun MatrixMetricCell(
     title: String,
@@ -2150,6 +2176,7 @@ private fun BankAccountPhysicalCard(
     tier: VaultTier,
     isSelected: Boolean,
     showRole: Boolean,
+    pendingBillsAmount: Double,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
@@ -2158,7 +2185,8 @@ private fun BankAccountPhysicalCard(
         val safeHash = abs(account.accountName.hashCode().toLong())
         String.format(Locale.US, "%04d", safeHash % 9000 + 1000)
     }
-    val isMabBreached = account.minBalance > 0 && account.currentBalance < account.minBalance
+    // Use effective MAB breach check so card badge matches Cashflow Matrix banner below it
+    val isMabBreached = account.isEffectiveMabBreached(totalPendingBillsAttribute(account.accountName, emptyList()))
 
     Surface(
         modifier = modifier
