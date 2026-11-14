@@ -56,6 +56,10 @@ fun YearlyAuditTab(
     onOpenGraphGuide: (GraphExplanationGuide) -> Unit,
     onCategoryClick: (String) -> Unit = {}
 ) {
+    val normalizedCeilings = remember(plannedCategoryCeilings) {
+        plannedCategoryCeilings.entries.associate { (k, v) -> k.trim().lowercase(Locale.ROOT) to v }
+    }
+
     val totalAnnualBurn = remember(categoryTrajectories) {
         categoryTrajectories.sumOf { it.annualTotal }
     }
@@ -77,16 +81,16 @@ fun YearlyAuditTab(
         }
     }
 
-    val overrunCategories = remember(categoryTrajectories, plannedCategoryCeilings) {
+    val overrunCategories = remember(categoryTrajectories, normalizedCeilings) {
         categoryTrajectories.filter { cat ->
-            val ceiling = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
+            val ceiling = normalizedCeilings[cat.categoryName.trim().lowercase(Locale.ROOT)] ?: 0.0
             ceiling > 0.0 && cat.annualTotal > ceiling
         }
     }
 
-    val totalOverrunAmount = remember(overrunCategories, plannedCategoryCeilings) {
+    val totalOverrunAmount = remember(overrunCategories, normalizedCeilings) {
         overrunCategories.sumOf { cat ->
-            val ceiling = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
+            val ceiling = normalizedCeilings[cat.categoryName.trim().lowercase(Locale.ROOT)] ?: 0.0
             cat.annualTotal - ceiling
         }
     }
@@ -129,7 +133,7 @@ fun YearlyAuditTab(
         item(key = "budget_vs_actual_dual_pillars") {
             CompactBudgetVsActualCard(
                 categoryTrajectories = categoryTrajectories,
-                plannedCategoryCeilings = plannedCategoryCeilings,
+                normalizedCeilings = normalizedCeilings,
                 overrunCount = overrunCategories.size,
                 totalOverrun = totalOverrunAmount,
                 currencySymbol = currencySymbol,
@@ -200,7 +204,7 @@ fun YearlyAuditTab(
                 val isLegacy = remember(isCategoryLegacy, item.categoryName) {
                     isCategoryLegacy(item.categoryName)
                 }
-                val plannedCeiling = plannedCategoryCeilings[item.categoryName.trim()] ?: 0.0
+                val plannedCeiling = normalizedCeilings[item.categoryName.trim().lowercase(Locale.ROOT)] ?: 0.0
 
                 PolishedCategoryTrajectoryRow(
                     item = item,
@@ -479,7 +483,7 @@ private fun CompactStarRadarCanvas(
             val angTip = (i * 2 * Math.PI / n) - Math.PI / 2
             val pTip = Offset(c.x + (rTip * cos(angTip)).toFloat(), c.y + (rTip * sin(angTip)).toFloat())
 
-            val dotColor = RADAR_PALETTE[i % RADAR_PALETTE.lastIndex]
+            val dotColor = RADAR_PALETTE[i % RADAR_PALETTE.size]
             drawCircle(color = Color.White, radius = 4.dp.toPx(), center = pTip)
             drawCircle(color = dotColor, radius = 2.5.dp.toPx(), center = pTip)
         }
@@ -493,19 +497,19 @@ private fun CompactStarRadarCanvas(
 @Composable
 private fun CompactBudgetVsActualCard(
     categoryTrajectories: List<CategoryAnnualTrajectory>,
-    plannedCategoryCeilings: Map<String, Double>,
+    normalizedCeilings: Map<String, Double>,
     overrunCount: Int,
     totalOverrun: Double,
     currencySymbol: String,
     isDiscreet: Boolean,
     onInfoClick: () -> Unit
 ) {
-    val displayList = remember(categoryTrajectories, plannedCategoryCeilings) {
+    val displayList = remember(categoryTrajectories, normalizedCeilings) {
         val overruns = categoryTrajectories.filter { cat ->
-            val planned = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
+            val planned = normalizedCeilings[cat.categoryName.trim().lowercase(Locale.ROOT)] ?: 0.0
             planned > 0.0 && cat.annualTotal > planned
         }.sortedByDescending { cat ->
-            cat.annualTotal - (plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0)
+            cat.annualTotal - (normalizedCeilings[cat.categoryName.trim().lowercase(Locale.ROOT)] ?: 0.0)
         }
         val others = categoryTrajectories.filter { it !in overruns }
             .sortedByDescending { it.annualTotal }
@@ -592,7 +596,7 @@ private fun CompactBudgetVsActualCard(
                 }
             } else {
                 val maxBurn = displayList.maxOfOrNull { cat ->
-                    max(cat.annualTotal, plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0)
+                    max(cat.annualTotal, normalizedCeilings[cat.categoryName.trim().lowercase(Locale.ROOT)] ?: 0.0)
                 }?.coerceAtLeast(100.0) ?: 100.0
 
                 Row(
@@ -604,7 +608,7 @@ private fun CompactBudgetVsActualCard(
                 ) {
                     displayList.forEach { cat ->
                         val actualRatio = (cat.annualTotal / maxBurn).toFloat().coerceIn(0.10f, 1f)
-                        val plannedAmt = plannedCategoryCeilings[cat.categoryName.trim()] ?: 0.0
+                        val plannedAmt = normalizedCeilings[cat.categoryName.trim().lowercase(Locale.ROOT)] ?: 0.0
                         val plannedRatio = if (plannedAmt > 0) (plannedAmt / maxBurn).toFloat().coerceIn(0.08f, 1f) else 0.04f
                         val isOverrun = plannedAmt > 0 && cat.annualTotal > plannedAmt
 
@@ -751,8 +755,9 @@ private fun PolishedCategoryTrajectoryRow(
                             }
                         }
                     }
+                    val avgLabel = if (isDiscreet) "Avg ••••/mo" else "Avg $currencySymbol${String.format(Locale.US, "%,.0f", monthlyAverage)}/mo"
                     Text(
-                        text = "${String.format(Locale.US, "%.1f", item.percentageOfTotal)}% of annual outflow • Avg $currencySymbol${String.format(Locale.US, "%,.0f", monthlyAverage)}/mo",
+                        text = "${String.format(Locale.US, "%.1f", item.percentageOfTotal)}% of annual outflow • $avgLabel",
                         fontSize = 10.sp,
                         color = TextMuted
                     )
