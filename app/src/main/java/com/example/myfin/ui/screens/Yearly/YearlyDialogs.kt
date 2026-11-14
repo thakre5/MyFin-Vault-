@@ -6,8 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
@@ -104,6 +106,7 @@ fun CashflowActiveMatrixSheet(
     onDismiss: () -> Unit,
     onNavigateToMonth: (Int) -> Unit = {}
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val yearlyMonths = yearlyState.yearlyMonths
     val annualIncome = yearlyState.annualPersonalIncome
     val annualExpenses = yearlyState.annualLifestyleExpenses
@@ -116,6 +119,7 @@ fun CashflowActiveMatrixSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = CardWhite,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
@@ -148,19 +152,19 @@ fun CashflowActiveMatrixSheet(
                         MatrixDataRow(
                             label = "Personal Inflow (YTD)",
                             value = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)}",
-                            subtext = "Avg: $currencySymbol${String.format(Locale.US, "%,.0f", activeMonthlyIncome)}/mo active",
+                            subtext = if (isDiscreetMode) "Avg: ••••/mo active" else "Avg: $currencySymbol${String.format(Locale.US, "%,.0f", activeMonthlyIncome)}/mo active",
                             tint = Success500
                         )
                         MatrixDataRow(
                             label = "Personal Lifestyle Burn (YTD)",
                             value = if (isDiscreetMode) "••••" else "-$currencySymbol${String.format(Locale.US, "%,.0f", annualExpenses)}",
-                            subtext = "Avg: $currencySymbol${String.format(Locale.US, "%,.0f", activeMonthlyBurn)}/mo active",
+                            subtext = if (isDiscreetMode) "Avg: ••••/mo active" else "Avg: $currencySymbol${String.format(Locale.US, "%,.0f", activeMonthlyBurn)}/mo active",
                             tint = Primary600
                         )
                         MatrixDataRow(
                             label = "Peak Expenditure Cycle",
                             value = peakMonth?.monthName ?: "None",
-                            subtext = if (peakMonth != null) "Burn: $currencySymbol${String.format(Locale.US, "%,.0f", peakMonth.lifestyleExpenses)}" else "",
+                            subtext = if (isDiscreetMode || peakMonth == null) "Burn: ••••" else "Burn: $currencySymbol${String.format(Locale.US, "%,.0f", peakMonth.lifestyleExpenses)}",
                             tint = Error500
                         )
                         HorizontalDivider(color = BorderLight, thickness = 0.8.dp)
@@ -265,7 +269,7 @@ fun CashflowActiveMatrixSheet(
                     SheetHeader(
                         title = "Annual 3-Pillar Allocation",
                         subtitle = "Capital Distribution vs 50/30/20 Guidelines",
-                        badge = "Total Inflow: $currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)}",
+                        badge = if (isDiscreetMode) "Total Inflow: ••••" else "Total Inflow: $currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)}",
                         badgeColor = Primary700,
                         badgeBgColor = Primary100
                     )
@@ -346,9 +350,9 @@ fun CashflowActiveMatrixSheet(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MatrixDataRow("Projected Full-Year Inflow", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projInflow)}", "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)}", Success500)
-                        MatrixDataRow("Projected Full-Year Burn", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projBurn)}", "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualExpenses)}", Error500)
-                        MatrixDataRow("Projected Annual SIP Assets", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projAssets)}", "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualAssets)}", SoftTeal)
+                        MatrixDataRow("Projected Full-Year Inflow", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projInflow)}", if (isDiscreetMode) "Current YTD: ••••" else "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualIncome)}", Success500)
+                        MatrixDataRow("Projected Full-Year Burn", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projBurn)}", if (isDiscreetMode) "Current YTD: ••••" else "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualExpenses)}", Error500)
+                        MatrixDataRow("Projected Annual SIP Assets", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", projAssets)}", if (isDiscreetMode) "Current YTD: ••••" else "Current YTD: $currencySymbol${String.format(Locale.US, "%,.0f", annualAssets)}", SoftTeal)
                         HorizontalDivider(color = BorderLight, thickness = 0.8.dp)
                         MatrixDataRow("Forecasted Year-End Surplus", if (isDiscreetMode) "••••" else "${if (projSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", projSurplus)}", "Net liquid capital expected by Dec 31", if (projSurplus >= 0) SoftTeal else Error500, isBold = true)
                     }
@@ -602,14 +606,18 @@ fun GraphExplanationBottomSheet(
     guide: GraphExplanationGuide,
     onDismiss: () -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = CardWhite,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 36.dp)
                 .navigationBarsPadding()
@@ -720,10 +728,12 @@ fun InspectedMonthBottomSheet(
     onDismiss: () -> Unit,
     onOpenMonth: (Int) -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val monthPersonalIncome = mData.personalIncome
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = CardWhite,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
@@ -818,7 +828,7 @@ fun InspectedMonthBottomSheet(
             Spacer(modifier = Modifier.height(8.dp))
 
             val topMonthCategories = mData.transactions
-                .filter { it.type == TransactionType.EXPENSE }
+                .filter { it.type == TransactionType.EXPENSE && !it.category.equals("Work & Professional", ignoreCase = true) }
                 .groupBy { it.category.trim() }
                 .mapValues { it.value.sumOf { tx -> tx.amount } }
                 .toList()
