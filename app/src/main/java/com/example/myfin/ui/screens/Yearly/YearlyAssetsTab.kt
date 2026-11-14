@@ -72,17 +72,19 @@ fun YearlyAssetsTab(
                 currencySymbol = currencySymbol,
                 isDiscreet = isDiscreetMode,
                 onInfoClick = {
+                    val formattedGoal = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", annualTargetGoal)}"
+                    val formattedCurrent = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", currentWealthAccumulated)}"
                     onOpenGraphGuide(
                         GraphExplanationGuide(
                             title = "How Target is Calculated",
                             subtitle = "Annual Wealth Milestone Formula",
-                            whatItShows = "Your milestone of $currencySymbol${String.format(Locale.US, "%,.0f", annualTargetGoal)} is calculated as:\n\n" +
+                            whatItShows = "Your milestone of $formattedGoal is calculated as:\n\n" +
                                     "Target = max(25% of Annual Income, Fortress Emergency Fund)\n\n" +
                                     "• 25% Savings Rate: Benchmarks accumulating at least a quarter of your total annual earnings.\n" +
                                     "• Fortress Floor: Ensures your annual compounding milestone never dips below your essential emergency runway.",
                             visualElements = listOf(
-                                "Accumulated ($currencySymbol${String.format(Locale.US, "%,.0f", currentWealthAccumulated)})" to "Total capital routed into SIPs/Assets + retained liquid cash this year.",
-                                "Milestone Goal ($currencySymbol${String.format(Locale.US, "%,.0f", annualTargetGoal)})" to "Target capital to accumulate by December 31st.",
+                                "Accumulated ($formattedCurrent)" to "Total capital routed into SIPs/Assets + retained liquid cash this year.",
+                                "Milestone Goal ($formattedGoal)" to "Target capital to accumulate by December 31st.",
                                 "Liquid Wave ($completionPct%)" to "Visual indicator of progress toward this year's milestone."
                             ),
                             whyItMatters = "Ensures you are systematically converting living income into long-term compounding net worth.",
@@ -137,7 +139,7 @@ fun YearlyAssetsTab(
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", wealthMetrics.realizableNetWorth)}",
+                                text = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.2f", wealthMetrics.realizableNetWorth)}",
                                 fontSize = 21.sp,
                                 fontWeight = FontWeight.Black,
                                 color = Primary600
@@ -655,19 +657,24 @@ private fun MultiYearSegmentedPillarsCard(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Aligned Year Labels underneath pillars
+                // Aligned Year Labels underneath pillars (using exact column width alignment)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
                     multiYearAssets.forEach { item ->
                         val isCurrent = item.year == selectedYear
-                        Text(
-                            text = "'${item.year.toString().takeLast(2)}",
-                            fontSize = 10.sp,
-                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isCurrent) Primary600 else TextMuted
-                        )
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "'${item.year.toString().takeLast(2)}",
+                                fontSize = 10.sp,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isCurrent) Primary600 else TextMuted
+                            )
+                        }
                     }
                 }
 
@@ -736,10 +743,11 @@ private fun MultiYearSegmentedCanvas(
         val maxVal = multiYearAssets.maxOfOrNull { it.totalAssets }?.coerceAtLeast(100.0) ?: 100.0
 
         val barWidth = 32.dp.toPx()
-        val spacing = ((w - (barWidth * count)) / (count + 1)).coerceAtLeast(10f)
+        val colWidth = w / count
 
         multiYearAssets.forEachIndexed { idx, item ->
-            val x = spacing + idx * (barWidth + spacing)
+            // Center each bar precisely in its equal-width column to match Modifier.weight(1f) text labels below
+            val x = idx * colWidth + (colWidth - barWidth) / 2f
             val ratio = (item.totalAssets / maxVal).toFloat().coerceIn(0.06f, 0.90f)
             val barH = (h * 0.70f) * ratio
             val isCurrent = item.year == selectedYear
