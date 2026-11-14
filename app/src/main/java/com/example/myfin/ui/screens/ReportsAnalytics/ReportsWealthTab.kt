@@ -61,12 +61,15 @@ fun ReportsWealthTab(
     // CANONICAL UNIFIED METRIC DEFINITIONS (GRAPH & TITLE SYNC)
     // =========================================================
 
-    val netCapitalTrajectoryInfo = remember(userProfileCurrency, totalLiquid, totalInvestments, realizableNetWorth) {
+    val netCapitalTrajectoryInfo = remember(userProfileCurrency, totalLiquid, totalInvestments, realizableNetWorth, isDiscreet) {
+        val liqStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)}"
+        val invStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)}"
+        val rnwStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", realizableNetWorth)}"
         ChartMetricInfo(
             title = "Net Capital Trajectory & Silhouette",
             subtitle = "Liquid Reserves vs. Compounding Wealth Assets",
             formula = "Realizable Net Worth = Liquid Reserves + Active Investments + Receivables",
-            breakdown = "Liquid Vaults: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)}\nInvested Portfolio: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)}\nRealizable Net Worth: $userProfileCurrency${String.format(Locale.US, "%,.0f", realizableNetWorth)}",
+            breakdown = "Liquid Vaults: $liqStr\nInvested Portfolio: $invStr\nRealizable Net Worth: $rnwStr",
             visualElements = listOf(
                 "Cobalt Silhouette Layer" to "Liquid defensive buffer held across bank and cash accounts.",
                 "Teal Silhouette Layer" to "Compounding market portfolio stock (Mutual funds, gold, SIPs)."
@@ -75,12 +78,15 @@ fun ReportsWealthTab(
         )
     }
 
-    val capitalDistributionInfo = remember(userProfileCurrency, bankAmount, cashAmount, totalInvestments) {
+    val capitalDistributionInfo = remember(userProfileCurrency, bankAmount, cashAmount, totalInvestments, isDiscreet) {
+        val bankStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", bankAmount)}"
+        val cashStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", cashAmount)}"
+        val invStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)}"
         ChartMetricInfo(
             title = "Capital Allocation Bubbles",
             subtitle = "Three-Tier Wealth Balance Distribution",
             formula = "Total Capital = Bank Reserves + Cash Buffer + Invested Assets",
-            breakdown = "Bank Reserves: $userProfileCurrency${String.format(Locale.US, "%,.0f", bankAmount)}\nCash Buffer: $userProfileCurrency${String.format(Locale.US, "%,.0f", cashAmount)}\nInvested Portfolio: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalInvestments)}",
+            breakdown = "Bank Reserves: $bankStr\nCash Buffer: $cashStr\nInvested Portfolio: $invStr",
             visualElements = listOf(
                 "Cobalt Bubble" to "Bank balances held in operating and commitments accounts.",
                 "Teal Bubble" to "Long-term investment assets, mutual funds, and wealth accounts.",
@@ -90,12 +96,15 @@ fun ReportsWealthTab(
         )
     }
 
-    val emergencyRunwayInfo = remember(userProfileCurrency, totalLiquid, monthlyBurnRate, runwayMonths) {
+    val emergencyRunwayInfo = remember(userProfileCurrency, totalLiquid, monthlyBurnRate, runwayMonths, isDiscreet) {
+        val liqStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)}"
+        val burnStr = if (isDiscreet) "••••/mo" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", monthlyBurnRate)}/mo"
+        val rwyStr = if (isDiscreet) "•• Months" else "${String.format(Locale.US, "%.1f", runwayMonths)} Months"
         ChartMetricInfo(
             title = "Emergency Buffer Runway",
             subtitle = "Financial Survival Duration at Baseline Burn",
             formula = "Runway Months = Liquid Vaults ÷ Average Monthly Burn",
-            breakdown = "Liquid Reserves: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalLiquid)}\nMonthly Burn Rate: $userProfileCurrency${String.format(Locale.US, "%,.0f", monthlyBurnRate)}/mo\nRunway Buffer: ${String.format(Locale.US, "%.1f", runwayMonths)} Months",
+            breakdown = "Liquid Reserves: $liqStr\nMonthly Burn Rate: $burnStr\nRunway Buffer: $rwyStr",
             visualElements = listOf(
                 "Runway Counter" to "Months your liquid reserves can fund full living expenses without any new income."
             ),
@@ -309,12 +318,15 @@ fun ReportsWealthTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
+                        val balStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", acc.currentBalance)}"
+                        val mabStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", acc.minBalance)}"
+                        val surStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", spendableSurplus)}"
                         onOpenMetricInfo(
                             ChartMetricInfo(
                                 title = "${acc.accountName} Vault Audit",
                                 subtitle = "${acc.accountType} Tier Account Details",
                                 formula = "Spendable Surplus = Current Balance - Minimum Account Balance",
-                                breakdown = "Current Balance: $userProfileCurrency${String.format(Locale.US, "%,.0f", acc.currentBalance)}\nMAB Protected Buffer: $userProfileCurrency${String.format(Locale.US, "%,.0f", acc.minBalance)}\nFree Spendable Surplus: $userProfileCurrency${String.format(Locale.US, "%,.0f", spendableSurplus)}",
+                                breakdown = "Current Balance: $balStr\nMAB Protected Buffer: $mabStr\nFree Spendable Surplus: $surStr",
                                 visualElements = listOf(
                                     "MAB Buffer" to "Required minimum balance protected against overdraft charges.",
                                     "Free Surplus" to "Liquid funds freely available for safe spending or sweeping."
@@ -349,7 +361,12 @@ fun ReportsWealthTab(
                             Text(if (is3Vault) "${acc.accountType} Tier" else "${acc.accountType} Vault", fontSize = 11.sp, color = TextMuted)
                             if (acc.minBalance > 0.0) {
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("• MAB: $userProfileCurrency${String.format(Locale.US, "%,.0f", acc.minBalance)}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Primary600)
+                                Text(
+                                    text = if (isDiscreet) "• MAB: ••••" else "• MAB: $userProfileCurrency${String.format(Locale.US, "%,.0f", acc.minBalance)}",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Primary600
+                                )
                             }
                         }
                     }
