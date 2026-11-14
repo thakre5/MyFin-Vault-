@@ -51,7 +51,8 @@ fun SettleFixedBillDialog(
         when (bill.subcategory.trim()) {
             "WEALTH_ALLOCATION" -> "Fortress Sweep"
             "BILL_FUNDING" -> "Bill Funding"
-            "REBALANCE" -> "Rebalance"
+            "REBALANCE" -> "Vault Rebalance"
+            "CASH_WITHDRAWAL" -> "Cash ATM Withdrawal"
             else -> bill.subcategory.trim().ifBlank { "Vault Sweep" }
         }
     } else bill.subcategory.trim()
@@ -69,9 +70,31 @@ fun SettleFixedBillDialog(
         else -> "$friendlySubcat ($cleanTitle)"
     }
 
+    val defaultSettleDateMillis = remember(bill.id, bill.month, bill.year, bill.dueDay) {
+        val nowCal = Calendar.getInstance()
+        val sysMonth = nowCal.get(Calendar.MONTH) + 1
+        val sysYear = nowCal.get(Calendar.YEAR)
+        if (bill.month == sysMonth && bill.year == sysYear) {
+            System.currentTimeMillis()
+        } else {
+            Calendar.getInstance().apply {
+                set(Calendar.YEAR, bill.year)
+                set(Calendar.MONTH, (bill.month - 1).coerceIn(0, 11))
+                set(Calendar.DAY_OF_MONTH, 1)
+                val maxDay = getActualMaximum(Calendar.DAY_OF_MONTH)
+                val targetDay = (bill.dueDay ?: 1).coerceIn(1, maxDay)
+                set(Calendar.DAY_OF_MONTH, targetDay)
+                set(Calendar.HOUR_OF_DAY, 12)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+        }
+    }
+
     val formattedDefaultAmount = if (bill.amount % 1.0 == 0.0) bill.amount.toLong().toString() else bill.amount.toString()
     var finalAmountText by remember(bill.id) { mutableStateOf(formattedDefaultAmount) }
-    var selectedSettleDateMillis by remember(bill.id) { mutableStateOf(System.currentTimeMillis()) }
+    var selectedSettleDateMillis by remember(bill.id) { mutableStateOf(defaultSettleDateMillis) }
     var showSettleDatePicker by remember { mutableStateOf(false) }
 
     val isToday = remember(selectedSettleDateMillis) {
@@ -109,7 +132,7 @@ fun SettleFixedBillDialog(
     val descPrompt = when (bill.type) {
         TransactionType.INCOME -> "Credits ${bill.accountName} vault and logs inflow entry."
         TransactionType.ASSET -> "Deducts from ${bill.accountName} and records under Asset Wealth."
-        TransactionType.TRANSFER -> "Sweeps funds from ${bill.accountName} ➤ $destVaultName."
+        TransactionType.TRANSFER -> "Sweeps funds from ${bill.accountName} \u2794 $destVaultName."
         TransactionType.CORPORATE -> if (bill.category.equals("Reimbursements & Claims", ignoreCase = true))
             "Credits ${bill.accountName} vault as employer claim reimbursement."
         else
@@ -190,7 +213,8 @@ fun SettleFixedBillDialog(
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Primary600,
-                        unfocusedBorderColor = BorderLight
+                        unfocusedBorderColor = BorderLight,
+                        focusedLabelColor = Primary600
                     )
                 )
 
@@ -296,43 +320,43 @@ fun SettleFixedBillDialog(
                 }
             }
         }
+    }
 
-        if (showSettleDatePicker) {
-            val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedSettleDateMillis)
-            DatePickerDialog(
-                onDismissRequest = { showSettleDatePicker = false },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            datePickerState.selectedDateMillis?.let { pickedUtc ->
-                                val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-                                    timeInMillis = pickedUtc
-                                }
-                                val localCal = Calendar.getInstance().apply {
-                                    set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
-                                    set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
-                                    set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
-                                    set(Calendar.HOUR_OF_DAY, 12)
-                                    set(Calendar.MINUTE, 0)
-                                    set(Calendar.SECOND, 0)
-                                    set(Calendar.MILLISECOND, 0)
-                                }
-                                selectedSettleDateMillis = localCal.timeInMillis
+    if (showSettleDatePicker) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedSettleDateMillis)
+        DatePickerDialog(
+            onDismissRequest = { showSettleDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { pickedUtc ->
+                            val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                timeInMillis = pickedUtc
                             }
-                            showSettleDatePicker = false
+                            val localCal = Calendar.getInstance().apply {
+                                set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                                set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                                set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                                set(Calendar.HOUR_OF_DAY, 12)
+                                set(Calendar.MINUTE, 0)
+                                set(Calendar.SECOND, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }
+                            selectedSettleDateMillis = localCal.timeInMillis
                         }
-                    ) {
-                        Text("Select", fontWeight = FontWeight.Bold, color = Primary600)
+                        showSettleDatePicker = false
                     }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showSettleDatePicker = false }) {
-                        Text("Cancel", color = TextDark)
-                    }
+                ) {
+                    Text("Select", fontWeight = FontWeight.Bold, color = Primary600)
                 }
-            ) {
-                DatePicker(state = datePickerState)
+            },
+            dismissButton = {
+                TextButton(onClick = { showSettleDatePicker = false }) {
+                    Text("Cancel", color = TextDark)
+                }
             }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }
@@ -562,11 +586,13 @@ fun SafeToSpendInfoBottomSheet(
     userProfile: UserProfile,
     onDismiss: () -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val curr = userProfile.currencySymbol
     val m = uiState.metrics
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = CardWhite,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
@@ -628,11 +654,13 @@ fun ThreePillarInfoBottomSheet(
     userProfile: UserProfile,
     onDismiss: () -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val curr = userProfile.currencySymbol
     val m = uiState.metrics
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = CardWhite,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
@@ -662,8 +690,8 @@ fun ThreePillarInfoBottomSheet(
                     modifier = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    DetailItemRow("Actual Inflow", "$curr${String.format(Locale.US, "%,.0f", m.actualIncome)}")
-                    DetailItemRow("Lifestyle Expenses", "$curr${String.format(Locale.US, "%,.0f", m.actualExpenses)}")
+                    DetailItemRow("Pure Personal Inflow", "$curr${String.format(Locale.US, "%,.0f", m.personalIncome)}")
+                    DetailItemRow("Lifestyle Expenses", "$curr${String.format(Locale.US, "%,.0f", m.lifestyleExpenses)}")
                     DetailItemRow("Wealth & SIP Assets", "$curr${String.format(Locale.US, "%,.0f", m.actualAssets)}")
                     DetailItemRow("Net Saved After Invest", "$curr${String.format(Locale.US, "%,.0f", m.netSavedAfterInvest)}")
                 }
@@ -693,10 +721,17 @@ fun FortressInfoBottomSheet(
     userProfile: UserProfile,
     onDismiss: () -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val curr = userProfile.currencySymbol
+    val targetDesc = if (userProfile.fortressManualTarget > 0.0) {
+        "fixed emergency corpus goal"
+    } else {
+        "${userProfile.fortressEmergencyMonths.takeIf { it > 0 } ?: 6}-month runway target"
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = CardWhite,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
@@ -709,7 +744,7 @@ fun FortressInfoBottomSheet(
             Text("Emergency Fortress Reserve", fontSize = 18.sp, fontWeight = FontWeight.Black, color = TextDark)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Tracks your ring-fenced emergency corpus against your ${userProfile.fortressEmergencyMonths}-month runway target.",
+                text = "Tracks your ring-fenced emergency corpus against your $targetDesc.",
                 fontSize = 12.sp,
                 color = TextMuted
             )
@@ -757,11 +792,13 @@ fun BalanceFlowInfoBottomSheet(
     initialMode: Int = 0,
     onDismiss: () -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val curr = userProfile.currencySymbol
     val m = uiState.metrics
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = CardWhite,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
