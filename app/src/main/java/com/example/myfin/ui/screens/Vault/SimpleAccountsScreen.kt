@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.myfin.data.AccountBalanceResult
 import com.example.myfin.data.AccountEntity
+import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.AccountTransferDialog
@@ -71,6 +72,15 @@ private fun getAccountTier(accountType: String): VaultTier {
     }
 }
 
+private fun pendingBillsForAccountName(accountName: String, fixedBills: List<FixedBillEntity>): Double {
+    return fixedBills.filter {
+        !it.isPaid &&
+        it.type != TransactionType.INCOME &&
+        !(it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
+        it.accountName.equals(accountName, ignoreCase = true)
+    }.sumOf { it.amount }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SimpleAccountsScreen(
@@ -88,6 +98,11 @@ fun SimpleAccountsScreen(
     val userProfile by viewModel.userProfile.collectAsState()
 
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
+
+    // Ensure account cashflow snapshots are not constrained by active ledger search/filters
+    LaunchedEffect(Unit) {
+        viewModel.resetFilters()
+    }
 
     var isDiscreetMode by remember { mutableStateOf(false) }
     var showTransferSheet by remember { mutableStateOf(false) }
@@ -109,12 +124,7 @@ fun SimpleAccountsScreen(
     val netVaultCapital = remember(displayAccounts) { displayAccounts.sumOf { it.currentBalance } }
 
     val monthInflow = uiState.metrics.actualIncome
-    val corporateOutlays = remember(uiState.groupedTransactions) {
-        uiState.groupedTransactions.values.flatten().filter {
-            it.type == TransactionType.CORPORATE &&
-            !it.category.equals("Reimbursements & Claims", ignoreCase = true)
-        }.sumOf { it.amount }
-    }
+    val corporateOutlays = uiState.metrics.workExpenses
     val monthOutflow = uiState.metrics.actualExpenses + uiState.metrics.actualAssets + corporateOutlays
 
     // Snapping Carousel State & Center-Focus Auto-Detection
@@ -461,6 +471,9 @@ fun SimpleAccountsScreen(
                             ) { idx, acc ->
                                 val tier = getAccountTier(acc.accountType)
                                 val isSelected = activeSelectedCardIndex == idx
+                                val cardPendingBills = remember(uiState.fixedBills, acc.accountName) {
+                                    pendingBillsForAccountName(acc.accountName, uiState.fixedBills)
+                                }
 
                                 BankAccountPhysicalCard(
                                     account = acc,
@@ -468,6 +481,7 @@ fun SimpleAccountsScreen(
                                     tier = tier,
                                     isSelected = isSelected,
                                     showRole = true,
+                                    pendingBillsAmount = cardPendingBills,
                                     isDiscreetMode = isDiscreetMode,
                                     onSelect = {
                                         activeSelectedCardIndex = idx
@@ -496,16 +510,10 @@ fun SimpleAccountsScreen(
                     item(key = "focused_account_${acc.accountName}") {
                         val tier = getAccountTier(acc.accountType)
                         val pendingBills = remember(uiState.fixedBills, acc.accountName) {
-                            uiState.fixedBills.filter {
-                                !it.isPaid &&
-                                it.type != TransactionType.INCOME &&
-                                !(it.type == TransactionType.CORPORATE && it.category.equals("Reimbursements & Claims", ignoreCase = true)) &&
-                                it.accountName.equals(acc.accountName, ignoreCase = true)
-                            }.sumOf { it.amount }
+                            pendingBillsForAccountName(acc.accountName, uiState.fixedBills)
                         }
-                        val effectiveBal = acc.currentBalance - pendingBills
-                        val isMabBreached = acc.minBalance > 0.0 && effectiveBal < acc.minBalance
-                        val deficit = (acc.minBalance - effectiveBal).coerceAtLeast(0.0)
+                        val isMabBreached = acc.isEffectiveMabBreached(pendingBills)
+                        val deficit = acc.effectiveMabDeficit(pendingBills)
 
                         val accountTxs = remember(uiState.groupedTransactions, acc.accountName) {
                             uiState.groupedTransactions.values.flatten().filter { tx ->
@@ -548,7 +556,7 @@ fun SimpleAccountsScreen(
                                     border = BorderStroke(0.6.dp, Error500.copy(alpha = 0.4f))
                                 ) {
                                     Text(
-                                        text = "! MAB Shortfall (-${userProfile.currencySymbol}${deficit.toInt()})",
+                                        text = if (isDiscreetMode) "! MAB Shortfall" else "! MAB Shortfall (-${userProfile.currencySymbol}${deficit.toInt()})",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Error700,
@@ -880,7 +888,7 @@ fun SimpleAccountsScreen(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "• Renaming will automatically update all linked transactions and fixed bills.\n• Role changes reallocate this balance in your asset allocation chart.\n• Balance adjustments create an automated ledger entry for the difference.",
+                                text = "• Renaming will automatically update all linked transactions and fixed bills.\n• Role changes reallocate this balance in your asset allocation chart.\n• Balance adjustments update starting balances directly without polluting personal cashflow ledgers.",
                                 fontSize = 10.5.sp,
                                 color = TextDark,
                                 lineHeight = 15.sp
@@ -892,12 +900,22 @@ fun SimpleAccountsScreen(
 
                     Button(
                         onClick = {
+                            val cleanName = nameText.trim().uppercase()
                             val targetBal = balanceText.toDoubleOrNull() ?: acc.currentBalance
                             val minBal = minBalanceText.toDoubleOrNull() ?: acc.minBalance
-                            if (nameText.isNotBlank()) {
+                            if (cleanName.isNotBlank()) {
+                                val nameExists = (displayAccounts.any { it.accountName.equals(cleanName, ignoreCase = true) } ||
+                                        archivedAccounts.any { it.accountName.equals(cleanName, ignoreCase = true) }) &&
+                                        !cleanName.equals(acc.accountName, ignoreCase = true)
+
+                                if (nameExists) {
+                                    Toast.makeText(context, "An account named '$cleanName' already exists", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+
                                 pendingEditConfirmation = SimplePendingEditConfirmation(
                                     originalAccount = acc,
-                                    updatedName = nameText.trim().uppercase(),
+                                    updatedName = cleanName,
                                     updatedRole = selectedRole,
                                     targetBalance = targetBal,
                                     minBalance = minBal,
@@ -932,10 +950,10 @@ fun SimpleAccountsScreen(
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (isNameChanged) {
-                            Text("• Rename: '${conf.originalAccount.accountName}' ➔ '${conf.updatedName}'", color = TextDark)
+                            Text("• Rename: '${conf.originalAccount.accountName}' \u2794 '${conf.updatedName}'", color = TextDark)
                         }
                         if (isRoleChanged) {
-                            Text("• Role: '${conf.originalAccount.accountType}' ➔ '${conf.updatedRole.title}'", color = TextDark)
+                            Text("• Role: '${conf.originalAccount.accountType}' \u2794 '${conf.updatedRole.title}'", color = TextDark)
                         }
                         if (isBalChanged) {
                             val diff = conf.targetBalance - conf.originalAccount.currentBalance
@@ -956,19 +974,18 @@ fun SimpleAccountsScreen(
                     Button(
                         onClick = {
                             val orig = conf.originalAccount
+                            val balanceDelta = conf.targetBalance - orig.currentBalance
+                            val adjustedStartingBalance = orig.startingBalance + balanceDelta
+
                             viewModel.updateAccountDetails(
                                 oldName = orig.accountName,
                                 newName = conf.updatedName,
-                                startingBalance = orig.startingBalance,
+                                startingBalance = adjustedStartingBalance,
                                 accountType = conf.updatedRole.title,
                                 minBalance = conf.minBalance,
                                 isArchived = conf.isArchived,
                                 sortOrder = orig.sortOrder
                             )
-
-                            if (isBalChanged) {
-                                viewModel.adjustAccountBalance(conf.updatedName, conf.targetBalance)
-                            }
 
                             pendingEditConfirmation = null
                             editingAccount = null
@@ -1152,7 +1169,7 @@ fun SimpleAccountsScreen(
                 onTransfer = { from, to, amount, note, subtype, date, isRecurring, dueDay ->
                     if (isRecurring) {
                         viewModel.addFixedBill(
-                            title = note.ifBlank { "Vault Transfer ($from ➔ $to)" },
+                            title = note.ifBlank { "Vault Transfer ($from \u2794 $to)" },
                             amount = amount,
                             category = "Transfer",
                             subcategory = subtype.name,
@@ -1287,17 +1304,25 @@ fun SimpleAccountsScreen(
 
                     Button(
                         onClick = {
-                            if (name.isNotBlank()) {
+                            val cleanName = name.trim().uppercase()
+                            if (cleanName.isNotBlank()) {
+                                val nameExists = displayAccounts.any { it.accountName.equals(cleanName, ignoreCase = true) } ||
+                                        archivedAccounts.any { it.accountName.equals(cleanName, ignoreCase = true) }
+                                if (nameExists) {
+                                    Toast.makeText(context, "An account named '$cleanName' already exists", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+
                                 val bal = balanceText.toDoubleOrNull() ?: 0.0
                                 val minBal = minBalanceText.toDoubleOrNull() ?: 0.0
                                 viewModel.addAccount(
-                                    name = name.trim().uppercase(),
+                                    name = cleanName,
                                     startingBalance = bal,
                                     type = selectedTier.title,
                                     minBalance = minBal
                                 )
                                 showAddAccountSheet = false
-                                Toast.makeText(context, "Account '${name.trim().uppercase()}' added", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Account '$cleanName' added", Toast.LENGTH_SHORT).show()
                             }
                         },
                         enabled = name.isNotBlank(),
@@ -1343,6 +1368,7 @@ private fun BankAccountPhysicalCard(
     tier: VaultTier,
     isSelected: Boolean,
     showRole: Boolean,
+    pendingBillsAmount: Double = 0.0,
     isDiscreetMode: Boolean = false,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
@@ -1352,7 +1378,7 @@ private fun BankAccountPhysicalCard(
         val safeHash = abs(account.accountName.hashCode().toLong())
         String.format(Locale.US, "%04d", safeHash % 9000 + 1000)
     }
-    val isMabBreached = account.minBalance > 0 && account.currentBalance < account.minBalance
+    val isMabBreached = account.isEffectiveMabBreached(pendingBillsAmount)
 
     Surface(
         modifier = modifier
@@ -1468,7 +1494,7 @@ private fun BankAccountPhysicalCard(
                 )
                 if (account.minBalance > 0.0) {
                     Text(
-                        text = "MAB: $currencySymbol${account.minBalance.toInt()}",
+                        text = if (isDiscreetMode) "MAB: ••••" else "MAB: $currencySymbol${account.minBalance.toInt()}",
                         fontSize = 10.sp,
                         color = if (isMabBreached) Error700 else TextMuted,
                         fontWeight = if (isMabBreached) FontWeight.Bold else FontWeight.Normal
