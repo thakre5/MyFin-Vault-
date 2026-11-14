@@ -51,7 +51,9 @@ fun YearlyMonthsTab(
     onInspectMonth: (YearlyMonthData) -> Unit
 ) {
     val activeMonths = remember(yearlyMonthsData) {
-        yearlyMonthsData.filter { !it.isFuture && (it.lifestyleExpenses > 0.0 || it.personalIncome > 0.0) }
+        yearlyMonthsData.filter {
+            !it.isFuture && (it.lifestyleExpenses > 0.0 || it.personalIncome > 0.0 || it.assets > 0.0 || it.workExpenses > 0.0)
+        }
     }
 
     val monthsWithBurn = remember(activeMonths) {
@@ -629,7 +631,7 @@ private fun TimelineMonthRow(
     onTapMonth: () -> Unit
 ) {
     val isSurplus = data.netSavings >= 0
-    val hasActivity = data.personalIncome > 0 || data.lifestyleExpenses > 0 || data.assets > 0
+    val hasActivity = data.personalIncome > 0 || data.lifestyleExpenses > 0 || data.assets > 0 || data.workExpenses > 0 || data.corporateReimbursements > 0
     val statusDotColor = if (data.isFuture) TextMuted else if (isSurplus) Success500 else Error500
     val statusBgColor = if (data.isFuture) Neutral100 else if (isSurplus) Success100 else Error100
     val statusTextColor = if (data.isFuture) TextMuted else if (isSurplus) Success700 else Error700
@@ -753,7 +755,9 @@ private fun TimelineMonthRow(
                             )
                             if (data.workExpenses > 0.0) {
                                 Spacer(modifier = Modifier.width(4.dp))
-                                val floatLabel = if (data.workExpenses >= 1000.0) {
+                                val floatLabel = if (isDiscreet) {
+                                    "+••• float"
+                                } else if (data.workExpenses >= 1000.0) {
                                     "+${(data.workExpenses / 1000).toInt()}k float"
                                 } else {
                                     "+${data.workExpenses.toInt()} float"
