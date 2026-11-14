@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.ui.theme.*
+import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
@@ -61,10 +62,17 @@ fun ReportsSummaryTab(
 
     val totalOutflow = fixedOutflow + variableOutflow
     val totalPeriodExpenses = spendData.sumOf { it.totalAmount }
-    val daysCount = when (selectedTimeRange) {
-        TimeRangeFilter.THIS_WEEK -> 7.0
-        TimeRangeFilter.THIS_MONTH, TimeRangeFilter.LAST_MONTH -> 30.0
-        TimeRangeFilter.THIS_YEAR -> 365.0
+    val daysCount = remember(selectedTimeRange) {
+        val now = Calendar.getInstance()
+        when (selectedTimeRange) {
+            TimeRangeFilter.THIS_WEEK -> 7.0
+            TimeRangeFilter.THIS_MONTH -> now.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1).toDouble()
+            TimeRangeFilter.LAST_MONTH -> {
+                val lastMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
+                lastMonthCal.getActualMaximum(Calendar.DAY_OF_MONTH).toDouble()
+            }
+            TimeRangeFilter.THIS_YEAR -> now.get(Calendar.DAY_OF_YEAR).coerceAtLeast(1).toDouble()
+        }
     }
     val dailyBurn = totalPeriodExpenses / daysCount
 
@@ -85,12 +93,14 @@ fun ReportsSummaryTab(
     // CANONICAL UNIFIED METRIC DEFINITIONS (GRAPH & TITLE SYNC)
     // =========================================================
 
-    val capitalRetentionInfo = remember(userProfileCurrency, totalIncome, netSurplus, retentionRate, spendData.size, selectedTimeRange) {
+    val capitalRetentionInfo = remember(userProfileCurrency, totalIncome, netSurplus, retentionRate, spendData.size, selectedTimeRange, isDiscreet) {
+        val inStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome)}"
+        val netStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} (${String.format(Locale.US, "%,.1f", retentionRate)}%)"
         ChartMetricInfo(
             title = "Capital Retention & Flow Waves",
             subtitle = "Net Saved vs. Verified Outflow Silhouette",
             formula = "Retention % = ((Personal Inflow - Lifestyle Burn - Assets) / Personal Inflow) * 100",
-            breakdown = "Personal Inflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalIncome)} | Net Retained: $userProfileCurrency${String.format(Locale.US, "%,.0f", netSurplus)} (${String.format(Locale.US, "%,.1f", retentionRate)}%)\nMeasured across ${spendData.size} active segments in ${selectedTimeRange.label}.",
+            breakdown = "Personal Inflow: $inStr | Net Retained: $netStr\nMeasured across ${spendData.size} active segments in ${selectedTimeRange.label}.",
             visualElements = listOf(
                 "Teal/Cobalt Top Wave" to "Total daily/weekly outflow volume trajectory.",
                 "Coral/Slate Lower Wave" to "Essential fixed non-negotiable commitments baseline.",
@@ -101,12 +111,14 @@ fun ReportsSummaryTab(
         )
     }
 
-    val allocationBreakdownInfo = remember(userProfileCurrency, fixedOutflow, variableOutflow, totalBudget, commitmentLoad, retentionRate) {
+    val allocationBreakdownInfo = remember(userProfileCurrency, fixedOutflow, variableOutflow, totalBudget, commitmentLoad, retentionRate, isDiscreet) {
+        val fixStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)}"
+        val varStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}"
         ChartMetricInfo(
             title = "Allocation Breakdown & Rings",
             subtitle = "Fixed Obligations vs. Discretionary Living",
             formula = "Commitment Load % = (Fixed Outflow / Total Budget) * 100",
-            breakdown = "Fixed AutoPay: $userProfileCurrency${String.format(Locale.US, "%,.0f", fixedOutflow)} (${commitmentLoad.toInt()}% of budget)\nVariable Spend: $userProfileCurrency${String.format(Locale.US, "%,.0f", variableOutflow)}\nBudget Protected: ${retentionRate.coerceAtLeast(0.0).toInt()}%",
+            breakdown = "Fixed AutoPay: $fixStr (${commitmentLoad.toInt()}% of budget)\nVariable Spend: $varStr\nBudget Protected: ${retentionRate.coerceAtLeast(0.0).toInt()}%",
             visualElements = listOf(
                 "Outer Cobalt Ring" to "Variable discretionary living spend volume.",
                 "Inner Coral Ring" to "Fixed non-negotiable AutoPay obligations and bills.",
@@ -116,12 +128,13 @@ fun ReportsSummaryTab(
         )
     }
 
-    val outflowVelocityInfo = remember(userProfileCurrency, dailyBurn, selectedTimeRange) {
+    val outflowVelocityInfo = remember(userProfileCurrency, dailyBurn, selectedTimeRange, isDiscreet) {
+        val burnStr = if (isDiscreet) "••••/day" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}/day"
         ChartMetricInfo(
             title = "Outflow Velocity Stack",
             subtitle = "Burn Rate Distribution (${selectedTimeRange.label})",
             formula = "Daily Burn = Total Outflow / Elapsed Days",
-            breakdown = "Active cycle burn velocity: $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}/day across ${selectedTimeRange.label}.",
+            breakdown = "Active cycle burn velocity: $burnStr across ${selectedTimeRange.label}.",
             visualElements = listOf(
                 "Coral Base Segment" to "Essential fixed bill proportion.",
                 "Cobalt Top Segment" to "Variable discretionary spend proportion.",
@@ -145,12 +158,13 @@ fun ReportsSummaryTab(
         )
     }
 
-    val cumulativeTrajectoryInfo = remember(userProfileCurrency, selectedVelocityRange, finalTarget) {
+    val cumulativeTrajectoryInfo = remember(userProfileCurrency, selectedVelocityRange, finalTarget, isDiscreet) {
+        val targetStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", finalTarget)}"
         ChartMetricInfo(
             title = "Cumulative Burn Trajectory",
             subtitle = "Pacing vs. Target Allowance (${selectedVelocityRange.label})",
             formula = "Variance = Target Linear Line - Actual Cumulative Curve",
-            breakdown = "Target budget ceiling: $userProfileCurrency${String.format(Locale.US, "%,.0f", finalTarget)} across ${selectedVelocityRange.label}.",
+            breakdown = "Target budget ceiling: $targetStr across ${selectedVelocityRange.label}.",
             visualElements = listOf(
                 "Teal Straight Line" to "Linear target pace limit.",
                 "Cobalt Curved Line" to "Your actual cumulative spending burn-down curve.",
@@ -582,12 +596,13 @@ fun ReportsSummaryTab(
                 badgeText = "Remaining",
                 accentColor = SoftTeal,
                 onClick = {
+                    val s2sStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", safeToSpend)}"
                     onOpenMetricInfo(
                         ChartMetricInfo(
                             title = "Safe-to-Spend Reserve",
                             subtitle = "Discretionary Liquid Buffer",
                             formula = "Safe_Spend = Liquid_Cash - Unpaid_Bills - Advance - Living_Buffer",
-                            breakdown = "Currently have $userProfileCurrency${String.format(Locale.US, "%,.0f", safeToSpend)} uncommitted liquid cash.",
+                            breakdown = "Currently have $s2sStr uncommitted liquid cash.",
                             advice = "This amount is 100% guilt-free to spend because all bills, loans, and emergency reserves are already protected."
                         )
                     )
@@ -618,12 +633,13 @@ fun ReportsSummaryTab(
                 badgeText = "Pacing",
                 accentColor = Primary600,
                 onClick = {
+                    val burnStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)}"
                     onOpenMetricInfo(
                         ChartMetricInfo(
                             title = "Daily Runway Burn Velocity",
                             subtitle = "Speed of Capital Outflow",
                             formula = "Burn_Velocity = Total_Outflow / Elapsed_Days",
-                            breakdown = "Currently spending $userProfileCurrency${String.format(Locale.US, "%,.0f", dailyBurn)} each day on average.",
+                            breakdown = "Currently spending $burnStr each day on average.",
                             advice = "Multiplying this number by remaining days in the month gives your forecasted end-of-month cash requirement."
                         )
                     )
@@ -681,7 +697,7 @@ private fun InteractiveDualGlowWaveCanvas(
     onOpenInfo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var touchIndex by remember { mutableStateOf<Int?>(null) }
+    var touchIndex by remember(spendData) { mutableStateOf<Int?>(null) }
     val haptic = LocalHapticFeedback.current
 
     Box(
@@ -689,9 +705,11 @@ private fun InteractiveDualGlowWaveCanvas(
             .pointerInput(spendData) {
                 detectTapGestures(
                     onPress = { offset ->
-                        val segmentW = size.width / spendData.size.coerceAtLeast(1)
-                        touchIndex = (offset.x / segmentW).toInt().coerceIn(0, spendData.lastIndex)
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        if (spendData.isNotEmpty()) {
+                            val segmentW = size.width / spendData.size.coerceAtLeast(1)
+                            touchIndex = (offset.x / segmentW).toInt().coerceIn(0, (spendData.size - 1).coerceAtLeast(0))
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
                     },
                     onDoubleTap = { onOpenInfo() }
                 )
@@ -699,13 +717,17 @@ private fun InteractiveDualGlowWaveCanvas(
             .pointerInput(spendData) {
                 detectDragGestures(
                     onDragStart = { offset ->
-                        val segmentW = size.width / spendData.size.coerceAtLeast(1)
-                        touchIndex = (offset.x / segmentW).toInt().coerceIn(0, spendData.lastIndex)
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        if (spendData.isNotEmpty()) {
+                            val segmentW = size.width / spendData.size.coerceAtLeast(1)
+                            touchIndex = (offset.x / segmentW).toInt().coerceIn(0, (spendData.size - 1).coerceAtLeast(0))
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
                     },
                     onDrag = { change, _ ->
-                        val segmentW = size.width / spendData.size.coerceAtLeast(1)
-                        touchIndex = (change.position.x / segmentW).toInt().coerceIn(0, spendData.lastIndex)
+                        if (spendData.isNotEmpty()) {
+                            val segmentW = size.width / spendData.size.coerceAtLeast(1)
+                            touchIndex = (change.position.x / segmentW).toInt().coerceIn(0, (spendData.size - 1).coerceAtLeast(0))
+                        }
                     },
                     onDragEnd = { touchIndex = null },
                     onDragCancel = { touchIndex = null }
@@ -892,7 +914,8 @@ private fun StackedOutflowBarsCanvas(
     isDiscreet: Boolean,
     onOpenInfo: () -> Unit
 ) {
-    var selectedBarIndex by remember { mutableStateOf<Int?>(null) }
+    var selectedBarIndex by remember(spendData) { mutableStateOf<Int?>(null) }
+    val currentSelectedBarIdx by rememberUpdatedState(selectedBarIndex)
     val haptic = LocalHapticFeedback.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -903,12 +926,14 @@ private fun StackedOutflowBarsCanvas(
                 .pointerInput(spendData) {
                     detectTapGestures(
                         onPress = { offset ->
-                            val count = spendData.size.coerceAtLeast(1)
-                            val barWidth = 14.dp.toPx()
-                            val spacing = (size.width - (count * barWidth)) / max(1, count - 1)
-                            val idx = (offset.x / (barWidth + spacing)).toInt().coerceIn(0, spendData.lastIndex)
-                            selectedBarIndex = if (selectedBarIndex == idx) null else idx
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (spendData.isNotEmpty()) {
+                                val count = spendData.size.coerceAtLeast(1)
+                                val barWidth = 14.dp.toPx()
+                                val spacing = (size.width - (count * barWidth)) / max(1, count - 1)
+                                val idx = (offset.x / (barWidth + spacing)).toInt().coerceIn(0, (spendData.size - 1).coerceAtLeast(0))
+                                selectedBarIndex = if (currentSelectedBarIdx == idx) null else idx
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
                         },
                         onDoubleTap = { onOpenInfo() }
                     )
@@ -1054,7 +1079,8 @@ private fun DualTrajectoryLineCanvas(
 ) {
     val labels = trajectoryData.map { it.stepLabel }
     val maxTrajectoryValue = trajectoryData.maxOfOrNull { max(it.actualCumulative, it.targetCumulative) }?.coerceAtLeast(100.0) ?: 100.0
-    var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    var selectedIndex by remember(trajectoryData) { mutableStateOf<Int?>(null) }
+    val currentSelectedIdx by rememberUpdatedState(selectedIndex)
     val haptic = LocalHapticFeedback.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -1066,10 +1092,10 @@ private fun DualTrajectoryLineCanvas(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 listOf(
-                    if (maxTrajectoryValue >= 1000) "${(maxTrajectoryValue / 1000).toInt()}k" else "${maxTrajectoryValue.toInt()}",
-                    if (maxTrajectoryValue >= 1000) "${(maxTrajectoryValue * 0.75 / 1000).toInt()}k" else "${(maxTrajectoryValue * 0.75).toInt()}",
-                    if (maxTrajectoryValue >= 1000) "${(maxTrajectoryValue * 0.50 / 1000).toInt()}k" else "${(maxTrajectoryValue * 0.50).toInt()}",
-                    if (maxTrajectoryValue >= 1000) "${(maxTrajectoryValue * 0.25 / 1000).toInt()}k" else "${(maxTrajectoryValue * 0.25).toInt()}"
+                    if (isDiscreet) "•••" else if (maxTrajectoryValue >= 1000) "${(maxTrajectoryValue / 1000).toInt()}k" else "${maxTrajectoryValue.toInt()}",
+                    if (isDiscreet) "•••" else if (maxTrajectoryValue >= 1000) "${(maxTrajectoryValue * 0.75 / 1000).toInt()}k" else "${(maxTrajectoryValue * 0.75).toInt()}",
+                    if (isDiscreet) "•••" else if (maxTrajectoryValue >= 1000) "${(maxTrajectoryValue * 0.50 / 1000).toInt()}k" else "${(maxTrajectoryValue * 0.50).toInt()}",
+                    if (isDiscreet) "•••" else if (maxTrajectoryValue >= 1000) "${(maxTrajectoryValue * 0.25 / 1000).toInt()}k" else "${(maxTrajectoryValue * 0.25).toInt()}"
                 ).forEach { label ->
                     Text(
                         text = label,
@@ -1087,10 +1113,12 @@ private fun DualTrajectoryLineCanvas(
                     .pointerInput(trajectoryData) {
                         detectTapGestures(
                             onPress = { offset ->
-                                val count = trajectoryData.size.coerceAtLeast(2)
-                                val idx = ((offset.x / size.width) * (count - 1)).toInt().coerceIn(0, trajectoryData.lastIndex)
-                                selectedIndex = if (selectedIndex == idx) null else idx
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                if (trajectoryData.isNotEmpty()) {
+                                    val count = trajectoryData.size.coerceAtLeast(2)
+                                    val idx = ((offset.x / size.width) * (count - 1)).toInt().coerceIn(0, (trajectoryData.size - 1).coerceAtLeast(0))
+                                    selectedIndex = if (currentSelectedIdx == idx) null else idx
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
                             },
                             onDoubleTap = { onOpenInfo() }
                         )
