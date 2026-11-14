@@ -187,12 +187,14 @@ fun YearlyCashflowTab(
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Corporate Float & Claims", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
                             Spacer(modifier = Modifier.height(1.dp))
+                            val advanceFormatted = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", reimbursementStatus.excessAdvanceHeld)}"
+                            val pendingFormatted = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", reimbursementStatus.pendingReimbursement)}"
                             Text(
                                 text = when {
                                     reimbursementStatus.excessAdvanceHeld > 0.0 ->
-                                        "Holding ${currencySymbol}${String.format(Locale.US, "%,.0f", reimbursementStatus.excessAdvanceHeld)} upfront company advance (ring-fenced)."
+                                        "Holding $advanceFormatted upfront company advance (ring-fenced)."
                                     reimbursementStatus.pendingReimbursement > 0.0 ->
-                                        "Company owes you ${currencySymbol}${String.format(Locale.US, "%,.0f", reimbursementStatus.pendingReimbursement)} in pending claims."
+                                        "Company owes you $pendingFormatted in pending claims."
                                     else -> "All corporate outlays fully settled."
                                 },
                                 fontSize = 10.5.sp,
@@ -211,7 +213,7 @@ fun YearlyCashflowTab(
                             val displayAmt: Double = if (floatAmount > 0.0) floatAmount else reimbursementStatus.totalWorkExpenses
 
                             Text(
-                                text = if (isDiscreetMode) "••••" else "${currencySymbol}${String.format(Locale.US, "%,.0f", displayAmt)}",
+                                text = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", displayAmt)}",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 13.5.sp,
                                 color = if (reimbursementStatus.isSettled) Success700 else Warning700
@@ -263,7 +265,13 @@ fun YearlyCashflowTab(
                     val hasActivity = q.totalIncome > 0.0 || q.totalExpenses > 0.0 || q.totalAssets > 0.0
                     val rateText = if (!hasActivity) "—" else "${q.savingsRate.toInt()}%"
                     val rateColor = if (!hasActivity) TextMuted else if (q.netSurplus >= 0) SoftTeal else Error700
-                    val surplusText = if (!hasActivity) "Pending" else "${currencySymbol}${(q.netSurplus / 1000).toInt()}k"
+                    val absSurplus = abs(q.netSurplus)
+                    val signPrefix = if (q.netSurplus > 0) "+" else if (q.netSurplus < 0) "-" else ""
+                    val surplusText = when {
+                        !hasActivity -> "Pending"
+                        absSurplus >= 1000.0 -> "$signPrefix$currencySymbol${(absSurplus / 1000).toInt()}k"
+                        else -> "$signPrefix$currencySymbol${absSurplus.toInt()}"
+                    }
 
                     Surface(
                         modifier = Modifier
@@ -313,7 +321,7 @@ private fun DualSmoothWaveCard(
     isDiscreet: Boolean,
     onInfoClick: () -> Unit
 ) {
-    var selectedMonthIndex by remember { mutableStateOf<Int?>(null) }
+    var selectedMonthIndex by remember(yearlyMonths) { mutableStateOf<Int?>(null) }
     val activeMonthlyAvgBurn = if (annualExpenses > 0) annualExpenses / activeMonthsCount else 0.0
 
     val netOperatingSurplus = annualIncome - annualExpenses
@@ -422,7 +430,7 @@ private fun DualSmoothWaveCard(
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = if (isDiscreet) "••••" else "${if (mSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", mSurplus)} ($mRate%)",
+                                    text = if (isDiscreet) "••••" else "${if (mSurplus >= 0) "+" else "-"}$currencySymbol${String.format(Locale.US, "%,.0f", abs(mSurplus))} ($mRate%)",
                                     fontSize = 10.sp,
                                     color = if (mSurplus >= 0) SoftTeal else Error700,
                                     fontWeight = FontWeight.Bold
@@ -549,7 +557,7 @@ private fun DualSmoothWaveCard(
                     }
                     Spacer(modifier = Modifier.height(1.dp))
                     Text(
-                        text = if (isDiscreet) "••••" else "${if (netOperatingSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", netOperatingSurplus)}",
+                        text = if (isDiscreet) "••••" else "${if (netOperatingSurplus >= 0) "+" else "-"}$currencySymbol${String.format(Locale.US, "%,.0f", abs(netOperatingSurplus))}",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Black,
                         color = if (netOperatingSurplus >= 0) SoftTeal else Error700
@@ -975,7 +983,7 @@ private fun AnnualForecastRunRateCard(
                     Text("Year-End Surplus", fontSize = 9.5.sp, color = TextMuted, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(1.dp))
                     Text(
-                        text = if (isDiscreet) "••••" else "${if (projectedSurplus >= 0) "+" else ""}$currencySymbol${String.format(Locale.US, "%,.0f", projectedSurplus)}",
+                        text = if (isDiscreet) "••••" else "${if (projectedSurplus >= 0) "+" else "-"}$currencySymbol${String.format(Locale.US, "%,.0f", abs(projectedSurplus))}",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                         color = if (projectedSurplus >= 0) SoftTeal else Error500
@@ -997,6 +1005,9 @@ private fun DualWaveCanvas(
     onSelectMonth: (Int?) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val currentSelectedIdx by rememberUpdatedState(selectedMonthIndex)
+    val currentOnSelectMonth by rememberUpdatedState(onSelectMonth)
+
     Canvas(
         modifier = modifier
             .pointerInput(yearlyMonths) {
@@ -1004,7 +1015,7 @@ private fun DualWaveCanvas(
                     onTap = { offset ->
                         val stepX = size.width / 11f.coerceAtLeast(1f)
                         val idx = (offset.x / stepX).roundToInt().coerceIn(0, 11)
-                        onSelectMonth(if (selectedMonthIndex == idx) null else idx)
+                        currentOnSelectMonth(if (currentSelectedIdx == idx) null else idx)
                     }
                 )
             }
@@ -1013,13 +1024,13 @@ private fun DualWaveCanvas(
                     onDragStart = { offset ->
                         val stepX = size.width / 11f.coerceAtLeast(1f)
                         val idx = (offset.x / stepX).roundToInt().coerceIn(0, 11)
-                        onSelectMonth(idx)
+                        currentOnSelectMonth(idx)
                     },
                     onDrag = { change, _ ->
                         change.consume()
                         val stepX = size.width / 11f.coerceAtLeast(1f)
                         val idx = (change.position.x / stepX).roundToInt().coerceIn(0, 11)
-                        onSelectMonth(idx)
+                        currentOnSelectMonth(idx)
                     }
                 )
             }
