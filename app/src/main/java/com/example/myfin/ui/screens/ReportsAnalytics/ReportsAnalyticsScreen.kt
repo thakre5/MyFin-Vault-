@@ -71,6 +71,25 @@ fun ReportsAnalyticsScreen(
     var activeChartMetricInfo by remember { mutableStateOf<ChartMetricInfo?>(null) }
     var isDiscreetMode by remember { mutableStateOf(false) }
 
+    // Ensure ledger filters are cleared and ViewModel is synced to the active timeframe
+    LaunchedEffect(selectedTimeRange) {
+        viewModel.resetFilters()
+        val now = Calendar.getInstance()
+        when (selectedTimeRange) {
+            TimeRangeFilter.LAST_MONTH -> {
+                val lastMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
+                val targetMonth = lastMonthCal.get(Calendar.MONTH) + 1
+                val targetYear = lastMonthCal.get(Calendar.YEAR)
+                viewModel.setSelectedMonth(targetMonth, targetYear)
+            }
+            else -> {
+                val curMonth = now.get(Calendar.MONTH) + 1
+                val curYear = now.get(Calendar.YEAR)
+                viewModel.setSelectedMonth(curMonth, curYear)
+            }
+        }
+    }
+
     val csvExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
@@ -236,16 +255,17 @@ fun ReportsAnalyticsScreen(
         }.sumOf { it.amount }
     }
 
-    val fixedOutflow = remember(filteredTransactions, uiState.fixedBills, selectedTimeRange) {
-        when (selectedTimeRange) {
-            TimeRangeFilter.THIS_MONTH -> {
-                val scheduledFixed = uiState.fixedBills.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-                val paidFixed = filteredTransactions.filter { isPersonalExpense(it) && it.linkedFixedBillId != null }.sumOf { it.amount }
-                max(scheduledFixed, paidFixed)
-            }
-            else -> {
-                filteredTransactions.filter { isPersonalExpense(it) && it.linkedFixedBillId != null }.sumOf { it.amount }
-            }
+    val fixedOutflow = remember(filteredTransactions, uiState.fixedBills, uiState.selectedMonth, uiState.selectedYear, selectedTimeRange) {
+        val now = Calendar.getInstance()
+        val curMonth = now.get(Calendar.MONTH) + 1
+        val curYear = now.get(Calendar.YEAR)
+        val paidFixed = filteredTransactions.filter { isPersonalExpense(it) && it.linkedFixedBillId != null }.sumOf { it.amount }
+
+        if (selectedTimeRange == TimeRangeFilter.THIS_MONTH && uiState.selectedMonth == curMonth && uiState.selectedYear == curYear) {
+            val scheduledFixed = uiState.fixedBills.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+            max(scheduledFixed, paidFixed)
+        } else {
+            paidFixed
         }
     }
 
