@@ -1,13 +1,20 @@
 package com.example.myfin.ui.screens
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -31,6 +38,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionEntity
@@ -41,6 +49,7 @@ import com.example.myfin.ui.FilterCriteria
 import com.example.myfin.ui.MonthlyUiState
 import com.example.myfin.ui.components.SwipeableTransactionItem
 import com.example.myfin.ui.theme.*
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -60,6 +69,8 @@ fun MonthlyLedgerTab(
     onEditTx: (TransactionEntity) -> Unit,
     onDeleteTx: (TransactionEntity) -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
     var isSearchExpanded by remember { mutableStateOf(filterCriteria.query.isNotBlank()) }
 
     val hasActiveCustomFilters = filterCriteria.type != null ||
@@ -98,10 +109,10 @@ fun MonthlyLedgerTab(
     val dateKeys = remember(uiState.groupedTransactions) {
         uiState.groupedTransactions.keys.toList()
     }
-    
+
     // Stable expanded state map that doesn't reset on every transaction mutation
     val expandedDates = remember { mutableStateMapOf<String, Boolean>() }
-    
+
     LaunchedEffect(dateKeys, isSearchingOrFiltered) {
         dateKeys.forEachIndexed { index, dateKey ->
             if (!expandedDates.containsKey(dateKey)) {
@@ -110,39 +121,90 @@ fun MonthlyLedgerTab(
         }
     }
 
-    // Scroll Physics: Slide sheet over dark cockpit
+    // Scroll Physics: Slide sheet over dark cockpit with smooth snap
     val density = LocalDensity.current
     val deckHeightDp = 164.dp
     val deckHeightPx = with(density) { deckHeightDp.toPx() }
-    var sheetOffsetPx by remember { mutableFloatStateOf(deckHeightPx) }
+    val sheetOffsetAnim = remember { Animatable(deckHeightPx) }
 
-    val nestedScrollConnection = remember {
+    fun snapSheetToNearestEdge(velocityY: Float = 0f) {
+        val current = sheetOffsetAnim.value
+        if (current <= 0f || current >= deckHeightPx) return
+        val target = when {
+            velocityY > 350f -> deckHeightPx
+            velocityY < -350f -> 0f
+            current >= deckHeightPx * 0.45f -> deckHeightPx
+            else -> 0f
+        }
+        coroutineScope.launch {
+            sheetOffsetAnim.animateTo(
+                targetValue = target,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            )
+        }
+    }
+
+    val isListAtTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+        }
+    }
+    val currentIsListAtTop by rememberUpdatedState(isListAtTop)
+
+    val nestedScrollConnection = remember(deckHeightPx) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 val delta = available.y
-                if (delta < 0f && sheetOffsetPx > 0f) {
-                    val newOffset = (sheetOffsetPx + delta).coerceIn(0f, deckHeightPx)
-                    val consumed = newOffset - sheetOffsetPx
-                    sheetOffsetPx = newOffset
+                val current = sheetOffsetAnim.value
+
+                // Scrolling up (finger moving up, delta < 0): collapse deck first
+                if (delta < 0f && current > 0f) {
+                    val newOffset = (current + delta).coerceIn(0f, deckHeightPx)
+                    val consumed = newOffset - current
+                    coroutineScope.launch { sheetOffsetAnim.snapTo(newOffset) }
                     return Offset(0f, consumed)
                 }
+
+                // Scrolling down (finger moving down, delta > 0) when list is already at top: expand deck immediately
+                if (delta > 0f && current < deckHeightPx && currentIsListAtTop) {
+                    val newOffset = (current + delta).coerceIn(0f, deckHeightPx)
+                    val consumed = newOffset - current
+                    coroutineScope.launch { sheetOffsetAnim.snapTo(newOffset) }
+                    return Offset(0f, consumed)
+                }
+
                 return Offset.Zero
             }
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 val delta = available.y
-                if (delta > 0f && sheetOffsetPx < deckHeightPx) {
-                    val newOffset = (sheetOffsetPx + delta).coerceIn(0f, deckHeightPx)
-                    val consumed = sheetOffsetPx - newOffset
-                    sheetOffsetPx = newOffset
-                    return Offset(0f, consumed)
+                val current = sheetOffsetAnim.value
+                // Any unconsumed downward scroll after LazyColumn hits top expands the deck
+                if (delta > 0f && current < deckHeightPx) {
+                    val newOffset = (current + delta).coerceIn(0f, deckHeightPx)
+                    val deltaConsumed = newOffset - current
+                    coroutineScope.launch { sheetOffsetAnim.snapTo(newOffset) }
+                    return Offset(0f, deltaConsumed)
                 }
                 return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                snapSheetToNearestEdge(available.y)
+                return Velocity.Zero
             }
         }
     }
 
-    val isFullyCollapsed = sheetOffsetPx <= 4f
+    val headerDraggableState = rememberDraggableState { delta ->
+        val newOffset = (sheetOffsetAnim.value + delta).coerceIn(0f, deckHeightPx)
+        coroutineScope.launch { sheetOffsetAnim.snapTo(newOffset) }
+    }
+
+    val isFullyCollapsed = sheetOffsetAnim.value <= 4f
 
     Box(
         modifier = Modifier
@@ -280,7 +342,7 @@ fun MonthlyLedgerTab(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .offset { IntOffset(0, sheetOffsetPx.roundToInt()) },
+                .offset { IntOffset(0, sheetOffsetAnim.value.roundToInt()) },
             shape = RoundedCornerShape(
                 topStart = if (isFullyCollapsed) 0.dp else 28.dp,
                 topEnd = if (isFullyCollapsed) 0.dp else 28.dp
@@ -289,144 +351,167 @@ fun MonthlyLedgerTab(
             shadowElevation = 10.dp
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Drag handle
-                Box(
+                // Draggable Top Handle + Header Region
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 10.dp, bottom = 4.dp),
-                    contentAlignment = Alignment.Center
+                        .draggable(
+                            state = headerDraggableState,
+                            orientation = Orientation.Vertical,
+                            onDragStopped = { velocity -> snapSheetToNearestEdge(velocity) }
+                        )
                 ) {
+                    // Drag handle (also tappable to toggle expand/collapse)
                     Box(
                         modifier = Modifier
-                            .width(36.dp)
-                            .height(4.dp)
-                            .clip(CircleShape)
-                            .background(Neutral300)
-                    )
-                }
+                            .fillMaxWidth()
+                            .clickable {
+                                val target = if (sheetOffsetAnim.value < deckHeightPx * 0.5f) deckHeightPx else 0f
+                                coroutineScope.launch {
+                                    sheetOffsetAnim.animateTo(
+                                        targetValue = target,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    )
+                                }
+                            }
+                            .padding(top = 10.dp, bottom = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(36.dp)
+                                .height(4.dp)
+                                .clip(CircleShape)
+                                .background(Neutral300)
+                        )
+                    }
 
-                // Header Row: Transactions + Expanding Search + Filter
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp)
-                        .padding(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Transactions",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextDark,
-                        letterSpacing = (-0.4).sp
-                    )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
+                    // Header Row: Transactions + Expanding Search + Filter
                     Row(
-                        modifier = Modifier.weight(1f, fill = isSearchExpanded),
-                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .padding(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isSearchExpanded) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = CardWhite,
-                                border = BorderStroke(0.8.dp, BorderLight),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(36.dp)
-                            ) {
-                                Row(
+                        Text(
+                            text = "Transactions",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Black,
+                            color = TextDark,
+                            letterSpacing = (-0.4).sp
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Row(
+                            modifier = Modifier.weight(1f, fill = isSearchExpanded),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (isSearchExpanded) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = CardWhite,
+                                    border = BorderStroke(0.8.dp, BorderLight),
                                     modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .weight(1f)
+                                        .height(36.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = "Search",
+                                            tint = TextMuted,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+
+                                        Box(
+                                            modifier = Modifier.weight(1f),
+                                            contentAlignment = Alignment.CenterStart
+                                        ) {
+                                            if (filterCriteria.query.isEmpty()) {
+                                                Text(
+                                                    text = "Search...",
+                                                    color = TextMuted,
+                                                    fontSize = 12.sp,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                            BasicTextField(
+                                                value = filterCriteria.query,
+                                                onValueChange = { viewModel.updateSearchQuery(it) },
+                                                singleLine = true,
+                                                textStyle = TextStyle(
+                                                    fontSize = 12.5.sp,
+                                                    color = TextDark,
+                                                    fontWeight = FontWeight.Medium
+                                                ),
+                                                cursorBrush = SolidColor(Primary600),
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = {
+                                                viewModel.updateSearchQuery("")
+                                                isSearchExpanded = false
+                                            },
+                                            modifier = Modifier.size(22.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Close Search",
+                                                tint = TextMuted,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                            } else {
+                                IconButton(
+                                    onClick = { isSearchExpanded = true },
+                                    modifier = Modifier.size(36.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Search,
                                         contentDescription = "Search",
-                                        tint = TextMuted,
-                                        modifier = Modifier.size(15.dp)
+                                        tint = TextDark,
+                                        modifier = Modifier.size(20.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
-
-                                    Box(
-                                        modifier = Modifier.weight(1f),
-                                        contentAlignment = Alignment.CenterStart
-                                    ) {
-                                        if (filterCriteria.query.isEmpty()) {
-                                            Text(
-                                                text = "Search...",
-                                                color = TextMuted,
-                                                fontSize = 12.sp,
-                                                maxLines = 1
-                                            )
-                                        }
-                                        BasicTextField(
-                                            value = filterCriteria.query,
-                                            onValueChange = { viewModel.updateSearchQuery(it) },
-                                            singleLine = true,
-                                            textStyle = TextStyle(
-                                                fontSize = 12.5.sp,
-                                                color = TextDark,
-                                                fontWeight = FontWeight.Medium
-                                            ),
-                                            cursorBrush = SolidColor(Primary600),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
-
-                                    IconButton(
-                                        onClick = {
-                                            viewModel.updateSearchQuery("")
-                                            isSearchExpanded = false
-                                        },
-                                        modifier = Modifier.size(22.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Close Search",
-                                            tint = TextMuted,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
                                 }
                             }
-                            Spacer(modifier = Modifier.width(4.dp))
-                        } else {
+
                             IconButton(
-                                onClick = { isSearchExpanded = true },
+                                onClick = onOpenFilterSheet,
                                 modifier = Modifier.size(36.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Search",
-                                    tint = TextDark,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-
-                        IconButton(
-                            onClick = onOpenFilterSheet,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.TopEnd) {
-                                Icon(
-                                    imageVector = Icons.Default.Tune,
-                                    contentDescription = "Filter",
-                                    tint = if (hasActiveCustomFilters) Primary600 else TextDark,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                if (hasActiveCustomFilters) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(7.dp)
-                                            .clip(CircleShape)
-                                            .background(Primary600)
+                                Box(contentAlignment = Alignment.TopEnd) {
+                                    Icon(
+                                        imageVector = Icons.Default.Tune,
+                                        contentDescription = "Filter",
+                                        tint = if (hasActiveCustomFilters) Primary600 else TextDark,
+                                        modifier = Modifier.size(20.dp)
                                     )
+                                    if (hasActiveCustomFilters) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(Primary600)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -520,6 +605,7 @@ fun MonthlyLedgerTab(
 
                 // 3. GROUPED LIST WITH PRESERVED INNER WHITE CARDS
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
