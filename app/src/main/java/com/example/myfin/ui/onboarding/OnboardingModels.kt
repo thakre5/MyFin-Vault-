@@ -6,7 +6,7 @@ import com.example.myfin.ui.theme.*
 
 // Canonical Onboarding Slate & Emerald / Cobalt Accents
 val VaultPrimaryEmerald = Success500
-val VaultMintHighlight = Color(0xFF34D399)
+val VaultMintHighlight = SoftTeal
 val VaultDarkSurface = Neutral800
 val VaultDarkBackground = Neutral900
 val VaultBorderStroke = Neutral700
