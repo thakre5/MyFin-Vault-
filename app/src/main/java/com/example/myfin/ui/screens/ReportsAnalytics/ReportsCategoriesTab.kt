@@ -37,6 +37,17 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.sin
 
+private val NEEDS_CATEGORY_SET = setOf(
+    "utilities & living bills",
+    "everyday living",
+    "health & medical",
+    "family & home support",
+    "debt & financial obligations",
+    "living",
+    "rent",
+    "bills"
+)
+
 @Composable
 fun ReportsCategoriesTab(
     userProfileCurrency: String,
@@ -52,14 +63,14 @@ fun ReportsCategoriesTab(
 ) {
     val isPersonalExpense = remember {
         { tx: TransactionEntity ->
-            tx.type == TransactionType.EXPENSE && !tx.category.equals("Work & Professional", ignoreCase = true)
+            tx.type == TransactionType.EXPENSE && !tx.category.trim().equals("Work & Professional", ignoreCase = true)
         }
     }
 
     val categoryExpenses = remember(transactions) {
         transactions
             .filter { isPersonalExpense(it) }
-            .groupBy { it.category }
+            .groupBy { it.category.trim() }
             .mapValues { entry -> entry.value.sumOf { it.amount } }
             .toList()
             .sortedByDescending { it.second }
@@ -75,14 +86,14 @@ fun ReportsCategoriesTab(
 
         val curMap = allTransactions.filter {
             it.month == curM && it.year == curY && isPersonalExpense(it)
-        }.groupBy { it.category }.mapValues { it.value.sumOf { tx -> tx.amount } }
+        }.groupBy { it.category.trim() }.mapValues { it.value.sumOf { tx -> tx.amount } }
 
         val prevMap = allTransactions.filter {
             it.month == prevM && it.year == prevY && isPersonalExpense(it)
-        }.groupBy { it.category }.mapValues { it.value.sumOf { tx -> tx.amount } }
+        }.groupBy { it.category.trim() }.mapValues { it.value.sumOf { tx -> tx.amount } }
 
         curMap.mapNotNull { (cat, curAmt) ->
-            val prevAmt = prevMap[cat] ?: 0.0
+            val prevAmt = prevMap.entries.firstOrNull { it.key.equals(cat, ignoreCase = true) }?.value ?: 0.0
             if (prevAmt > 0 && curAmt > prevAmt) {
                 val growth = (((curAmt - prevAmt) / prevAmt) * 100).toInt()
                 if (growth >= 15) cat to growth else null
@@ -90,24 +101,24 @@ fun ReportsCategoriesTab(
         }.sortedByDescending { it.second }
     }
 
-    val needsCategories = setOf(
-        "Utilities & Living Bills", "Everyday Living", "Health & Medical",
-        "Family & Home Support", "Debt & Financial Obligations", "Living", "Rent", "Bills"
-    )
     val needsSum = remember(transactions) {
-        transactions.filter { isPersonalExpense(it) && (it.category in needsCategories || it.linkedFixedBillId != null) }.sumOf { it.amount }
+        transactions.filter {
+            isPersonalExpense(it) && (it.category.trim().lowercase(Locale.ROOT) in NEEDS_CATEGORY_SET || it.linkedFixedBillId != null)
+        }.sumOf { it.amount }
     }
     val wantsSum = remember(transactions, needsSum, totalExpenses) {
         max(0.0, totalExpenses - needsSum)
     }
 
-    // Canonical Unified Metric Definitions
-    val corporateFloatInfo = remember(userProfileCurrency, corporateOutlays, corporateReimbursements) {
+    // Canonical Unified Metric Definitions (Discreet-Safe)
+    val corporateFloatInfo = remember(userProfileCurrency, corporateOutlays, corporateReimbursements, isDiscreet) {
+        val outStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", corporateOutlays)}"
+        val reimbStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", corporateReimbursements)}"
         ChartMetricInfo(
             title = "Corporate Outlays & Claims",
             subtitle = "Business Travel & Advance Ring-Fence",
             formula = "Net Float = Business Outlays Paid - Reimbursements Received",
-            breakdown = "Total Business Outlays: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateOutlays)}\nSettled Company Claims: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateReimbursements)}",
+            breakdown = "Total Business Outlays: $outStr\nSettled Company Claims: $reimbStr",
             visualElements = listOf(
                 "Claim Due" to "Money you paid out-of-pocket that the company owes back to your personal vault.",
                 "Advance Held" to "Company capital held in your accounts, strictly ring-fenced from your living burn."
@@ -116,8 +127,11 @@ fun ReportsCategoriesTab(
         )
     }
 
-    val spendingMatrixRadarInfo = remember(userProfileCurrency, categoryExpenses, selectedTimeRange) {
-        val topList = categoryExpenses.take(3).joinToString { "${it.first} ($userProfileCurrency${String.format(Locale.US, "%,.0f", it.second)})" }
+    val spendingMatrixRadarInfo = remember(userProfileCurrency, categoryExpenses, selectedTimeRange, isDiscreet) {
+        val topList = categoryExpenses.take(3).joinToString {
+            val amtStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", it.second)}"
+            "${it.first} ($amtStr)"
+        }
         ChartMetricInfo(
             title = "Spending Matrix Radar",
             subtitle = "Multi-Axis Category Allocation (${selectedTimeRange.label})",
@@ -132,17 +146,21 @@ fun ReportsCategoriesTab(
         )
     }
 
-    val cashflowStreamSplitInfo = remember(userProfileCurrency, needsSum, wantsSum, totalAssets) {
+    val cashflowStreamSplitInfo = remember(userProfileCurrency, needsSum, wantsSum, totalAssets, isDiscreet) {
         val grandTotal = (needsSum + wantsSum + totalAssets).coerceAtLeast(1.0)
         val needsPct = ((needsSum / grandTotal) * 100).toInt()
         val wantsPct = ((wantsSum / grandTotal) * 100).toInt()
         val assetPct = ((totalAssets / grandTotal) * 100).toInt()
 
+        val needsStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", needsSum)}"
+        val wantsStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", wantsSum)}"
+        val assetStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", totalAssets)}"
+
         ChartMetricInfo(
             title = "50 / 30 / 20 Cashflow Stream Split",
             subtitle = "Macro Budget Health & Funnel Proportions",
             formula = "Needs (50%) + Wants (30%) + SIP Wealth (20%)",
-            breakdown = "Needs: $userProfileCurrency${String.format(Locale.US, "%,.0f", needsSum)} ($needsPct%)\nWants: $userProfileCurrency${String.format(Locale.US, "%,.0f", wantsSum)} ($wantsPct%)\nAssets / SIPs: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalAssets)} ($assetPct%)",
+            breakdown = "Needs: $needsStr ($needsPct%)\nWants: $wantsStr ($wantsPct%)\nAssets / SIPs: $assetStr ($assetPct%)",
             visualElements = listOf(
                 "Coral Top Band" to "Needs (Contractual rent, bills, groceries, non-negotiable living).",
                 "Cobalt Middle Band" to "Wants (Dining, leisure, discretionary shopping).",
@@ -152,12 +170,13 @@ fun ReportsCategoriesTab(
         )
     }
 
-    val budgetConsumptionInfo = remember(userProfileCurrency, totalExpenses, categoryExpenses.size, selectedTimeRange) {
+    val budgetConsumptionInfo = remember(userProfileCurrency, totalExpenses, categoryExpenses.size, selectedTimeRange, isDiscreet) {
+        val totalStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", totalExpenses)}"
         ChartMetricInfo(
             title = "Budget Consumption",
             subtitle = "Category Share of Outflow (${selectedTimeRange.label})",
             formula = "Category Share % = (Category Spend / Total Expenses) * 100",
-            breakdown = "Total Outflow: $userProfileCurrency${String.format(Locale.US, "%,.0f", totalExpenses)} across ${categoryExpenses.size} categories in ${selectedTimeRange.label}.",
+            breakdown = "Total Outflow: $totalStr across ${categoryExpenses.size} categories in ${selectedTimeRange.label}.",
             visualElements = listOf(
                 "Horizontal Gradient Bars" to "Visual proportion of budget absorbed by each category."
             ),
@@ -165,12 +184,13 @@ fun ReportsCategoriesTab(
         )
     }
 
-    val categoryRosterInfo = remember(userProfileCurrency, totalExpenses, categoryExpenses.size, selectedTimeRange) {
+    val categoryRosterInfo = remember(userProfileCurrency, totalExpenses, categoryExpenses.size, selectedTimeRange, isDiscreet) {
+        val totalStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", totalExpenses)}"
         ChartMetricInfo(
             title = "Itemized Category Roster",
             subtitle = "Detailed Spend & Transaction History",
             formula = "Category Total = Sum of all transactions in category",
-            breakdown = "Tracking ${categoryExpenses.size} active categories totaling $userProfileCurrency${String.format(Locale.US, "%,.0f", totalExpenses)} in ${selectedTimeRange.label}.",
+            breakdown = "Tracking ${categoryExpenses.size} active categories totaling $totalStr in ${selectedTimeRange.label}.",
             visualElements = listOf(
                 "Mini Sparkline" to "Visual trajectory of transaction sizes within this category.",
                 "Outflow Share" to "Percentage contribution to overall expenses."
@@ -496,12 +516,13 @@ fun ReportsCategoriesTab(
                     modifier = Modifier
                         .padding(vertical = 6.dp)
                         .clickable {
+                            val amtStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)}"
                             onOpenMetricInfo(
                                 ChartMetricInfo(
                                     title = "$cat Consumption",
                                     subtitle = "Share of Total Outflow",
                                     formula = "Share % = (Category Spend / Total Expenses) * 100",
-                                    breakdown = "Realized spend of $userProfileCurrency${String.format(Locale.US, "%,.0f", amount)}, absorbing ${(ratio * 100).toInt()}% of total expenses in ${selectedTimeRange.label}.",
+                                    breakdown = "Realized spend of $amtStr, absorbing ${(ratio * 100).toInt()}% of total expenses in ${selectedTimeRange.label}.",
                                     advice = "Target reducing variable expenses in your top 2 categories to free up cash for emergency reserves."
                                 )
                             )
@@ -573,20 +594,25 @@ fun ReportsCategoriesTab(
 
         categoryExpenses.forEach { (cat, amount) ->
             val ratio = if (totalExpenses > 0) (amount / totalExpenses) * 100 else 0.0
-            val catTxs = transactions.filter { it.category.equals(cat, ignoreCase = true) && isPersonalExpense(it) }
+            val catTxs = remember(transactions, cat) {
+                transactions
+                    .filter { it.category.trim().equals(cat, ignoreCase = true) && isPersonalExpense(it) }
+                    .sortedBy { it.date }
+            }
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
+                        val amtStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", amount)}"
                         onOpenMetricInfo(
                             ChartMetricInfo(
                                 title = "$cat Audit",
                                 subtitle = "Category Breakdown & Sparkline",
                                 formula = "Total = Σ Transactions($cat)",
-                                breakdown = "Total spent: $userProfileCurrency${String.format(Locale.US, "%,.0f", amount)} across ${catTxs.size} transactions in ${selectedTimeRange.label}.",
+                                breakdown = "Total spent: $amtStr across ${catTxs.size} transactions in ${selectedTimeRange.label}.",
                                 visualElements = listOf(
-                                    "Mini Sparkline" to "Visual trajectory of transaction sizes within this category."
+                                    "Mini Sparkline" to "Visual trajectory of transaction sizes within this category (oldest to newest)."
                                 ),
                                 advice = "Review smaller, frequent charges that quietly accumulate into large monthly totals."
                             )
