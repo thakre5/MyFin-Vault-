@@ -1,5 +1,6 @@
 package com.example.myfin.ui.onboarding.steps
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -55,6 +56,11 @@ fun OnboardingStep6VaultSealing(
     val haptic = LocalHapticFeedback.current
     val scrollState = rememberScrollState()
 
+    // Prevent accidental back-press interruption during vault sealing
+    BackHandler(enabled = true) {
+        onSealImmediately()
+    }
+
     val infiniteTransition = rememberInfiniteTransition(label = "pulseTransition")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -71,6 +77,9 @@ fun OnboardingStep6VaultSealing(
     }
     val formattedCommitments = remember(totalCommitments) {
         String.format(Locale.US, "%,.2f", totalCommitments)
+    }
+    val compactCommitments = remember(totalCommitments) {
+        String.format(Locale.US, "%,.0f", totalCommitments)
     }
 
     Box(
@@ -101,7 +110,7 @@ fun OnboardingStep6VaultSealing(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Spacer(modifier = Modifier.height(48.dp))
+                Spacer(modifier = Modifier.height(54.dp))
 
                 // Hero Cards with User's Real Balances
                 Box(
@@ -317,7 +326,9 @@ fun OnboardingStep6VaultSealing(
                                             text = "${country.currencySymbol} ${country.currencyCode}",
                                             fontSize = 11.5.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = TextDark
+                                            color = TextDark,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
@@ -464,7 +475,9 @@ fun OnboardingStep6VaultSealing(
                                             fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = Primary600,
-                                            lineHeight = 11.sp
+                                            lineHeight = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
@@ -492,11 +505,13 @@ fun OnboardingStep6VaultSealing(
                                             lineHeight = 9.sp
                                         )
                                         Text(
-                                            text = "${country.currencySymbol} $formattedCommitments",
+                                            text = "${country.currencySymbol} $compactCommitments",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Primary600,
-                                            lineHeight = 12.sp
+                                            lineHeight = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
