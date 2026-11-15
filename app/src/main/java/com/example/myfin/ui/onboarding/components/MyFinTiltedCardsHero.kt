@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.ui.components.MyFinAppLogo
@@ -71,7 +72,7 @@ fun MyFinTiltedCardsHero(
                     Brush.linearGradient(
                         colors = listOf(
                             Neutral800,
-                            Color(0xFF132347),
+                            Primary900,
                             Neutral900
                         )
                     )
@@ -88,14 +89,18 @@ fun MyFinTiltedCardsHero(
                     text = secondaryCardLabel,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Neutral400
+                    color = Neutral400,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(1.dp))
                 Text(
                     text = "$currencySymbol $secondaryBalance",
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Primary200
+                    color = Primary200,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -135,7 +140,9 @@ fun MyFinTiltedCardsHero(
                     text = primaryCardLabel,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Primary100
+                    color = Primary100,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -143,7 +150,9 @@ fun MyFinTiltedCardsHero(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Black,
                     color = Color.White,
-                    letterSpacing = (-0.4).sp
+                    letterSpacing = (-0.4).sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
