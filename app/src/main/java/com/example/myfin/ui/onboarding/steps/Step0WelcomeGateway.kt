@@ -6,6 +6,7 @@
 
 package com.example.myfin.ui.onboarding.steps
 
+import android.util.Patterns
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
@@ -100,14 +101,23 @@ private fun sanitizeDecimalInput(input: String): String {
 }
 
 private fun isValidCalendarDate(day: Int, month: Int, year: Int): Boolean {
-    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+    val now = Calendar.getInstance()
+    val currentYear = now.get(Calendar.YEAR)
     if (year !in 1900..currentYear || month !in 1..12) return false
     val cal = Calendar.getInstance().apply {
         set(Calendar.YEAR, year)
         set(Calendar.MONTH, month - 1)
+        set(Calendar.DAY_OF_MONTH, 1)
     }
     val maxDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    return day in 1..maxDays
+    if (day !in 1..maxDays) return false
+
+    cal.set(Calendar.DAY_OF_MONTH, day)
+    cal.set(Calendar.HOUR_OF_DAY, 0)
+    cal.set(Calendar.MINUTE, 0)
+    cal.set(Calendar.SECOND, 0)
+    cal.set(Calendar.MILLISECOND, 0)
+    return !cal.after(now)
 }
 
 @Composable
@@ -196,8 +206,9 @@ fun OnboardingStep0WelcomeGateway(
         pageCount = { virtualPageCount }
     )
 
-    // Gesture-safe automated carousel cycling
+    // Reset scroll position to top whenever switching stages, and auto-advance carousel on CAROUSEL stage
     LaunchedEffect(currentStage) {
+        scrollState.animateScrollTo(0)
         while (currentStage == GatewayStage.CAROUSEL) {
             delay(3500L)
             if (carouselPagerState.pageCount > 0 && !carouselPagerState.isScrollInProgress) {
@@ -218,7 +229,7 @@ fun OnboardingStep0WelcomeGateway(
     }
 
     val isCompactHero = currentStage == GatewayStage.ACCOUNTS || currentStage == GatewayStage.COMMITMENTS
-    
+
     // Collapse hero completely when keyboard is active to eliminate header collision
     val isHeroVisible = !isImeVisible || currentStage == GatewayStage.CAROUSEL
 
@@ -486,7 +497,7 @@ fun OnboardingStep0WelcomeGateway(
                                     OutlinedTextField(
                                         value = emailAddress,
                                         onValueChange = onEmailChange,
-                                        placeholder = { Text("Email Address", fontSize = 13.5.sp, color = TextMuted) },
+                                        placeholder = { Text("Email Address (Optional)", fontSize = 13.5.sp, color = TextMuted) },
                                         leadingIcon = {
                                             Icon(Icons.Outlined.Mail, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(18.dp))
                                         },
@@ -946,13 +957,16 @@ fun OnboardingStep0WelcomeGateway(
                                         val isCash = account.defaultType == "Cash"
                                         val isSimpleStrategy = selectedStrategy == "SIMPLE"
                                         val canDelete = isSimpleStrategy && !isCash && accounts.count { it.defaultType != "Cash" } > 1 && index > 0
+                                        val currentBal = account.initialBalanceText.toDoubleOrNull() ?: 0.0
                                         val currentMinBal = account.minBalanceText.toDoubleOrNull() ?: 0.0
+                                        val isMabShortfall = currentMinBal > 0.0 && currentBal < currentMinBal
 
+                                        val mabPrefix = if (isMabShortfall) "! MAB:" else "MAB:"
                                         val mabDisplay = when {
                                             currentMinBal <= 0.0 -> "MAB: 0 ▾"
-                                            currentMinBal >= 1000.0 && currentMinBal % 1000.0 == 0.0 -> "MAB: ${selectedCountry.currencySymbol}${(currentMinBal / 1000).toInt()}k"
-                                            currentMinBal >= 1000.0 -> "MAB: ${selectedCountry.currencySymbol}${String.format(Locale.US, "%,.0f", currentMinBal)}"
-                                            else -> "MAB: ${selectedCountry.currencySymbol}${currentMinBal.toInt()}"
+                                            currentMinBal >= 1000.0 && currentMinBal % 1000.0 == 0.0 -> "$mabPrefix ${selectedCountry.currencySymbol}${(currentMinBal / 1000).toInt()}k"
+                                            currentMinBal >= 1000.0 -> "$mabPrefix ${selectedCountry.currencySymbol}${String.format(Locale.US, "%,.0f", currentMinBal)}"
+                                            else -> "$mabPrefix ${selectedCountry.currencySymbol}${currentMinBal.toInt()}"
                                         }
 
                                         Surface(
@@ -961,7 +975,7 @@ fun OnboardingStep0WelcomeGateway(
                                                 .height(60.dp),
                                             shape = RoundedCornerShape(27.dp),
                                             color = CardWhite,
-                                            border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.9f))
+                                            border = BorderStroke(1.dp, if (isMabShortfall) Error500.copy(alpha = 0.5f) else BorderLight.copy(alpha = 0.9f))
                                         ) {
                                             Row(
                                                 modifier = Modifier
@@ -1029,8 +1043,19 @@ fun OnboardingStep0WelcomeGateway(
                                                                             editingMabAccountIndex = index
                                                                         },
                                                                     shape = RoundedCornerShape(6.dp),
-                                                                    color = if (currentMinBal > 0.0) Primary50 else CanvasLight,
-                                                                    border = BorderStroke(0.5.dp, if (currentMinBal > 0.0) Primary200 else BorderLight)
+                                                                    color = when {
+                                                                        isMabShortfall -> Error100
+                                                                        currentMinBal > 0.0 -> Primary50
+                                                                        else -> CanvasLight
+                                                                    },
+                                                                    border = BorderStroke(
+                                                                        0.5.dp,
+                                                                        when {
+                                                                            isMabShortfall -> Error500.copy(alpha = 0.4f)
+                                                                            currentMinBal > 0.0 -> Primary200
+                                                                            else -> BorderLight
+                                                                        }
+                                                                    )
                                                                 ) {
                                                                     Row(
                                                                         verticalAlignment = Alignment.CenterVertically,
@@ -1040,7 +1065,11 @@ fun OnboardingStep0WelcomeGateway(
                                                                             text = mabDisplay,
                                                                             fontSize = 8.5.sp,
                                                                             fontWeight = FontWeight.Bold,
-                                                                            color = if (currentMinBal > 0.0) AccentPurple else TextMuted,
+                                                                            color = when {
+                                                                                isMabShortfall -> Error700
+                                                                                currentMinBal > 0.0 -> AccentPurple
+                                                                                else -> TextMuted
+                                                                            },
                                                                             maxLines = 1,
                                                                             softWrap = false
                                                                         )
@@ -1508,11 +1537,14 @@ fun OnboardingStep0WelcomeGateway(
                                     val day = if (clean.length >= 2) clean.substring(0, 2).toIntOrNull() ?: 0 else 0
                                     val month = if (clean.length >= 4) clean.substring(2, 4).toIntOrNull() ?: 0 else 0
                                     val year = if (clean.length == 8) clean.substring(4, 8).toIntOrNull() ?: 0 else 0
+                                    val trimmedEmail = emailAddress.trim()
 
                                     if (displayName.trim().isEmpty()) {
                                         Toast.makeText(context, "Please enter your username", Toast.LENGTH_SHORT).show()
+                                    } else if (trimmedEmail.isNotEmpty() && !Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+                                        Toast.makeText(context, "Please enter a valid email address or leave it blank", Toast.LENGTH_SHORT).show()
                                     } else if (clean.length < 8 || !isValidCalendarDate(day, month, year)) {
-                                        Toast.makeText(context, "Enter a valid calendar date (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Enter a valid past calendar date (DDMMYYYY) for recovery", Toast.LENGTH_SHORT).show()
                                     } else {
                                         focusManager.clearFocus()
                                         keyboardController?.hide()
@@ -1649,7 +1681,9 @@ fun OnboardingStep0WelcomeGateway(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
                             .navigationBarsPadding()
+                            .imePadding()
                             .padding(horizontal = 24.dp)
                             .padding(bottom = 28.dp, top = 6.dp)
                     ) {
