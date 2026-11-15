@@ -34,6 +34,7 @@ import androidx.compose.ui.zIndex
 import com.example.myfin.R
 import com.example.myfin.data.AccountEntity
 import com.example.myfin.data.TransactionType
+import com.example.myfin.data.TransferSubtype
 import com.example.myfin.data.UserProfile
 import com.example.myfin.ui.BudgetViewModel
 import com.example.myfin.ui.components.MyFinAppLogo
@@ -180,38 +181,72 @@ fun MultiStepOnboardingFlow(
         viewModel.saveMasterPin(masterPin.ifEmpty { "1234" })
         viewModel.saveUserProfile(finalProfile)
 
-        val accountEntities = initialAccounts.mapIndexed { index, acc ->
-            val parsedMin = acc.minBalanceText.toDoubleOrNull() ?: 0.0
-            AccountEntity(
-                accountName = acc.name.trim().uppercase(),
-                startingBalance = acc.initialBalanceText.toDoubleOrNull() ?: 0.0,
-                accountType = acc.defaultType,
-                minBalance = parsedMin,
-                isArchived = false,
-                sortOrder = index
-            )
+        val validAccounts = if (initialAccounts.isEmpty()) {
+            listOf(AccountEntity("PRIMARY BANK", 50000.0, "Operating", 0.0, false, 0))
+        } else {
+            initialAccounts.mapIndexed { index, acc ->
+                val parsedMin = acc.minBalanceText.toDoubleOrNull() ?: 0.0
+                AccountEntity(
+                    accountName = acc.name.trim().uppercase(),
+                    startingBalance = acc.initialBalanceText.toDoubleOrNull() ?: 0.0,
+                    accountType = acc.defaultType,
+                    minBalance = parsedMin,
+                    isArchived = false,
+                    sortOrder = index
+                )
+            }
         }
-        viewModel.replaceAllAccounts(accountEntities)
+        viewModel.replaceAllAccounts(validAccounts)
 
-        val defaultAccountName = initialAccounts.firstOrNull()?.name?.trim()?.uppercase() ?: "PRIMARY BANK"
-        val commitmentsAccountName = initialAccounts.firstOrNull { it.defaultType.equals("Commitments", ignoreCase = true) }?.name?.trim()?.uppercase()
-            ?: defaultAccountName
-        val operatingAccountName = initialAccounts.firstOrNull { it.defaultType.equals("Operating", ignoreCase = true) }?.name?.trim()?.uppercase()
-            ?: defaultAccountName
+        val defaultAccountName = validAccounts.firstOrNull()?.accountName ?: "PRIMARY BANK"
+        val commitmentsAccountName = validAccounts.firstOrNull { it.accountType.equals("Commitments", ignoreCase = true) }?.accountName ?: defaultAccountName
+        val operatingAccountName = validAccounts.firstOrNull { it.accountType.equals("Operating", ignoreCase = true) }?.accountName ?: defaultAccountName
+        val fortressAccountName = validAccounts.firstOrNull { it.accountType.equals("Fortress", ignoreCase = true) }?.accountName ?: operatingAccountName
 
         initialCommitments.filter { it.isSelected }.forEach { bill ->
             val amt = bill.amountText.toDoubleOrNull() ?: 0.0
             if (amt > 0.0) {
-                viewModel.addFixedBill(
-                    title = bill.title,
-                    amount = amt,
-                    category = bill.categoryName,
-                    subcategory = bill.subcategoryName,
-                    account = if (bill.type == TransactionType.INCOME) operatingAccountName else commitmentsAccountName,
-                    toAccount = null,
-                    type = bill.type,
-                    dueDay = bill.defaultDueDay
-                )
+                when {
+                    bill.type == TransactionType.INCOME -> {
+                        viewModel.addFixedBill(
+                            title = bill.title,
+                            amount = amt,
+                            category = bill.categoryName,
+                            subcategory = bill.subcategoryName,
+                            account = operatingAccountName,
+                            toAccount = null,
+                            type = bill.type,
+                            dueDay = bill.defaultDueDay
+                        )
+                    }
+                    bill.type == TransactionType.EXPENSE -> {
+                        viewModel.addFixedBill(
+                            title = bill.title,
+                            amount = amt,
+                            category = bill.categoryName,
+                            subcategory = bill.subcategoryName,
+                            account = commitmentsAccountName,
+                            toAccount = null,
+                            type = bill.type,
+                            dueDay = bill.defaultDueDay
+                        )
+                    }
+                    bill.type == TransactionType.ASSET -> {
+                        // Route investments/SIPs to Operating or Fortress sweep rather than draining Commitments
+                        val destAccount = if (bill.title.contains("Emergency", ignoreCase = true)) fortressAccountName else operatingAccountName
+                        viewModel.addFixedBill(
+                            title = bill.title,
+                            amount = amt,
+                            category = bill.categoryName,
+                            subcategory = bill.subcategoryName,
+                            account = operatingAccountName,
+                            toAccount = destAccount,
+                            type = TransactionType.TRANSFER,
+                            dueDay = bill.defaultDueDay,
+                            isPaid = false
+                        )
+                    }
+                }
             }
         }
 
@@ -383,18 +418,21 @@ fun MultiStepOnboardingFlow(
                             },
                             onAddAccount = {
                                 val existingNames = initialAccounts.map { it.name }
-                                val nextBankName = when {
-                                    "Secondary Bank" !in existingNames -> "Secondary Bank"
-                                    "Tertiary Bank" !in existingNames -> "Tertiary Bank"
-                                    else -> "Bank ${existingNames.count { it != "Cash Wallet" } + 1}"
+                                var n = 1
+                                var nextBankName = "Bank $n"
+                                while (existingNames.any { it.equals(nextBankName, ignoreCase = true) }) {
+                                    n++
+                                    nextBankName = "Bank $n"
                                 }
-                                val cashAcc = initialAccounts.firstOrNull { it.defaultType == "Cash" }
+                                val defaultTypeForNew = if (selectedStrategy.equals("3-VAULT", ignoreCase = true)) "Operating" else "Operating"
+                                val cashAcc = initialAccounts.firstOrNull { it.defaultType.equals("Cash", ignoreCase = true) }
                                 if (cashAcc != null) {
                                     val insertIdx = initialAccounts.indexOf(cashAcc)
-                                    initialAccounts.add(insertIdx, InitialAccountSetup(nextBankName, "Operating", "10000", "0"))
+                                    initialAccounts.add(insertIdx, InitialAccountSetup(nextBankName, defaultTypeForNew, "10000", "0"))
                                 } else {
-                                    initialAccounts.add(InitialAccountSetup(nextBankName, "Operating", "10000", "0"))
+                                    initialAccounts.add(InitialAccountSetup(nextBankName, defaultTypeForNew, "10000", "0"))
                                 }
+                                syncAccountsForStrategy(selectedStrategy)
                             },
                             onToggleCommitment = { idx ->
                                 if (idx in initialCommitments.indices) {
@@ -430,7 +468,7 @@ fun MultiStepOnboardingFlow(
                             country = selectedCountry,
                             strategy = selectedStrategy,
                             totalLiquidity = initialAccounts.sumOf { it.initialBalanceText.toDoubleOrNull() ?: 0.0 },
-                            totalCommitments = initialCommitments.filter { it.isSelected }.sumOf { it.amountText.toDoubleOrNull() ?: 0.0 },
+                            totalCommitments = initialCommitments.filter { it.isSelected && it.type != TransactionType.INCOME }.sumOf { it.amountText.toDoubleOrNull() ?: 0.0 },
                             remainingSeconds = remainingSeconds,
                             onSealImmediately = { finalizeAndLaunchVault() }
                         )
