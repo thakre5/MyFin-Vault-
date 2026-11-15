@@ -9,11 +9,11 @@ import androidx.compose.ui.text.input.VisualTransformation
  * Visual transformation that formats an 8-digit date string (DDMMYYYY) into DD/MM/YYYY.
  *
  * Designed specifically for digits-only inputs. Ensure the host TextField sanitizes
- * input via `it.filter { it.isDigit() }.take(8)`.
+ * input via `sanitizeDobDigits(it)`.
  */
 object OnboardingDateVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
-        val raw = text.text.filter { it.isDigit() }.take(8)
+        val raw = text.text.take(8)
 
         val out = buildString {
             for (i in raw.indices) {
@@ -27,12 +27,13 @@ object OnboardingDateVisualTransformation : VisualTransformation {
         val offsetTranslator = object : OffsetMapping {
             override fun originalToTransformed(offset: Int): Int {
                 val clamped = offset.coerceIn(0, raw.length)
-                return when {
-                    clamped <= 1 -> clamped
-                    clamped <= 3 -> clamped + 1
-                    clamped <= 8 -> clamped + 2
-                    else -> out.length
-                }.coerceIn(0, out.length)
+                if (raw.isEmpty()) return 0
+                val slashesBefore = when {
+                    clamped <= 2 -> if (clamped == 2 && raw.length > 2) 1 else 0
+                    clamped <= 4 -> if (clamped == 4 && raw.length > 4) 2 else 1
+                    else -> 2
+                }
+                return (clamped + slashesBefore).coerceIn(0, out.length)
             }
 
             override fun transformedToOriginal(offset: Int): Int {
@@ -40,8 +41,7 @@ object OnboardingDateVisualTransformation : VisualTransformation {
                 return when {
                     clamped <= 2 -> clamped
                     clamped <= 5 -> clamped - 1
-                    clamped <= 10 -> clamped - 2
-                    else -> raw.length
+                    else -> clamped - 2
                 }.coerceIn(0, text.text.length)
             }
         }
