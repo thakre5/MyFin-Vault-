@@ -66,8 +66,11 @@ fun ChartMetricInfoBottomSheet(
     info: ChartMetricInfo,
     onDismiss: () -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = CardWhite,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = {
@@ -176,9 +179,12 @@ fun StrategyArchitectureBottomSheet(
     onDismiss: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val is3Vault = !vaultMode.equals("SIMPLE", ignoreCase = true)
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = CardWhite,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = {
