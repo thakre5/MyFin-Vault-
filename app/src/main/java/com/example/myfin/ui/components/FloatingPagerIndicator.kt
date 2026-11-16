@@ -61,9 +61,9 @@ fun FloatingPagerIndicator(
         label = "indicatorSlide"
     )
 
-    val isInteractive = isVisible && animAlpha > 0.5f
+    val isInteractive = isVisible && animAlpha > 0.5f && pagerState.pageCount > 1
 
-    if (animAlpha > 0.01f) {
+    if (animAlpha > 0.01f && pagerState.pageCount > 0) {
         Surface(
             modifier = modifier
                 .graphicsLayer {
@@ -80,10 +80,12 @@ fun FloatingPagerIndicator(
                 .clickable(
                     enabled = isInteractive,
                     onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        coroutineScope.launch {
-                            val next = (pagerState.currentPage + 1) % pagerState.pageCount
-                            pagerState.animateScrollToPage(next)
+                        if (pagerState.pageCount > 1) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            coroutineScope.launch {
+                                val next = (pagerState.currentPage + 1) % pagerState.pageCount
+                                pagerState.animateScrollToPage(next)
+                            }
                         }
                     }
                 ),
