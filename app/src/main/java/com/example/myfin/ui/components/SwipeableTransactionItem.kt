@@ -39,6 +39,7 @@ import java.util.*
 fun SwipeableTransactionItem(
     transaction: TransactionEntity,
     currencySymbol: String,
+    isDiscreet: Boolean = false,
     onTap: (TransactionEntity) -> Unit,
     onEdit: (TransactionEntity) -> Unit,
     onDelete: (TransactionEntity) -> Unit
@@ -60,6 +61,8 @@ fun SwipeableTransactionItem(
     val txDate = currentTx.date
     val txLinkedFixedBillId = currentTx.linkedFixedBillId
     val txSubtype = currentTx.transferSubtype
+
+    val isMasked = isDiscreet || currencySymbol.contains("•")
 
     var lastTargetValue by remember { mutableStateOf(SwipeToDismissBoxValue.Settled) }
 
@@ -194,22 +197,30 @@ fun SwipeableTransactionItem(
         }
 
         val displayTitle = remember(txTitle, friendlySubcategory) {
-            val isRedundant = txTitle.isBlank() ||
-                    txTitle.equals(friendlySubcategory, ignoreCase = true) ||
-                    txTitle.startsWith("Vault Transfer", ignoreCase = true) ||
-                    (friendlySubcategory.isNotBlank() && friendlySubcategory.contains(txTitle, ignoreCase = true) && friendlySubcategory.length - txTitle.length <= 4) ||
-                    (txTitle.isNotBlank() && txTitle.contains(friendlySubcategory, ignoreCase = true) && txTitle.length - friendlySubcategory.length <= 4)
+            val cleanTitle = txTitle.trim()
+            val cleanSubcat = friendlySubcategory.trim()
+            val isAutoTransferTitle = cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
+                    cleanTitle.startsWith("Fortress Sweep (", ignoreCase = true) ||
+                    cleanTitle.startsWith("Bill Funding (", ignoreCase = true) ||
+                    cleanTitle.startsWith("Cash ATM Withdrawal (", ignoreCase = true) ||
+                    cleanTitle.startsWith("Vault Rebalance (", ignoreCase = true)
 
-            if (!isRedundant && friendlySubcategory.isNotBlank()) {
-                "$friendlySubcategory ($txTitle)"
-            } else {
-                friendlySubcategory.ifBlank { txTitle.ifBlank { "Transaction" } }
+            when {
+                cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || isAutoTransferTitle -> {
+                    cleanSubcat.ifBlank { cleanTitle.ifBlank { "Transaction" } }
+                }
+                cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
+                    val unique = cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
+                    if (unique.isNotBlank()) "$cleanSubcat ($unique)" else cleanSubcat
+                }
+                cleanSubcat.isBlank() -> cleanTitle
+                else -> "$cleanSubcat ($cleanTitle)"
             }
         }
 
         val bankRouteText = remember(txAccountName, txToAccountName, txType) {
             if (txType == TransactionType.TRANSFER && !txToAccountName.isNullOrBlank()) {
-                "${txAccountName.uppercase()} ➔ ${txToAccountName.uppercase()}"
+                "${txAccountName.uppercase()} \u2794 ${txToAccountName.uppercase()}"
             } else {
                 txAccountName
             }
@@ -223,13 +234,16 @@ fun SwipeableTransactionItem(
             }
         }
 
-        val categoryIcon = getCategoryIcon(txCategory, txType, txSubtype, txSubcategory)
-        val isCorporateInflow = txType == TransactionType.CORPORATE &&
-                txCategory.equals("Reimbursements & Claims", ignoreCase = true)
+        val isCorporateInflow = (txType == TransactionType.CORPORATE && txCategory.equals("Reimbursements & Claims", ignoreCase = true)) ||
+                (txType == TransactionType.INCOME && txCategory.equals("Reimbursements & Corporate Inflow", ignoreCase = true))
+
+        val isLegacyCorporateOutlay = txType == TransactionType.EXPENSE && txCategory.equals("Work & Professional", ignoreCase = true)
+
+        val categoryIcon = getCategoryIcon(txCategory, txType, txSubtype, txSubcategory, isLegacyCorporateOutlay)
 
         val (iconTint, iconBg) = when (txType) {
             TransactionType.INCOME -> Success500 to Success100
-            TransactionType.EXPENSE -> Error500 to Error100
+            TransactionType.EXPENSE -> if (isLegacyCorporateOutlay) (Warning700 to Warning100) else (Error500 to Error100)
             TransactionType.ASSET -> SoftTeal to SoftTealLight
             TransactionType.CORPORATE -> if (isCorporateInflow) (Success500 to Success100) else (Warning700 to Warning100)
             TransactionType.TRANSFER -> Primary600 to Primary50
@@ -343,14 +357,14 @@ fun SwipeableTransactionItem(
 
                     val amountColor = when (txType) {
                         TransactionType.INCOME -> Success500
-                        TransactionType.EXPENSE -> TextDark
+                        TransactionType.EXPENSE -> if (isLegacyCorporateOutlay) Warning700 else TextDark
                         TransactionType.ASSET -> SoftTeal
                         TransactionType.CORPORATE -> if (isCorporateInflow) Success500 else Warning700
                         TransactionType.TRANSFER -> Primary600
                     }
 
                     Text(
-                        text = "$amountPrefix$currencySymbol${String.format(Locale.US, "%,.2f", txAmount)}",
+                        text = if (isMasked) "$amountPrefix••••" else "$amountPrefix$currencySymbol${String.format(Locale.US, "%,.2f", txAmount)}",
                         fontWeight = FontWeight.Black,
                         fontSize = 14.sp,
                         color = amountColor
@@ -374,8 +388,10 @@ private fun getCategoryIcon(
     category: String,
     type: TransactionType,
     transferSubtype: TransferSubtype = TransferSubtype.NONE,
-    subcategory: String = ""
+    subcategory: String = "",
+    isLegacyCorporateOutlay: Boolean = false
 ): ImageVector {
+    if (isLegacyCorporateOutlay) return Icons.Default.Work
     return when (type) {
         TransactionType.INCOME -> Icons.AutoMirrored.Filled.TrendingUp
         TransactionType.ASSET -> Icons.Default.Savings
