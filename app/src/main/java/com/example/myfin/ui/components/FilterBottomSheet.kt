@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,12 +47,26 @@ fun FilterBottomSheet(
     onReset: () -> Unit
 ) {
     var selectedType by remember(currentFilter) { mutableStateOf(currentFilter.type) }
-    var selectedAccount by remember(currentFilter) { mutableStateOf(currentFilter.account) }
+    var selectedAccount by remember(currentFilter) {
+        mutableStateOf(currentFilter.account.trim().ifBlank { "ALL" })
+    }
     var filterStartDate by remember(currentFilter) { mutableStateOf(currentFilter.startDate) }
     var filterEndDate by remember(currentFilter) { mutableStateOf(currentFilter.endDate) }
 
     var showDateRangePicker by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val accountListState = rememberLazyListState()
+
+    LaunchedEffect(selectedAccount, accountList) {
+        if (selectedAccount.equals("ALL", ignoreCase = true)) {
+            accountListState.animateScrollToItem(0)
+        } else {
+            val idx = accountList.indexOfFirst { it.equals(selectedAccount, ignoreCase = true) }
+            if (idx >= 0) {
+                accountListState.animateScrollToItem(idx + 1)
+            }
+        }
+    }
 
     val activePreset = remember(filterStartDate, filterEndDate) {
         when {
@@ -66,13 +81,16 @@ fun FilterBottomSheet(
 
     val activeRangeText = remember(filterStartDate, filterEndDate) {
         val sdf = SimpleDateFormat("dd MMM yyyy", Locale.US)
+        val start = filterStartDate
+        val end = filterEndDate
         when {
-            filterStartDate != null && filterEndDate != null ->
-                "${sdf.format(Date(filterStartDate!!))} – ${sdf.format(Date(filterEndDate!!))}"
-            filterStartDate != null ->
-                "From ${sdf.format(Date(filterStartDate!!))}"
-            filterEndDate != null ->
-                "Until ${sdf.format(Date(filterEndDate!!))}"
+            start != null && end != null -> {
+                val startStr = sdf.format(Date(start))
+                val endStr = sdf.format(Date(end))
+                if (startStr == endStr) startStr else "$startStr – $endStr"
+            }
+            start != null -> "From ${sdf.format(Date(start))}"
+            end != null -> "Until ${sdf.format(Date(end))}"
             else -> null
         }
     }
@@ -164,12 +182,16 @@ fun FilterBottomSheet(
             // Vault Account Filter
             Text("Vault Account", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
             Spacer(modifier = Modifier.height(6.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(
+                state = accountListState,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 item {
+                    val isAllSelected = selectedAccount.equals("ALL", ignoreCase = true)
                     FilterChip(
-                        selected = selectedAccount == "ALL",
+                        selected = isAllSelected,
                         onClick = { selectedAccount = "ALL" },
-                        label = { Text("All Vaults", fontSize = 11.5.sp, fontWeight = if (selectedAccount == "ALL") FontWeight.Bold else FontWeight.Medium) },
+                        label = { Text("All Vaults", fontSize = 11.5.sp, fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Medium) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Primary50,
@@ -178,7 +200,7 @@ fun FilterBottomSheet(
                     )
                 }
                 items(accountList) { acc ->
-                    val isSelected = selectedAccount == acc
+                    val isSelected = selectedAccount.equals(acc, ignoreCase = true)
                     FilterChip(
                         selected = isSelected,
                         onClick = { selectedAccount = acc },
