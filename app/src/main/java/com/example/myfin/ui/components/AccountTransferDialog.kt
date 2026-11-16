@@ -81,20 +81,25 @@ fun AccountTransferDialog(
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
 
-    val resolveSubtypeForAccount = { accName: String ->
-        val type = accountTypes[accName]?.lowercase(Locale.ROOT)
-        when {
-            type == "fortress" || accName.contains("FORTRESS", ignoreCase = true) || accName.contains("TERTIARY", ignoreCase = true) ->
-                TransferSubtype.WEALTH_ALLOCATION
-            type == "commitments" || accName.contains("COMMITMENT", ignoreCase = true) || accName.contains("SECONDARY", ignoreCase = true) ->
-                TransferSubtype.BILL_FUNDING
-            type == "cash" || accName.contains("CASH", ignoreCase = true) ->
-                TransferSubtype.CASH_WITHDRAWAL
-            else -> TransferSubtype.REBALANCE
+    val resolveSubtypeForAccount = remember(accountTypes) {
+        { accName: String ->
+            val type = accountTypes.entries
+                .firstOrNull { it.key.equals(accName, ignoreCase = true) }
+                ?.value
+                ?.lowercase(Locale.ROOT)
+            when {
+                type == "fortress" || accName.contains("FORTRESS", ignoreCase = true) || accName.contains("TERTIARY", ignoreCase = true) ->
+                    TransferSubtype.WEALTH_ALLOCATION
+                type == "commitments" || accName.contains("COMMITMENT", ignoreCase = true) || accName.contains("SECONDARY", ignoreCase = true) ->
+                    TransferSubtype.BILL_FUNDING
+                type == "cash" || accName.contains("CASH", ignoreCase = true) ->
+                    TransferSubtype.CASH_WITHDRAWAL
+                else -> TransferSubtype.REBALANCE
+            }
         }
     }
 
-    var selectedSubtype by remember(toAccount) {
+    var selectedSubtype by remember(toAccount, resolveSubtypeForAccount) {
         mutableStateOf(resolveSubtypeForAccount(toAccount))
     }
 
@@ -126,9 +131,10 @@ fun AccountTransferDialog(
         }
     }
 
+    val hasMultipleAccounts = accounts.size >= 2
     val isSelfTransfer = fromAccount.isNotBlank() && toAccount.isNotBlank() && fromAccount.equals(toAccount, ignoreCase = true)
     val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
-    val isTransferValid = parsedAmount > 0.0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && !isSelfTransfer
+    val isTransferValid = hasMultipleAccounts && parsedAmount > 0.0 && fromAccount.isNotBlank() && toAccount.isNotBlank() && !isSelfTransfer
 
     val notePlaceholder = when (selectedSubtype) {
         TransferSubtype.WEALTH_ALLOCATION -> "e.g., Operating Surplus Sweep into Fortress FDs"
@@ -189,6 +195,30 @@ fun AccountTransferDialog(
                         .background(CanvasLight)
                 ) {
                     Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(16.dp))
+                }
+            }
+
+            if (!hasMultipleAccounts) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Warning100,
+                    border = BorderStroke(0.6.dp, Warning500.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Warning700, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "At least 2 active accounts are required to execute an internal transfer.",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Warning700
+                        )
+                    }
                 }
             }
 
@@ -264,7 +294,7 @@ fun AccountTransferDialog(
                 }
             }
 
-            if (isSelfTransfer) {
+            if (isSelfTransfer && hasMultipleAccounts) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Error500, modifier = Modifier.size(13.dp))
@@ -447,7 +477,7 @@ fun AccountTransferDialog(
                                 color = TextDark
                             )
                             Text(
-                                text = "Saves this route ($fromAccount ➔ $toAccount) as an AutoPay commitment",
+                                text = "Saves this route ($fromAccount \u2794 $toAccount) as an AutoPay commitment",
                                 fontSize = 10.5.sp,
                                 color = TextMuted
                             )
@@ -538,11 +568,11 @@ fun AccountTransferDialog(
 
                             val cleanNote = noteText.trim().ifBlank {
                                 when (selectedSubtype) {
-                                    TransferSubtype.WEALTH_ALLOCATION -> "Fortress Sweep ($fromAccount ➔ $toAccount)"
-                                    TransferSubtype.BILL_FUNDING -> "Bill Funding ($fromAccount ➔ $toAccount)"
-                                    TransferSubtype.CASH_WITHDRAWAL -> "Cash ATM Withdrawal ($fromAccount ➔ $toAccount)"
-                                    TransferSubtype.REBALANCE -> "Vault Rebalance ($fromAccount ➔ $toAccount)"
-                                    else -> "Vault Transfer ($fromAccount ➔ $toAccount)"
+                                    TransferSubtype.WEALTH_ALLOCATION -> "Fortress Sweep ($fromAccount \u2794 $toAccount)"
+                                    TransferSubtype.BILL_FUNDING -> "Bill Funding ($fromAccount \u2794 $toAccount)"
+                                    TransferSubtype.CASH_WITHDRAWAL -> "Cash ATM Withdrawal ($fromAccount \u2794 $toAccount)"
+                                    TransferSubtype.REBALANCE -> "Vault Rebalance ($fromAccount \u2794 $toAccount)"
+                                    else -> "Vault Transfer ($fromAccount \u2794 $toAccount)"
                                 }
                             }
 
@@ -558,7 +588,11 @@ fun AccountTransferDialog(
                             )
                             onDismiss()
                         } else {
-                            val msg = if (isSelfTransfer) "Source and destination vaults must be distinct." else "Enter an amount > 0"
+                            val msg = when {
+                                !hasMultipleAccounts -> "At least 2 active accounts are required."
+                                isSelfTransfer -> "Source and destination vaults must be distinct."
+                                else -> "Enter an amount > 0"
+                            }
                             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                         }
                     },
