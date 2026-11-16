@@ -1,5 +1,6 @@
 package com.example.myfin.ui.components
 
+import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -43,11 +45,13 @@ import java.util.*
 fun SwipeableFixedBillItem(
     bill: FixedBillEntity,
     currencySymbol: String,
+    isDiscreet: Boolean = false,
     onTap: (FixedBillEntity) -> Unit,
     onEdit: (FixedBillEntity) -> Unit,
     onDelete: (FixedBillEntity) -> Unit,
     onSettleBill: ((bill: FixedBillEntity, customAmount: Double, dateMillis: Long) -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
     val currentBill by rememberUpdatedState(bill)
@@ -71,6 +75,9 @@ fun SwipeableFixedBillItem(
     val billMonth = currentBill.month
     val billYear = currentBill.year
 
+    val isMasked = isDiscreet || currencySymbol.contains("•")
+    val cleanCurrencySymbol = if (currencySymbol.contains("•")) "₹" else currencySymbol
+
     val currentCal = remember { Calendar.getInstance() }
     val currentDayOfMonth = currentCal.get(Calendar.DAY_OF_MONTH)
     val currentSysMonth = currentCal.get(Calendar.MONTH) + 1
@@ -85,61 +92,80 @@ fun SwipeableFixedBillItem(
         }
     }
 
-    val friendlySubcategory = remember(billSubcategory) {
-        when (billSubcategory.trim()) {
-            "WEALTH_ALLOCATION" -> "Fortress Sweep"
-            "BILL_FUNDING" -> "Bill Funding"
-            "REBALANCE" -> "Rebalance"
-            "CASH_WITHDRAWAL" -> "Cash ATM"
-            else -> billSubcategory.trim()
+    val friendlySubcategory = remember(billSubcategory, billType) {
+        if (billType == TransactionType.TRANSFER) {
+            when (billSubcategory.trim()) {
+                "WEALTH_ALLOCATION" -> "Fortress Sweep"
+                "BILL_FUNDING" -> "Bill Funding"
+                "REBALANCE" -> "Vault Rebalance"
+                "CASH_WITHDRAWAL" -> "Cash ATM Withdrawal"
+                else -> billSubcategory.trim().ifBlank { "Vault Sweep" }
+            }
+        } else {
+            billSubcategory.trim()
         }
     }
 
     val displayPrimaryTitle = remember(billTitle, friendlySubcategory) {
         val cleanTitle = billTitle.trim()
         val cleanSubcat = friendlySubcategory.trim()
-        val isRedundant = cleanTitle.isBlank() ||
-                cleanTitle.equals(cleanSubcat, ignoreCase = true) ||
-                cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
-                (cleanSubcat.isNotBlank() && cleanSubcat.contains(cleanTitle, ignoreCase = true) && cleanSubcat.length - cleanTitle.length <= 4) ||
-                (cleanTitle.isNotBlank() && cleanTitle.contains(cleanSubcat, ignoreCase = true) && cleanTitle.length - cleanSubcat.length <= 4)
+        val isAutoTransferTitle = cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
+                cleanTitle.startsWith("Fortress Sweep (", ignoreCase = true) ||
+                cleanTitle.startsWith("Bill Funding (", ignoreCase = true) ||
+                cleanTitle.startsWith("Cash ATM Withdrawal (", ignoreCase = true) ||
+                cleanTitle.startsWith("Vault Rebalance (", ignoreCase = true)
 
-        if (!isRedundant && cleanSubcat.isNotBlank()) {
-            "$cleanSubcat ($cleanTitle)"
-        } else {
-            cleanSubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
+        when {
+            cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || isAutoTransferTitle -> {
+                cleanSubcat.ifBlank { cleanTitle.ifBlank { "Commitment" } }
+            }
+            cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
+                val unique = cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
+                if (unique.isNotBlank()) "$cleanSubcat ($unique)" else cleanSubcat
+            }
+            cleanSubcat.isBlank() -> cleanTitle
+            else -> "$cleanSubcat ($cleanTitle)"
         }
     }
 
     val routeText = remember(billAccountName, billToAccountName, billType) {
         if (billType == TransactionType.TRANSFER && !billToAccountName.isNullOrBlank()) {
-            "${billAccountName.uppercase()} ➔ ${billToAccountName.uppercase()}"
+            "${billAccountName.uppercase()} \u2794 ${billToAccountName.uppercase()}"
         } else {
             billAccountName.uppercase()
         }
     }
 
+    val isCorporateClaim = remember(billType, billCategory) {
+        (billType == TransactionType.CORPORATE && billCategory.trim().equals("Reimbursements & Claims", ignoreCase = true)) ||
+                (billType == TransactionType.INCOME && billCategory.trim().equals("Reimbursements & Corporate Inflow", ignoreCase = true))
+    }
+
+    val isLegacyCorporateOutlay = remember(billType, billCategory) {
+        billType == TransactionType.EXPENSE && billCategory.trim().equals("Work & Professional", ignoreCase = true)
+    }
+
     val (typeTagColor, typeTagBg) = when (billType) {
-        TransactionType.EXPENSE -> Error700 to Error100
+        TransactionType.EXPENSE -> if (isLegacyCorporateOutlay) (Warning700 to Warning100) else (Error700 to Error100)
         TransactionType.INCOME -> Success700 to Success100
         TransactionType.ASSET -> SoftTeal to SoftTealLight
-        TransactionType.CORPORATE -> Warning700 to Warning100
+        TransactionType.CORPORATE -> if (isCorporateClaim) (Success700 to Success100) else (Warning700 to Warning100)
         TransactionType.TRANSFER -> Primary700 to Primary50
     }
 
     val amountTint = when (billType) {
-        TransactionType.EXPENSE -> Error500
+        TransactionType.EXPENSE -> if (isLegacyCorporateOutlay) Warning700 else Error500
         TransactionType.INCOME -> Success500
         TransactionType.ASSET -> SoftTeal
-        TransactionType.CORPORATE -> Warning700
+        TransactionType.CORPORATE -> if (isCorporateClaim) Success500 else Warning700
         TransactionType.TRANSFER -> Primary600
     }
 
     val typeTagText = when (billType) {
-        TransactionType.EXPENSE -> "DUE"
-        TransactionType.INCOME -> "INFLOW"
+        TransactionType.EXPENSE -> if (isLegacyCorporateOutlay) "CORP" else "DUE"
+        TransactionType.INCOME -> if (isCorporateClaim) "CLAIM" else "INFLOW"
         TransactionType.ASSET -> "SIP"
-        TransactionType.CORPORATE -> "CORP"
+        TransactionType.CORPORATE -> if (isCorporateClaim) "CLAIM" else "CORP"
         TransactionType.TRANSFER -> "SWEEP"
     }
 
@@ -417,7 +443,7 @@ fun SwipeableFixedBillItem(
                                     }
                                 )
                             ) {
-                                val duePrefix = if (billType == TransactionType.INCOME) "Exp" else "Due"
+                                val duePrefix = if (billType == TransactionType.INCOME || isCorporateClaim) "Exp" else "Due"
                                 Text(
                                     text = when {
                                         billIsPaid -> "Settled"
@@ -451,7 +477,7 @@ fun SwipeableFixedBillItem(
                     }
 
                     Text(
-                        text = "$currencySymbol$formattedAmount",
+                        text = if (isMasked) "••••" else "$cleanCurrencySymbol$formattedAmount",
                         fontWeight = FontWeight.Black,
                         fontSize = 15.sp,
                         color = if (billIsPaid) TextDark.copy(alpha = 0.5f) else amountTint
@@ -482,8 +508,28 @@ fun SwipeableFixedBillItem(
         } else {
             billAmount.toString()
         }
-        var customAmountText by remember { mutableStateOf(initialFormattedAmount) }
-        var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+
+        val defaultSettleMillis = remember(currentBill.id, billMonth, billYear, billDueDay) {
+            if (billMonth == currentSysMonth && billYear == currentSysYear) {
+                System.currentTimeMillis()
+            } else {
+                Calendar.getInstance().apply {
+                    set(Calendar.YEAR, billYear)
+                    set(Calendar.MONTH, (billMonth - 1).coerceIn(0, 11))
+                    set(Calendar.DAY_OF_MONTH, 1)
+                    val maxDay = getActualMaximum(Calendar.DAY_OF_MONTH)
+                    val targetDay = (billDueDay ?: 1).coerceIn(1, maxDay)
+                    set(Calendar.DAY_OF_MONTH, targetDay)
+                    set(Calendar.HOUR_OF_DAY, 12)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+            }
+        }
+
+        var customAmountText by remember(currentBill.id) { mutableStateOf(initialFormattedAmount) }
+        var selectedDateMillis by remember(currentBill.id) { mutableStateOf(defaultSettleMillis) }
         var showCalendarPicker by remember { mutableStateOf(false) }
 
         val isToday = remember(selectedDateMillis) {
@@ -535,7 +581,7 @@ fun SwipeableFixedBillItem(
                             val parts = filtered.split('.')
                             customAmountText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
                         },
-                        label = { Text("Amount Paid ($currencySymbol)", fontSize = 12.sp) },
+                        label = { Text("Amount Paid ($cleanCurrencySymbol)", fontSize = 12.sp) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth(),
@@ -615,12 +661,16 @@ fun SwipeableFixedBillItem(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val parsed = customAmountText.toDoubleOrNull() ?: billAmount
+                        val parsed = customAmountText.toDoubleOrNull() ?: 0.0
+                        if (parsed <= 0.0) {
+                            Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
                         currentOnSettle?.invoke(currentBill, parsed, selectedDateMillis)
                         showSettleDialog = false
                     }
                 ) {
-                    val confirmLabel = if (billType == TransactionType.INCOME) "Confirm Received" else "Confirm Paid"
+                    val confirmLabel = if (billType == TransactionType.INCOME || isCorporateClaim) "Confirm Received" else "Confirm Paid"
                     Text(confirmLabel, color = Primary600, fontWeight = FontWeight.Bold)
                 }
             },
