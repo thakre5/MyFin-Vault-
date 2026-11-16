@@ -77,10 +77,15 @@ fun AddTransactionBottomSheet(
             editingTransaction?.let { tx ->
                 val cleanTitle = tx.title.trim()
                 val cleanSubcat = tx.subcategory.trim()
+                val isAutoTransferLabel = cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
+                        cleanTitle.startsWith("Fortress Sweep (", ignoreCase = true) ||
+                        cleanTitle.startsWith("Bill Funding (", ignoreCase = true) ||
+                        cleanTitle.startsWith("Cash ATM Withdrawal (", ignoreCase = true) ||
+                        cleanTitle.startsWith("Vault Rebalance (", ignoreCase = true)
                 when {
                     cleanTitle.isBlank() ||
                             cleanTitle.equals(cleanSubcat, ignoreCase = true) ||
-                            cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
+                            isAutoTransferLabel -> ""
                     cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
                         cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
                     }
@@ -196,6 +201,9 @@ fun AddTransactionBottomSheet(
                 subs.add(0, SubcategoryEntity(parentCategory = selectedCategory, name = editingTransaction.subcategory, type = selectedType, isLegacy = true))
             }
         }
+        if (subs.isEmpty()) {
+            subs.add(SubcategoryEntity(parentCategory = selectedCategory, name = "General", type = selectedType))
+        }
         subs
     }
 
@@ -255,13 +263,14 @@ fun AddTransactionBottomSheet(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
+    val hasMultipleAccounts = accountList.size >= 2
     val isSelfTransfer = selectedType == TransactionType.TRANSFER &&
             selectedAccount.isNotBlank() &&
             selectedToAccount.isNotBlank() &&
             selectedAccount.equals(selectedToAccount, ignoreCase = true)
     val isInputValid = parsedAmount > 0.0 &&
             selectedAccount.isNotBlank() &&
-            (selectedType != TransactionType.TRANSFER || selectedToAccount.isNotBlank()) &&
+            (selectedType != TransactionType.TRANSFER || (hasMultipleAccounts && selectedToAccount.isNotBlank())) &&
             !isSelfTransfer
 
     ModalBottomSheet(
@@ -608,59 +617,57 @@ fun AddTransactionBottomSheet(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                if (availableSubcategoryEntities.isNotEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("(Primary Identification)", fontSize = 9.5.sp, color = TextMuted.copy(alpha = 0.7f))
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    LazyRow(
-                        state = subcategoryListState,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(availableSubcategoryEntities, key = { "${it.name}_${it.isLegacy}" }) { subEntity ->
-                            val isSelected = selectedSubcategory.equals(subEntity.name, ignoreCase = true)
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { selectedSubcategory = subEntity.name },
-                                label = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(subEntity.name, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                                        if (subEntity.isLegacy) {
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "Legacy",
-                                                fontSize = 8.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Warning700,
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(3.dp))
-                                                    .background(Warning100)
-                                                    .padding(horizontal = 3.dp, vertical = 0.5.dp)
-                                            )
-                                        } else if (subEntity.isNew) {
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(5.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Success500)
-                                            )
-                                        }
-                                    }
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = if (subEntity.isLegacy) Warning100 else Primary50,
-                                    selectedLabelColor = if (subEntity.isLegacy) Warning700 else Primary700
-                                ),
-                                border = if (subEntity.isLegacy) BorderStroke(0.8.dp, Warning500) else null
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("(Primary Identification)", fontSize = 9.5.sp, color = TextMuted.copy(alpha = 0.7f))
                 }
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyRow(
+                    state = subcategoryListState,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(availableSubcategoryEntities, key = { "${it.name}_${it.isLegacy}" }) { subEntity ->
+                        val isSelected = selectedSubcategory.equals(subEntity.name, ignoreCase = true)
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedSubcategory = subEntity.name },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(subEntity.name, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                    if (subEntity.isLegacy) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Legacy",
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Warning700,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(Warning100)
+                                                .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                                        )
+                                    } else if (subEntity.isNew) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(5.dp)
+                                                .clip(CircleShape)
+                                                .background(Success500)
+                                        )
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = if (subEntity.isLegacy) Warning100 else Primary50,
+                                selectedLabelColor = if (subEntity.isLegacy) Warning700 else Primary700
+                            ),
+                            border = if (subEntity.isLegacy) BorderStroke(0.8.dp, Warning500) else null
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -715,7 +722,14 @@ fun AddTransactionBottomSheet(
                     }
                 }
 
-                if (isSelfTransfer) {
+                if (!hasMultipleAccounts) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Warning700, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("At least 2 active accounts are required for a transfer.", fontSize = 10.5.sp, color = Warning700, fontWeight = FontWeight.SemiBold)
+                    }
+                } else if (isSelfTransfer) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Error500, modifier = Modifier.size(13.dp))
@@ -830,7 +844,7 @@ fun AddTransactionBottomSheet(
                                     cleanNote
                                 }
                             }
-                            selectedType == TransactionType.TRANSFER -> "Vault Transfer ($selectedAccount ➔ $selectedToAccount)"
+                            selectedType == TransactionType.TRANSFER -> "Vault Transfer ($selectedAccount \u2794 $selectedToAccount)"
                             else -> resolvedSubcategory
                         }
 
@@ -854,7 +868,11 @@ fun AddTransactionBottomSheet(
                         )
                         onDismiss()
                     } else {
-                        val msg = if (isSelfTransfer) "Source and destination vaults must be distinct." else "Please enter a valid amount > 0"
+                        val msg = when {
+                            selectedType == TransactionType.TRANSFER && !hasMultipleAccounts -> "At least 2 active accounts are required."
+                            isSelfTransfer -> "Source and destination vaults must be distinct."
+                            else -> "Please enter a valid amount > 0"
+                        }
                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                     }
                 },
