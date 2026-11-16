@@ -43,13 +43,17 @@ fun TransactionDetailBottomSheet(
     val dateFormatter = remember { SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale.US) }
 
     val isCorporateInflow = remember(transaction.type, transaction.category) {
-        (transaction.type == TransactionType.CORPORATE && transaction.category.equals("Reimbursements & Claims", ignoreCase = true)) ||
-                (transaction.type == TransactionType.INCOME && transaction.category.equals("Reimbursements & Corporate Inflow", ignoreCase = true))
+        (transaction.type == TransactionType.CORPORATE && transaction.category.trim().equals("Reimbursements & Claims", ignoreCase = true)) ||
+                (transaction.type == TransactionType.INCOME && transaction.category.trim().equals("Reimbursements & Corporate Inflow", ignoreCase = true))
+    }
+
+    val isLegacyCorporateOutlay = remember(transaction.type, transaction.category) {
+        transaction.type == TransactionType.EXPENSE && transaction.category.trim().equals("Work & Professional", ignoreCase = true)
     }
 
     val (typeColor, typeBg) = when (transaction.type) {
         TransactionType.INCOME -> Success700 to Success100
-        TransactionType.EXPENSE -> Error700 to Error100
+        TransactionType.EXPENSE -> if (isLegacyCorporateOutlay) (Warning700 to Warning100) else (Error700 to Error100)
         TransactionType.ASSET -> SoftTeal to SoftTealLight
         TransactionType.CORPORATE -> if (isCorporateInflow) (Success700 to Success100) else (Warning700 to Warning100)
         TransactionType.TRANSFER -> Primary700 to Primary100
@@ -57,15 +61,15 @@ fun TransactionDetailBottomSheet(
 
     val amountColor = when (transaction.type) {
         TransactionType.INCOME -> Success500
-        TransactionType.EXPENSE -> TextDark
+        TransactionType.EXPENSE -> if (isLegacyCorporateOutlay) Warning700 else TextDark
         TransactionType.ASSET -> SoftTeal
         TransactionType.CORPORATE -> if (isCorporateInflow) Success500 else Warning700
         TransactionType.TRANSFER -> Primary600
     }
 
     val typeLabel = when (transaction.type) {
-        TransactionType.INCOME -> "Income Inflow"
-        TransactionType.EXPENSE -> "Discretionary Expense"
+        TransactionType.INCOME -> if (isCorporateInflow) "Corporate Claim / Advance" else "Income Inflow"
+        TransactionType.EXPENSE -> if (isLegacyCorporateOutlay) "Corporate Work Outlay" else "Discretionary Expense"
         TransactionType.ASSET -> "Wealth / SIP Investment"
         TransactionType.CORPORATE -> if (isCorporateInflow) "Corporate Claim / Advance" else "Corporate Work Outlay"
         TransactionType.TRANSFER -> "Internal Vault Sweep"
@@ -93,11 +97,20 @@ fun TransactionDetailBottomSheet(
         }
     }
 
-    val displayHeroTitle = remember(transaction.title, friendlySubcategory) {
+    val isAutoTransferTitle = remember(transaction.title, friendlySubcategory) {
+        val cleanTitle = transaction.title.trim()
+        cleanTitle.startsWith("Vault Transfer (", ignoreCase = true) ||
+                cleanTitle.startsWith("Fortress Sweep (", ignoreCase = true) ||
+                cleanTitle.startsWith("Bill Funding (", ignoreCase = true) ||
+                cleanTitle.startsWith("Cash ATM Withdrawal (", ignoreCase = true) ||
+                cleanTitle.startsWith("Vault Rebalance (", ignoreCase = true)
+    }
+
+    val displayHeroTitle = remember(transaction.title, friendlySubcategory, isAutoTransferTitle) {
         val cleanTitle = transaction.title.trim()
         val cleanSubcat = friendlySubcategory.trim()
         when {
-            cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> {
+            cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || isAutoTransferTitle -> {
                 cleanSubcat.ifBlank { cleanTitle.ifBlank { "Transaction" } }
             }
             cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
@@ -109,11 +122,11 @@ fun TransactionDetailBottomSheet(
         }
     }
 
-    val distinctCustomNote = remember(transaction.title, friendlySubcategory) {
+    val distinctCustomNote = remember(transaction.title, friendlySubcategory, isAutoTransferTitle) {
         val cleanTitle = transaction.title.trim()
         val cleanSubcat = friendlySubcategory.trim()
         when {
-            cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> null
+            cleanTitle.isBlank() || cleanTitle.equals(cleanSubcat, ignoreCase = true) || isAutoTransferTitle -> null
             cleanTitle.startsWith(cleanSubcat, ignoreCase = true) -> {
                 val unique = cleanTitle.removePrefix(cleanSubcat).trim(' ', '-', ':', '(', ')')
                 unique.ifBlank { null }
@@ -125,12 +138,13 @@ fun TransactionDetailBottomSheet(
     val relativeDateTag = remember(transaction.date) {
         val txCal = Calendar.getInstance().apply { timeInMillis = transaction.date }
         val nowCal = Calendar.getInstance()
+        val yesterdayCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
 
         val isToday = txCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
                 txCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR)
 
-        val isYesterday = txCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
-                txCal.get(Calendar.DAY_OF_YEAR) == (nowCal.get(Calendar.DAY_OF_YEAR) - 1)
+        val isYesterday = txCal.get(Calendar.YEAR) == yesterdayCal.get(Calendar.YEAR) &&
+                txCal.get(Calendar.DAY_OF_YEAR) == yesterdayCal.get(Calendar.DAY_OF_YEAR)
 
         val isFuture = txCal.after(nowCal) && !isToday
 
@@ -309,7 +323,7 @@ fun TransactionDetailBottomSheet(
                         icon = Icons.Default.AccountBalanceWallet,
                         label = if (transaction.type == TransactionType.TRANSFER) "Vault Route" else "Account Vault",
                         value = if (transaction.type == TransactionType.TRANSFER && transaction.toAccountName != null) {
-                            "${transaction.accountName} ➔ ${transaction.toAccountName}"
+                            "${transaction.accountName} \u2794 ${transaction.toAccountName}"
                         } else {
                             transaction.accountName
                         }
@@ -353,7 +367,7 @@ fun TransactionDetailBottomSheet(
                         value = if (transaction.linkedFixedBillId != null) "Linked to Recurring AutoPay" else "Standalone Entry"
                     )
 
-                    if (transaction.type == TransactionType.CORPORATE) {
+                    if (transaction.type == TransactionType.CORPORATE || isCorporateInflow || isLegacyCorporateOutlay) {
                         HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
                         DetailInfoRow(
                             icon = Icons.Default.WorkOutline,
