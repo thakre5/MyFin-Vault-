@@ -74,6 +74,7 @@ fun AppBottomDock(
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
     var isFabMenuExpanded by remember { mutableStateOf(false) }
+    val hasFabAction = fabActions.isNotEmpty() || onDirectFabClick != null
 
     // Intercept hardware back button to dismiss expanded FAB actions menu
     BackHandler(enabled = isFabMenuExpanded) {
@@ -150,7 +151,7 @@ fun AppBottomDock(
         ) {
             Surface(
                 modifier = Modifier
-                    .width(195.dp)
+                    .widthIn(min = 205.dp, max = 235.dp)
                     .shadow(
                         elevation = 18.dp,
                         shape = RoundedCornerShape(18.dp),
@@ -198,7 +199,9 @@ fun AppBottomDock(
                                 text = action.label,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
-                                color = TextDark
+                                color = TextDark,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
@@ -328,45 +331,47 @@ fun AppBottomDock(
                 }
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            if (hasFabAction) {
+                Spacer(modifier = Modifier.width(10.dp))
 
-            Surface(
-                modifier = Modifier
-                    .size(58.dp)
-                    .shadow(
-                        elevation = 16.dp,
-                        shape = CircleShape,
-                        ambientColor = Primary600.copy(alpha = 0.40f),
-                        spotColor = Primary600.copy(alpha = 0.45f)
-                    )
-                    .clip(CircleShape)
-                    .clickable(
-                        enabled = areControlsInteractive,
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        if (fabActions.isNotEmpty()) {
-                            isFabMenuExpanded = !isFabMenuExpanded
-                        } else {
-                            onDirectFabClick?.invoke()
-                        }
-                    },
-                shape = CircleShape,
-                color = Primary600
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                Surface(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .shadow(
+                            elevation = 16.dp,
+                            shape = CircleShape,
+                            ambientColor = Primary600.copy(alpha = 0.40f),
+                            spotColor = Primary600.copy(alpha = 0.45f)
+                        )
+                        .clip(CircleShape)
+                        .clickable(
+                            enabled = areControlsInteractive,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (fabActions.isNotEmpty()) {
+                                isFabMenuExpanded = !isFabMenuExpanded
+                            } else {
+                                onDirectFabClick?.invoke()
+                            }
+                        },
+                    shape = CircleShape,
+                    color = Primary600
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Contextual Action",
-                        tint = Color.White,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .rotate(fabRotation)
-                    )
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Contextual Action",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .rotate(fabRotation)
+                        )
+                    }
                 }
             }
         }
@@ -379,12 +384,21 @@ fun rememberAutoScrollVisibilityConnection(): Pair<MutableState<Boolean>, Nested
 
     val connection = remember {
         object : NestedScrollConnection {
+            private var accumulatedDelta = 0f
+
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 val delta = available.y
-                if (delta < -14f && isVisible.value) {
+                if ((delta < 0f && accumulatedDelta > 0f) || (delta > 0f && accumulatedDelta < 0f)) {
+                    accumulatedDelta = 0f
+                }
+                accumulatedDelta += delta
+
+                if (accumulatedDelta < -24f && isVisible.value) {
                     isVisible.value = false
-                } else if (delta > 14f && !isVisible.value) {
+                    accumulatedDelta = 0f
+                } else if (accumulatedDelta > 24f && !isVisible.value) {
                     isVisible.value = true
+                    accumulatedDelta = 0f
                 }
                 return Offset.Zero
             }
