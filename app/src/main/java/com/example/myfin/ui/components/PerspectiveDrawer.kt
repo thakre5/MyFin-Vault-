@@ -1,6 +1,7 @@
 package com.example.myfin.ui.components
 
 import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -24,6 +25,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.example.myfin.ui.theme.CanvasLight
+import com.example.myfin.ui.theme.Neutral800
 import com.example.myfin.ui.theme.Neutral900
 import com.example.myfin.ui.theme.Primary900
 
@@ -31,7 +33,7 @@ import com.example.myfin.ui.theme.Primary900
 private val DrawerBackdropGradient = Brush.linearGradient(
     colors = listOf(
         Neutral900,
-        Color(0xFF132347),
+        Neutral800,
         Primary900
     )
 )
@@ -43,6 +45,10 @@ fun PerspectiveDrawer(
     drawerContent: @Composable () -> Unit,
     mainContent: @Composable () -> Unit
 ) {
+    BackHandler(enabled = isDrawerOpen) {
+        onCloseDrawer()
+    }
+
     val density = LocalDensity.current
     val shiftPx = with(density) { 260.dp.toPx() }
     val menuEntranceOffsetPx = with(density) { (-80).dp.toPx() }
