@@ -117,8 +117,34 @@ fun AddEditFixedBillDialog(
         )
     }
 
+    val defaultPaidDateMillis = remember(billKey, initialBill?.month, initialBill?.year, initialBill?.dueDay) {
+        if (initialBill == null) {
+            System.currentTimeMillis()
+        } else {
+            val nowCal = Calendar.getInstance()
+            val sysMonth = nowCal.get(Calendar.MONTH) + 1
+            val sysYear = nowCal.get(Calendar.YEAR)
+            if (initialBill.month == sysMonth && initialBill.year == sysYear) {
+                System.currentTimeMillis()
+            } else {
+                Calendar.getInstance().apply {
+                    set(Calendar.YEAR, initialBill.year)
+                    set(Calendar.MONTH, (initialBill.month - 1).coerceIn(0, 11))
+                    set(Calendar.DAY_OF_MONTH, 1)
+                    val maxDay = getActualMaximum(Calendar.DAY_OF_MONTH)
+                    val targetDay = (initialBill.dueDay ?: 1).coerceIn(1, maxDay)
+                    set(Calendar.DAY_OF_MONTH, targetDay)
+                    set(Calendar.HOUR_OF_DAY, 12)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+            }
+        }
+    }
+
     var isPaidState by remember(billKey) { mutableStateOf(initialBill?.isPaid ?: false) }
-    var selectedDateMillis by remember(billKey) { mutableStateOf(System.currentTimeMillis()) }
+    var selectedDateMillis by remember(billKey) { mutableStateOf(defaultPaidDateMillis) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
 
     val isToday = remember(selectedDateMillis) {
@@ -341,7 +367,7 @@ fun AddEditFixedBillDialog(
                                     TransactionType.EXPENSE -> SoftRed
                                     TransactionType.INCOME -> SoftGreen
                                     TransactionType.ASSET -> SoftTeal
-                                    TransactionType.CORPORATE -> Color(0xFFE57A28)
+                                    TransactionType.CORPORATE -> Warning700
                                     TransactionType.TRANSFER -> AccentPurple
                                 }
                             } else TextMuted,
@@ -502,10 +528,10 @@ fun AddEditFixedBillDialog(
                                             text = "Legacy",
                                             fontSize = 8.5.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFE65100),
+                                            color = Warning700,
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(3.dp))
-                                                .background(Color(0xFFFFF3E0))
+                                                .background(Warning100)
                                                 .padding(horizontal = 3.dp, vertical = 0.5.dp)
                                         )
                                     } else if (catEntity.isNew) {
@@ -514,17 +540,17 @@ fun AddEditFixedBillDialog(
                                             modifier = Modifier
                                                 .size(5.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF4CAF50))
+                                                .background(Success500)
                                         )
                                     }
                                 }
                             },
                             shape = RoundedCornerShape(8.dp),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = if (catEntity.isLegacy) Color(0xFFFFF3E0) else AccentPurpleLight,
-                                selectedLabelColor = if (catEntity.isLegacy) Color(0xFFE65100) else AccentPurple
+                                selectedContainerColor = if (catEntity.isLegacy) Warning100 else AccentPurpleLight,
+                                selectedLabelColor = if (catEntity.isLegacy) Warning700 else AccentPurple
                             ),
-                            border = if (catEntity.isLegacy) BorderStroke(0.8.dp, Color(0xFFFFB74D)) else null
+                            border = if (catEntity.isLegacy) BorderStroke(0.8.dp, Warning500) else null
                         )
                     }
                 }
@@ -535,19 +561,19 @@ fun AddEditFixedBillDialog(
                             .fillMaxWidth()
                             .padding(top = 6.dp),
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFFFF9E6),
-                        border = BorderStroke(0.6.dp, Color(0xFFFFCC00).copy(alpha = 0.6f))
+                        color = Warning100,
+                        border = BorderStroke(0.6.dp, Warning500.copy(alpha = 0.6f))
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFD48800), modifier = Modifier.size(13.dp))
+                            Icon(Icons.Default.Info, contentDescription = null, tint = Warning700, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "'$selectedCategory' is a legacy category and will be retired next month.",
                                 fontSize = 10.5.sp,
-                                color = Color(0xFF873800)
+                                color = Warning700
                             )
                         }
                     }
@@ -593,10 +619,10 @@ fun AddEditFixedBillDialog(
                                             text = "Legacy",
                                             fontSize = 8.5.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFE65100),
+                                            color = Warning700,
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(3.dp))
-                                                .background(Color(0xFFFFF3E0))
+                                                .background(Warning100)
                                                 .padding(horizontal = 3.dp, vertical = 0.5.dp)
                                         )
                                     } else if (subEntity.isNew) {
@@ -605,17 +631,17 @@ fun AddEditFixedBillDialog(
                                             modifier = Modifier
                                                 .size(5.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF4CAF50))
+                                                .background(Success500)
                                         )
                                     }
                                 }
                             },
                             shape = RoundedCornerShape(8.dp),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = if (subEntity.isLegacy) Color(0xFFFFF3E0) else AccentPurpleLight,
-                                selectedLabelColor = if (subEntity.isLegacy) Color(0xFFE65100) else AccentPurple
+                                selectedContainerColor = if (subEntity.isLegacy) Warning100 else AccentPurpleLight,
+                                selectedLabelColor = if (subEntity.isLegacy) Warning700 else AccentPurple
                             ),
-                            border = if (subEntity.isLegacy) BorderStroke(0.8.dp, Color(0xFFFFB74D)) else null
+                            border = if (subEntity.isLegacy) BorderStroke(0.8.dp, Warning500) else null
                         )
                     }
                 }
@@ -841,7 +867,7 @@ fun AddEditFixedBillDialog(
                         val cleanNote = noteText.trim()
                         val finalTitle = when {
                             cleanNote.isNotBlank() && !cleanNote.equals(resolvedSubcategory, ignoreCase = true) -> cleanNote
-                            selectedType == TransactionType.TRANSFER -> "Vault Transfer ($selectedAccount ➔ $selectedToAccount)"
+                            selectedType == TransactionType.TRANSFER -> "Vault Transfer ($selectedAccount \u2794 $selectedToAccount)"
                             else -> resolvedSubcategory
                         }
 
@@ -873,112 +899,116 @@ fun AddEditFixedBillDialog(
 
             Spacer(modifier = Modifier.height(10.dp))
         }
+    }
 
-        if (showNewCategoryDialog) {
-            AlertDialog(
-                onDismissRequest = { showNewCategoryDialog = false },
-                title = { Text("New Category", fontWeight = FontWeight.Bold) },
-                text = {
-                    OutlinedTextField(
-                        value = newCategoryName,
-                        onValueChange = { newCategoryName = it },
-                        label = { Text("Category Name") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        if (newCategoryName.isNotBlank()) {
-                            onAddNewCategory(newCategoryName.trim(), selectedType)
-                            selectedCategory = newCategoryName.trim()
-                            newCategoryName = ""
-                            showNewCategoryDialog = false
-                        }
-                    }) {
-                        Text("Add", fontWeight = FontWeight.Bold, color = AccentPurple)
+    if (showNewCategoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewCategoryDialog = false },
+            containerColor = CardWhite,
+            title = { Text("New Category", fontWeight = FontWeight.Bold, color = TextDark) },
+            text = {
+                OutlinedTextField(
+                    value = newCategoryName,
+                    onValueChange = { newCategoryName = it },
+                    label = { Text("Category Name") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp)
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val trimmed = newCategoryName.trim()
+                    if (trimmed.isNotBlank()) {
+                        onAddNewCategory(trimmed, selectedType)
+                        selectedCategory = trimmed
+                        newCategoryName = ""
+                        showNewCategoryDialog = false
                     }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showNewCategoryDialog = false }) {
-                        Text("Cancel", color = TextDark)
-                    }
+                }) {
+                    Text("Add", fontWeight = FontWeight.Bold, color = AccentPurple)
                 }
-            )
-        }
-
-        if (showNewSubcategoryDialog) {
-            AlertDialog(
-                onDismissRequest = { showNewSubcategoryDialog = false },
-                title = { Text("New Subcategory for $selectedCategory", fontWeight = FontWeight.Bold) },
-                text = {
-                    OutlinedTextField(
-                        value = newSubcategoryName,
-                        onValueChange = { newSubcategoryName = it },
-                        label = { Text("Subcategory Name") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        if (newSubcategoryName.isNotBlank()) {
-                            onAddNewSubcategory(selectedCategory, newSubcategoryName.trim(), selectedType)
-                            selectedSubcategory = newSubcategoryName.trim()
-                            newSubcategoryName = ""
-                            showNewSubcategoryDialog = false
-                        }
-                    }) {
-                        Text("Add", fontWeight = FontWeight.Bold, color = AccentPurple)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showNewSubcategoryDialog = false }) {
-                        Text("Cancel", color = TextDark)
-                    }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewCategoryDialog = false }) {
+                    Text("Cancel", color = TextDark)
                 }
-            )
-        }
-
-        if (showDatePickerDialog) {
-            val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = selectedDateMillis
-            )
-
-            DatePickerDialog(
-                onDismissRequest = { showDatePickerDialog = false },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            datePickerState.selectedDateMillis?.let { pickedUtc ->
-                                val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-                                    timeInMillis = pickedUtc
-                                }
-                                val localCal = Calendar.getInstance().apply {
-                                    set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
-                                    set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
-                                    set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
-                                    set(Calendar.HOUR_OF_DAY, 12)
-                                    set(Calendar.MINUTE, 0)
-                                    set(Calendar.SECOND, 0)
-                                    set(Calendar.MILLISECOND, 0)
-                                }
-                                selectedDateMillis = localCal.timeInMillis
-                            }
-                            showDatePickerDialog = false
-                        }
-                    ) {
-                        Text("Select", fontWeight = FontWeight.Bold, color = AccentPurple)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDatePickerDialog = false }) {
-                        Text("Cancel", color = TextDark)
-                    }
-                }
-            ) {
-                DatePicker(state = datePickerState)
             }
+        )
+    }
+
+    if (showNewSubcategoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewSubcategoryDialog = false },
+            containerColor = CardWhite,
+            title = { Text("New Subcategory for $selectedCategory", fontWeight = FontWeight.Bold, color = TextDark) },
+            text = {
+                OutlinedTextField(
+                    value = newSubcategoryName,
+                    onValueChange = { newSubcategoryName = it },
+                    label = { Text("Subcategory Name") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp)
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val trimmed = newSubcategoryName.trim()
+                    if (trimmed.isNotBlank()) {
+                        onAddNewSubcategory(selectedCategory, trimmed, selectedType)
+                        selectedSubcategory = trimmed
+                        newSubcategoryName = ""
+                        showNewSubcategoryDialog = false
+                    }
+                }) {
+                    Text("Add", fontWeight = FontWeight.Bold, color = AccentPurple)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewSubcategoryDialog = false }) {
+                    Text("Cancel", color = TextDark)
+                }
+            }
+        )
+    }
+
+    if (showDatePickerDialog) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDateMillis
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { pickedUtc ->
+                            val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                timeInMillis = pickedUtc
+                            }
+                            val localCal = Calendar.getInstance().apply {
+                                set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                                set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                                set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                                set(Calendar.HOUR_OF_DAY, 12)
+                                set(Calendar.MINUTE, 0)
+                                set(Calendar.SECOND, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }
+                            selectedDateMillis = localCal.timeInMillis
+                        }
+                        showDatePickerDialog = false
+                    }
+                ) {
+                    Text("Select", fontWeight = FontWeight.Bold, color = AccentPurple)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) {
+                    Text("Cancel", color = TextDark)
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }
