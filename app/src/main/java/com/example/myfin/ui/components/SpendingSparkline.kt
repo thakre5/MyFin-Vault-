@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -24,16 +25,19 @@ fun SpendingSparkline(
     gradientStartColor: Color = Primary600.copy(alpha = 0.28f),
     gradientEndColor: Color = Primary600.copy(alpha = 0.0f)
 ) {
-    if (points.isEmpty()) return
+    val safePoints = remember(points) {
+        points.map { if (it.isNaN() || it.isInfinite()) 0f else it.coerceAtLeast(0f) }
+    }
+    if (safePoints.isEmpty()) return
 
     Canvas(
         modifier = modifier
             .fillMaxWidth()
             .height(68.dp)
     ) {
-        val maxVal = points.maxOrNull()?.takeIf { it > 0f } ?: 1f
+        val maxVal = safePoints.maxOrNull()?.takeIf { it > 0f } ?: 1f
         val minVal = 0f
-        val range = (maxVal - minVal).coerceAtLeast(1f)
+        val range = (maxVal - minVal).takeIf { it > 0f } ?: 1f
 
         val paddingTopPx = 6.dp.toPx()
         val paddingBottomPx = 14.dp.toPx()
@@ -58,9 +62,9 @@ fun SpendingSparkline(
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
         )
 
-        if (points.size == 1) {
-            val pointVal = points[0].coerceAtLeast(0f)
-            val normalizedY = 1f - ((pointVal - minVal) / range)
+        if (safePoints.size == 1) {
+            val pointVal = safePoints[0]
+            val normalizedY = (1f - ((pointVal - minVal) / range)).coerceIn(0f, 1f)
             val y = paddingTopPx + (normalizedY * usableHeightPx)
             val centerPoint = Offset(size.width * 0.5f, y)
 
@@ -77,16 +81,15 @@ fun SpendingSparkline(
             return@Canvas
         }
 
-        val stepX = usableWidthPx / (points.size - 1)
+        val stepX = usableWidthPx / (safePoints.size - 1)
         val strokePath = Path()
         val fillPath = Path()
 
         var lastPoint = Offset(size.width - paddingEndPx, size.height)
 
-        points.forEachIndexed { i, rawValue ->
-            val value = rawValue.coerceAtLeast(0f)
+        safePoints.forEachIndexed { i, value ->
             val x = paddingStartPx + (i * stepX)
-            val normalizedY = 1f - ((value - minVal) / range)
+            val normalizedY = (1f - ((value - minVal) / range)).coerceIn(0f, 1f)
             val y = paddingTopPx + (normalizedY * usableHeightPx)
 
             if (i == 0) {
@@ -95,8 +98,8 @@ fun SpendingSparkline(
                 fillPath.lineTo(x, y)
             } else {
                 val prevX = paddingStartPx + ((i - 1) * stepX)
-                val prevValue = points[i - 1].coerceAtLeast(0f)
-                val prevNormY = 1f - ((prevValue - minVal) / range)
+                val prevValue = safePoints[i - 1]
+                val prevNormY = (1f - ((prevValue - minVal) / range)).coerceIn(0f, 1f)
                 val prevY = paddingTopPx + (prevNormY * usableHeightPx)
 
                 val controlPoint1 = Offset(prevX + (x - prevX) / 2f, prevY)
@@ -114,7 +117,7 @@ fun SpendingSparkline(
                 )
             }
 
-            if (i == points.lastIndex) {
+            if (i == safePoints.lastIndex) {
                 lastPoint = Offset(x, y)
                 fillPath.lineTo(x, size.height)
                 fillPath.close()
