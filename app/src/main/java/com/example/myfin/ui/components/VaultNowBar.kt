@@ -53,15 +53,24 @@ fun VaultNowBar(
     if (alerts.isEmpty()) return
 
     var isExpanded by remember { mutableStateOf(false) }
-    val pagerState = rememberPagerState(pageCount = { alerts.size })
+    val currentAlerts by rememberUpdatedState(alerts)
+    val pagerState = rememberPagerState(pageCount = { currentAlerts.size })
+
+    // Keep currentPage in bounds when an alert is dismissed or resolved
+    LaunchedEffect(alerts.size) {
+        if (alerts.isNotEmpty() && pagerState.currentPage >= alerts.size) {
+            pagerState.scrollToPage((alerts.size - 1).coerceAtLeast(0))
+        }
+    }
 
     // Auto-scroll vertically every 4.5 seconds when not expanded and not being interacted with
     LaunchedEffect(alerts.size, isExpanded) {
         if (alerts.size > 1 && !isExpanded) {
             while (true) {
                 delay(4500L)
-                if (!pagerState.isScrollInProgress) {
-                    val nextPage = (pagerState.currentPage + 1) % alerts.size
+                val count = currentAlerts.size
+                if (count > 1 && !pagerState.isScrollInProgress) {
+                    val nextPage = (pagerState.currentPage + 1) % count
                     pagerState.animateScrollToPage(
                         page = nextPage,
                         animationSpec = tween(450, easing = FastOutSlowInEasing)
@@ -72,7 +81,7 @@ fun VaultNowBar(
     }
 
     val barHeight by animateDpAsState(
-        targetValue = if (isExpanded) 112.dp else 48.dp,
+        targetValue = if (isExpanded) 118.dp else 48.dp,
         animationSpec = tween(280, easing = FastOutSlowInEasing),
         label = "nowBarHeight"
     )
@@ -94,6 +103,7 @@ fun VaultNowBar(
     ) {
         VerticalPager(
             state = pagerState,
+            key = { page -> alerts.getOrNull(page)?.id ?: page },
             modifier = Modifier.fillMaxSize(),
             userScrollEnabled = alerts.size > 1
         ) { page ->
@@ -182,7 +192,8 @@ fun VaultNowBar(
                                 text = alert.actionLabel,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1
                             )
                         }
 
@@ -282,7 +293,7 @@ fun VaultNowBar(
                             text = alert.subtitle,
                             fontSize = 11.sp,
                             color = TextMuted,
-                            lineHeight = 15.sp,
+                            lineHeight = 14.5.sp,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
@@ -330,7 +341,8 @@ fun VaultNowBar(
                                 text = alert.actionLabel,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1
                             )
                         }
                     }
