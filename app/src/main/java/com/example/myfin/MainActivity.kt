@@ -383,6 +383,16 @@ class MainActivity : FragmentActivity() {
                                             }
                                         )
                                     }
+                                    NavigationTarget.WEALTH_GOALS -> {
+                                        WealthGoalsScreen(
+                                            viewModel = viewModel,
+                                            onOpenDrawer = { isDrawerOpen = true },
+                                            onSelectNavTarget = { target ->
+                                                settingsInitialSheet = SettingsActiveSheet.NONE
+                                                currentTarget = target
+                                            }
+                                        )
+                                    }
                                     NavigationTarget.CALCULATOR -> {
                                         CalculatorScreen(
                                             currencySymbol = userProfile.currencySymbol,
