@@ -10,8 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +36,8 @@ fun TransactionDetailBottomSheet(
     currencySymbol: String,
     onDismiss: () -> Unit,
     onEdit: (TransactionEntity) -> Unit,
-    onDelete: (TransactionEntity) -> Unit
+    onDelete: (TransactionEntity) -> Unit,
+    onToggleSettled: ((txId: Long, isSettled: Boolean) -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val dateFormatter = remember { SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale.US) }
@@ -49,6 +49,15 @@ fun TransactionDetailBottomSheet(
 
     val isLegacyCorporateOutlay = remember(transaction.type, transaction.category) {
         transaction.type == TransactionType.EXPENSE && transaction.category.trim().equals("Work & Professional", ignoreCase = true)
+    }
+
+    val isCorporateOutlay = remember(transaction.type, transaction.category, isLegacyCorporateOutlay) {
+        (transaction.type == TransactionType.CORPORATE && !transaction.category.trim().equals("Reimbursements & Claims", ignoreCase = true)) ||
+                isLegacyCorporateOutlay
+    }
+
+    var isSettledState by remember(transaction.id, transaction.isSettled) {
+        mutableStateOf(transaction.isSettled)
     }
 
     val (typeColor, typeBg) = when (transaction.type) {
@@ -261,6 +270,22 @@ fun TransactionDetailBottomSheet(
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp)
                             )
                         }
+
+                        if (isCorporateOutlay) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSettledState) Success100 else Warning100,
+                                border = BorderStroke(0.5.dp, if (isSettledState) Success500.copy(alpha = 0.4f) else Warning500.copy(alpha = 0.4f))
+                            ) {
+                                Text(
+                                    text = if (isSettledState) "SETTLED" else "UNSETTLED",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSettledState) Success700 else Warning700,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp)
+                                )
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -282,6 +307,68 @@ fun TransactionDetailBottomSheet(
                         color = TextDark,
                         textAlign = TextAlign.Center
                     )
+                }
+            }
+
+            // Corporate Claim Settlement Toggle Card
+            if (isCorporateOutlay && onToggleSettled != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isSettledState) Success100.copy(alpha = 0.55f) else Warning100.copy(alpha = 0.55f),
+                    border = BorderStroke(
+                        0.8.dp,
+                        if (isSettledState) Success500.copy(alpha = 0.45f) else Warning500.copy(alpha = 0.45f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = if (isSettledState) Icons.Default.CheckCircle else Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = if (isSettledState) Success700 else Warning700,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (isSettledState) "Claim Settled" else "Mark Claim as Settled",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                                Text(
+                                    text = if (isSettledState) "Reimbursed by employer" else "Pending employer reimbursement",
+                                    fontSize = 11.sp,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+
+                        Switch(
+                            checked = isSettledState,
+                            onCheckedChange = { checked ->
+                                isSettledState = checked
+                                onToggleSettled(transaction.id, checked)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Success500,
+                                uncheckedThumbColor = Color.White,
+                                uncheckedTrackColor = Neutral300
+                            )
+                        )
+                    }
                 }
             }
 
