@@ -68,8 +68,11 @@ import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import coil.compose.SubcomposeAsyncImage
 import com.example.myfin.BuildConfig
+import com.example.myfin.data.AutoBackupWorker
 import com.example.myfin.data.ExcelExportManager
 import com.example.myfin.data.ReminderScheduler
 import com.example.myfin.ui.BudgetViewModel
@@ -404,6 +407,23 @@ fun SettingsScreen(
         uri?.let {
             pendingRestoreUri = it
             showRestoreConfirmDialog = true
+        }
+    }
+
+    val autoBackupFolderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { treeUri ->
+        treeUri?.let { uri ->
+            runCatching {
+                val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(uri, flags)
+            }
+            viewModel.updateAutoBackupConfig(
+                context = context,
+                enabled = true,
+                treeUri = uri.toString()
+            )
+            Toast.makeText(context, "Weekly local auto-backup folder linked!", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -966,6 +986,16 @@ fun SettingsScreen(
                 }
 
                 // Data Backup & Recovery
+                val isAutoBackupConfigured = userProfile.autoBackupEnabled && !userProfile.autoBackupTreeUri.isNullOrBlank()
+                val lastAutoBackupLabel = remember(userProfile.lastAutoBackupAt) {
+                    if (userProfile.lastAutoBackupAt > 0L) {
+                        val fmt = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.US)
+                        "Last run: ${fmt.format(Date(userProfile.lastAutoBackupAt))}"
+                    } else {
+                        "Scheduled weekly • Keeps latest 5 snapshots"
+                    }
+                }
+
                 ExpandableSettingsCard(
                     icon = Icons.Default.Backup,
                     title = "Data Backup & Recovery",
@@ -974,6 +1004,73 @@ fun SettingsScreen(
                         expandedSection = if (expandedSection == SettingsAccordionSection.BACKUP) SettingsAccordionSection.NONE else SettingsAccordionSection.BACKUP
                     }
                 ) {
+                    SettingsChildSwitchRow(
+                        title = "Weekly Local Auto-Backup",
+                        isChecked = isAutoBackupConfigured,
+                        onToggle = { shouldEnable ->
+                            if (shouldEnable) {
+                                if (userProfile.autoBackupTreeUri.isNullOrBlank()) {
+                                    autoBackupFolderLauncher.launch(null)
+                                } else {
+                                    viewModel.updateAutoBackupConfig(context, true, userProfile.autoBackupTreeUri)
+                                    Toast.makeText(context, "Weekly auto-backup enabled", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                viewModel.updateAutoBackupConfig(context, false, userProfile.autoBackupTreeUri)
+                                Toast.makeText(context, "Weekly auto-backup paused", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+
+                    SettingsChildNavRow(
+                        title = "Auto-Backup Folder",
+                        value = if (userProfile.autoBackupTreeUri.isNullOrBlank()) "Select Folder" else "Change Folder",
+                        onClick = { autoBackupFolderLauncher.launch(null) }
+                    )
+
+                    if (isAutoBackupConfigured) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = Primary50,
+                            border = BorderStroke(0.6.dp, Primary200)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Local Rolling Backup Active",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Primary700
+                                    )
+                                    Text(
+                                        text = lastAutoBackupLabel,
+                                        fontSize = 10.5.sp,
+                                        color = TextMuted
+                                    )
+                                }
+                                TextButton(
+                                    onClick = {
+                                        WorkManager.getInstance(context.applicationContext)
+                                            .enqueue(OneTimeWorkRequestBuilder<AutoBackupWorker>().build())
+                                        Toast.makeText(context, "Running local backup in background...", Toast.LENGTH_SHORT).show()
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                ) {
+                                    Text("Run Now", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Primary600)
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.7.dp)
+
                     SettingsChildNavRow(
                         title = "Create Full Vault Snapshot (.json)",
                         value = "Export Backup",
