@@ -84,7 +84,7 @@ fun MonthlySummaryTab(
     onOpenAddSheet: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    var selectedMatrixType by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var selectedMatrixType by remember { mutableStateOf<TransactionType?>(null) }
     val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
 
     val isHealthy = uiState.metrics.safeToSpend > 0
@@ -204,7 +204,13 @@ fun MonthlySummaryTab(
     }
 
     val activeMatrix = remember(uiState.categories, selectedMatrixType) {
-        uiState.categories.filter { it.type == selectedMatrixType && it.category.isNotBlank() }
+        uiState.categories
+            .filter { cat ->
+                cat.category.isNotBlank() &&
+                        cat.type != TransactionType.TRANSFER &&
+                        (selectedMatrixType == null || cat.type == selectedMatrixType)
+            }
+            .sortedByDescending { it.actualAmount }
     }
 
     val daysUntilSalary = uiState.metrics.daysUntilPayday.coerceAtLeast(1)
@@ -681,13 +687,14 @@ fun MonthlySummaryTab(
 
         item { Spacer(modifier = Modifier.height(16.dp)) }
 
-        // 6. CATEGORY MATRIX HEADER & SWITCHER
+        // 6. CATEGORY MATRIX HEADER & 5-WAY SWITCHER (All | Expenses | Income | Assets | Corporate)
         item(key = "matrix_header_and_switcher") {
             val plannedExp = uiState.metrics.plannedExpenses
             val actualExp = uiState.metrics.actualExpenses
             val expDiff = plannedExp - actualExp
 
             val liveHeadroomLabel = when (selectedMatrixType) {
+                null -> "${activeMatrix.size} Active"
                 TransactionType.EXPENSE -> when {
                     plannedExp <= 0 -> "No Target Cap"
                     expDiff >= 0 -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", expDiff)} Headroom"
@@ -700,6 +707,7 @@ fun MonthlySummaryTab(
             }
 
             val (headroomBg, headroomText) = when (selectedMatrixType) {
+                null -> Primary100 to Primary700
                 TransactionType.EXPENSE -> if (plannedExp > 0 && expDiff < 0) Error100 to Error700 else Success100 to Success700
                 TransactionType.INCOME -> Success100 to Success700
                 TransactionType.ASSET -> SoftTealLight to SoftTeal
@@ -725,7 +733,7 @@ fun MonthlySummaryTab(
                     border = BorderStroke(0.6.dp, headroomText.copy(alpha = 0.30f))
                 ) {
                     Text(
-                        text = if (isDiscreetMode) "••••" else liveHeadroomLabel,
+                        text = if (isDiscreetMode && selectedMatrixType != null) "••••" else liveHeadroomLabel,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = headroomText,
@@ -747,9 +755,10 @@ fun MonthlySummaryTab(
                     .padding(4.dp)
             ) {
                 listOf(
+                    Triple<TransactionType?, String, Color>(null, "All", Primary600),
                     Triple(TransactionType.EXPENSE, "Expenses", Error500),
                     Triple(TransactionType.INCOME, "Income", Success500),
-                    Triple(TransactionType.ASSET, "Assets / SIP", SoftTeal),
+                    Triple(TransactionType.ASSET, "Assets", SoftTeal),
                     Triple(TransactionType.CORPORATE, "Corporate", Warning700)
                 ).forEach { (type, label, color) ->
                     val isSelected = selectedMatrixType == type
@@ -765,7 +774,7 @@ fun MonthlySummaryTab(
                         Text(
                             text = label,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             color = if (isSelected) color else if (isMidnightTheme) Neutral400 else TextMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
