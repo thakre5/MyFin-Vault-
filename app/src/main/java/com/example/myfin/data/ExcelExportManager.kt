@@ -41,10 +41,24 @@ object ExcelExportManager {
             val allTransactions = dao.getAllTransactions()
             val allAccounts = dao.getAccountBalances().first()
             val allFixedBills = dao.getAllFixedBills()
+            val allInvestments = dao.getAllInvestmentsDirect()
+            val assetSpendBySubcat = dao.getTotalAssetSpendBySubcategory().first()
+                .associate { it.subcategory.trim().lowercase() to it.totalAmount }
+            val allGoals = dao.getAllGoalsDirect()
             val userProfile = dao.getUserProfileDirect() ?: UserProfile(id = 1)
             val masterCategories = dao.getAllCategoriesDirect().associateBy { "${it.type.name}_${it.name.trim().lowercase()}" }
 
             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+            val shortDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+
+            val investmentModels = allInvestments.map { inv ->
+                val linkedSip = inv.linkedSubcategory?.trim()?.lowercase()?.let { assetSpendBySubcat[it] } ?: 0.0
+                InvestmentHoldingUiModel(entity = inv, linkedSipTotal = linkedSip)
+            }
+            val activeInvestments = investmentModels.filter { !it.entity.isArchived }
+            val totalPortfolioInvested = activeInvestments.sumOf { it.totalInvested }
+            val totalPortfolioValue = activeInvestments.sumOf { it.currentValue }
+            val totalPortfolioPnL = totalPortfolioValue - totalPortfolioInvested
 
             // ============================================================
             // 1. EXECUTIVE RECONCILIATION & 3-VAULT AUDIT SUMMARY
@@ -110,6 +124,38 @@ object ExcelExportManager {
                     XlsxCell.Text("Total Active Liquid Reserves"),
                     XlsxCell.Number(totalLiquid),
                     XlsxCell.Text("Across all active vault accounts")
+                )
+            )
+            summaryRows.add(
+                listOf(
+                    XlsxCell.Text("Investments", STYLE_BOLD_TEXT),
+                    XlsxCell.Text("Active Portfolio Invested Capital"),
+                    XlsxCell.Number(totalPortfolioInvested),
+                    XlsxCell.Text("${activeInvestments.size} active holding(s) (opening + linked SIPs)")
+                )
+            )
+            summaryRows.add(
+                listOf(
+                    XlsxCell.Text("Investments", STYLE_BOLD_TEXT),
+                    XlsxCell.Text("Active Portfolio Current Valuation"),
+                    XlsxCell.Number(totalPortfolioValue),
+                    XlsxCell.Text("Offline market/maturity valuation")
+                )
+            )
+            summaryRows.add(
+                listOf(
+                    XlsxCell.Text("Investments", STYLE_BOLD_TEXT),
+                    XlsxCell.Text("Unrealized Portfolio Gain / Loss"),
+                    XlsxCell.Number(totalPortfolioPnL),
+                    XlsxCell.Text(if (totalPortfolioPnL >= 0.0) "Net unrealized profit" else "Net unrealized drawdown")
+                )
+            )
+            summaryRows.add(
+                listOf(
+                    XlsxCell.Text("Goals", STYLE_BOLD_TEXT),
+                    XlsxCell.Text("Active Financial Goals Count"),
+                    XlsxCell.Integer(allGoals.count { !it.isCompleted }),
+                    XlsxCell.Text("${allGoals.count { it.isCompleted }} completed goal(s)")
                 )
             )
             summaryRows.add(
@@ -251,8 +297,14 @@ object ExcelExportManager {
                 } else bill.subcategory.trim()
 
                 val cleanTitle = bill.title.trim()
+                val isAutoTransferLabel = cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
+                        cleanTitle.startsWith("Fortress Sweep (", ignoreCase = true) ||
+                        cleanTitle.startsWith("Bill Funding (", ignoreCase = true) ||
+                        cleanTitle.startsWith("Cash ATM Withdrawal (", ignoreCase = true) ||
+                        cleanTitle.startsWith("Vault Rebalance (", ignoreCase = true)
+
                 val displayPrimary = when {
-                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> friendlySubcat
+                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || isAutoTransferLabel -> friendlySubcat
                     cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
                         val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
                         if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
@@ -262,7 +314,7 @@ object ExcelExportManager {
                 }
 
                 val distinctNote = when {
-                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
+                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || isAutoTransferLabel -> ""
                     cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
                     else -> cleanTitle
                 }
@@ -317,6 +369,7 @@ object ExcelExportManager {
                     XlsxCell.Text("Source Vault", STYLE_HEADER),
                     XlsxCell.Text("Destination Vault", STYLE_HEADER),
                     XlsxCell.Text("Transfer Classification", STYLE_HEADER),
+                    XlsxCell.Text("Claim Status", STYLE_HEADER),
                     XlsxCell.Text("Month", STYLE_HEADER),
                     XlsxCell.Text("Year", STYLE_HEADER)
                 )
@@ -333,8 +386,14 @@ object ExcelExportManager {
                 } else tx.subcategory.trim()
 
                 val cleanTitle = tx.title.trim()
+                val isAutoTransferLabel = cleanTitle.startsWith("Vault Transfer", ignoreCase = true) ||
+                        cleanTitle.startsWith("Fortress Sweep (", ignoreCase = true) ||
+                        cleanTitle.startsWith("Bill Funding (", ignoreCase = true) ||
+                        cleanTitle.startsWith("Cash ATM Withdrawal (", ignoreCase = true) ||
+                        cleanTitle.startsWith("Vault Rebalance (", ignoreCase = true)
+
                 val displayPrimary = when {
-                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> friendlySubcat
+                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || isAutoTransferLabel -> friendlySubcat
                     cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> {
                         val unique = cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
                         if (unique.isNotBlank()) "$friendlySubcat ($unique)" else friendlySubcat
@@ -344,7 +403,7 @@ object ExcelExportManager {
                 }
 
                 val distinctNote = when {
-                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || cleanTitle.startsWith("Vault Transfer", ignoreCase = true) -> ""
+                    cleanTitle.isBlank() || cleanTitle.equals(friendlySubcat, ignoreCase = true) || isAutoTransferLabel -> ""
                     cleanTitle.startsWith(friendlySubcat, ignoreCase = true) -> cleanTitle.removePrefix(friendlySubcat).trim(' ', '-', ':', '(', ')')
                     else -> cleanTitle
                 }
@@ -369,6 +428,10 @@ object ExcelExportManager {
                     tx.type == TransactionType.TRANSFER -> 0.0
                     else -> 0.0
                 }
+
+                val claimStatusLabel = if (isCorporateOutflowTx) {
+                    if (tx.isSettled) "Settled" else "Unsettled"
+                } else ""
 
                 val isLegacyCat = masterCategories["${tx.type.name}_${tx.category.trim().lowercase()}"]?.isLegacy == true
                 val taxonomyStatus = if (isLegacyCat) "Legacy (Retired)" else "Active"
@@ -397,8 +460,111 @@ object ExcelExportManager {
                         XlsxCell.Text(sanitizeCell(tx.accountName)),
                         XlsxCell.Text(sanitizeCell(destVault)),
                         XlsxCell.Text(subtypeLabel),
+                        XlsxCell.Text(claimStatusLabel),
                         XlsxCell.Integer(tx.month),
                         XlsxCell.Integer(tx.year)
+                    )
+                )
+            }
+
+            // ============================================================
+            // 5. INVESTMENTS PORTFOLIO SHEET (OLD + LINKED SIP HOLDINGS)
+            // ============================================================
+            val investmentRows = mutableListOf<List<XlsxCell>>()
+            investmentRows.add(
+                listOf(
+                    XlsxCell.Text("Holding Name", STYLE_HEADER),
+                    XlsxCell.Text("Asset Class", STYLE_HEADER),
+                    XlsxCell.Text("Institution", STYLE_HEADER),
+                    XlsxCell.Text("Opening Invested ($currencySymbol)", STYLE_HEADER),
+                    XlsxCell.Text("Linked SIPs ($currencySymbol)", STYLE_HEADER),
+                    XlsxCell.Text("Total Invested ($currencySymbol)", STYLE_HEADER),
+                    XlsxCell.Text("Current Valuation ($currencySymbol)", STYLE_HEADER),
+                    XlsxCell.Text("Unrealized P&L ($currencySymbol)", STYLE_HEADER),
+                    XlsxCell.Text("Return (%)", STYLE_HEADER),
+                    XlsxCell.Text("Linked Subcategory", STYLE_HEADER),
+                    XlsxCell.Text("Status", STYLE_HEADER),
+                    XlsxCell.Text("Notes", STYLE_HEADER)
+                )
+            )
+            investmentModels.forEach { model ->
+                val inv = model.entity
+                investmentRows.add(
+                    listOf(
+                        XlsxCell.Text(sanitizeCell(inv.name), STYLE_BOLD_TEXT),
+                        XlsxCell.Text(sanitizeCell(inv.assetClass)),
+                        XlsxCell.Text(sanitizeCell(inv.institution)),
+                        XlsxCell.Number(inv.openingInvestedAmount),
+                        XlsxCell.Number(model.linkedSipTotal),
+                        XlsxCell.Number(model.totalInvested),
+                        XlsxCell.Number(model.currentValue),
+                        XlsxCell.Number(model.unrealizedPnL),
+                        XlsxCell.Number(model.returnPct),
+                        XlsxCell.Text(sanitizeCell(inv.linkedSubcategory.orEmpty())),
+                        XlsxCell.Text(if (inv.isArchived) "Archived" else "Active"),
+                        XlsxCell.Text(sanitizeCell(inv.notes))
+                    )
+                )
+            }
+
+            // ============================================================
+            // 6. FINANCIAL GOALS SHEET
+            // ============================================================
+            val goalRows = mutableListOf<List<XlsxCell>>()
+            goalRows.add(
+                listOf(
+                    XlsxCell.Text("Goal Title", STYLE_HEADER),
+                    XlsxCell.Text("Target Amount ($currencySymbol)", STYLE_HEADER),
+                    XlsxCell.Text("Current Saved ($currencySymbol)", STYLE_HEADER),
+                    XlsxCell.Text("Remaining ($currencySymbol)", STYLE_HEADER),
+                    XlsxCell.Text("Progress (%)", STYLE_HEADER),
+                    XlsxCell.Text("Req. Monthly ($currencySymbol)", STYLE_HEADER),
+                    XlsxCell.Text("Target Date", STYLE_HEADER),
+                    XlsxCell.Text("Linked Source", STYLE_HEADER),
+                    XlsxCell.Text("Status", STYLE_HEADER)
+                )
+            )
+            val nowMillis = System.currentTimeMillis()
+            val millisPerMonth = 30.4375 * 24 * 60 * 60 * 1000.0
+
+            allGoals.forEach { goal ->
+                val accountSynced = goal.linkedAccountName?.let { accName ->
+                    activeAccounts.firstOrNull { it.accountName.equals(accName, ignoreCase = true) }?.currentBalance
+                } ?: 0.0
+                val investmentModel = goal.linkedInvestmentId?.let { invId ->
+                    investmentModels.firstOrNull { it.entity.id == invId }
+                }
+                val investmentSynced = investmentModel?.currentValue ?: 0.0
+                val monthsRem = ((goal.targetDateMillis - nowMillis) / millisPerMonth).toInt().coerceAtLeast(1)
+
+                val progressModel = GoalProgressUiModel(
+                    entity = goal,
+                    syncedAmount = accountSynced + investmentSynced,
+                    monthsRemaining = monthsRem
+                )
+
+                val linkedSource = listOfNotNull(
+                    goal.linkedAccountName?.takeIf { it.isNotBlank() }?.let { "Vault: $it" },
+                    investmentModel?.entity?.name?.let { "Holding: $it" }
+                ).joinToString(" + ").ifBlank { "Manual" }
+
+                val progressPct = (progressModel.progressFraction * 100f).toInt()
+                val statusLabel = when {
+                    goal.isCompleted || progressPct >= 100 -> "Completed"
+                    else -> "In Progress"
+                }
+
+                goalRows.add(
+                    listOf(
+                        XlsxCell.Text(sanitizeCell(goal.title), STYLE_BOLD_TEXT),
+                        XlsxCell.Number(goal.targetAmount),
+                        XlsxCell.Number(progressModel.currentSaved),
+                        XlsxCell.Number(progressModel.remainingAmount),
+                        XlsxCell.Integer(progressPct),
+                        XlsxCell.Number(progressModel.requiredMonthlyContribution),
+                        XlsxCell.Text(shortDateFormat.format(Date(goal.targetDateMillis))),
+                        XlsxCell.Text(sanitizeCell(linkedSource)),
+                        XlsxCell.Text(statusLabel)
                     )
                 )
             }
@@ -407,7 +573,9 @@ object ExcelExportManager {
                 XlsxSheet("Executive Summary", listOf(22, 34, 20, 48), summaryRows),
                 XlsxSheet("Vault Accounts", listOf(24, 18, 22, 22, 24, 22, 16), accountRows),
                 XlsxSheet("AutoPay Commitments", listOf(28, 24, 24, 18, 26, 20, 20, 18, 18, 12, 14, 10, 10), billRows),
-                XlsxSheet("Transaction Ledger", listOf(22, 28, 24, 24, 18, 28, 20, 20, 18, 18, 18, 20, 10, 10), txRows)
+                XlsxSheet("Transaction Ledger", listOf(22, 28, 24, 24, 18, 28, 20, 20, 18, 18, 18, 20, 14, 10, 10), txRows),
+                XlsxSheet("Investments", listOf(26, 16, 20, 20, 18, 20, 20, 20, 14, 22, 12, 28), investmentRows),
+                XlsxSheet("Goals", listOf(26, 20, 20, 20, 14, 20, 16, 26, 14), goalRows)
             )
 
             val outputStream = context.contentResolver.openOutputStream(uri) ?: return@withContext false
