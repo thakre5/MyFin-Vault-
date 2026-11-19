@@ -264,15 +264,15 @@ fun UserGuideScreen(
 
                         GuideFeatureBullet(
                             title = "Local Data Sovereignty",
-                            desc = "Every transaction, budget target, note, and account record is committed directly to on-device SQLite storage via Android Room persistence."
+                            desc = "Every transaction, budget target, investment holding, goal, note, and account record is committed directly to on-device SQLite storage via Android Room persistence."
                         )
                         GuideFeatureBullet(
                             title = "Hardware-Backed Biometrics",
                             desc = "Biometric authentication uses native BiometricPrompt and Android KeyStore hardware crypto sandboxes. Cryptographic keys never leave the secure enclave."
                         )
                         GuideFeatureBullet(
-                            title = "Corporate Float Segregation",
-                            desc = "Business travel, client dining, and reimbursable outlays are recorded under a dedicated first-class Corporate flow. They reduce physical bank balances without contaminating personal lifestyle spending or inflating earned personal income."
+                            title = "Corporate Float Segregation & Settlement",
+                            desc = "Business travel, client dining, and reimbursable outlays are recorded under a dedicated Corporate flow. They reduce physical bank balances without contaminating personal lifestyle spending, and can be toggled as Settled in Transaction Details once reimbursed."
                         )
                         GuideFeatureBullet(
                             title = "Non-Personal Inflow Deduction",
@@ -309,7 +309,7 @@ fun UserGuideScreen(
                         )
                         GuideFeatureBullet(
                             title = "Fortress Vault Tier",
-                            desc = "Long-term emergency cushion. Balances up to your safety threshold remain liquid, while excess surplus compounds in fixed deposit reserves."
+                            desc = "Long-term emergency cushion. Balances up to your safety threshold remain liquid, while excess surplus compounds in fixed deposit reserves synced live with your 3M/6M/9M/12M Emergency Fund target."
                         )
                         GuideFeatureBullet(
                             title = "Physical Cash Tier",
@@ -359,8 +359,8 @@ fun UserGuideScreen(
                             desc = "Surplus = max(0, Current Balance - MAB). Ensures allocation engines only suggest truly disposable cash rather than dipping into required banking floors."
                         )
                         GuideFeatureBullet(
-                            title = "Commitments Shortfall Engine",
-                            desc = "Checks if Commitments account balance covers upcoming scheduled bills. If deficit exists, it surfaces an urgent warning with the earliest due date and 1-tap transfer prompts."
+                            title = "Commitments Shortfall & Bill Variance Alerts",
+                            desc = "Checks if Commitments balance covers upcoming bills with 1-tap transfer prompts, and flags any settled expense bill that spikes ≥15% above its typical amount."
                         )
                         GuideFeatureBullet(
                             title = "Pure Guilt-Free Safe-to-Spend (Option 2)",
@@ -400,8 +400,8 @@ fun UserGuideScreen(
 
                         GuideSubheading("D. Realizable Net Worth vs. Solvency Distribution")
                         GuideFormulaBox(
-                            formula = "Realizable_Net_Worth = Liquid_Reserves + Total_Investments + Active_Receivables\nGross_Wealth = Realizable_Net_Worth + NPA_Bad_Debt_Written_Off",
-                            explanation = "Distinguishes between collectible, appreciating capital and non-performing debt (NPA). Uncollectible loans are written off from Net Worth to protect balance sheet integrity."
+                            formula = "Realizable_Net_Worth = Liquid_Reserves + Portfolio_Valuation + Active_Receivables\nGross_Wealth = Realizable_Net_Worth + NPA_Bad_Debt_Written_Off",
+                            explanation = "Distinguishes between collectible, appreciating capital and non-performing debt (NPA). Automatically syncs with your offline Investments Portfolio valuation when holdings are logged."
                         )
 
                         GuideSubheading("E. Net Capital Retained & Retention Rate")
@@ -539,7 +539,7 @@ fun UserGuideScreen(
                     GuideAccordionCard(
                         icon = Icons.Default.TouchApp,
                         title = "7. Screen Directory & Navigation",
-                        subtitle = "Dashboard, Planner, Calculator, Notes & Vaults",
+                        subtitle = "Dashboard, Investments, Planner, Notes & Vaults",
                         isExpanded = expandedSection == GuideAccordionSection.SCREEN_DIRECTORY,
                         onToggleExpand = {
                             expandedSection = if (expandedSection == GuideAccordionSection.SCREEN_DIRECTORY) GuideAccordionSection.NONE else GuideAccordionSection.SCREEN_DIRECTORY
@@ -547,11 +547,15 @@ fun UserGuideScreen(
                     ) {
                         GuideFeatureBullet(
                             title = "Monthly Dashboard",
-                            desc = "Real Liquid Safe-to-Spend display, lifestyle burn velocity sparklines, AutoPay bill checklist, and a 4-way Category Matrix (Expenses, Income, Assets/SIP, Corporate)."
+                            desc = "Real Liquid Safe-to-Spend display, 5-way Category Matrix (All, Expenses, Income, Assets, Corporate), Smart Merchant Auto-Fill, Category & Amount range filters, AutoPay bill variance alerts (≥15%), and Corporate Claim settlement toggles."
+                        )
+                        GuideFeatureBullet(
+                            title = "Investments & Goals",
+                            desc = "Offline portfolio tracker for Mutual Funds, Stocks, ETFs, FDs, Gold, and PPF with automatic SIP syncing and 1-tap valuation updates, paired with Financial Milestones and a live Fortress Emergency Fund card (3M / 6M / 9M / 12M auto-calculation)."
                         )
                         GuideFeatureBullet(
                             title = "Yearly Fiscal View",
-                            desc = "4-tab macro audit hub: Cashflow Dynamics, 12-Month Outflow Mountain, Assets & Solvency, and Annual Spending Pareto."
+                            desc = "4-tab macro audit hub: Cashflow Dynamics, 12-Month Outflow Mountain, Assets & Solvency (synced with your Portfolio), and Annual Spending Pareto."
                         )
                         GuideFeatureBullet(
                             title = "Budget Planner",
@@ -563,7 +567,7 @@ fun UserGuideScreen(
                         )
                         GuideFeatureBullet(
                             title = "Reports & Analytics Hub",
-                            desc = "Timeframe-driven 3-tab hub: Summary Analytics (trajectories, concentric rings), Categories Analytics (radar web, 50/30/20 ribbon), and Wealth Analytics (reserve mountain, 3-bubble distribution)."
+                            desc = "Timeframe-driven 3-tab hub: Summary Analytics (trajectories, concentric rings), Categories Analytics (radar web, 50/30/20 ribbon), and Wealth Analytics (reserve mountain, 3-bubble distribution synced with Portfolio)."
                         )
                         GuideFeatureBullet(
                             title = "Vault Accounts Hub & Carousel",
@@ -585,19 +589,23 @@ fun UserGuideScreen(
                     GuideAccordionCard(
                         icon = Icons.Default.SaveAlt,
                         title = "8. Backup, Restore & Exports",
-                        subtitle = "Full .json snapshots, .xlsx Workbooks, .csv Ledgers",
+                        subtitle = "Weekly Auto-Backup, .json, .xlsx & .csv",
                         isExpanded = expandedSection == GuideAccordionSection.BACKUP_EXPORTS,
                         onToggleExpand = {
                             expandedSection = if (expandedSection == GuideAccordionSection.BACKUP_EXPORTS) GuideAccordionSection.NONE else GuideAccordionSection.BACKUP_EXPORTS
                         }
                     ) {
                         GuideFeatureBullet(
+                            title = "Weekly Local Auto-Backup (SAF Folder)",
+                            desc = "Configure a local folder in Settings → Data Backup & Recovery to automatically save rolling weekly .json vault snapshots in the background (retaining the latest 5 files) with an instant 'Run Now' trigger."
+                        )
+                        GuideFeatureBullet(
                             title = "Full Vault Snapshot (.json)",
-                            desc = "Serializes the complete database (UserProfile, Transactions, Categories, Accounts, Fixed Bills, Budget Plans, and Financial Notes) into an offline JSON backup for migrations and restores."
+                            desc = "Serializes the complete database (UserProfile, Transactions, Categories, Accounts, Fixed Bills, Budget Plans, Investments, Goals, and Financial Notes) into an offline JSON backup for migrations and restores."
                         )
                         GuideFeatureBullet(
                             title = "Accounting Statement (.xlsx)",
-                            desc = "Generates a styled multi-sheet Excel workbook containing Executive Summary, Vault Accounts, AutoPay Commitments, and the complete Transaction Ledger."
+                            desc = "Generates a styled multi-sheet Excel workbook containing Executive Summary, Vault Accounts, AutoPay Commitments, Investments & Goals, and the complete Transaction Ledger."
                         )
                         GuideFeatureBullet(
                             title = "Universal Flat Ledger (.csv)",
@@ -629,7 +637,7 @@ fun UserGuideScreen(
                         GuideSymbolRow(symbol = "Surplus", meaning = "Spendable Cash Above Floor", formula = "max(0, Balance - MAB)")
                         GuideSymbolRow(symbol = "S2S", meaning = "Liquid Safe-to-Spend", formula = "Cash_Floor - Runway_Protection")
                         GuideSymbolRow(symbol = "W_target", meaning = "Annual Wealth Goal", formula = "max(I_personal × 0.25, Fortress)")
-                        GuideSymbolRow(symbol = "RNW", meaning = "Realizable Net Worth", formula = "Liquid + Invested + Receivables")
+                        GuideSymbolRow(symbol = "RNW", meaning = "Realizable Net Worth", formula = "Liquid + Portfolio + Receivables")
                         GuideSymbolRow(symbol = "GW", meaning = "Gross Wealth (Audit)", formula = "RNW + NPA_Bad_Debt")
                         GuideSymbolRow(symbol = "NPA", meaning = "Non-Performing Assets", formula = "Written-off bad personal debt")
                         GuideSymbolRow(symbol = "F_corp", meaning = "Pending Corporate Claims", formula = "max(0, Outlays - Claims)")
