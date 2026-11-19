@@ -10,6 +10,22 @@ data class CategorySpendingRollup(
     val totalAmount: Double
 )
 
+// Smart Merchant & Subcategory Auto-Fill projection
+data class MerchantSuggestion(
+    val title: String,
+    val category: String,
+    val subcategory: String,
+    val accountName: String,
+    val type: TransactionType,
+    val usageCount: Int
+)
+
+// Subcategory rollup for auto-syncing new ASSET transactions into InvestmentEntity holdings
+data class SubcategoryAssetTotal(
+    val subcategory: String,
+    val totalAmount: Double
+)
+
 @Dao
 interface BudgetDao {
 
@@ -27,6 +43,12 @@ interface BudgetDao {
 
     @Query("UPDATE user_profile SET isTaxonomyBannerDismissed = 1 WHERE id = 1")
     suspend fun dismissTaxonomyBanner()
+
+    @Query("UPDATE user_profile SET autoBackupEnabled = :enabled, autoBackupTreeUri = :treeUri WHERE id = 1")
+    suspend fun updateAutoBackupConfig(enabled: Boolean, treeUri: String?)
+
+    @Query("UPDATE user_profile SET lastAutoBackupAt = :timestamp WHERE id = 1")
+    suspend fun updateLastAutoBackupTimestamp(timestamp: Long)
 
     @Query("DELETE FROM user_profile")
     suspend fun clearUserProfile()
@@ -351,7 +373,7 @@ interface BudgetDao {
     suspend fun clearAllBudgetPlans()
 
     // ========================================================================
-    // 6. Transactions
+    // 6. Transactions, Merchant Auto-Fill & Corporate Claim Matcher
     // ========================================================================
     @Query("SELECT * FROM transactions WHERE month = :month AND year = :year ORDER BY date DESC, id DESC")
     fun getTransactionsForMonth(month: Int, year: Int): Flow<List<TransactionEntity>>
@@ -380,6 +402,53 @@ interface BudgetDao {
     @Query("DELETE FROM transactions")
     suspend fun clearAllTransactions()
 
+    // Smart Merchant & Subcategory Auto-Fill
+    @Query("""
+        SELECT title, category, subcategory, accountName, type, COUNT(*) AS usageCount
+        FROM transactions
+        WHERE type = :type
+          AND TRIM(title) != ''
+          AND title NOT LIKE 'Vault Transfer%'
+          AND title LIKE '%' || :query || '%' COLLATE NOCASE
+        GROUP BY LOWER(TRIM(title)), category, subcategory, accountName, type
+        ORDER BY usageCount DESC, MAX(date) DESC
+        LIMIT 5
+    """)
+    suspend fun getMerchantSuggestions(query: String, type: TransactionType): List<MerchantSuggestion>
+
+    // Corporate Claim Aging & Matcher (Oldest unsettled outlays first)
+    @Query("""
+        SELECT * FROM transactions
+        WHERE isSettled = 0
+          AND (
+              (type = 'CORPORATE' AND category != 'Reimbursements & Claims' COLLATE NOCASE)
+              OR (type = 'EXPENSE' AND category = 'Work & Professional' COLLATE NOCASE)
+          )
+        ORDER BY date ASC, id ASC
+    """)
+    fun getUnsettledCorporateOutlays(): Flow<List<TransactionEntity>>
+
+    @Query("UPDATE transactions SET isSettled = :isSettled WHERE id = :id")
+    suspend fun updateTransactionSettled(id: Long, isSettled: Boolean)
+
+    @Query("UPDATE transactions SET isSettled = :isSettled WHERE id IN (:ids)")
+    suspend fun setTransactionsSettledBatch(ids: List<Long>, isSettled: Boolean)
+
+    // Bill Variance / Price-Creep 3-Month Trailing Average
+    @Query("""
+        SELECT AVG(amount) FROM transactions
+        WHERE category = :category COLLATE NOCASE
+          AND subcategory = :subcategory COLLATE NOCASE
+          AND type = :type
+          AND (year * 12 + month) BETWEEN (:targetMonthKey - 3) AND (:targetMonthKey - 1)
+    """)
+    suspend fun getTrailing3MonthBillAverage(
+        category: String,
+        subcategory: String,
+        type: TransactionType,
+        targetMonthKey: Int
+    ): Double?
+
     // ========================================================================
     // 7. Cascading Rename & Non-Destructive Cleanup (Type-Safe + Legacy Overloads)
     // ========================================================================
@@ -394,6 +463,9 @@ interface BudgetDao {
 
     @Query("UPDATE fixed_bills SET toAccountName = :newName WHERE toAccountName = :oldName COLLATE NOCASE")
     suspend fun cascadeRenameToAccountInFixedBills(oldName: String, newName: String)
+
+    @Query("UPDATE goals SET linkedAccountName = :newName WHERE linkedAccountName = :oldName COLLATE NOCASE")
+    suspend fun cascadeRenameAccountInGoals(oldName: String, newName: String)
 
     @Query("UPDATE transactions SET category = :newName WHERE category = :oldName")
     suspend fun cascadeRenameCategoryInTransactions(oldName: String, newName: String)
@@ -431,6 +503,9 @@ interface BudgetDao {
     @Query("UPDATE fixed_bills SET subcategory = :newName WHERE category = :parentCat AND subcategory = :oldName AND type = :type")
     suspend fun cascadeRenameSubcategoryAndTypeInFixedBills(parentCat: String, oldName: String, newName: String, type: TransactionType)
 
+    @Query("UPDATE investments SET linkedSubcategory = :newName WHERE linkedSubcategory = :oldName COLLATE NOCASE")
+    suspend fun cascadeRenameSubcategoryInInvestments(oldName: String, newName: String)
+
     // ========================================================================
     // 8. Atomic Operations (Safe Preservation of Historical Ledger Data)
     // ========================================================================
@@ -463,6 +538,7 @@ interface BudgetDao {
                 cascadeRenameToAccountInTransactions(cleanOldName, cleanNewName)
                 cascadeRenameAccountInFixedBills(cleanOldName, cleanNewName)
                 cascadeRenameToAccountInFixedBills(cleanOldName, cleanNewName)
+                cascadeRenameAccountInGoals(cleanOldName, cleanNewName)
             }
         } else {
             insertAccount(updatedAccount)
@@ -470,6 +546,7 @@ interface BudgetDao {
             cascadeRenameToAccountInTransactions(cleanOldName, cleanNewName)
             cascadeRenameAccountInFixedBills(cleanOldName, cleanNewName)
             cascadeRenameToAccountInFixedBills(cleanOldName, cleanNewName)
+            cascadeRenameAccountInGoals(cleanOldName, cleanNewName)
             deleteAccountByName(cleanOldName)
         }
     }
@@ -532,6 +609,9 @@ interface BudgetDao {
             newName = trimmedNew,
             type = oldSubcategory.type
         )
+        if (oldSubcategory.type == TransactionType.ASSET) {
+            cascadeRenameSubcategoryInInvestments(oldSubcategory.name, trimmedNew)
+        }
         deleteSubcategory(oldSubcategory)
     }
 
@@ -610,4 +690,63 @@ interface BudgetDao {
 
     @Query("DELETE FROM notes")
     suspend fun clearAllNotes()
+
+    // ========================================================================
+    // 12. Offline Investments Portfolio (Old + Linked SIP Holdings)
+    // ========================================================================
+    @Query("SELECT * FROM investments ORDER BY isArchived ASC, currentValuation DESC, name ASC")
+    fun getAllInvestments(): Flow<List<InvestmentEntity>>
+
+    @Query("SELECT * FROM investments WHERE isArchived = 0 ORDER BY currentValuation DESC, name ASC")
+    fun getActiveInvestments(): Flow<List<InvestmentEntity>>
+
+    @Query("SELECT * FROM investments ORDER BY id ASC")
+    suspend fun getAllInvestmentsDirect(): List<InvestmentEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInvestment(investment: InvestmentEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInvestments(investments: List<InvestmentEntity>)
+
+    @Update
+    suspend fun updateInvestment(investment: InvestmentEntity)
+
+    @Delete
+    suspend fun deleteInvestment(investment: InvestmentEntity)
+
+    @Query("DELETE FROM investments")
+    suspend fun clearAllInvestments()
+
+    @Query("""
+        SELECT subcategory, COALESCE(SUM(amount), 0.0) AS totalAmount
+        FROM transactions
+        WHERE type = 'ASSET'
+        GROUP BY subcategory
+    """)
+    fun getTotalAssetSpendBySubcategory(): Flow<List<SubcategoryAssetTotal>>
+
+    // ========================================================================
+    // 13. Financial Goals Engine
+    // ========================================================================
+    @Query("SELECT * FROM goals ORDER BY isCompleted ASC, targetDateMillis ASC")
+    fun getAllGoals(): Flow<List<GoalEntity>>
+
+    @Query("SELECT * FROM goals ORDER BY id ASC")
+    suspend fun getAllGoalsDirect(): List<GoalEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGoal(goal: GoalEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGoals(goals: List<GoalEntity>)
+
+    @Update
+    suspend fun updateGoal(goal: GoalEntity)
+
+    @Delete
+    suspend fun deleteGoal(goal: GoalEntity)
+
+    @Query("DELETE FROM goals")
+    suspend fun clearAllGoals()
 }
