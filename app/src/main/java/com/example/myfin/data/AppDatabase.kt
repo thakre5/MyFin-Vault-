@@ -18,9 +18,11 @@ import java.util.Calendar
         FixedBillEntity::class,
         BudgetPlanEntity::class,
         UserProfile::class,
-        NoteEntity::class
+        NoteEntity::class,
+        InvestmentEntity::class,
+        GoalEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -97,6 +99,56 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Corporate Claim Settlement Tracking
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `isSettled` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_isSettled` ON `transactions` (`isSettled`)")
+
+                // 2. Scheduled Local Auto-Backup Metadata
+                db.execSQL("ALTER TABLE `user_profile` ADD COLUMN `autoBackupEnabled` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `user_profile` ADD COLUMN `autoBackupTreeUri` TEXT")
+                db.execSQL("ALTER TABLE `user_profile` ADD COLUMN `lastAutoBackupAt` INTEGER NOT NULL DEFAULT 0")
+
+                // 3. Offline Investments Ledger (Old + New Holdings)
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `investments` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `assetClass` TEXT NOT NULL DEFAULT 'Mutual Fund',
+                        `openingInvestedAmount` REAL NOT NULL DEFAULT 0.0,
+                        `currentValuation` REAL NOT NULL DEFAULT 0.0,
+                        `linkedSubcategory` TEXT,
+                        `institution` TEXT NOT NULL DEFAULT '',
+                        `notes` TEXT NOT NULL DEFAULT '',
+                        `isArchived` INTEGER NOT NULL DEFAULT 0,
+                        `updatedAt` INTEGER NOT NULL
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_investments_assetClass` ON `investments` (`assetClass`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_investments_linkedSubcategory` ON `investments` (`linkedSubcategory`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_investments_isArchived` ON `investments` (`isArchived`)")
+
+                // 4. Financial Goals Engine
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `goals` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `targetAmount` REAL NOT NULL,
+                        `initialSavedAmount` REAL NOT NULL DEFAULT 0.0,
+                        `targetDateMillis` INTEGER NOT NULL,
+                        `linkedAccountName` TEXT,
+                        `linkedInvestmentId` INTEGER,
+                        `iconName` TEXT NOT NULL DEFAULT 'Flag',
+                        `isCompleted` INTEGER NOT NULL DEFAULT 0,
+                        `createdAt` INTEGER NOT NULL
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_goals_isCompleted` ON `goals` (`isCompleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_goals_targetDateMillis` ON `goals` (`targetDateMillis`)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -109,7 +161,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_2_3,
                         MIGRATION_3_4,
                         MIGRATION_4_5,
-                        MIGRATION_5_6
+                        MIGRATION_5_6,
+                        MIGRATION_6_7
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : RoomDatabase.Callback() {
@@ -194,7 +247,7 @@ abstract class AppDatabase : RoomDatabase() {
                                         reminderHour, reminderMinute, vaultMode, fortressSweepThreshold,
                                         fortressEmergencyMonths, fortressManualTarget, taxonomyGraceMonth,
                                         taxonomyGraceYear, isTaxonomyBannerDismissed, initialReimbursementClaim,
-                                        initialCompanyAdvance
+                                        initialCompanyAdvance, autoBackupEnabled, autoBackupTreeUri, lastAutoBackupAt
                                     ) VALUES (
                                         1, 'Admin Vault', '', '', 0.0, '₹',
                                         0, 0, 0,
@@ -202,7 +255,7 @@ abstract class AppDatabase : RoomDatabase() {
                                         20, 30, '3-VAULT', 0.0,
                                         6, 0.0, $curMonth,
                                         $curYear, 0, 0.0,
-                                        0.0
+                                        0.0, 0, NULL, 0
                                     )
                                 """)
 
