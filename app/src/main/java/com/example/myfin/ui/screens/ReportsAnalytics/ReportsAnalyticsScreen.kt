@@ -128,9 +128,14 @@ fun ReportsAnalyticsScreen(
     val effectiveTotalInvestments = remember(activePortfolioValue, yearlyState.assetWealthMetrics.totalInvestments) {
         if (activePortfolioValue > 0.0) activePortfolioValue else yearlyState.assetWealthMetrics.totalInvestments
     }
-    val effectiveRealizableNetWorth = remember(activePortfolioValue, activeAccounts, yearlyState.assetWealthMetrics.realizableNetWorth) {
+    val effectiveRealizableNetWorth = remember(
+        activePortfolioValue,
+        activeAccounts,
+        yearlyState.assetWealthMetrics.activeReceivables,
+        yearlyState.assetWealthMetrics.realizableNetWorth
+    ) {
         if (activePortfolioValue > 0.0) {
-            activeAccounts.sumOf { it.currentBalance } + activePortfolioValue
+            activeAccounts.sumOf { it.currentBalance } + activePortfolioValue + yearlyState.assetWealthMetrics.activeReceivables
         } else {
             yearlyState.assetWealthMetrics.realizableNetWorth
         }
