@@ -73,8 +73,13 @@ fun MonthlyLedgerTab(
     val listState = rememberLazyListState()
     var isSearchExpanded by remember { mutableStateOf(filterCriteria.query.isNotBlank()) }
 
+    val hasCategoryFilter = filterCriteria.category.isNotBlank() && !filterCriteria.category.equals("ALL", ignoreCase = true)
+    val hasAmountFilter = filterCriteria.minAmount != null || filterCriteria.maxAmount != null
+
     val hasActiveCustomFilters = filterCriteria.type != null ||
             (filterCriteria.account.isNotBlank() && filterCriteria.account != "ALL") ||
+            hasCategoryFilter ||
+            hasAmountFilter ||
             filterCriteria.startDate != null ||
             filterCriteria.endDate != null
 
@@ -104,6 +109,18 @@ fun MonthlyLedgerTab(
                 else -> "Until $endStr"
             }
         } else null
+    }
+
+    val amountRangeLabel = remember(filterCriteria.minAmount, filterCriteria.maxAmount, userProfile.currencySymbol) {
+        val min = filterCriteria.minAmount
+        val max = filterCriteria.maxAmount
+        val curr = userProfile.currencySymbol
+        when {
+            min != null && max != null -> "$curr${String.format(Locale.US, "%,.0f", min)} – $curr${String.format(Locale.US, "%,.0f", max)}"
+            min != null -> "≥ $curr${String.format(Locale.US, "%,.0f", min)}"
+            max != null -> "≤ $curr${String.format(Locale.US, "%,.0f", max)}"
+            else -> null
+        }
     }
 
     val dateKeys = remember(uiState.groupedTransactions) {
@@ -534,10 +551,32 @@ fun MonthlyLedgerTab(
                                     label = type.name.lowercase().replaceFirstChar { it.uppercase() },
                                     onRemove = {
                                         viewModel.updateFilter(
-                                            null,
-                                            filterCriteria.account,
-                                            filterCriteria.startDate,
-                                            filterCriteria.endDate
+                                            type = null,
+                                            account = filterCriteria.account,
+                                            start = filterCriteria.startDate,
+                                            end = filterCriteria.endDate,
+                                            category = filterCriteria.category,
+                                            minAmount = filterCriteria.minAmount,
+                                            maxAmount = filterCriteria.maxAmount
+                                        )
+                                    }
+                                )
+                            }
+                        }
+
+                        if (hasCategoryFilter) {
+                            item {
+                                RemovableFilterChip(
+                                    label = filterCriteria.category,
+                                    onRemove = {
+                                        viewModel.updateFilter(
+                                            type = filterCriteria.type,
+                                            account = filterCriteria.account,
+                                            start = filterCriteria.startDate,
+                                            end = filterCriteria.endDate,
+                                            category = "ALL",
+                                            minAmount = filterCriteria.minAmount,
+                                            maxAmount = filterCriteria.maxAmount
                                         )
                                     }
                                 )
@@ -550,10 +589,32 @@ fun MonthlyLedgerTab(
                                     label = filterCriteria.account,
                                     onRemove = {
                                         viewModel.updateFilter(
-                                            filterCriteria.type,
-                                            "ALL",
-                                            filterCriteria.startDate,
-                                            filterCriteria.endDate
+                                            type = filterCriteria.type,
+                                            account = "ALL",
+                                            start = filterCriteria.startDate,
+                                            end = filterCriteria.endDate,
+                                            category = filterCriteria.category,
+                                            minAmount = filterCriteria.minAmount,
+                                            maxAmount = filterCriteria.maxAmount
+                                        )
+                                    }
+                                )
+                            }
+                        }
+
+                        amountRangeLabel?.let { label ->
+                            item {
+                                RemovableFilterChip(
+                                    label = label,
+                                    onRemove = {
+                                        viewModel.updateFilter(
+                                            type = filterCriteria.type,
+                                            account = filterCriteria.account,
+                                            start = filterCriteria.startDate,
+                                            end = filterCriteria.endDate,
+                                            category = filterCriteria.category,
+                                            minAmount = null,
+                                            maxAmount = null
                                         )
                                     }
                                 )
@@ -567,10 +628,13 @@ fun MonthlyLedgerTab(
                                     icon = Icons.Default.DateRange,
                                     onRemove = {
                                         viewModel.updateFilter(
-                                            filterCriteria.type,
-                                            filterCriteria.account,
-                                            null,
-                                            null
+                                            type = filterCriteria.type,
+                                            account = filterCriteria.account,
+                                            start = null,
+                                            end = null,
+                                            category = filterCriteria.category,
+                                            minAmount = filterCriteria.minAmount,
+                                            maxAmount = filterCriteria.maxAmount
                                         )
                                     }
                                 )
