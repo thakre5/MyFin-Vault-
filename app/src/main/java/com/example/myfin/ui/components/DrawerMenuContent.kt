@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -181,6 +182,12 @@ fun DrawerMenuContent(
                 label = "Vault Accounts",
                 isSelected = currentSelection == NavigationTarget.VAULT_ACCOUNTS,
                 onClick = { onSelectTarget(NavigationTarget.VAULT_ACCOUNTS) }
+            )
+            DrawerNavItem(
+                icon = Icons.AutoMirrored.Filled.TrendingUp,
+                label = "Investments & Goals",
+                isSelected = currentSelection == NavigationTarget.WEALTH_GOALS,
+                onClick = { onSelectTarget(NavigationTarget.WEALTH_GOALS) }
             )
             DrawerNavItem(
                 icon = Icons.Default.Analytics,
