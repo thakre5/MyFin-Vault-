@@ -650,6 +650,8 @@ fun ReportsAnalyticsScreen(
                         totalAssets = totalAssets,
                         corporateOutlays = corporateOutlays,
                         corporateReimbursements = corporateReimbursements,
+                        allTimePendingClaim = yearlyState.reimbursementStatus.pendingReimbursement,
+                        allTimeAdvanceHeld = yearlyState.reimbursementStatus.excessAdvanceHeld,
                         transactions = filteredTransactions,
                         allTransactions = allTransactions,
                         selectedTimeRange = selectedTimeRange,
