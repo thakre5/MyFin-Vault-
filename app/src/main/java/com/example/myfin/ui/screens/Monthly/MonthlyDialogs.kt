@@ -1,6 +1,7 @@
 package com.example.myfin.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,12 +24,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.myfin.data.AccountBalanceResult
+import com.example.myfin.data.BillVarianceAlert
 import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.data.UserProfile
 import com.example.myfin.ui.MonthlyUiState
 import com.example.myfin.ui.theme.*
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -43,6 +46,7 @@ fun SettleFixedBillDialog(
     bill: FixedBillEntity,
     activeAccounts: List<AccountBalanceResult>,
     currencySymbol: String,
+    onCheckVariance: (suspend (FixedBillEntity, Double) -> BillVarianceAlert?)? = null,
     onDismiss: () -> Unit,
     onConfirm: (Double, Long) -> Unit
 ) {
@@ -96,6 +100,29 @@ fun SettleFixedBillDialog(
     var finalAmountText by remember(bill.id) { mutableStateOf(formattedDefaultAmount) }
     var selectedSettleDateMillis by remember(bill.id) { mutableStateOf(defaultSettleDateMillis) }
     var showSettleDatePicker by remember { mutableStateOf(false) }
+    var varianceAlert by remember(bill.id) { mutableStateOf<BillVarianceAlert?>(null) }
+
+    LaunchedEffect(finalAmountText, bill) {
+        delay(200L)
+        val entered = finalAmountText.toDoubleOrNull() ?: 0.0
+        if (entered > 0.0 && bill.type == TransactionType.EXPENSE) {
+            varianceAlert = if (onCheckVariance != null) {
+                onCheckVariance(bill, entered)
+            } else if (bill.amount > 0.0) {
+                val pct = (((entered - bill.amount) / bill.amount) * 100.0).toInt()
+                if (pct >= 15) {
+                    BillVarianceAlert(
+                        billTitle = displayBillName,
+                        enteredAmount = entered,
+                        baselineAmount = bill.amount,
+                        variancePct = pct
+                    )
+                } else null
+            } else null
+        } else {
+            varianceAlert = null
+        }
+    }
 
     val isToday = remember(selectedSettleDateMillis) {
         val calSelected = Calendar.getInstance().apply { timeInMillis = selectedSettleDateMillis }
@@ -212,11 +239,43 @@ fun SettleFixedBillDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Primary600,
-                        unfocusedBorderColor = BorderLight,
-                        focusedLabelColor = Primary600
+                        focusedBorderColor = if (varianceAlert != null) Warning700 else Primary600,
+                        unfocusedBorderColor = if (varianceAlert != null) Warning500 else BorderLight,
+                        focusedLabelColor = if (varianceAlert != null) Warning700 else Primary600
                     )
                 )
+
+                AnimatedVisibility(visible = varianceAlert != null) {
+                    varianceAlert?.let { alert ->
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            color = Warning100,
+                            border = BorderStroke(0.7.dp, Warning500.copy(alpha = 0.6f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.WarningAmber,
+                                    contentDescription = "Price Spike",
+                                    tint = Warning700,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "+${alert.variancePct}% above typical ($currencySymbol${String.format(Locale.US, "%,.0f", alert.baselineAmount)})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Warning700
+                                )
+                            }
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
