@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.TransactionType
@@ -42,13 +44,33 @@ private enum class DatePreset(val label: String) {
 fun FilterBottomSheet(
     currentFilter: FilterCriteria,
     accountList: List<String>,
+    categoryList: List<String> = emptyList(),
+    currencySymbol: String = "₹",
     onDismiss: () -> Unit,
-    onApply: (type: TransactionType?, account: String, startDate: Long?, endDate: Long?) -> Unit,
+    onApply: (type: TransactionType?, account: String, startDate: Long?, endDate: Long?) -> Unit = { _, _, _, _ -> },
+    onApplyEnhanced: ((
+        type: TransactionType?,
+        account: String,
+        startDate: Long?,
+        endDate: Long?,
+        category: String,
+        minAmount: Double?,
+        maxAmount: Double?
+    ) -> Unit)? = null,
     onReset: () -> Unit
 ) {
     var selectedType by remember(currentFilter) { mutableStateOf(currentFilter.type) }
     var selectedAccount by remember(currentFilter) {
         mutableStateOf(currentFilter.account.trim().ifBlank { "ALL" })
+    }
+    var selectedCategory by remember(currentFilter) {
+        mutableStateOf(currentFilter.category.trim().ifBlank { "ALL" })
+    }
+    var minAmountText by remember(currentFilter) {
+        mutableStateOf(currentFilter.minAmount?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() }.orEmpty())
+    }
+    var maxAmountText by remember(currentFilter) {
+        mutableStateOf(currentFilter.maxAmount?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() }.orEmpty())
     }
     var filterStartDate by remember(currentFilter) { mutableStateOf(currentFilter.startDate) }
     var filterEndDate by remember(currentFilter) { mutableStateOf(currentFilter.endDate) }
@@ -56,15 +78,23 @@ fun FilterBottomSheet(
     var showDateRangePicker by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val accountListState = rememberLazyListState()
+    val categoryListState = rememberLazyListState()
 
     LaunchedEffect(selectedAccount, accountList) {
         if (selectedAccount.equals("ALL", ignoreCase = true)) {
             accountListState.animateScrollToItem(0)
         } else {
             val idx = accountList.indexOfFirst { it.equals(selectedAccount, ignoreCase = true) }
-            if (idx >= 0) {
-                accountListState.animateScrollToItem(idx + 1)
-            }
+            if (idx >= 0) accountListState.animateScrollToItem(idx + 1)
+        }
+    }
+
+    LaunchedEffect(selectedCategory, categoryList) {
+        if (selectedCategory.equals("ALL", ignoreCase = true)) {
+            categoryListState.animateScrollToItem(0)
+        } else {
+            val idx = categoryList.indexOfFirst { it.equals(selectedCategory, ignoreCase = true) }
+            if (idx >= 0) categoryListState.animateScrollToItem(idx + 1)
         }
     }
 
@@ -177,6 +207,44 @@ fun FilterBottomSheet(
                 }
             }
 
+            // Category Filter (shown when categoryList is provided)
+            if (categoryList.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Text("Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyRow(
+                    state = categoryListState,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        val isAllCat = selectedCategory.equals("ALL", ignoreCase = true)
+                        FilterChip(
+                            selected = isAllCat,
+                            onClick = { selectedCategory = "ALL" },
+                            label = { Text("All Categories", fontSize = 11.5.sp, fontWeight = if (isAllCat) FontWeight.Bold else FontWeight.Medium) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Primary50,
+                                selectedLabelColor = Primary700
+                            )
+                        )
+                    }
+                    items(categoryList) { cat ->
+                        val isSelected = selectedCategory.equals(cat, ignoreCase = true)
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedCategory = cat },
+                            label = { Text(cat, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Primary50,
+                                selectedLabelColor = Primary700
+                            )
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(14.dp))
 
             // Vault Account Filter
@@ -212,6 +280,80 @@ fun FilterBottomSheet(
                         )
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Amount Range Filter
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Amount Range ($currencySymbol)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("1000" to "> ${currencySymbol}1k", "5000" to "> ${currencySymbol}5k").forEach { (valStr, label) ->
+                        val isSel = minAmountText == valStr && maxAmountText.isBlank()
+                        FilterChip(
+                            selected = isSel,
+                            onClick = {
+                                if (isSel) {
+                                    minAmountText = ""
+                                } else {
+                                    minAmountText = valStr
+                                    maxAmountText = ""
+                                }
+                            },
+                            label = { Text(label, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Primary50,
+                                selectedLabelColor = Primary700
+                            ),
+                            modifier = Modifier.height(28.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = minAmountText,
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() || it == '.' }
+                        val parts = filtered.split('.')
+                        minAmountText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                    },
+                    label = { Text("Min ($currencySymbol)", fontSize = 11.5.sp) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Primary600,
+                        unfocusedBorderColor = BorderLight
+                    )
+                )
+                OutlinedTextField(
+                    value = maxAmountText,
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() || it == '.' }
+                        val parts = filtered.split('.')
+                        maxAmountText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
+                    },
+                    label = { Text("Max ($currencySymbol)", fontSize = 11.5.sp) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Primary600,
+                        unfocusedBorderColor = BorderLight
+                    )
+                )
             }
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -374,7 +516,21 @@ fun FilterBottomSheet(
 
                 Button(
                     onClick = {
-                        onApply(selectedType, selectedAccount, filterStartDate, filterEndDate)
+                        val parsedMin = minAmountText.toDoubleOrNull()
+                        val parsedMax = maxAmountText.toDoubleOrNull()
+                        if (onApplyEnhanced != null) {
+                            onApplyEnhanced(
+                                selectedType,
+                                selectedAccount,
+                                filterStartDate,
+                                filterEndDate,
+                                selectedCategory,
+                                parsedMin,
+                                parsedMax
+                            )
+                        } else {
+                            onApply(selectedType, selectedAccount, filterStartDate, filterEndDate)
+                        }
                         onDismiss()
                     },
                     modifier = Modifier
