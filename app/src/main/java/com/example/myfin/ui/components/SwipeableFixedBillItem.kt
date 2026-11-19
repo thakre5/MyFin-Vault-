@@ -1,6 +1,7 @@
 package com.example.myfin.ui.components
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,9 +36,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myfin.data.BillVarianceAlert
 import com.example.myfin.data.FixedBillEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.ui.theme.*
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -49,7 +53,8 @@ fun SwipeableFixedBillItem(
     onTap: (FixedBillEntity) -> Unit,
     onEdit: (FixedBillEntity) -> Unit,
     onDelete: (FixedBillEntity) -> Unit,
-    onSettleBill: ((bill: FixedBillEntity, customAmount: Double, dateMillis: Long) -> Unit)? = null
+    onSettleBill: ((bill: FixedBillEntity, customAmount: Double, dateMillis: Long) -> Unit)? = null,
+    onCheckVariance: (suspend (FixedBillEntity, Double) -> BillVarianceAlert?)? = null
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -531,6 +536,29 @@ fun SwipeableFixedBillItem(
         var customAmountText by remember(currentBill.id) { mutableStateOf(initialFormattedAmount) }
         var selectedDateMillis by remember(currentBill.id) { mutableStateOf(defaultSettleMillis) }
         var showCalendarPicker by remember { mutableStateOf(false) }
+        var varianceAlert by remember(currentBill.id) { mutableStateOf<BillVarianceAlert?>(null) }
+
+        LaunchedEffect(customAmountText, currentBill) {
+            delay(200L)
+            val entered = customAmountText.toDoubleOrNull() ?: 0.0
+            if (entered > 0.0 && billType == TransactionType.EXPENSE) {
+                varianceAlert = if (onCheckVariance != null) {
+                    onCheckVariance(currentBill, entered)
+                } else if (billAmount > 0.0) {
+                    val pct = (((entered - billAmount) / billAmount) * 100.0).toInt()
+                    if (pct >= 15) {
+                        BillVarianceAlert(
+                            billTitle = displayPrimaryTitle,
+                            enteredAmount = entered,
+                            baselineAmount = billAmount,
+                            variancePct = pct
+                        )
+                    } else null
+                } else null
+            } else {
+                varianceAlert = null
+            }
+        }
 
         val isToday = remember(selectedDateMillis) {
             val calSelected = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
@@ -587,10 +615,42 @@ fun SwipeableFixedBillItem(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Primary600,
-                            unfocusedBorderColor = BorderLight
+                            focusedBorderColor = if (varianceAlert != null) Warning700 else Primary600,
+                            unfocusedBorderColor = if (varianceAlert != null) Warning500 else BorderLight
                         )
                     )
+
+                    AnimatedVisibility(visible = varianceAlert != null) {
+                        varianceAlert?.let { alert ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                color = Warning100,
+                                border = BorderStroke(0.7.dp, Warning500.copy(alpha = 0.6f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.WarningAmber,
+                                        contentDescription = "Price Spike",
+                                        tint = Warning700,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "+${alert.variancePct}% above typical ($cleanCurrencySymbol${String.format(Locale.US, "%,.0f", alert.baselineAmount)})",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Warning700
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
