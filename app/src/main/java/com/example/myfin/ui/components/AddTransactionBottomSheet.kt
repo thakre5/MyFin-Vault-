@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
@@ -33,11 +34,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myfin.data.CategoryEntity
+import com.example.myfin.data.MerchantSuggestion
 import com.example.myfin.data.SubcategoryEntity
 import com.example.myfin.data.TransactionEntity
 import com.example.myfin.data.TransactionType
 import com.example.myfin.data.TransferSubtype
 import com.example.myfin.ui.theme.*
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -49,6 +52,7 @@ fun AddTransactionBottomSheet(
     accountList: List<String>,
     masterCategories: List<CategoryEntity>,
     masterSubcategories: List<SubcategoryEntity>,
+    onSearchMerchants: (suspend (String, TransactionType) -> List<MerchantSuggestion>)? = null,
     onDismiss: () -> Unit,
     onSave: (
         id: Long,
@@ -93,6 +97,17 @@ fun AddTransactionBottomSheet(
                 }
             }.orEmpty()
         )
+    }
+
+    var merchantSuggestions by remember { mutableStateOf<List<MerchantSuggestion>>(emptyList()) }
+
+    LaunchedEffect(title, selectedType) {
+        if (onSearchMerchants == null || selectedType == TransactionType.TRANSFER || title.trim().length < 2) {
+            merchantSuggestions = emptyList()
+            return@LaunchedEffect
+        }
+        delay(180L)
+        merchantSuggestions = onSearchMerchants(title.trim(), selectedType)
     }
 
     var amountText by remember(txKey) {
@@ -410,6 +425,66 @@ fun AddTransactionBottomSheet(
                     unfocusedBorderColor = BorderLight
                 )
             )
+
+            // Smart Merchant & Subcategory Auto-Fill Suggestions
+            AnimatedVisibility(visible = merchantSuggestions.isNotEmpty()) {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = Primary600,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Quick Auto-Fill",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Primary700
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(merchantSuggestions) { suggestion ->
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        title = suggestion.title
+                                        selectedCategory = suggestion.category
+                                        selectedSubcategory = suggestion.subcategory
+                                        if (accountList.any { it.equals(suggestion.accountName, ignoreCase = true) }) {
+                                            selectedAccount = suggestion.accountName
+                                        }
+                                        merchantSuggestions = emptyList()
+                                    },
+                                shape = RoundedCornerShape(10.dp),
+                                color = Primary50,
+                                border = BorderStroke(0.7.dp, Primary200)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = suggestion.title,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Primary700,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "${suggestion.subcategory} • ${suggestion.accountName}",
+                                        fontSize = 9.5.sp,
+                                        color = TextMuted,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
