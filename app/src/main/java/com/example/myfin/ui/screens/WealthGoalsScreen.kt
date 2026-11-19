@@ -61,6 +61,7 @@ fun WealthGoalsScreen(
     val goals by viewModel.goalProgressList.collectAsState()
     val monthlyState by viewModel.monthlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
+    val avgMonthlySpend by viewModel.averageMonthlySpend.collectAsState()
 
     val currencySymbol = userProfile.currencySymbol.ifBlank { "₹" }
     var isDiscreetMode by remember { mutableStateOf(false) }
@@ -172,8 +173,17 @@ fun WealthGoalsScreen(
 
                     1 -> FinancialGoalsTab(
                         goals = goals,
+                        fortressFdBalance = monthlyState.fortressFdBalance,
+                        fortressTarget = monthlyState.fortressTarget,
+                        fortressProgressPct = monthlyState.fortressProgressPercentage,
+                        fortressMonths = userProfile.fortressEmergencyMonths.takeIf { it > 0 } ?: 6,
+                        isManualFortressTarget = userProfile.fortressManualTarget > 0.0,
+                        avgMonthlyBurn = avgMonthlySpend,
                         currencySymbol = currencySymbol,
                         isDiscreet = isDiscreetMode,
+                        onSelectFortressMonths = { months ->
+                            viewModel.updateFortressEmergencyMonths(months)
+                        },
                         onAddGoal = {
                             editingGoal = null
                             showAddGoalSheet = true
@@ -190,7 +200,7 @@ fun WealthGoalsScreen(
             }
         }
 
-      // Floating Pager Indicator
+        // Floating Pager Indicator (Bottom-Left to match other screens)
         FloatingPagerIndicator(
             pagerState = pagerState,
             pageTitles = listOf("Portfolio", "Goals"),
@@ -594,8 +604,15 @@ private fun InvestmentsPortfolioTab(
 @Composable
 private fun FinancialGoalsTab(
     goals: List<GoalProgressUiModel>,
+    fortressFdBalance: Double,
+    fortressTarget: Double,
+    fortressProgressPct: Int,
+    fortressMonths: Int,
+    isManualFortressTarget: Boolean,
+    avgMonthlyBurn: Double,
     currencySymbol: String,
     isDiscreet: Boolean,
+    onSelectFortressMonths: (Int) -> Unit,
     onAddGoal: () -> Unit,
     onEditGoal: (GoalEntity) -> Unit,
     onToggleComplete: (GoalEntity) -> Unit
@@ -673,6 +690,143 @@ private fun FinancialGoalsTab(
                             color = SoftTeal,
                             trackColor = Color.White.copy(alpha = 0.18f)
                         )
+                    }
+                }
+            }
+        }
+
+        // Pinned Fortress Emergency Fund Card (Auto-Synced to Sweep FDs & Monthly Burn)
+        item {
+            val effectiveTarget = if (fortressTarget > 0.0) fortressTarget else (avgMonthlyBurn * fortressMonths)
+            val shortfall = (effectiveTarget - fortressFdBalance).coerceAtLeast(0.0)
+            val pct = fortressProgressPct.coerceIn(0, 100)
+            val isFunded = pct >= 100 && effectiveTarget > 0.0
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = CardWhite,
+                border = BorderStroke(1.dp, if (isFunded) Success500.copy(alpha = 0.5f) else Primary200)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isFunded) Success100 else Primary50),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    tint = if (isFunded) Success700 else Primary600,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Emergency Fund (Fortress FDs)",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                                Text(
+                                    text = if (isManualFortressTarget) "Manual target override"
+                                    else "Auto-calculated: ${fortressMonths}M × ${if (isDiscreet) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", avgMonthlyBurn)}"}/mo",
+                                    fontSize = 10.5.sp,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isFunded) Success100 else Primary50
+                        ) {
+                            Text(
+                                text = "$pct%",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                color = if (isFunded) Success700 else Primary700,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    LinearProgressIndicator(
+                        progress = { pct / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(CircleShape),
+                        color = if (isFunded) Success500 else SoftTeal,
+                        trackColor = Neutral200
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isDiscreet) "•••• / ••••"
+                            else "$currencySymbol${String.format(Locale.US, "%,.0f", fortressFdBalance)} / $currencySymbol${String.format(Locale.US, "%,.0f", effectiveTarget)}",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                        Text(
+                            text = if (isFunded) "Safety Net Funded"
+                            else if (isDiscreet) "Gap: ••••"
+                            else "Gap: $currencySymbol${String.format(Locale.US, "%,.0f", shortfall)}",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isFunded) Success700 else Warning700
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 1-Tap Runway Multiplier Chips (3M / 6M / 9M / 12M)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(3, 6, 9, 12).forEach { months ->
+                            val isSel = !isManualFortressTarget && fortressMonths == months
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onSelectFortressMonths(months) },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSel) Primary600 else CanvasLight,
+                                border = BorderStroke(0.8.dp, if (isSel) Primary600 else BorderLight)
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "${months}M",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSel) Color.White else TextDark
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
