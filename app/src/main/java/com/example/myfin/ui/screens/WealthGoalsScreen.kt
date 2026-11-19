@@ -190,15 +190,15 @@ fun WealthGoalsScreen(
             }
         }
 
-        // Floating Pager Indicator
+      // Floating Pager Indicator
         FloatingPagerIndicator(
             pagerState = pagerState,
             pageTitles = listOf("Portfolio", "Goals"),
             isVisible = isDockVisible.value,
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.BottomStart)
                 .navigationBarsPadding()
-                .padding(bottom = 80.dp)
+                .padding(start = 16.dp, bottom = 80.dp)
         )
 
         // Bottom Dock
