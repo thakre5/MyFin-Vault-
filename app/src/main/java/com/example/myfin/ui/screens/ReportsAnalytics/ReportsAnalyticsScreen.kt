@@ -59,6 +59,7 @@ fun ReportsAnalyticsScreen(
     val yearlyState by viewModel.yearlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val avgMonthlySpend by viewModel.averageMonthlySpend.collectAsState()
+    val investmentHoldings by viewModel.investmentHoldings.collectAsState()
 
     val pagerState = rememberPagerState(pageCount = { 3 })
     val (isDockVisible, scrollConnection) = rememberAutoScrollVisibilityConnection()
@@ -119,6 +120,20 @@ fun ReportsAnalyticsScreen(
 
     val activeAccounts = remember(uiState.activeAccounts, uiState.accounts) {
         uiState.activeAccounts.ifEmpty { uiState.accounts.filter { !it.isArchived } }
+    }
+
+    val activePortfolioValue = remember(investmentHoldings) {
+        investmentHoldings.filter { !it.entity.isArchived }.sumOf { it.currentValue }
+    }
+    val effectiveTotalInvestments = remember(activePortfolioValue, yearlyState.assetWealthMetrics.totalInvestments) {
+        if (activePortfolioValue > 0.0) activePortfolioValue else yearlyState.assetWealthMetrics.totalInvestments
+    }
+    val effectiveRealizableNetWorth = remember(activePortfolioValue, activeAccounts, yearlyState.assetWealthMetrics.realizableNetWorth) {
+        if (activePortfolioValue > 0.0) {
+            activeAccounts.sumOf { it.currentBalance } + activePortfolioValue
+        } else {
+            yearlyState.assetWealthMetrics.realizableNetWorth
+        }
     }
 
     val isPersonalExpense = remember {
@@ -645,8 +660,8 @@ fun ReportsAnalyticsScreen(
                         userProfileCurrency = userProfile.currencySymbol,
                         vaultMode = userProfile.vaultMode,
                         onOpenStrategyInfo = { showStrategyInfoSheet = true },
-                        totalInvestments = yearlyState.assetWealthMetrics.totalInvestments,
-                        realizableNetWorth = yearlyState.assetWealthMetrics.realizableNetWorth,
+                        totalInvestments = effectiveTotalInvestments,
+                        realizableNetWorth = effectiveRealizableNetWorth,
                         monthlyBurnRate = avgMonthlySpend,
                         accounts = activeAccounts,
                         isDiscreet = isDiscreetMode,
