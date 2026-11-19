@@ -223,6 +223,9 @@ data class FilterCriteria(
     val query: String = "",
     val type: TransactionType? = null,
     val account: String = "ALL",
+    val category: String = "ALL",
+    val minAmount: Double? = null,
+    val maxAmount: Double? = null,
     val startDate: Long? = null,
     val endDate: Long? = null
 )
@@ -865,13 +868,17 @@ class BudgetViewModel(
                         tx.category.contains(filter.query, ignoreCase = true) ||
                         tx.subcategory.contains(filter.query, ignoreCase = true)
                 val matchesType = filter.type == null || tx.type == filter.type
-                val matchesAccount = filter.account == "ALL" ||
+                val matchesAccount = filter.account.equals("ALL", ignoreCase = true) ||
                         tx.accountName.equals(filter.account, ignoreCase = true) ||
                         tx.toAccountName.equals(filter.account, ignoreCase = true)
+                val matchesCategory = filter.category.equals("ALL", ignoreCase = true) ||
+                        tx.category.equals(filter.category, ignoreCase = true)
+                val matchesAmount = (filter.minAmount == null || tx.amount >= filter.minAmount) &&
+                        (filter.maxAmount == null || tx.amount <= filter.maxAmount)
                 val matchesDate = (filter.startDate == null || tx.date >= filter.startDate) &&
                         (filter.endDate == null || tx.date <= filter.endDate)
 
-                matchesQuery && matchesType && matchesAccount && matchesDate
+                matchesQuery && matchesType && matchesAccount && matchesCategory && matchesAmount && matchesDate
             }
 
             val grouped = filtered.groupBy { formatDateHeader(it.date) }
@@ -939,13 +946,58 @@ class BudgetViewModel(
         .map { it.category3MonthAverages }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
+    // ========================================================================
+    // Phase 2: Investments, Goals, Corporate Claim Matcher, Auto-Fill & Variance
+    // ========================================================================
+
+    val unsettledCorporateOutlays: StateFlow<List<TransactionEntity>> =
+        dao.getUnsettledCorporateOutlays()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val investmentHoldings: StateFlow<List<InvestmentHoldingUiModel>> = combine(
+        dao.getAllInvestments(),
+        dao.getTotalAssetSpendBySubcategory()
+    ) { investments, assetTotals ->
+        val totalMap = assetTotals.associate { it.subcategory.trim().lowercase() to it.totalAmount }
+        investments.map { inv ->
+            val linkedSum = inv.linkedSubcategory?.trim()?.lowercase()?.let { totalMap[it] } ?: 0.0
+            InvestmentHoldingUiModel(entity = inv, linkedSipTotal = linkedSum)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val goalProgressList: StateFlow<List<GoalProgressUiModel>> = combine(
+        dao.getAllGoals(),
+        dao.getActiveAccountBalances(),
+        investmentHoldings
+    ) { goals, activeAccounts, holdings ->
+        val nowMillis = System.currentTimeMillis()
+        val millisPerMonth = 30.4375 * 24 * 60 * 60 * 1000.0
+
+        goals.map { goal ->
+            val accountSynced = goal.linkedAccountName?.let { accName ->
+                activeAccounts.firstOrNull { it.accountName.equals(accName, ignoreCase = true) }?.currentBalance
+            } ?: 0.0
+            val investmentSynced = goal.linkedInvestmentId?.let { invId ->
+                holdings.firstOrNull { it.entity.id == invId }?.currentValue
+            } ?: 0.0
+
+            val diffMonths = ((goal.targetDateMillis - nowMillis) / millisPerMonth).toInt().coerceAtLeast(1)
+            GoalProgressUiModel(
+                entity = goal,
+                syncedAmount = accountSynced + investmentSynced,
+                monthsRemaining = diffMonths
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val yearlyUiState = combine(
         currentYear,
         dao.getAccountBalances(),
-        userProfile
-    ) { year, accounts, profile ->
-        Triple(year, accounts, profile)
-    }.flatMapLatest { (year, allAccounts, profile) ->
+        userProfile,
+        investmentHoldings
+    ) { year, accounts, profile, holdings ->
+        Tuple4(year, accounts, profile, holdings)
+    }.flatMapLatest { (year, allAccounts, profile, holdings) ->
         combine(
             dao.getYearlySummary(year),
             dao.getYearlyCategoryBreakdown(year)
@@ -1061,7 +1113,13 @@ class BudgetViewModel(
 
             val allTimeInvestmentsInflow = allTransactions.filter(isGenuineSavingsOrAssetTx).sumOf { it.amount }
             val allTimeCapitalDrawdowns = allTransactions.filter(isCapitalDrawdownTx).sumOf { it.amount }
-            val totalActiveInvestments = (allTimeInvestmentsInflow - allTimeCapitalDrawdowns).coerceAtLeast(0.0)
+            val ledgerNetInvestments = (allTimeInvestmentsInflow - allTimeCapitalDrawdowns).coerceAtLeast(0.0)
+
+            // Add historical opening holdings + offline valuation adjustments without double-counting linked SIPs
+            val portfolioAdjustment = holdings
+                .filter { !it.entity.isArchived }
+                .sumOf { it.currentValue - it.linkedSipTotal }
+            val totalActiveInvestments = (ledgerNetInvestments + portfolioAdjustment).coerceAtLeast(0.0)
 
             val activeLoanedReceivables = allTransactions.filter(isLoanGivenTx).sumOf { it.amount }
             val npaWrittenOff = allTransactions.filter(isNpaWriteOffTx).sumOf { it.amount }
@@ -1158,6 +1216,104 @@ class BudgetViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
+    suspend fun getMerchantSuggestions(query: String, type: TransactionType): List<MerchantSuggestion> =
+        withContext(Dispatchers.IO) {
+            val trimmed = query.trim()
+            if (trimmed.length < 2 || type == TransactionType.TRANSFER) return@withContext emptyList()
+            dao.getMerchantSuggestions(trimmed, type)
+        }
+
+    suspend fun checkBillVariance(bill: FixedBillEntity, enteredAmount: Double): BillVarianceAlert? =
+        withContext(Dispatchers.IO) {
+            if (bill.type != TransactionType.EXPENSE || enteredAmount <= 0.0) return@withContext null
+            val targetMonthKey = bill.year * 12 + bill.month
+            val trailingAvg = dao.getTrailing3MonthBillAverage(
+                category = bill.category,
+                subcategory = bill.subcategory,
+                type = bill.type,
+                targetMonthKey = targetMonthKey
+            )
+            val baseline = trailingAvg?.takeIf { it > 0.0 } ?: bill.amount
+            if (baseline <= 0.0) return@withContext null
+
+            val variancePct = (((enteredAmount - baseline) / baseline) * 100.0).toInt()
+            if (variancePct >= 15) {
+                BillVarianceAlert(
+                    billTitle = bill.title.ifBlank { bill.subcategory },
+                    enteredAmount = enteredAmount,
+                    baselineAmount = baseline,
+                    variancePct = variancePct
+                )
+            } else null
+        }
+
+    fun toggleTransactionSettled(txId: Long, isSettled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.updateTransactionSettled(txId, isSettled)
+        }
+    }
+
+    fun markCorporateOutlaysSettled(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.setTransactionsSettledBatch(ids, isSettled = true)
+        }
+    }
+
+    fun updateAutoBackupConfig(context: Context, enabled: Boolean, treeUri: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.updateAutoBackupConfig(enabled, treeUri)
+            if (enabled && !treeUri.isNullOrBlank()) {
+                AutoBackupWorker.scheduleWeekly(context.applicationContext)
+            } else {
+                AutoBackupWorker.cancel(context.applicationContext)
+            }
+        }
+    }
+
+    // --- Investments CRUD ---
+    fun saveInvestment(investment: InvestmentEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.insertInvestment(investment.copy(updatedAt = System.currentTimeMillis()))
+        }
+    }
+
+    fun updateInvestmentValuation(investment: InvestmentEntity, newValuation: Double) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.updateInvestment(
+                investment.copy(
+                    currentValuation = newValuation.coerceAtLeast(0.0),
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    fun deleteInvestment(investment: InvestmentEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.deleteInvestment(investment)
+        }
+    }
+
+    // --- Goals CRUD ---
+    fun saveGoal(goal: GoalEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.insertGoal(goal)
+        }
+    }
+
+    fun toggleGoalCompleted(goal: GoalEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.updateGoal(goal.copy(isCompleted = !goal.isCompleted))
+        }
+    }
+
+    fun deleteGoal(goal: GoalEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.deleteGoal(goal)
+        }
+    }
+
     fun selectMonth(month: Int) {
         currentMonth.value = month
         viewModelScope.launch(Dispatchers.IO) {
@@ -1184,11 +1340,33 @@ class BudgetViewModel(
         selectYear(year)
     }
 
-    fun updateSearchQuery(query: String) { filterCriteria.value = filterCriteria.value.copy(query = query) }
-    fun updateFilter(type: TransactionType?, account: String, start: Long?, end: Long?) {
-        filterCriteria.value = filterCriteria.value.copy(type = type, account = account, startDate = start, endDate = end)
+    fun updateSearchQuery(query: String) {
+        filterCriteria.value = filterCriteria.value.copy(query = query)
     }
-    fun resetFilters() { filterCriteria.value = FilterCriteria() }
+
+    fun updateFilter(
+        type: TransactionType?,
+        account: String,
+        start: Long?,
+        end: Long?,
+        category: String = filterCriteria.value.category,
+        minAmount: Double? = filterCriteria.value.minAmount,
+        maxAmount: Double? = filterCriteria.value.maxAmount
+    ) {
+        filterCriteria.value = filterCriteria.value.copy(
+            type = type,
+            account = account,
+            category = category,
+            minAmount = minAmount,
+            maxAmount = maxAmount,
+            startDate = start,
+            endDate = end
+        )
+    }
+
+    fun resetFilters() {
+        filterCriteria.value = FilterCriteria()
+    }
 
     fun unlockApp() { isAppUnlocked.value = true }
     fun lockApp() { isAppUnlocked.value = false }
@@ -1568,6 +1746,8 @@ class BudgetViewModel(
             dao.clearAllFixedBills()
             dao.clearAllBudgetPlans()
             dao.clearAllNotes()
+            dao.clearAllInvestments()
+            dao.clearAllGoals()
             dao.clearAllAccounts()
             dao.clearUserProfile()
             dao.clearAllCategories()
@@ -1729,6 +1909,7 @@ class BudgetViewModel(
             val txYear = calTx.get(Calendar.YEAR)
 
             var resolvedLinkedBillId: Long? = null
+            var preservedSettledState = false
 
             if (id == 0L) {
                 val matchingBill = findMatchingUnpaidBill(
@@ -1741,6 +1922,7 @@ class BudgetViewModel(
             } else {
                 val existingTx = dao.getTransactionById(id)
                 resolvedLinkedBillId = existingTx?.linkedFixedBillId
+                preservedSettledState = existingTx?.isSettled ?: false
 
                 if (resolvedLinkedBillId != null) {
                     val linkedBill = dao.getFixedBillById(resolvedLinkedBillId)
@@ -1797,7 +1979,8 @@ class BudgetViewModel(
                 month = txMonth,
                 year = txYear,
                 linkedFixedBillId = resolvedLinkedBillId,
-                transferSubtype = transferSubtype
+                transferSubtype = transferSubtype,
+                isSettled = preservedSettledState
             )
             if (id == 0L) dao.insertTransaction(entity) else dao.updateTransaction(entity)
         }
@@ -2208,6 +2391,8 @@ class BudgetViewModel(
             val allFixedBills = dao.getAllFixedBills()
             val allBudgetPlans = dao.getAllBudgetPlans()
             val allNotes = dao.getAllNotesDirect()
+            val allInvestments = dao.getAllInvestmentsDirect()
+            val allGoals = dao.getAllGoalsDirect()
             val currentProfile = dao.getUserProfileDirect() ?: userProfile.value
 
             val profileObj = JSONObject().apply {
@@ -2235,6 +2420,9 @@ class BudgetViewModel(
                 put("vaultMode", currentProfile.vaultMode)
                 put("initialReimbursementClaim", currentProfile.initialReimbursementClaim)
                 put("initialCompanyAdvance", currentProfile.initialCompanyAdvance)
+                put("autoBackupEnabled", currentProfile.autoBackupEnabled)
+                put("autoBackupTreeUri", currentProfile.autoBackupTreeUri ?: JSONObject.NULL)
+                put("lastAutoBackupAt", currentProfile.lastAutoBackupAt)
             }
             root.put("userProfile", profileObj)
 
@@ -2254,6 +2442,7 @@ class BudgetViewModel(
                     put("year", tx.year)
                     put("linkedFixedBillId", tx.linkedFixedBillId ?: JSONObject.NULL)
                     put("transferSubtype", tx.transferSubtype.name)
+                    put("isSettled", tx.isSettled)
                 }
                 txArray.put(obj)
             }
@@ -2342,6 +2531,40 @@ class BudgetViewModel(
             }
             root.put("notes", notesArray)
 
+            val investmentsArray = JSONArray()
+            allInvestments.forEach { inv ->
+                investmentsArray.put(JSONObject().apply {
+                    put("id", inv.id)
+                    put("name", inv.name)
+                    put("assetClass", inv.assetClass)
+                    put("openingInvestedAmount", inv.openingInvestedAmount)
+                    put("currentValuation", inv.currentValuation)
+                    put("linkedSubcategory", inv.linkedSubcategory ?: JSONObject.NULL)
+                    put("institution", inv.institution)
+                    put("notes", inv.notes)
+                    put("isArchived", inv.isArchived)
+                    put("updatedAt", inv.updatedAt)
+                })
+            }
+            root.put("investments", investmentsArray)
+
+            val goalsArray = JSONArray()
+            allGoals.forEach { g ->
+                goalsArray.put(JSONObject().apply {
+                    put("id", g.id)
+                    put("title", g.title)
+                    put("targetAmount", g.targetAmount)
+                    put("initialSavedAmount", g.initialSavedAmount)
+                    put("targetDateMillis", g.targetDateMillis)
+                    put("linkedAccountName", g.linkedAccountName ?: JSONObject.NULL)
+                    put("linkedInvestmentId", g.linkedInvestmentId ?: JSONObject.NULL)
+                    put("iconName", g.iconName)
+                    put("isCompleted", g.isCompleted)
+                    put("createdAt", g.createdAt)
+                })
+            }
+            root.put("goals", goalsArray)
+
             context.contentResolver.openOutputStream(uri)?.use { os ->
                 os.write(root.toString(2).toByteArray(Charsets.UTF_8))
             }
@@ -2370,6 +2593,8 @@ class BudgetViewModel(
                 dao.clearAllFixedBills()
                 dao.clearAllBudgetPlans()
                 dao.clearAllNotes()
+                dao.clearAllInvestments()
+                dao.clearAllGoals()
             }
             if (root.has("categories") && wipeExisting) {
                 dao.clearAllCategories()
@@ -2491,7 +2716,8 @@ class BudgetViewModel(
                             month = obj.getInt("month"),
                             year = obj.getInt("year"),
                             linkedFixedBillId = if (obj.isNull("linkedFixedBillId")) null else obj.optLong("linkedFixedBillId"),
-                            transferSubtype = subType
+                            transferSubtype = subType,
+                            isSettled = obj.optBoolean("isSettled", false)
                         )
                     )
                 }
@@ -2516,12 +2742,60 @@ class BudgetViewModel(
                 }
                 dao.insertNotes(notesList)
             }
+            if (root.has("investments")) {
+                val invArray = root.getJSONArray("investments")
+                val invList = mutableListOf<InvestmentEntity>()
+                for (i in 0 until invArray.length()) {
+                    val inv = invArray.getJSONObject(i)
+                    val linkedSub = if (inv.isNull("linkedSubcategory")) null else inv.optString("linkedSubcategory").takeIf { it.isNotBlank() }
+                    invList.add(
+                        InvestmentEntity(
+                            id = inv.optLong("id", 0L),
+                            name = inv.getString("name"),
+                            assetClass = inv.optString("assetClass", "Mutual Fund"),
+                            openingInvestedAmount = inv.optDouble("openingInvestedAmount", 0.0),
+                            currentValuation = inv.optDouble("currentValuation", 0.0),
+                            linkedSubcategory = linkedSub,
+                            institution = inv.optString("institution", ""),
+                            notes = inv.optString("notes", ""),
+                            isArchived = inv.optBoolean("isArchived", false),
+                            updatedAt = inv.optLong("updatedAt", System.currentTimeMillis())
+                        )
+                    )
+                }
+                dao.insertInvestments(invList)
+            }
+            if (root.has("goals")) {
+                val goalsArray = root.getJSONArray("goals")
+                val goalsList = mutableListOf<GoalEntity>()
+                for (i in 0 until goalsArray.length()) {
+                    val g = goalsArray.getJSONObject(i)
+                    val linkedAcc = if (g.isNull("linkedAccountName")) null else g.optString("linkedAccountName").takeIf { it.isNotBlank() }
+                    val linkedInv = if (g.isNull("linkedInvestmentId")) null else g.optLong("linkedInvestmentId")
+                    goalsList.add(
+                        GoalEntity(
+                            id = g.optLong("id", 0L),
+                            title = g.getString("title"),
+                            targetAmount = g.getDouble("targetAmount"),
+                            initialSavedAmount = g.optDouble("initialSavedAmount", 0.0),
+                            targetDateMillis = g.getLong("targetDateMillis"),
+                            linkedAccountName = linkedAcc,
+                            linkedInvestmentId = linkedInv,
+                            iconName = g.optString("iconName", "Flag"),
+                            isCompleted = g.optBoolean("isCompleted", false),
+                            createdAt = g.optLong("createdAt", System.currentTimeMillis())
+                        )
+                    )
+                }
+                dao.insertGoals(goalsList)
+            }
 
             var updatedProfile = userProfile.value.copy(id = 1, isOnboardingCompleted = true)
             if (root.has("userProfile")) {
                 val p = root.getJSONObject("userProfile")
                 val parsedProfileImg = if (p.isNull("profileImageUri")) null else p.optString("profileImageUri").takeIf { it.isNotBlank() }
                 val parsedCoverImg = if (p.isNull("coverImageUri")) null else p.optString("coverImageUri").takeIf { it.isNotBlank() }
+                val parsedBackupUri = if (p.isNull("autoBackupTreeUri")) null else p.optString("autoBackupTreeUri").takeIf { it.isNotBlank() }
                 val restoredDob = p.optString("dateOfBirth", updatedProfile.dateOfBirth)
 
                 if (restoredDob.isNotBlank()) {
@@ -2552,7 +2826,10 @@ class BudgetViewModel(
                     reminderMinute = p.optInt("reminderMinute", updatedProfile.reminderMinute),
                     vaultMode = p.optString("vaultMode", updatedProfile.vaultMode),
                     initialReimbursementClaim = p.optDouble("initialReimbursementClaim", 0.0),
-                    initialCompanyAdvance = p.optDouble("initialCompanyAdvance", 0.0)
+                    initialCompanyAdvance = p.optDouble("initialCompanyAdvance", 0.0),
+                    autoBackupEnabled = p.optBoolean("autoBackupEnabled", false),
+                    autoBackupTreeUri = parsedBackupUri,
+                    lastAutoBackupAt = p.optLong("lastAutoBackupAt", 0L)
                 )
             }
             dao.saveUserProfile(updatedProfile)
