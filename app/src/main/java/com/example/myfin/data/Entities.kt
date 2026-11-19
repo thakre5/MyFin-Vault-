@@ -14,7 +14,8 @@ import androidx.room.PrimaryKey
         Index(value = ["toAccountName"]),
         Index(value = ["category"]),
         Index(value = ["type"]),
-        Index(value = ["linkedFixedBillId"])
+        Index(value = ["linkedFixedBillId"]),
+        Index(value = ["isSettled"])
     ]
 )
 data class TransactionEntity(
@@ -30,7 +31,8 @@ data class TransactionEntity(
     val month: Int,
     val year: Int,
     val linkedFixedBillId: Long? = null,
-    val transferSubtype: TransferSubtype = TransferSubtype.NONE
+    val transferSubtype: TransferSubtype = TransferSubtype.NONE,
+    val isSettled: Boolean = false
 )
 
 @Entity(
@@ -109,6 +111,47 @@ data class BudgetPlanEntity(
     val year: Int
 )
 
+@Entity(
+    tableName = "investments",
+    indices = [
+        Index(value = ["assetClass"]),
+        Index(value = ["linkedSubcategory"]),
+        Index(value = ["isArchived"])
+    ]
+)
+data class InvestmentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val assetClass: String = "Mutual Fund", // Mutual Fund, Equity, ETF, FD/RD, Gold, PPF/EPF, Other
+    val openingInvestedAmount: Double = 0.0, // Historical invested capital prior to app usage
+    val currentValuation: Double = 0.0,      // Manually updated offline market/maturity valuation
+    val linkedSubcategory: String? = null,   // Optional: auto-adds new ASSET transactions in this subcategory
+    val institution: String = "",
+    val notes: String = "",
+    val isArchived: Boolean = false,
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "goals",
+    indices = [
+        Index(value = ["isCompleted"]),
+        Index(value = ["targetDateMillis"])
+    ]
+)
+data class GoalEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val targetAmount: Double,
+    val initialSavedAmount: Double = 0.0,
+    val targetDateMillis: Long,
+    val linkedAccountName: String? = null,   // Optional: syncs live progress from a Vault account
+    val linkedInvestmentId: Long? = null,    // Optional: syncs live progress from an InvestmentEntity
+    val iconName: String = "Flag",
+    val isCompleted: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "user_profile")
 data class UserProfile(
     @PrimaryKey val id: Int = 1,
@@ -131,15 +174,20 @@ data class UserProfile(
 
     // Fortress Auto-Sweep & Safety Net Engine
     val fortressSweepThreshold: Double = 0.0,   // Liquid balance kept in savings before auto-booking FDs
-    val fortressEmergencyMonths: Int = 6,      // Runway target multiplier (e.g. 3, 6, 9, 12 months)
+    val fortressEmergencyMonths: Int = 6,       // Runway target multiplier (e.g. 3, 6, 9, 12 months)
     val fortressManualTarget: Double = 0.0,     // 0.0 = dynamic (monthly burn * months); > 0.0 = manual target override
 
     // Master Taxonomy Lifecycle Window
-    val taxonomyGraceMonth: Int = -1,          // -1 = uninitialized; stamped on first run after update
-    val taxonomyGraceYear: Int = -1,           // -1 = uninitialized; stamped on first run after update
+    val taxonomyGraceMonth: Int = -1,           // -1 = uninitialized; stamped on first run after update
+    val taxonomyGraceYear: Int = -1,            // -1 = uninitialized; stamped on first run after update
     val isTaxonomyBannerDismissed: Boolean = false,
 
     // Opening Corporate Float Reconciliation
     val initialReimbursementClaim: Double = 0.0, // Historical out-of-pocket claims owed by company before onboarding
-    val initialCompanyAdvance: Double = 0.0       // Unspent corporate advance cash held by user before onboarding
+    val initialCompanyAdvance: Double = 0.0,     // Unspent corporate advance cash held by user before onboarding
+
+    // Scheduled Local Auto-Backups (SAF Tree URI)
+    val autoBackupEnabled: Boolean = false,
+    val autoBackupTreeUri: String? = null,
+    val lastAutoBackupAt: Long = 0L
 )
