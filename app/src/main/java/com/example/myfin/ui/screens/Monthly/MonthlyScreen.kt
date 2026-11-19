@@ -97,6 +97,9 @@ fun MonthlyScreen(
     val accountsList = remember(activeAccounts) {
         activeAccounts.map { it.accountName }
     }
+    val categoryNamesList = remember(uiState.masterCategories) {
+        uiState.masterCategories.map { it.name }.distinct()
+    }
 
     val operatingAccountName = remember(activeAccounts) {
         activeAccounts.firstOrNull { it.accountType.equals("Operating", ignoreCase = true) }?.accountName
@@ -537,9 +540,22 @@ fun MonthlyScreen(
             FilterBottomSheet(
                 currentFilter = filterCriteria,
                 accountList = accountsList,
+                categoryList = categoryNamesList,
+                currencySymbol = userProfile.currencySymbol,
                 onDismiss = { showFilterSheet = false },
                 onApply = { type, acc, start, end ->
                     viewModel.updateFilter(type, acc, start, end)
+                },
+                onApplyEnhanced = { type, acc, start, end, category, minAmt, maxAmt ->
+                    viewModel.updateFilter(
+                        type = type,
+                        account = acc,
+                        start = start,
+                        end = end,
+                        category = category,
+                        minAmount = minAmt,
+                        maxAmount = maxAmt
+                    )
                 },
                 onReset = {
                     viewModel.resetFilters()
@@ -554,6 +570,7 @@ fun MonthlyScreen(
                 accountList = accountsList,
                 masterCategories = uiState.masterCategories,
                 masterSubcategories = uiState.masterSubcategories,
+                onSearchMerchants = viewModel::getMerchantSuggestions,
                 onDismiss = {
                     showAddSheet = false
                     editingTx = null
