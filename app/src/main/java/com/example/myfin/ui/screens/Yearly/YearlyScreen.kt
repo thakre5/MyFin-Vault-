@@ -57,6 +57,7 @@ fun YearlyScreen(
     val uiState by viewModel.monthlyUiState.collectAsState()
     val yearlyState by viewModel.yearlyUiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
+    val investmentHoldings by viewModel.investmentHoldings.collectAsState()
 
     val selectedYear = yearlyState.selectedYear
 
@@ -77,6 +78,22 @@ fun YearlyScreen(
     val wealthMetrics = yearlyState.assetWealthMetrics
     val multiYearAssets = yearlyState.multiYearAssets
     val allYearTransactions = yearlyState.allYearTransactions
+
+    val activePortfolioValue = remember(investmentHoldings) {
+        investmentHoldings.filter { !it.entity.isArchived }.sumOf { it.currentValue }
+    }
+    val effectiveWealthMetrics = remember(wealthMetrics, activePortfolioValue) {
+        if (activePortfolioValue > 0.0) {
+            val newRealizable = wealthMetrics.liquidReserves + activePortfolioValue + wealthMetrics.activeReceivables
+            wealthMetrics.copy(
+                totalInvestments = activePortfolioValue,
+                realizableNetWorth = newRealizable,
+                grossWealth = newRealizable + wealthMetrics.npaWrittenOff
+            )
+        } else {
+            wealthMetrics
+        }
+    }
 
     // Dynamic wealth goal bound to fortress target
     val annualTargetGoal = remember(annualPersonalIncome, userProfile.baseMonthlyIncome, uiState.fortressTarget) {
@@ -326,7 +343,7 @@ fun YearlyScreen(
                         currentWealthAccumulated = currentWealthAccumulated,
                         annualTargetGoal = annualTargetGoal,
                         goalCompletionPercentage = goalCompletionPercentage,
-                        wealthMetrics = wealthMetrics,
+                        wealthMetrics = effectiveWealthMetrics,
                         multiYearAssets = multiYearAssets,
                         selectedYear = selectedYear,
                         currencySymbol = userProfile.currencySymbol,
