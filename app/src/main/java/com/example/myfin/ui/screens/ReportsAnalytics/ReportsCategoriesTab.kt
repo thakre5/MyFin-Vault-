@@ -55,6 +55,8 @@ fun ReportsCategoriesTab(
     totalAssets: Double,
     corporateOutlays: Double,
     corporateReimbursements: Double,
+    allTimePendingClaim: Double = 0.0,
+    allTimeAdvanceHeld: Double = 0.0,
     transactions: List<TransactionEntity>,
     allTransactions: List<TransactionEntity>,
     selectedTimeRange: TimeRangeFilter,
@@ -111,16 +113,33 @@ fun ReportsCategoriesTab(
     }
 
     // Canonical Unified Metric Definitions (Discreet-Safe)
-    val corporateFloatInfo = remember(userProfileCurrency, corporateOutlays, corporateReimbursements, isDiscreet) {
+    val corporateFloatInfo = remember(
+        userProfileCurrency,
+        corporateOutlays,
+        corporateReimbursements,
+        allTimePendingClaim,
+        allTimeAdvanceHeld,
+        selectedTimeRange,
+        isDiscreet
+    ) {
         val outStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", corporateOutlays)}"
         val reimbStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", corporateReimbursements)}"
+        val pendingStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", allTimePendingClaim)}"
+        val advanceStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", allTimeAdvanceHeld)}"
+
+        val allTimeLine = when {
+            allTimePendingClaim > 0.0 -> "\nAll-Time Pending Claim Due: $pendingStr"
+            allTimeAdvanceHeld > 0.0 -> "\nAll-Time Advance Held: $advanceStr"
+            else -> "\nAll-Time Corporate Float: Settled"
+        }
+
         ChartMetricInfo(
             title = "Corporate Outlays & Claims",
             subtitle = "Business Travel & Advance Ring-Fence",
-            formula = "Net Float = Business Outlays Paid - Reimbursements Received",
-            breakdown = "Total Business Outlays: $outStr\nSettled Company Claims: $reimbStr",
+            formula = "All-Time Net Float = Opening Float + Total Outlays - Reimbursements",
+            breakdown = "${selectedTimeRange.label} Outlays: $outStr\n${selectedTimeRange.label} Settled Claims: $reimbStr$allTimeLine",
             visualElements = listOf(
-                "Claim Due" to "Money you paid out-of-pocket that the company owes back to your personal vault.",
+                "Claim Due" to "Total balance owed back to your personal vault (including any opening corporate claim).",
                 "Advance Held" to "Company capital held in your accounts, strictly ring-fenced from your living burn."
             ),
             advice = "Corporate expenses are ring-fenced from personal living burn so business travel never distorts your true living budget."
@@ -208,9 +227,31 @@ fun ReportsCategoriesTab(
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Corporate Float Active Banner (Redesigned with Full-Width Notice Pill)
-        if (corporateOutlays > 0.0 || corporateReimbursements > 0.0) {
-            val netFloat = corporateOutlays - corporateReimbursements
+        // Corporate Float Active Banner (Synced with All-Time Pending Claim / Advance)
+        val hasCorporateActivity = corporateOutlays > 0.0 ||
+            corporateReimbursements > 0.0 ||
+            allTimePendingClaim > 0.0 ||
+            allTimeAdvanceHeld > 0.0
+
+        if (hasCorporateActivity) {
+            val isAdvanceHeld = allTimeAdvanceHeld > 0.0
+            val isClaimDue = allTimePendingClaim > 0.0
+            val displayAmount = when {
+                isClaimDue -> allTimePendingClaim
+                isAdvanceHeld -> allTimeAdvanceHeld
+                else -> abs(corporateOutlays - corporateReimbursements)
+            }
+            val displayLabel = when {
+                isClaimDue -> "Claim Due"
+                isAdvanceHeld -> "Advance Held"
+                else -> "Settled"
+            }
+            val displayColor = when {
+                isClaimDue -> Warning700
+                isAdvanceHeld -> SoftTeal
+                else -> Success700
+            }
+
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -263,16 +304,16 @@ fun ReportsCategoriesTab(
 
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = if (isDiscreet) "••••" else "${if (netFloat > 0) "+" else ""}$userProfileCurrency${String.format(Locale.US, "%,.0f", abs(netFloat))}",
+                                text = if (isDiscreet) "••••" else "${if (isClaimDue) "+" else ""}$userProfileCurrency${String.format(Locale.US, "%,.0f", displayAmount)}",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 14.sp,
-                                color = if (netFloat <= 0) Success700 else Warning700
+                                color = displayColor
                             )
                             Text(
-                                text = if (netFloat > 0) "Claim Due" else if (netFloat < 0) "Advance Held" else "Settled",
+                                text = displayLabel,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (netFloat <= 0) Success700 else Warning700
+                                color = displayColor
                             )
                         }
                     }
