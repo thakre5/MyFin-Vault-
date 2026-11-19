@@ -318,7 +318,15 @@ fun MonthlyScreen(
                             onDismissSweep = { dismissedSweepMonth = uiState.selectedMonth },
                             onNavigateToLedgerWithFilter = { type ->
                                 coroutineScope.launch {
-                                    viewModel.updateFilter(type, filterCriteria.account, filterCriteria.startDate, filterCriteria.endDate)
+                                    viewModel.updateFilter(
+                                        type = type,
+                                        account = filterCriteria.account,
+                                        start = filterCriteria.startDate,
+                                        end = filterCriteria.endDate,
+                                        category = filterCriteria.category,
+                                        minAmount = filterCriteria.minAmount,
+                                        maxAmount = filterCriteria.maxAmount
+                                    )
                                     pagerState.animateScrollToPage(1)
                                 }
                             },
@@ -432,6 +440,9 @@ fun MonthlyScreen(
                 onDelete = {
                     viewingTx = null
                     transactionToDelete = it
+                },
+                onToggleSettled = { txId, settled ->
+                    viewModel.toggleTransactionSettled(txId, settled)
                 }
             )
         }
@@ -475,6 +486,7 @@ fun MonthlyScreen(
                 bill = bill,
                 activeAccounts = activeAccounts,
                 currencySymbol = userProfile.currencySymbol,
+                onCheckVariance = viewModel::checkBillVariance,
                 onDismiss = { settlingFixedBill = null },
                 onConfirm = { amt, dateMillis ->
                     viewModel.toggleFixedBillPaid(bill, customAmount = amt, customDateMillis = dateMillis)
