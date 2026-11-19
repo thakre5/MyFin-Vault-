@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -173,7 +174,11 @@ fun SettleFixedBillDialog(
             color = CardWhite,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp)
+            ) {
                 Text(
                     text = "Settle $displayBillName",
                     fontWeight = FontWeight.Black,
@@ -193,16 +198,27 @@ fun SettleFixedBillDialog(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = "Available in ${fundingAccount.accountName}:", fontSize = 11.sp, color = TextMuted)
+                            Text(
+                                text = "Available in ${fundingAccount.accountName}:",
+                                fontSize = 11.sp,
+                                color = TextMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 10.dp)
+                            )
                             Text(
                                 text = "$currencySymbol${String.format(Locale.US, "%,.2f", fundingAccount.currentBalance)}",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
-                                color = TextDark
+                                color = TextDark,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
