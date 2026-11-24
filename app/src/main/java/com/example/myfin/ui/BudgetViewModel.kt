@@ -22,6 +22,17 @@ import kotlin.math.min
 
 private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
+data class UnlinkedLedgerAssetUiModel(
+    val key: String,
+    val displayName: String,
+    val subcategory: String,
+    val category: String,
+    val inferredAssetClass: String,
+    val totalInvested: Double,
+    val transactionCount: Int,
+    val lastInvestedDate: Long
+)
+
 data class SubcategoryPerformance(
     val name: String,
     val amount: Double
@@ -311,6 +322,32 @@ class BudgetViewModel(
 
     private val isGenuineSavingsOrAssetTx: (TransactionEntity) -> Boolean = { tx ->
         tx.type == TransactionType.ASSET && !isLoanGivenTx(tx) && !isNpaWriteOffTx(tx)
+    }
+
+    private fun resolveAssetGroupName(tx: TransactionEntity): String {
+        val cleanTitle = tx.title.trim()
+        val cleanSub = tx.subcategory.trim()
+        return if (cleanTitle.isNotBlank() && !cleanTitle.equals(cleanSub, ignoreCase = true)) {
+            cleanTitle
+        } else {
+            cleanSub.ifBlank { tx.category.trim().ifBlank { "Asset" } }
+        }
+    }
+
+    private fun inferAssetClass(subcategory: String, name: String): String {
+        val combined = "$subcategory $name".lowercase(Locale.ROOT)
+        return when {
+            combined.contains("mutual") || combined.contains("sip") || combined.contains("nifty") ||
+                combined.contains("index") || combined.contains("elss") || combined.contains("fund") -> "Mutual Fund"
+            combined.contains("etf") -> "ETF"
+            combined.contains("stock") || combined.contains("equity") || combined.contains("share") -> "Equity"
+            combined.contains("fd") || combined.contains("rd") || combined.contains("deposit") -> "FD/RD"
+            combined.contains("gold") || combined.contains("silver") || combined.contains("sgb") ||
+                combined.contains("commodit") -> "Gold"
+            combined.contains("ppf") || combined.contains("epf") || combined.contains("nps") ||
+                combined.contains("pf") -> "PPF/EPF"
+            else -> "Other"
+        }
     }
 
     val userProfile = dao.getUserProfile()
@@ -947,23 +984,91 @@ class BudgetViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     // ========================================================================
-    // Phase 2: Investments, Goals, Corporate Claim Matcher, Auto-Fill & Variance
+    // Phase 2: Unified Investments, Goals, Corporate Claim Matcher & Variance
     // ========================================================================
 
     val unsettledCorporateOutlays: StateFlow<List<TransactionEntity>> =
         dao.getUnsettledCorporateOutlays()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val investmentHoldings: StateFlow<List<InvestmentHoldingUiModel>> = combine(
-        dao.getAllInvestments(),
-        dao.getTotalAssetSpendBySubcategory()
-    ) { investments, assetTotals ->
-        val totalMap = assetTotals.associate { it.subcategory.trim().lowercase() to it.totalAmount }
-        investments.map { inv ->
-            val linkedSum = inv.linkedSubcategory?.trim()?.lowercase()?.let { totalMap[it] } ?: 0.0
-            InvestmentHoldingUiModel(entity = inv, linkedSipTotal = linkedSum)
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val unifiedInvestmentsState: StateFlow<Pair<List<InvestmentHoldingUiModel>, List<UnlinkedLedgerAssetUiModel>>> =
+        combine(
+            dao.getAllInvestments(),
+            dao.getTotalAssetSpendBySubcategory()
+        ) { investments, _ ->
+            val allTxs = withContext(Dispatchers.IO) {
+                try { dao.getAllTransactions() } catch (_: Exception) { emptyList() }
+            }
+            val genuineAssetTxs = allTxs.filter(isGenuineSavingsOrAssetTx)
+            val activeInvestments = investments.filter { !it.isArchived }
+
+            val holdingsBySubcat = activeInvestments
+                .filter { !it.linkedSubcategory.isNullOrBlank() }
+                .groupBy { it.linkedSubcategory!!.trim().lowercase(Locale.ROOT) }
+
+            val linkedSumsByInvId = mutableMapOf<Long, Double>()
+            val unlinkedTxs = mutableListOf<TransactionEntity>()
+
+            genuineAssetTxs.forEach { tx ->
+                val subKey = tx.subcategory.trim().lowercase(Locale.ROOT)
+                val groupName = resolveAssetGroupName(tx)
+                val candidates = holdingsBySubcat[subKey].orEmpty()
+
+                val matchedInv = candidates.firstOrNull { inv ->
+                    inv.name.trim().equals(groupName, ignoreCase = true)
+                } ?: if (candidates.size == 1 && tx.title.trim().equals(tx.subcategory.trim(), ignoreCase = true)) {
+                    candidates.first()
+                } else null
+
+                if (matchedInv != null) {
+                    linkedSumsByInvId[matchedInv.id] = (linkedSumsByInvId[matchedInv.id] ?: 0.0) + tx.amount
+                } else {
+                    unlinkedTxs.add(tx)
+                }
+            }
+
+            val holdingModels = investments.map { inv ->
+                InvestmentHoldingUiModel(
+                    entity = inv,
+                    linkedSipTotal = linkedSumsByInvId[inv.id] ?: 0.0
+                )
+            }
+
+            val unlinkedModels = unlinkedTxs
+                .groupBy { tx ->
+                    val subKey = tx.subcategory.trim().lowercase(Locale.ROOT)
+                    val nameKey = resolveAssetGroupName(tx).lowercase(Locale.ROOT)
+                    "$subKey:::$nameKey"
+                }
+                .mapNotNull { (key, txs) ->
+                    val total = txs.sumOf { it.amount }
+                    if (total <= 0.0) return@mapNotNull null
+                    val latest = txs.maxByOrNull { it.date } ?: txs.first()
+                    val displayName = resolveAssetGroupName(latest)
+                    val subcat = latest.subcategory.trim().ifBlank { latest.category.trim() }
+                    UnlinkedLedgerAssetUiModel(
+                        key = key,
+                        displayName = displayName,
+                        subcategory = subcat,
+                        category = latest.category.trim(),
+                        inferredAssetClass = inferAssetClass(subcat, displayName),
+                        totalInvested = total,
+                        transactionCount = txs.size,
+                        lastInvestedDate = latest.date
+                    )
+                }
+                .sortedByDescending { it.totalInvested }
+
+            holdingModels to unlinkedModels
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList<InvestmentHoldingUiModel>() to emptyList())
+
+    val investmentHoldings: StateFlow<List<InvestmentHoldingUiModel>> = unifiedInvestmentsState
+        .map { it.first }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val unlinkedLedgerAssets: StateFlow<List<UnlinkedLedgerAssetUiModel>> = unifiedInvestmentsState
+        .map { it.second }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val goalProgressList: StateFlow<List<GoalProgressUiModel>> = combine(
         dao.getAllGoals(),
@@ -1299,6 +1404,38 @@ class BudgetViewModel(
     fun saveGoal(goal: GoalEntity) {
         viewModelScope.launch(Dispatchers.IO) {
             dao.insertGoal(goal)
+        }
+    }
+
+    fun saveGoalWithUnlinkedAsset(goal: GoalEntity, asset: UnlinkedLedgerAssetUiModel) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val newInv = InvestmentEntity(
+                name = asset.displayName,
+                assetClass = asset.inferredAssetClass,
+                openingInvestedAmount = 0.0,
+                currentValuation = asset.totalInvested,
+                linkedSubcategory = asset.subcategory,
+                institution = "",
+                notes = "Auto-linked from ledger for goal: ${goal.title}",
+                updatedAt = System.currentTimeMillis()
+            )
+            dao.insertInvestment(newInv)
+            val createdInv = dao.getAllInvestmentsDirect()
+                .filter {
+                    it.name.equals(newInv.name, ignoreCase = true) &&
+                        it.linkedSubcategory.equals(newInv.linkedSubcategory, ignoreCase = true)
+                }
+                .maxByOrNull { it.id }
+            dao.insertGoal(goal.copy(linkedInvestmentId = createdInv?.id))
+        }
+    }
+
+    fun topUpGoal(goal: GoalEntity, addedAmount: Double) {
+        if (addedAmount <= 0.0) return
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.updateGoal(
+                goal.copy(initialSavedAmount = (goal.initialSavedAmount + addedAmount).coerceAtLeast(0.0))
+            )
         }
     }
 
