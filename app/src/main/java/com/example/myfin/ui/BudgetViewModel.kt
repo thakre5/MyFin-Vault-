@@ -607,7 +607,13 @@ class BudgetViewModel(
             } else if (!isCurrentSystemMonth) {
                 daysUntilUpcomingSalary = 30
             } else {
-                if (currentMonthSalaryTx != null) {
+                val hasHistoricalSalary = lastKnownSalaryTx != null
+                val daysPastPayday = currentDayOfMonth - dynamicSalaryDay
+                val shouldCountToNextMonth = currentMonthSalaryTx != null ||
+                        (!hasHistoricalSalary && currentDayOfMonth > dynamicSalaryDay) ||
+                        (daysPastPayday > 5)
+
+                if (shouldCountToNextMonth) {
                     val nextPaydayCal = Calendar.getInstance().apply {
                         timeInMillis = todayMidnight.timeInMillis
                         set(Calendar.DAY_OF_MONTH, 1)
@@ -617,13 +623,11 @@ class BudgetViewModel(
                     }
                     val diffMillis = nextPaydayCal.timeInMillis - todayMidnight.timeInMillis
                     daysUntilUpcomingSalary = max(1L, diffMillis / (24 * 60 * 60 * 1000L)).toInt()
+                } else if (currentDayOfMonth <= dynamicSalaryDay) {
+                    daysUntilUpcomingSalary = max(1, dynamicSalaryDay - currentDayOfMonth)
                 } else {
-                    if (currentDayOfMonth <= dynamicSalaryDay) {
-                        daysUntilUpcomingSalary = max(1, dynamicSalaryDay - currentDayOfMonth)
-                    } else {
-                        daysUntilUpcomingSalary = 1
-                        isSalaryDelayed = true
-                    }
+                    daysUntilUpcomingSalary = 1
+                    isSalaryDelayed = true
                 }
             }
 
