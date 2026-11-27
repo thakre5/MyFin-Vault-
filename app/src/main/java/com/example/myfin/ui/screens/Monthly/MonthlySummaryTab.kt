@@ -47,6 +47,7 @@ import com.example.myfin.ui.components.VaultNowBar
 import com.example.myfin.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
@@ -98,9 +99,20 @@ fun MonthlySummaryTab(
     val profileBitmap by produceState<ImageBitmap?>(initialValue = null, userProfile.profileImageUri) {
         value = withContext(Dispatchers.IO) {
             try {
-                val uriStr = userProfile.profileImageUri?.takeIf { it.isNotBlank() } ?: return@withContext null
-                context.contentResolver.openInputStream(Uri.parse(uriStr))?.use { stream ->
-                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                val uriStr = userProfile.profileImageUri?.trim()?.takeIf { it.isNotBlank() } ?: return@withContext null
+                val directFile = File(uriStr)
+                when {
+                    directFile.exists() -> BitmapFactory.decodeFile(directFile.absolutePath)?.asImageBitmap()
+                    else -> {
+                        val parsedUri = Uri.parse(uriStr)
+                        if (parsedUri.scheme.equals("file", ignoreCase = true) && !parsedUri.path.isNullOrBlank()) {
+                            BitmapFactory.decodeFile(parsedUri.path)?.asImageBitmap()
+                        } else {
+                            context.contentResolver.openInputStream(parsedUri)?.use { stream ->
+                                BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                            }
+                        }
+                    }
                 }
             } catch (_: Exception) {
                 null
@@ -344,7 +356,7 @@ fun MonthlySummaryTab(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 24.dp),
+                            .padding(top = 30.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         PillarStatCard(
@@ -396,7 +408,7 @@ fun MonthlySummaryTab(
                             .align(Alignment.TopEnd)
                             .padding(end = 4.dp)
                             .zIndex(2f)
-                            .size(54.dp)
+                            .size(68.dp)
                             .shadow(6.dp, CircleShape)
                             .clip(CircleShape)
                             .background(
@@ -418,7 +430,7 @@ fun MonthlySummaryTab(
                         } else {
                             Text(
                                 text = displayName.take(1).uppercase(),
-                                fontSize = 20.sp,
+                                fontSize = 24.sp,
                                 fontWeight = FontWeight.Black,
                                 color = Color.White
                             )
