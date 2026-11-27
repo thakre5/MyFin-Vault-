@@ -61,6 +61,7 @@ fun SwipeableTransactionItem(
     val txDate = currentTx.date
     val txLinkedFixedBillId = currentTx.linkedFixedBillId
     val txSubtype = currentTx.transferSubtype
+    val txIsSettled = currentTx.isSettled
 
     val isMasked = isDiscreet || currencySymbol.contains("•")
 
@@ -238,6 +239,7 @@ fun SwipeableTransactionItem(
                 (txType == TransactionType.INCOME && txCategory.equals("Reimbursements & Corporate Inflow", ignoreCase = true))
 
         val isLegacyCorporateOutlay = txType == TransactionType.EXPENSE && txCategory.equals("Work & Professional", ignoreCase = true)
+        val isCorporateOutlay = (txType == TransactionType.CORPORATE && !isCorporateInflow) || isLegacyCorporateOutlay
 
         val categoryIcon = getCategoryIcon(txCategory, txType, txSubtype, txSubcategory, isLegacyCorporateOutlay)
 
@@ -306,6 +308,45 @@ fun SwipeableTransactionItem(
                                     velocity = 30.dp
                                 )
                         )
+
+                        if (isCorporateInflow) {
+                            val inflowTag = if (
+                                txSubcategory.contains("Advance", ignoreCase = true) ||
+                                txTitle.contains("Advance", ignoreCase = true)
+                            ) "Advance" else "Claim"
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Success100,
+                                border = BorderStroke(0.5.dp, Success500.copy(alpha = 0.4f))
+                            ) {
+                                Text(
+                                    text = inflowTag,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Success700,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        } else if (isCorporateOutlay) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (txIsSettled) Success100 else Warning100,
+                                border = BorderStroke(
+                                    0.5.dp,
+                                    if (txIsSettled) Success500.copy(alpha = 0.4f) else Warning500.copy(alpha = 0.4f)
+                                )
+                            ) {
+                                Text(
+                                    text = if (txIsSettled) "Settled" else "Claimable",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (txIsSettled) Success700 else Warning700,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
 
                         if (txLinkedFixedBillId != null) {
                             Spacer(modifier = Modifier.width(6.dp))
