@@ -19,6 +19,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.NorthEast
+import androidx.compose.material.icons.filled.SouthWest
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -71,6 +73,15 @@ fun AddEditFixedBillDialog(
 
     var selectedType by remember(billKey) {
         mutableStateOf(initialBill?.type ?: TransactionType.EXPENSE)
+    }
+
+    var isCorporateInflow by remember(billKey) {
+        mutableStateOf(
+            initialBill?.let { bill ->
+                bill.type == TransactionType.CORPORATE &&
+                        bill.category.trim().equals("Reimbursements & Claims", ignoreCase = true)
+            } ?: false
+        )
     }
 
     var noteText by remember(billKey) {
@@ -169,11 +180,27 @@ fun AddEditFixedBillDialog(
         }
     }
 
-    // Preserve historical bill's category and place selected category first or scroll to it
-    val filteredCategoryEntities = remember(masterCategories, selectedType, initialBill) {
-        val cats = masterCategories.filter { it.type == selectedType }.toMutableList()
+    // Preserve historical bill's category + Corporate direction filtering
+    val filteredCategoryEntities = remember(masterCategories, selectedType, isCorporateInflow, initialBill) {
+        val baseCats = masterCategories.filter { it.type == selectedType }
+        val cats = if (selectedType == TransactionType.CORPORATE) {
+            val filtered = baseCats.filter { cat ->
+                val isClaimCat = cat.name.equals("Reimbursements & Claims", ignoreCase = true)
+                if (isCorporateInflow) isClaimCat else !isClaimCat
+            }.toMutableList()
+            if (filtered.isEmpty()) {
+                val fallbackName = if (isCorporateInflow) "Reimbursements & Claims" else "Work & Professional"
+                filtered.add(CategoryEntity(name = fallbackName, type = TransactionType.CORPORATE))
+            }
+            filtered
+        } else {
+            baseCats.toMutableList()
+        }
+
         if (initialBill != null && initialBill.type == selectedType && initialBill.category.isNotBlank()) {
-            if (cats.none { it.name.equals(initialBill.category, ignoreCase = true) }) {
+            val matchesDirection = selectedType != TransactionType.CORPORATE ||
+                    (initialBill.category.equals("Reimbursements & Claims", ignoreCase = true) == isCorporateInflow)
+            if (matchesDirection && cats.none { it.name.equals(initialBill.category, ignoreCase = true) }) {
                 cats.add(0, CategoryEntity(name = initialBill.category, type = selectedType, isLegacy = true))
             }
         }
@@ -188,7 +215,7 @@ fun AddEditFixedBillDialog(
         mutableStateOf(initialMatch ?: filteredCategoryEntities.firstOrNull()?.name ?: "General")
     }
 
-    LaunchedEffect(selectedType, filteredCategoryEntities) {
+    LaunchedEffect(selectedType, isCorporateInflow, filteredCategoryEntities) {
         if (selectedType != TransactionType.TRANSFER && filteredCategoryEntities.isNotEmpty()) {
             val matchesExisting = filteredCategoryEntities.any {
                 it.name.equals(selectedCategory, ignoreCase = true)
@@ -374,6 +401,114 @@ fun AddEditFixedBillDialog(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                    }
+                }
+            }
+
+            // Explicit 2-Way Direction Toggle for Corporate AutoPay Commitments
+            AnimatedVisibility(visible = selectedType == TransactionType.CORPORATE) {
+                Column(modifier = Modifier.padding(top = 12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { isCorporateInflow = false },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (!isCorporateInflow) Warning100 else CanvasLight,
+                            border = BorderStroke(
+                                width = if (!isCorporateInflow) 1.2.dp else 0.8.dp,
+                                color = if (!isCorporateInflow) Warning500 else BorderLight
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(if (!isCorporateInflow) Warning500 else BorderLight.copy(alpha = 0.7f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.NorthEast,
+                                        contentDescription = null,
+                                        tint = if (!isCorporateInflow) Color.White else TextMuted,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "Paid for Work",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (!isCorporateInflow) Warning700 else TextDark,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "Company owes you",
+                                        fontSize = 9.5.sp,
+                                        color = if (!isCorporateInflow) Warning700.copy(alpha = 0.85f) else TextMuted,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { isCorporateInflow = true },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isCorporateInflow) Success100 else CanvasLight,
+                            border = BorderStroke(
+                                width = if (isCorporateInflow) 1.2.dp else 0.8.dp,
+                                color = if (isCorporateInflow) Success500 else BorderLight
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isCorporateInflow) Success500 else BorderLight.copy(alpha = 0.7f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SouthWest,
+                                        contentDescription = null,
+                                        tint = if (isCorporateInflow) Color.White else TextMuted,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "From Company",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCorporateInflow) Success700 else TextDark,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "Claim or advance",
+                                        fontSize = 9.5.sp,
+                                        color = if (isCorporateInflow) Success700.copy(alpha = 0.85f) else TextMuted,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -650,7 +785,12 @@ fun AddEditFixedBillDialog(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Deduction Vault",
+                text = when {
+                    selectedType == TransactionType.TRANSFER -> "Source Vault (From)"
+                    selectedType == TransactionType.INCOME -> "Credit Vault (To)"
+                    selectedType == TransactionType.CORPORATE && isCorporateInflow -> "Credit Vault (To)"
+                    else -> "Deduction Vault"
+                },
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextDark
