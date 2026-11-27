@@ -784,8 +784,107 @@ fun MonthlySummaryTab(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // 6. CATEGORY MATRIX ROWS (Floating White Card - Untouched)
-        if (activeMatrix.isEmpty()) {
+        // 6. CATEGORY MATRIX ROWS
+        if (selectedMatrixType == null) {
+            item(key = "matrix_all_summary_card") {
+                val curr = userProfile.currencySymbol
+                val m = uiState.metrics
+
+                val expenseCount = uiState.categories.count { it.type == TransactionType.EXPENSE && !it.isReimbursableFloat }
+                val incomeCount = uiState.categories.count { it.type == TransactionType.INCOME && !it.isReimbursableFloat }
+                val assetCount = uiState.categories.count { it.type == TransactionType.ASSET }
+                val corpCount = uiState.categories.count { it.type == TransactionType.CORPORATE || it.isReimbursableFloat }
+
+                val expSubtitle = when {
+                    isDiscreetMode -> "$expenseCount active ${if (expenseCount == 1) "category" else "categories"}"
+                    m.plannedExpenses > 0.0 -> {
+                        val diff = m.plannedExpenses - m.actualExpenses
+                        if (diff >= 0.0) "$curr${String.format(Locale.US, "%,.0f", diff)} left of $curr${String.format(Locale.US, "%,.0f", m.plannedExpenses)}"
+                        else "Over by $curr${String.format(Locale.US, "%,.0f", abs(diff))} • $expenseCount cats"
+                    }
+                    else -> "$expenseCount active ${if (expenseCount == 1) "category" else "categories"}"
+                }
+
+                val incSubtitle = when {
+                    isDiscreetMode -> "$incomeCount active ${if (incomeCount == 1) "category" else "categories"}"
+                    m.plannedIncome > 0.0 -> "Planned: $curr${String.format(Locale.US, "%,.0f", m.plannedIncome)} • $incomeCount ${if (incomeCount == 1) "cat" else "cats"}"
+                    else -> if (incomeCount == 0) "No income logged yet" else "$incomeCount active ${if (incomeCount == 1) "category" else "categories"}"
+                }
+
+                val assetSubtitle = when {
+                    isDiscreetMode -> "$assetCount active ${if (assetCount == 1) "category" else "categories"}"
+                    m.plannedAssets > 0.0 -> "Target: $curr${String.format(Locale.US, "%,.0f", m.plannedAssets)} • $assetCount ${if (assetCount == 1) "cat" else "cats"}"
+                    else -> "$assetCount active ${if (assetCount == 1) "category" else "categories"}"
+                }
+
+                val corpSubtitle = when {
+                    isDiscreetMode -> "$corpCount active ${if (corpCount == 1) "category" else "categories"}"
+                    m.workExpenses > 0.0 || m.corporateReimbursements > 0.0 ->
+                        "Outlay: $curr${String.format(Locale.US, "%,.0f", m.workExpenses)} • Claims: $curr${String.format(Locale.US, "%,.0f", m.corporateReimbursements)}"
+                    else -> "No corporate float activity"
+                }
+
+                val corpPrimaryAmount = if (m.workExpenses > 0.0) m.workExpenses else m.corporateReimbursements
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(3.dp, RoundedCornerShape(22.dp)),
+                    shape = RoundedCornerShape(22.dp),
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.6f))
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        SegmentSummaryRow(
+                            title = "Expenses",
+                            subtitle = expSubtitle,
+                            amount = if (isDiscreetMode) "••••" else "$curr${String.format(Locale.US, "%,.0f", m.actualExpenses)}",
+                            icon = Icons.Default.NorthEast,
+                            accentColor = Error500,
+                            progressFraction = if (m.plannedExpenses > 0.0) (m.actualExpenses / m.plannedExpenses).toFloat().coerceIn(0f, 1f) else null,
+                            percentageLabel = if (m.plannedExpenses > 0.0) "${((m.actualExpenses / m.plannedExpenses) * 100).toInt()}%" else null,
+                            onClick = { selectedMatrixType = TransactionType.EXPENSE }
+                        )
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
+
+                        SegmentSummaryRow(
+                            title = "Income",
+                            subtitle = incSubtitle,
+                            amount = if (isDiscreetMode) "••••" else "$curr${String.format(Locale.US, "%,.0f", m.actualIncome)}",
+                            icon = Icons.Default.SouthWest,
+                            accentColor = Success500,
+                            progressFraction = if (m.plannedIncome > 0.0) (m.actualIncome / m.plannedIncome).toFloat().coerceIn(0f, 1f) else null,
+                            percentageLabel = if (m.plannedIncome > 0.0) "${((m.actualIncome / m.plannedIncome) * 100).toInt()}%" else null,
+                            onClick = { selectedMatrixType = TransactionType.INCOME }
+                        )
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
+
+                        SegmentSummaryRow(
+                            title = "Assets",
+                            subtitle = assetSubtitle,
+                            amount = if (isDiscreetMode) "••••" else "$curr${String.format(Locale.US, "%,.0f", m.actualAssets)}",
+                            icon = Icons.Default.Savings,
+                            accentColor = SoftTeal,
+                            progressFraction = if (m.plannedAssets > 0.0) (m.actualAssets / m.plannedAssets).toFloat().coerceIn(0f, 1f) else null,
+                            percentageLabel = if (m.plannedAssets > 0.0) "${((m.actualAssets / m.plannedAssets) * 100).toInt()}%" else null,
+                            onClick = { selectedMatrixType = TransactionType.ASSET }
+                        )
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
+
+                        SegmentSummaryRow(
+                            title = "Corporate",
+                            subtitle = corpSubtitle,
+                            amount = if (isDiscreetMode) "••••" else "$curr${String.format(Locale.US, "%,.0f", corpPrimaryAmount)}",
+                            icon = Icons.Default.BusinessCenter,
+                            accentColor = Warning700,
+                            progressFraction = null,
+                            percentageLabel = if (corpCount > 0) "$corpCount active" else null,
+                            onClick = { selectedMatrixType = TransactionType.CORPORATE }
+                        )
+                    }
+                }
+            }
+        } else if (activeMatrix.isEmpty()) {
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -835,6 +934,116 @@ fun MonthlySummaryTab(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SegmentSummaryRow(
+    title: String,
+    subtitle: String,
+    amount: String,
+    icon: ImageVector,
+    accentColor: Color,
+    progressFraction: Float?,
+    percentageLabel: String?,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp, horizontal = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(accentColor.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = title,
+                        tint = accentColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    Text(
+                        text = title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = TextDark,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        fontSize = 11.sp,
+                        color = TextMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = amount,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.5.sp,
+                        color = TextDark
+                    )
+                    if (!percentageLabel.isNullOrBlank()) {
+                        Text(
+                            text = percentageLabel,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accentColor
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "Open $title",
+                    tint = TextMuted,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        if (progressFraction != null) {
+            Spacer(modifier = Modifier.height(7.dp))
+            LinearProgressIndicator(
+                progress = { progressFraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.5.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = accentColor,
+                trackColor = BorderLight.copy(alpha = 0.5f)
+            )
         }
     }
 }
