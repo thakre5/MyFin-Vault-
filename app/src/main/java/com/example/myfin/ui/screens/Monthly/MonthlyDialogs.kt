@@ -684,6 +684,8 @@ fun SafeToSpendInfoBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val curr = userProfile.currencySymbol
     val m = uiState.metrics
+    val excessAdvanceHeld = uiState.reimbursementStatus.excessAdvanceHeld
+    val grossLiquidBeforeAdvance = m.liquidOperatingCash + excessAdvanceHeld
     val runwayReserved = (m.liquidOperatingCash - m.safeToSpend).coerceAtLeast(0.0)
     val dailyBurn = if (m.daysUntilPayday > 0 && runwayReserved > 0.0) {
         runwayReserved / m.daysUntilPayday
@@ -705,7 +707,7 @@ fun SafeToSpendInfoBottomSheet(
             Text("Safe-to-Spend Engine", fontSize = 18.sp, fontWeight = FontWeight.Black, color = TextDark)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Real-time discretionary liquidity after protecting MAB floors, pending AutoPay bills, and daily runway until payday.",
+                text = "Real-time discretionary liquidity after protecting MAB floors, pending AutoPay bills, company advances, and daily runway until payday.",
                 fontSize = 12.sp,
                 color = TextMuted
             )
@@ -722,7 +724,16 @@ fun SafeToSpendInfoBottomSheet(
                     modifier = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    DetailItemRow("Liquid Operating Cash", "$curr${String.format(Locale.US, "%,.0f", m.liquidOperatingCash)}")
+                    if (excessAdvanceHeld > 0.0) {
+                        DetailItemRow("Liquid Operating Cash", "$curr${String.format(Locale.US, "%,.0f", grossLiquidBeforeAdvance)}")
+                        DetailItemRow(
+                            label = "Company Advance Held",
+                            value = "-$curr${String.format(Locale.US, "%,.0f", excessAdvanceHeld)}",
+                            valueColor = Warning700
+                        )
+                    } else {
+                        DetailItemRow("Liquid Operating Cash", "$curr${String.format(Locale.US, "%,.0f", m.liquidOperatingCash)}")
+                    }
                     if (m.daysUntilPayday > 0 && runwayReserved > 0.0) {
                         DetailItemRow(
                             label = "${m.daysUntilPayday}-Day Runway Reserved",
