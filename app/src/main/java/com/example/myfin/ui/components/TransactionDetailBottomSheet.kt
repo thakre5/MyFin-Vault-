@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -40,7 +41,7 @@ fun TransactionDetailBottomSheet(
     onToggleSettled: ((txId: Long, isSettled: Boolean) -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val dateFormatter = remember { SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale.US) }
+    val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.US) }
 
     val isCorporateInflow = remember(transaction.type, transaction.category) {
         (transaction.type == TransactionType.CORPORATE && transaction.category.trim().equals("Reimbursements & Claims", ignoreCase = true)) ||
@@ -184,14 +185,14 @@ fun TransactionDetailBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = CardWhite,
-        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+        containerColor = Color(0xFFF2F5FF),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = {
             Surface(
                 modifier = Modifier
-                    .padding(vertical = 10.dp)
-                    .width(42.dp)
-                    .height(4.5.dp),
+                    .padding(top = 8.dp, bottom = 4.dp)
+                    .width(38.dp)
+                    .height(4.dp),
                 shape = CircleShape,
                 color = Neutral300
             ) {}
@@ -200,8 +201,14 @@ fun TransactionDetailBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFFF2F5FF), Color(0xFFF8FAFC), CardWhite)
+                    )
+                )
                 .navigationBarsPadding()
-                .padding(horizontal = 22.dp, vertical = 6.dp)
+                .padding(horizontal = 16.dp)
+                .padding(top = 2.dp, bottom = 14.dp)
                 .verticalScroll(rememberScrollState())
         ) {
             Row(
@@ -212,97 +219,97 @@ fun TransactionDetailBottomSheet(
                 Text(
                     text = "Transaction Details",
                     fontWeight = FontWeight.Black,
-                    fontSize = 17.sp,
+                    fontSize = 16.5.sp,
                     color = TextDark
                 )
                 IconButton(
                     onClick = onDismiss,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(28.dp)
                         .clip(CircleShape)
-                        .background(CanvasLight)
+                        .background(CardWhite.copy(alpha = 0.85f))
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(15.dp))
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Main Hero Block
+            // Compact Hero Block
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                color = CanvasLight,
-                border = BorderStroke(0.8.dp, BorderLight)
+                shape = RoundedCornerShape(16.dp),
+                color = CardWhite,
+                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.85f))
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(6.dp),
                             color = typeBg
                         ) {
                             Text(
                                 text = typeLabel.uppercase(),
-                                fontSize = 10.5.sp,
+                                fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Black,
                                 color = typeColor,
-                                letterSpacing = 0.6.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.5.dp)
+                                letterSpacing = 0.5.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
                             )
                         }
 
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(6.dp),
                             color = Primary50,
                             border = BorderStroke(0.5.dp, Primary200)
                         ) {
                             Text(
                                 text = relativeDateTag.uppercase(),
-                                fontSize = 10.sp,
+                                fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Primary700,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp)
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
                             )
                         }
 
                         if (isCorporateOutlay) {
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(6.dp),
                                 color = if (isSettledState) Success100 else Warning100,
                                 border = BorderStroke(0.5.dp, if (isSettledState) Success500.copy(alpha = 0.4f) else Warning500.copy(alpha = 0.4f))
                             ) {
                                 Text(
                                     text = if (isSettledState) "SETTLED" else "UNSETTLED",
-                                    fontSize = 10.sp,
+                                    fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isSettledState) Success700 else Warning700,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp)
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
                         text = "$amountPrefix$currencySymbol${String.format(Locale.US, "%,.2f", transaction.amount)}",
-                        fontSize = 32.sp,
+                        fontSize = 27.sp,
                         fontWeight = FontWeight.Black,
                         color = amountColor,
                         letterSpacing = (-0.5).sp
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
                         text = displayHeroTitle,
-                        fontSize = 15.5.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextDark,
                         textAlign = TextAlign.Center
@@ -312,10 +319,10 @@ fun TransactionDetailBottomSheet(
 
             // Corporate Claim Settlement Toggle Card
             if (isCorporateOutlay && onToggleSettled != null) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     color = if (isSettledState) Success100.copy(alpha = 0.55f) else Warning100.copy(alpha = 0.55f),
                     border = BorderStroke(
                         0.8.dp,
@@ -325,7 +332,7 @@ fun TransactionDetailBottomSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -337,19 +344,19 @@ fun TransactionDetailBottomSheet(
                                 imageVector = if (isSettledState) Icons.Default.CheckCircle else Icons.Default.Schedule,
                                 contentDescription = null,
                                 tint = if (isSettledState) Success700 else Warning700,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
                                     text = if (isSettledState) "Claim Settled" else "Mark Claim as Settled",
-                                    fontSize = 13.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextDark
                                 )
                                 Text(
                                     text = if (isSettledState) "Reimbursed by employer" else "Pending employer reimbursement",
-                                    fontSize = 11.sp,
+                                    fontSize = 10.5.sp,
                                     color = TextMuted
                                 )
                             }
@@ -372,22 +379,22 @@ fun TransactionDetailBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Itemized Information Matrix
+            // Compact Itemized Information Matrix
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = CardWhite,
-                border = BorderStroke(0.8.dp, BorderLight)
+                border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.85f))
             ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)) {
                     DetailInfoRow(
                         icon = Icons.Default.Category,
                         label = "Category",
                         value = transaction.category
                     )
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.55f), thickness = 0.6.dp)
 
                     DetailInfoRow(
                         icon = Icons.Default.SubdirectoryArrowRight,
@@ -396,15 +403,15 @@ fun TransactionDetailBottomSheet(
                     )
 
                     if (distinctCustomNote != null) {
-                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.55f), thickness = 0.6.dp)
                         DetailInfoRow(
                             icon = Icons.Default.EditNote,
-                            label = "Custom Note / Title",
+                            label = "Custom Note",
                             value = distinctCustomNote
                         )
                     }
 
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.55f), thickness = 0.6.dp)
 
                     DetailInfoRow(
                         icon = Icons.Default.AccountBalanceWallet,
@@ -415,7 +422,7 @@ fun TransactionDetailBottomSheet(
                             transaction.accountName
                         }
                     )
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.55f), thickness = 0.6.dp)
 
                     if (transaction.type == TransactionType.TRANSFER && resolvedTransferSubtype != TransferSubtype.NONE) {
                         val subtypeLabel = when (resolvedTransferSubtype) {
@@ -427,49 +434,49 @@ fun TransactionDetailBottomSheet(
                         }
                         DetailInfoRow(
                             icon = Icons.Default.SyncAlt,
-                            label = "Transfer Classification",
+                            label = "Classification",
                             value = subtypeLabel
                         )
-                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.55f), thickness = 0.6.dp)
                     }
 
                     DetailInfoRow(
                         icon = Icons.Default.Schedule,
-                        label = "Recorded Date",
+                        label = "Recorded",
                         value = dateFormatter.format(Date(transaction.date))
                     )
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.55f), thickness = 0.6.dp)
 
                     val monthName = MONTH_NAMES.getOrNull(transaction.month - 1) ?: "Month ${transaction.month}"
                     DetailInfoRow(
                         icon = Icons.Default.CalendarMonth,
-                        label = "Accounting Cycle",
+                        label = "Cycle",
                         value = "$monthName ${transaction.year}"
                     )
-                    HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.55f), thickness = 0.6.dp)
 
                     DetailInfoRow(
                         icon = if (transaction.linkedFixedBillId != null) Icons.Default.EventRepeat else Icons.Default.EditNote,
-                        label = "Commitment Link",
-                        value = if (transaction.linkedFixedBillId != null) "Linked to Recurring AutoPay" else "Standalone Entry"
+                        label = "Commitment",
+                        value = if (transaction.linkedFixedBillId != null) "Linked AutoPay" else "Standalone Entry"
                     )
 
                     if (transaction.type == TransactionType.CORPORATE || isCorporateInflow || isLegacyCorporateOutlay) {
-                        HorizontalDivider(color = BorderLight.copy(alpha = 0.6f), thickness = 0.7.dp)
+                        HorizontalDivider(color = BorderLight.copy(alpha = 0.55f), thickness = 0.6.dp)
                         DetailInfoRow(
                             icon = Icons.Default.WorkOutline,
-                            label = "Accounting Policy",
+                            label = "Policy",
                             value = if (isCorporateInflow) {
-                                "Corporate Settlement (Excluded from personal income)"
+                                "Excluded from personal income"
                             } else {
-                                "Corporate Float (Excluded from personal expenses)"
+                                "Excluded from personal expenses"
                             }
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -482,7 +489,7 @@ fun TransactionDetailBottomSheet(
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .height(44.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Error700),
                     border = BorderStroke(1.dp, Error500.copy(alpha = 0.5f))
@@ -499,7 +506,7 @@ fun TransactionDetailBottomSheet(
                     },
                     modifier = Modifier
                         .weight(1.3f)
-                        .height(48.dp),
+                        .height(44.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                 ) {
@@ -508,8 +515,6 @@ fun TransactionDetailBottomSheet(
                     Text("Edit Entry", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
         }
     }
 }
@@ -523,7 +528,7 @@ private fun DetailInfoRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -535,22 +540,22 @@ private fun DetailInfoRow(
                 imageVector = icon,
                 contentDescription = null,
                 tint = Primary600.copy(alpha = 0.8f),
-                modifier = Modifier.size(17.dp)
+                modifier = Modifier.size(15.dp)
             )
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = label,
-                fontSize = 12.5.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 color = TextMuted
             )
         }
 
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
         Text(
             text = value,
-            fontSize = 13.sp,
+            fontSize = 12.5.sp,
             fontWeight = FontWeight.Bold,
             color = TextDark,
             textAlign = TextAlign.End,
