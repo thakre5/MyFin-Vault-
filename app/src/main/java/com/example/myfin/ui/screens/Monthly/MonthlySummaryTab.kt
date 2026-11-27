@@ -679,6 +679,7 @@ fun MonthlySummaryTab(
             val plannedExp = uiState.metrics.plannedExpenses
             val actualExp = uiState.metrics.actualExpenses
             val expDiff = plannedExp - actualExp
+            val reimb = uiState.reimbursementStatus
 
             val liveHeadroomLabel = when (selectedMatrixType) {
                 null -> "${activeMatrix.size} Active"
@@ -689,7 +690,11 @@ fun MonthlySummaryTab(
                 }
                 TransactionType.INCOME -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualIncome)} Received"
                 TransactionType.ASSET -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.actualAssets)} Funded"
-                TransactionType.CORPORATE -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.reimbursementStatus.pendingReimbursement)} Pending"
+                TransactionType.CORPORATE -> when {
+                    reimb.pendingReimbursement > 0.0 -> "Company owes ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", reimb.pendingReimbursement)}"
+                    reimb.excessAdvanceHeld > 0.0 -> "Advance held ${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", reimb.excessAdvanceHeld)}"
+                    else -> "All Settled"
+                }
                 TransactionType.TRANSFER -> "Transfers"
             }
 
@@ -698,7 +703,11 @@ fun MonthlySummaryTab(
                 TransactionType.EXPENSE -> if (plannedExp > 0 && expDiff < 0) Error100 to Error700 else Success100 to Success700
                 TransactionType.INCOME -> Success100 to Success700
                 TransactionType.ASSET -> SoftTealLight to SoftTeal
-                TransactionType.CORPORATE -> Warning100 to Warning700
+                TransactionType.CORPORATE -> when {
+                    reimb.pendingReimbursement > 0.0 -> Warning100 to Warning700
+                    reimb.excessAdvanceHeld > 0.0 -> SoftTealLight to SoftTeal
+                    else -> Success100 to Success700
+                }
                 TransactionType.TRANSFER -> Primary100 to Primary700
             }
 
@@ -772,11 +781,145 @@ fun MonthlySummaryTab(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
+        // Plain-English "Who Owes Whom" Banner when Corporate tab is active
+        if (selectedMatrixType == TransactionType.CORPORATE) {
+            item(key = "corporate_who_owes_whom_banner") {
+                val curr = userProfile.currencySymbol
+                val reimb = uiState.reimbursementStatus
+                val m = uiState.metrics
+
+                val (statusTitle, statusBg, statusTint, statusIcon) = when {
+                    reimb.pendingReimbursement > 0.0 -> Quad(
+                        if (isDiscreetMode) "Company owes you ••••" else "Company owes you $curr${String.format(Locale.US, "%,.0f", reimb.pendingReimbursement)}",
+                        Warning100,
+                        Warning700,
+                        Icons.Default.Schedule
+                    )
+                    reimb.excessAdvanceHeld > 0.0 -> Quad(
+                        if (isDiscreetMode) "Company advance held: ••••" else "Company advance held: $curr${String.format(Locale.US, "%,.0f", reimb.excessAdvanceHeld)}",
+                        SoftTealLight,
+                        SoftTeal,
+                        Icons.Default.AccountBalanceWallet
+                    )
+                    else -> Quad(
+                        "All settled (${curr}0 balance)",
+                        Success100,
+                        Success700,
+                        Icons.Default.CheckCircle
+                    )
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp)
+                        .shadow(2.dp, RoundedCornerShape(18.dp)),
+                    shape = RoundedCornerShape(18.dp),
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(9.dp),
+                                color = statusBg,
+                                border = BorderStroke(0.6.dp, statusTint.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = statusIcon,
+                                        contentDescription = null,
+                                        tint = statusTint,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = statusTitle,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = statusTint
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = "All-time net",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = TextMuted
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = CanvasLight,
+                                border = BorderStroke(0.6.dp, BorderLight)
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                    Text(
+                                        text = "Paid for Work (-)",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextMuted
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = if (isDiscreetMode) "••••" else "-$curr${String.format(Locale.US, "%,.0f", m.workExpenses)}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Warning700
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = CanvasLight,
+                                border = BorderStroke(0.6.dp, BorderLight)
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                    Text(
+                                        text = "From Company (+)",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextMuted
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = if (isDiscreetMode) "••••" else "+$curr${String.format(Locale.US, "%,.0f", m.corporateReimbursements)}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Success700
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 6. CATEGORY MATRIX ROWS
         if (selectedMatrixType == null) {
             item(key = "matrix_all_summary_card") {
                 val curr = userProfile.currencySymbol
                 val m = uiState.metrics
+                val reimb = uiState.reimbursementStatus
 
                 val expenseCount = uiState.categories.count { it.type == TransactionType.EXPENSE && !it.isReimbursableFloat }
                 val incomeCount = uiState.categories.count { it.type == TransactionType.INCOME && !it.isReimbursableFloat }
@@ -807,12 +950,32 @@ fun MonthlySummaryTab(
 
                 val corpSubtitle = when {
                     isDiscreetMode -> "$corpCount active ${if (corpCount == 1) "category" else "categories"}"
+                    reimb.pendingReimbursement > 0.0 -> "Company owes you $curr${String.format(Locale.US, "%,.0f", reimb.pendingReimbursement)}"
+                    reimb.excessAdvanceHeld > 0.0 -> "Company advance held: $curr${String.format(Locale.US, "%,.0f", reimb.excessAdvanceHeld)}"
                     m.workExpenses > 0.0 || m.corporateReimbursements > 0.0 ->
-                        "Outlay: $curr${String.format(Locale.US, "%,.0f", m.workExpenses)} • Claims: $curr${String.format(Locale.US, "%,.0f", m.corporateReimbursements)}"
-                    else -> "No corporate float activity"
+                        "All settled • Paid $curr${String.format(Locale.US, "%,.0f", m.workExpenses)} • Recv $curr${String.format(Locale.US, "%,.0f", m.corporateReimbursements)}"
+                    else -> "All settled • No work float"
                 }
 
-                val corpPrimaryAmount = if (m.workExpenses > 0.0) m.workExpenses else m.corporateReimbursements
+                val corpPrimaryAmount = when {
+                    reimb.pendingReimbursement > 0.0 -> reimb.pendingReimbursement
+                    reimb.excessAdvanceHeld > 0.0 -> reimb.excessAdvanceHeld
+                    m.workExpenses > 0.0 -> m.workExpenses
+                    else -> m.corporateReimbursements
+                }
+
+                val corpAccentColor = when {
+                    reimb.pendingReimbursement > 0.0 -> Warning700
+                    reimb.excessAdvanceHeld > 0.0 -> SoftTeal
+                    else -> Success500
+                }
+
+                val corpBadgeLabel = when {
+                    reimb.pendingReimbursement > 0.0 -> "Owed to you"
+                    reimb.excessAdvanceHeld > 0.0 -> "Advance held"
+                    m.workExpenses > 0.0 || m.corporateReimbursements > 0.0 -> "Settled"
+                    else -> null
+                }
 
                 Surface(
                     modifier = Modifier
@@ -864,9 +1027,9 @@ fun MonthlySummaryTab(
                             subtitle = corpSubtitle,
                             amount = if (isDiscreetMode) "••••" else "$curr${String.format(Locale.US, "%,.0f", corpPrimaryAmount)}",
                             icon = Icons.Default.BusinessCenter,
-                            accentColor = Warning700,
+                            accentColor = corpAccentColor,
                             progressFraction = null,
-                            percentageLabel = if (corpCount > 0) "$corpCount active" else null,
+                            percentageLabel = corpBadgeLabel,
                             onClick = { selectedMatrixType = TransactionType.CORPORATE }
                         )
                     }
@@ -925,6 +1088,8 @@ fun MonthlySummaryTab(
         }
     }
 }
+
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
 @Composable
 private fun SegmentSummaryRow(
@@ -1258,7 +1423,11 @@ private fun CategoryMatrixRow(
                         if (isLegacy) {
                             "Retiring next month • Logged: $maskedOrActual"
                         } else if (cat.type == TransactionType.CORPORATE) {
-                            "Logged actual: $maskedOrActual"
+                            if (cat.category.equals("Reimbursements & Claims", ignoreCase = true)) {
+                                "Received from company: $maskedOrActual"
+                            } else {
+                                "Paid for work: $maskedOrActual"
+                            }
                         } else {
                             "No target limit configured"
                         }
