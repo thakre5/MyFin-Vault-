@@ -640,14 +640,34 @@ fun MonthYearPickerDialog(
 }
 
 @Composable
-private fun DetailItemRow(label: String, value: String) {
+private fun DetailItemRow(
+    label: String,
+    value: String,
+    valueColor: Color = TextDark
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, fontSize = 12.sp, color = TextMuted)
-        Text(text = value, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = TextMuted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 10.dp)
+        )
+        Text(
+            text = value,
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = valueColor,
+            maxLines = 1,
+            softWrap = false
+        )
     }
 }
 
@@ -664,6 +684,10 @@ fun SafeToSpendInfoBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val curr = userProfile.currencySymbol
     val m = uiState.metrics
+    val runwayReserved = (m.liquidOperatingCash - m.safeToSpend).coerceAtLeast(0.0)
+    val dailyBurn = if (m.daysUntilPayday > 0 && runwayReserved > 0.0) {
+        runwayReserved / m.daysUntilPayday
+    } else 0.0
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -698,8 +722,20 @@ fun SafeToSpendInfoBottomSheet(
                     modifier = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    DetailItemRow("Safe-to-Spend Now", "$curr${String.format(Locale.US, "%,.0f", m.safeToSpend)}")
                     DetailItemRow("Liquid Operating Cash", "$curr${String.format(Locale.US, "%,.0f", m.liquidOperatingCash)}")
+                    if (m.daysUntilPayday > 0 && runwayReserved > 0.0) {
+                        DetailItemRow(
+                            label = "${m.daysUntilPayday}-Day Runway Reserved",
+                            value = "-$curr${String.format(Locale.US, "%,.0f", runwayReserved)} ($curr${String.format(Locale.US, "%,.0f", dailyBurn)}/d)",
+                            valueColor = Error700
+                        )
+                    }
+                    HorizontalDivider(color = BorderLight.copy(alpha = 0.7f), thickness = 0.6.dp)
+                    DetailItemRow(
+                        label = "Safe-to-Spend Now",
+                        value = "$curr${String.format(Locale.US, "%,.0f", m.safeToSpend)}",
+                        valueColor = Primary700
+                    )
                     DetailItemRow("Days Until Next Payday", "${m.daysUntilPayday} Days")
                     DetailItemRow("Theoretical Budget Cap", "$curr${String.format(Locale.US, "%,.0f", m.theoreticalSafeToSpend)}")
                 }
