@@ -27,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -185,7 +186,6 @@ fun AddTransactionBottomSheet(
         }
     }
 
-    // Historical Preservation + Corporate Direction Filtering
     val availableCategoryEntities = remember(masterCategories, selectedType, isCorporateInflow, editingTransaction) {
         val baseCats = masterCategories.filter { it.type == selectedType }
         val cats = if (selectedType == TransactionType.CORPORATE) {
@@ -273,30 +273,23 @@ fun AddTransactionBottomSheet(
         }
     }
 
-    // Auto-scroll LazyRows so active Category, Subcategory, and Vault chips are visible immediately
     val categoryListState = rememberLazyListState()
     val subcategoryListState = rememberLazyListState()
     val accountListState = rememberLazyListState()
 
     LaunchedEffect(selectedCategory, availableCategoryEntities) {
         val idx = availableCategoryEntities.indexOfFirst { it.name.equals(selectedCategory, ignoreCase = true) }
-        if (idx >= 0) {
-            categoryListState.animateScrollToItem(idx)
-        }
+        if (idx >= 0) categoryListState.animateScrollToItem(idx)
     }
 
     LaunchedEffect(selectedSubcategory, availableSubcategoryEntities) {
         val idx = availableSubcategoryEntities.indexOfFirst { it.name.equals(selectedSubcategory, ignoreCase = true) }
-        if (idx >= 0) {
-            subcategoryListState.animateScrollToItem(idx)
-        }
+        if (idx >= 0) subcategoryListState.animateScrollToItem(idx)
     }
 
     LaunchedEffect(selectedAccount, accountList) {
         val idx = accountList.indexOfFirst { it.equals(selectedAccount, ignoreCase = true) }
-        if (idx >= 0) {
-            accountListState.animateScrollToItem(idx)
-        }
+        if (idx >= 0) accountListState.animateScrollToItem(idx)
     }
 
     val isSelectedCategoryLegacy = remember(availableCategoryEntities, selectedCategory) {
@@ -318,13 +311,13 @@ fun AddTransactionBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = CardWhite,
+        containerColor = Color(0xFFF2F5FF),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = {
             Surface(
                 modifier = Modifier
-                    .padding(vertical = 10.dp)
-                    .width(40.dp)
+                    .padding(top = 8.dp, bottom = 4.dp)
+                    .width(38.dp)
                     .height(4.dp),
                 shape = CircleShape,
                 color = Neutral300
@@ -334,11 +327,16 @@ fun AddTransactionBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFFF2F5FF), Color(0xFFF8FAFC), CardWhite)
+                    )
+                )
                 .navigationBarsPadding()
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 16.dp)
+                .padding(top = 2.dp, bottom = 14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -348,22 +346,28 @@ fun AddTransactionBottomSheet(
                 Text(
                     text = if (isEditing) "Edit Transaction" else "Add New Entry",
                     fontWeight = FontWeight.Black,
-                    fontSize = 18.sp,
+                    fontSize = 17.sp,
                     color = TextDark
                 )
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(CardWhite.copy(alpha = 0.85f))
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(15.dp))
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // 5-Way Segment Switcher
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Neutral100)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(Color.White.copy(alpha = 0.75f))
                     .padding(3.dp)
             ) {
                 listOf(
@@ -377,8 +381,8 @@ fun AddTransactionBottomSheet(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(if (isSelected) CardWhite else Color.Transparent)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) Primary50 else Color.Transparent)
                             .clickable {
                                 selectedType = type
                                 if (type == TransactionType.CORPORATE) {
@@ -398,7 +402,7 @@ fun AddTransactionBottomSheet(
                                     selectedSubcategory = subs.firstOrNull()?.name ?: "General"
                                 }
                             }
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = 7.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -423,7 +427,7 @@ fun AddTransactionBottomSheet(
 
             // Explicit 2-Way Direction Toggle for Corporate Entries
             AnimatedVisibility(visible = selectedType == TransactionType.CORPORATE) {
-                Column(modifier = Modifier.padding(top = 12.dp)) {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -431,22 +435,22 @@ fun AddTransactionBottomSheet(
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .clickable { isCorporateInflow = false },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (!isCorporateInflow) Warning100 else CanvasLight,
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (!isCorporateInflow) Warning100 else CardWhite,
                             border = BorderStroke(
                                 width = if (!isCorporateInflow) 1.2.dp else 0.8.dp,
                                 color = if (!isCorporateInflow) Warning500 else BorderLight
                             )
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(26.dp)
+                                        .size(22.dp)
                                         .clip(CircleShape)
                                         .background(if (!isCorporateInflow) Warning500 else BorderLight.copy(alpha = 0.7f)),
                                     contentAlignment = Alignment.Center
@@ -455,21 +459,21 @@ fun AddTransactionBottomSheet(
                                         imageVector = Icons.Default.NorthEast,
                                         contentDescription = null,
                                         tint = if (!isCorporateInflow) Color.White else TextMuted,
-                                        modifier = Modifier.size(14.dp)
+                                        modifier = Modifier.size(13.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(7.dp))
                                 Column {
                                     Text(
                                         text = "Paid for Work",
-                                        fontSize = 11.5.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (!isCorporateInflow) Warning700 else TextDark,
                                         maxLines = 1
                                     )
                                     Text(
                                         text = "Company owes you",
-                                        fontSize = 9.5.sp,
+                                        fontSize = 9.sp,
                                         color = if (!isCorporateInflow) Warning700.copy(alpha = 0.85f) else TextMuted,
                                         maxLines = 1
                                     )
@@ -480,22 +484,22 @@ fun AddTransactionBottomSheet(
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .clickable { isCorporateInflow = true },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isCorporateInflow) Success100 else CanvasLight,
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isCorporateInflow) Success100 else CardWhite,
                             border = BorderStroke(
                                 width = if (isCorporateInflow) 1.2.dp else 0.8.dp,
                                 color = if (isCorporateInflow) Success500 else BorderLight
                             )
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(26.dp)
+                                        .size(22.dp)
                                         .clip(CircleShape)
                                         .background(if (isCorporateInflow) Success500 else BorderLight.copy(alpha = 0.7f)),
                                     contentAlignment = Alignment.Center
@@ -504,21 +508,21 @@ fun AddTransactionBottomSheet(
                                         imageVector = Icons.Default.SouthWest,
                                         contentDescription = null,
                                         tint = if (isCorporateInflow) Color.White else TextMuted,
-                                        modifier = Modifier.size(14.dp)
+                                        modifier = Modifier.size(13.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(7.dp))
                                 Column {
                                     Text(
                                         text = "From Company",
-                                        fontSize = 11.5.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isCorporateInflow) Success700 else TextDark,
                                         maxLines = 1
                                     )
                                     Text(
                                         text = "Claim or advance",
-                                        fontSize = 9.5.sp,
+                                        fontSize = 9.sp,
                                         color = if (isCorporateInflow) Success700.copy(alpha = 0.85f) else TextMuted,
                                         maxLines = 1
                                     )
@@ -527,21 +531,21 @@ fun AddTransactionBottomSheet(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = if (isCorporateInflow) {
                             "Credits your bank vault • Excluded from personal income"
                         } else {
                             "Deducts from your bank vault • Excluded from personal expenses"
                         },
-                        fontSize = 10.5.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
                         color = if (isCorporateInflow) Success700 else Warning700
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedTextField(
                 value = amountText,
@@ -550,23 +554,25 @@ fun AddTransactionBottomSheet(
                     val parts = filtered.split('.')
                     amountText = if (parts.size > 1) "${parts[0]}.${parts.drop(1).joinToString("")}" else filtered
                 },
-                label = { Text("Amount ($currencySymbol)") },
+                label = { Text("Amount ($currencySymbol)", fontSize = 12.sp) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = CardWhite,
+                    unfocusedContainerColor = CardWhite,
                     focusedBorderColor = Primary600,
                     unfocusedBorderColor = BorderLight
                 )
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text(if (selectedType == TransactionType.TRANSFER) "Transfer Note (Optional)" else "Note / Merchant (Optional)") },
+                label = { Text(if (selectedType == TransactionType.TRANSFER) "Transfer Note (Optional)" else "Note / Merchant (Optional)", fontSize = 12.sp) },
                 placeholder = {
                     Text(
                         when {
@@ -574,7 +580,8 @@ fun AddTransactionBottomSheet(
                             selectedType == TransactionType.CORPORATE && isCorporateInflow -> "e.g., Nov Travel Claim, Site Advance"
                             selectedType == TransactionType.CORPORATE -> "e.g., Flight Ticket, Site Hotel, Courier"
                             else -> selectedSubcategory.ifBlank { "e.g., Groceries, Fuel, Coffee" }
-                        }
+                        },
+                        fontSize = 12.sp
                     )
                 },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
@@ -582,6 +589,8 @@ fun AddTransactionBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = CardWhite,
+                    unfocusedContainerColor = CardWhite,
                     focusedBorderColor = Primary600,
                     unfocusedBorderColor = BorderLight
                 )
@@ -589,7 +598,7 @@ fun AddTransactionBottomSheet(
 
             // Smart Merchant & Subcategory Auto-Fill Suggestions
             AnimatedVisibility(visible = merchantSuggestions.isNotEmpty()) {
-                Column(modifier = Modifier.padding(top = 8.dp)) {
+                Column(modifier = Modifier.padding(top = 6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
@@ -610,7 +619,7 @@ fun AddTransactionBottomSheet(
                         items(merchantSuggestions) { suggestion ->
                             Surface(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(RoundedCornerShape(9.dp))
                                     .clickable {
                                         title = suggestion.title
                                         if (selectedType == TransactionType.CORPORATE) {
@@ -623,23 +632,23 @@ fun AddTransactionBottomSheet(
                                         }
                                         merchantSuggestions = emptyList()
                                     },
-                                shape = RoundedCornerShape(10.dp),
+                                shape = RoundedCornerShape(9.dp),
                                 color = Primary50,
                                 border = BorderStroke(0.7.dp, Primary200)
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
                                 ) {
                                     Text(
                                         text = suggestion.title,
-                                        fontSize = 11.5.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Primary700,
                                         maxLines = 1
                                     )
                                     Text(
                                         text = "${suggestion.subcategory} • ${suggestion.accountName}",
-                                        fontSize = 9.5.sp,
+                                        fontSize = 9.sp,
                                         color = TextMuted,
                                         maxLines = 1
                                     )
@@ -650,94 +659,75 @@ fun AddTransactionBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Transaction Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FilterChip(
-                        selected = isToday,
-                        onClick = {
-                            selectedDateMillis = System.currentTimeMillis()
-                            if (isRecurringCommitment && dueDayText.isBlank()) {
-                                dueDayText = Calendar.getInstance().get(Calendar.DAY_OF_MONTH).toString()
-                            }
-                        },
-                        label = { Text("Today", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Primary50,
-                            selectedLabelColor = Primary700
-                        )
-                    )
-
-                    FilterChip(
-                        selected = isYesterday,
-                        onClick = {
-                            val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
-                            selectedDateMillis = cal.timeInMillis
-                            if (isRecurringCommitment && dueDayText.isBlank()) {
-                                dueDayText = cal.get(Calendar.DAY_OF_MONTH).toString()
-                            }
-                        },
-                        label = { Text("Yesterday", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Primary50,
-                            selectedLabelColor = Primary700
-                        )
-                    )
-
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                            .clickable { showDatePickerDialog = true },
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (!isToday && !isYesterday) Primary50 else CanvasLight,
-                        border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) Primary600 else BorderLight)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = if (!isToday && !isYesterday) formattedDateLabel else "Other Date",
-                                fontSize = 11.5.sp,
-                                fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
-                                color = if (!isToday && !isYesterday) Primary700 else TextDark
-                            )
-                            Icon(
-                                imageVector = Icons.Default.CalendarToday,
-                                contentDescription = "Pick Date",
-                                tint = if (!isToday && !isYesterday) Primary600 else TextMuted,
-                                modifier = Modifier.size(14.dp)
-                            )
+            // Compact Transaction Date Row
+            Text("Transaction Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+            Spacer(modifier = Modifier.height(5.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CompactPillChip(
+                    label = "Today",
+                    selected = isToday,
+                    onClick = {
+                        selectedDateMillis = System.currentTimeMillis()
+                        if (isRecurringCommitment && dueDayText.isBlank()) {
+                            dueDayText = Calendar.getInstance().get(Calendar.DAY_OF_MONTH).toString()
                         }
+                    }
+                )
+                CompactPillChip(
+                    label = "Yesterday",
+                    selected = isYesterday,
+                    onClick = {
+                        val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                        selectedDateMillis = cal.timeInMillis
+                        if (isRecurringCommitment && dueDayText.isBlank()) {
+                            dueDayText = cal.get(Calendar.DAY_OF_MONTH).toString()
+                        }
+                    }
+                )
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showDatePickerDialog = true },
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (!isToday && !isYesterday) Primary50 else CardWhite,
+                    border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) Primary600 else BorderLight)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (!isToday && !isYesterday) formattedDateLabel else "Other Date",
+                            fontSize = 11.sp,
+                            fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
+                            color = if (!isToday && !isYesterday) Primary700 else TextDark
+                        )
+                        Icon(
+                            imageVector = Icons.Default.CalendarToday,
+                            contentDescription = "Pick Date",
+                            tint = if (!isToday && !isYesterday) Primary600 else TextMuted,
+                            modifier = Modifier.size(13.dp)
+                        )
                     }
                 }
             }
 
             if (selectedType == TransactionType.TRANSFER) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Text(
-                    text = "Transfer Classification Subtype",
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextMuted
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("Transfer Classification", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                Spacer(modifier = Modifier.height(5.dp))
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     val subtypes = listOf(
                         TransferSubtype.BILL_FUNDING to "Bill Funding",
@@ -746,86 +736,38 @@ fun AddTransactionBottomSheet(
                         TransferSubtype.CASH_WITHDRAWAL to "Cash ATM"
                     )
                     items(subtypes) { (subtype, label) ->
-                        val isSelected = selectedTransferSubtype == subtype
-                        Surface(
-                            modifier = Modifier
-                                .height(38.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { selectedTransferSubtype = subtype },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) Primary50 else CanvasLight,
-                            border = BorderStroke(0.8.dp, if (isSelected) Primary600 else BorderLight)
-                        ) {
-                            Box(
-                                modifier = Modifier.padding(horizontal = 14.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Primary700 else TextDark
-                                )
-                            }
-                        }
+                        CompactPillChip(
+                            label = label,
+                            selected = selectedTransferSubtype == subtype,
+                            onClick = { selectedTransferSubtype = subtype }
+                        )
                     }
                 }
             } else {
-                Spacer(modifier = Modifier.height(14.dp))
-
+                Spacer(modifier = Modifier.height(10.dp))
                 Text("Category", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                Spacer(modifier = Modifier.height(6.dp))
-
+                Spacer(modifier = Modifier.height(5.dp))
                 LazyRow(
                     state = categoryListState,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(
                         items = if (availableCategoryEntities.isEmpty()) listOf(CategoryEntity("General", selectedType)) else availableCategoryEntities,
                         key = { "${it.name}_${it.isLegacy}" }
                     ) { catEntity ->
                         val isSelected = selectedCategory.equals(catEntity.name, ignoreCase = true)
-                        FilterChip(
+                        CompactPillChip(
+                            label = catEntity.name,
                             selected = isSelected,
+                            isLegacy = catEntity.isLegacy,
+                            isNew = catEntity.isNew,
                             onClick = {
                                 selectedCategory = catEntity.name
                                 val subs = masterSubcategories.filter {
                                     it.parentCategory.equals(catEntity.name, ignoreCase = true) && it.type == selectedType
                                 }
                                 selectedSubcategory = subs.firstOrNull()?.name ?: "General"
-                            },
-                            label = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(catEntity.name, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                                    if (catEntity.isLegacy) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "Legacy",
-                                            fontSize = 8.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Warning700,
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(3.dp))
-                                                .background(Warning100)
-                                                .padding(horizontal = 3.dp, vertical = 0.5.dp)
-                                        )
-                                    } else if (catEntity.isNew) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size(5.dp)
-                                                .clip(CircleShape)
-                                                .background(Success500)
-                                        )
-                                    }
-                                }
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = if (catEntity.isLegacy) Warning100 else Primary50,
-                                selectedLabelColor = if (catEntity.isLegacy) Warning700 else Primary700
-                            ),
-                            border = if (catEntity.isLegacy) BorderStroke(0.8.dp, Warning500) else null
+                            }
                         )
                     }
                 }
@@ -834,20 +776,20 @@ fun AddTransactionBottomSheet(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp),
+                            .padding(top = 6.dp),
                         shape = RoundedCornerShape(8.dp),
                         color = Warning100.copy(alpha = 0.65f),
                         border = BorderStroke(0.6.dp, Warning500.copy(alpha = 0.5f))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Info, contentDescription = null, tint = Warning700, modifier = Modifier.size(13.dp))
+                            Icon(Icons.Default.Info, contentDescription = null, tint = Warning700, modifier = Modifier.size(12.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "'$selectedCategory' is a legacy category and will be retired next month.",
-                                fontSize = 10.5.sp,
+                                fontSize = 10.sp,
                                 color = Warning700
                             )
                         }
@@ -855,61 +797,30 @@ fun AddTransactionBottomSheet(
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
-
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Subcategory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("(Primary Identification)", fontSize = 9.5.sp, color = TextMuted.copy(alpha = 0.7f))
                 }
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(5.dp))
                 LazyRow(
                     state = subcategoryListState,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(availableSubcategoryEntities, key = { "${it.name}_${it.isLegacy}" }) { subEntity ->
                         val isSelected = selectedSubcategory.equals(subEntity.name, ignoreCase = true)
-                        FilterChip(
+                        CompactPillChip(
+                            label = subEntity.name,
                             selected = isSelected,
-                            onClick = { selectedSubcategory = subEntity.name },
-                            label = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(subEntity.name, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                                    if (subEntity.isLegacy) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "Legacy",
-                                            fontSize = 8.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Warning700,
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(3.dp))
-                                                .background(Warning100)
-                                                .padding(horizontal = 3.dp, vertical = 0.5.dp)
-                                        )
-                                    } else if (subEntity.isNew) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size(5.dp)
-                                                .clip(CircleShape)
-                                                .background(Success500)
-                                        )
-                                    }
-                                }
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = if (subEntity.isLegacy) Warning100 else Primary50,
-                                selectedLabelColor = if (subEntity.isLegacy) Warning700 else Primary700
-                            ),
-                            border = if (subEntity.isLegacy) BorderStroke(0.8.dp, Warning500) else null
+                            isLegacy = subEntity.isLegacy,
+                            isNew = subEntity.isNew,
+                            onClick = { selectedSubcategory = subEntity.name }
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(10.dp))
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = when {
                     selectedType == TransactionType.TRANSFER -> "Source Vault (From)"
@@ -922,77 +833,70 @@ fun AddTransactionBottomSheet(
                 fontWeight = FontWeight.Bold,
                 color = TextMuted
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(5.dp))
             LazyRow(
                 state = accountListState,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(accountList) { acc ->
                     val isSelected = selectedAccount.equals(acc, ignoreCase = true)
-                    FilterChip(
+                    CompactPillChip(
+                        label = acc,
                         selected = isSelected,
                         onClick = {
                             selectedAccount = acc
                             if (selectedToAccount.equals(acc, ignoreCase = true)) {
                                 selectedToAccount = accountList.firstOrNull { !it.equals(acc, ignoreCase = true) }.orEmpty()
                             }
-                        },
-                        label = { Text(acc, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Primary50,
-                            selectedLabelColor = Primary700
-                        )
+                        }
                     )
                 }
             }
 
             if (selectedType == TransactionType.TRANSFER) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text("Destination Vault (To)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                Spacer(modifier = Modifier.height(6.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(modifier = Modifier.height(5.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(accountList.filter { !it.equals(selectedAccount, ignoreCase = true) }) { acc ->
                         val isSelected = selectedToAccount.equals(acc, ignoreCase = true)
-                        FilterChip(
+                        CompactPillChip(
+                            label = acc,
                             selected = isSelected,
-                            onClick = { selectedToAccount = acc },
-                            label = { Text(acc, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                            shape = RoundedCornerShape(8.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = SoftTealLight,
-                                selectedLabelColor = SoftTeal
-                            )
+                            selectedBg = SoftTealLight,
+                            selectedText = SoftTeal,
+                            selectedBorder = SoftTeal,
+                            onClick = { selectedToAccount = acc }
                         )
                     }
                 }
 
                 if (!hasMultipleAccounts) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(5.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Warning700, modifier = Modifier.size(13.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("At least 2 active accounts are required for a transfer.", fontSize = 10.5.sp, color = Warning700, fontWeight = FontWeight.SemiBold)
+                        Text("At least 2 active accounts are required for a transfer.", fontSize = 10.sp, color = Warning700, fontWeight = FontWeight.SemiBold)
                     }
                 } else if (isSelfTransfer) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(5.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Error500, modifier = Modifier.size(13.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Source and destination vaults must be distinct.", fontSize = 10.5.sp, color = Error700, fontWeight = FontWeight.SemiBold)
+                        Text("Source and destination vaults must be distinct.", fontSize = 10.sp, color = Error700, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
 
             if (!isEditing) {
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    color = CanvasLight,
-                    border = BorderStroke(0.6.dp, BorderLight)
+                    color = CardWhite,
+                    border = BorderStroke(0.7.dp, BorderLight)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1001,13 +905,13 @@ fun AddTransactionBottomSheet(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = if (selectedType == TransactionType.TRANSFER) "Set as Recurring Monthly Sweep" else "Repeat as Monthly AutoPay",
-                                    fontSize = 12.5.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextDark
                                 )
                                 Text(
                                     text = "Creates recurring commitment and settles this month",
-                                    fontSize = 10.5.sp,
+                                    fontSize = 10.sp,
                                     color = TextMuted
                                 )
                             }
@@ -1030,7 +934,7 @@ fun AddTransactionBottomSheet(
                         }
 
                         if (isRecurringCommitment) {
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -1038,7 +942,7 @@ fun AddTransactionBottomSheet(
                             ) {
                                 Text(
                                     text = "Monthly Due Day (1-31):",
-                                    fontSize = 11.5.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = TextDark
                                 )
@@ -1050,15 +954,13 @@ fun AddTransactionBottomSheet(
                                             dueDayText = ""
                                         } else if (digits.length <= 2) {
                                             val num = digits.toIntOrNull() ?: 0
-                                            if (num in 1..31) {
-                                                dueDayText = digits
-                                            }
+                                            if (num in 1..31) dueDayText = digits
                                         }
                                     },
                                     placeholder = { Text("Day", fontSize = 11.sp) },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    modifier = Modifier.width(75.dp),
+                                    modifier = Modifier.width(72.dp),
                                     shape = RoundedCornerShape(8.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = Primary600,
@@ -1071,7 +973,7 @@ fun AddTransactionBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Button(
                 onClick = {
@@ -1124,14 +1026,14 @@ fun AddTransactionBottomSheet(
                 enabled = isInputValid,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
+                    .height(44.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Primary600)
             ) {
                 Text(
                     text = if (isEditing) "Update Entry" else if (isRecurringCommitment) "Save & Create AutoPay" else "Save Entry",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
+                    fontSize = 13.5.sp,
                     color = Color.White
                 )
             }
@@ -1179,6 +1081,78 @@ fun AddTransactionBottomSheet(
             }
         ) {
             DatePicker(state = datePickerState)
+        }
+    }
+}
+
+@Composable
+private fun CompactPillChip(
+    label: String,
+    selected: Boolean,
+    isLegacy: Boolean = false,
+    isNew: Boolean = false,
+    selectedBg: Color = Primary50,
+    selectedText: Color = Primary700,
+    selectedBorder: Color = Primary600,
+    onClick: () -> Unit
+) {
+    val bgColor = when {
+        selected && isLegacy -> Warning100
+        selected -> selectedBg
+        else -> CardWhite
+    }
+    val txtColor = when {
+        selected && isLegacy -> Warning700
+        selected -> selectedText
+        else -> TextDark
+    }
+    val borderColor = when {
+        isLegacy -> Warning500
+        selected -> selectedBorder
+        else -> BorderLight
+    }
+
+    Surface(
+        modifier = Modifier
+            .height(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = bgColor,
+        border = BorderStroke(0.8.dp, borderColor)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = txtColor,
+                maxLines = 1
+            )
+            if (isLegacy) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Legacy",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Warning700,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Warning100)
+                        .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                )
+            } else if (isNew) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .clip(CircleShape)
+                        .background(Success500)
+                )
+            }
         }
     }
 }
