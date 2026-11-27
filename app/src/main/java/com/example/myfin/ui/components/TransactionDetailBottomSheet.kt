@@ -2,6 +2,7 @@ package com.example.myfin.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -222,14 +223,23 @@ fun TransactionDetailBottomSheet(
                     fontSize = 16.5.sp,
                     color = TextDark
                 )
-                IconButton(
-                    onClick = onDismiss,
+                Surface(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(30.dp)
                         .clip(CircleShape)
-                        .background(CardWhite.copy(alpha = 0.85f))
+                        .clickable(onClick = onDismiss),
+                    shape = CircleShape,
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight)
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(15.dp))
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = TextDark,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
                 }
             }
 
