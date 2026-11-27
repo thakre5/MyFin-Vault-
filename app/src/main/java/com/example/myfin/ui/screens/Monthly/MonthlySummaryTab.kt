@@ -1,14 +1,16 @@
 package com.example.myfin.ui.screens
 
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -24,14 +26,16 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.myfin.data.TransactionType
 import com.example.myfin.data.UserProfile
 import com.example.myfin.ui.BudgetViewModel
@@ -41,6 +45,8 @@ import com.example.myfin.ui.MonthlyUiState
 import com.example.myfin.ui.components.NowBarAlert
 import com.example.myfin.ui.components.VaultNowBar
 import com.example.myfin.ui.theme.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
@@ -88,6 +94,19 @@ fun MonthlySummaryTab(
     val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
 
     val isHealthy = uiState.metrics.safeToSpend > 0
+
+    val profileBitmap by produceState<ImageBitmap?>(initialValue = null, userProfile.profileImageUri) {
+        value = withContext(Dispatchers.IO) {
+            try {
+                val uriStr = userProfile.profileImageUri?.takeIf { it.isNotBlank() } ?: return@withContext null
+                context.contentResolver.openInputStream(Uri.parse(uriStr))?.use { stream ->
+                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
 
     val paydayPlan = uiState.paydaySuggestion
     val showWaterfallPrompt = remember(paydayPlan, uiState.selectedMonth, dismissedWaterfallMonth, isCurrentMonth) {
@@ -213,6 +232,17 @@ fun MonthlySummaryTab(
             .sortedByDescending { it.actualAmount }
     }
 
+    val pendingAutoPayBills = remember(uiState.fixedBills) {
+        uiState.fixedBills.filter { bill ->
+            !bill.isPaid &&
+            bill.type != TransactionType.INCOME &&
+            !(bill.type == TransactionType.CORPORATE && bill.category.equals("Reimbursements & Claims", ignoreCase = true))
+        }
+    }
+    val pendingAutoPayTotal = remember(pendingAutoPayBills) {
+        pendingAutoPayBills.sumOf { it.amount }
+    }
+
     val daysUntilSalary = uiState.metrics.daysUntilPayday.coerceAtLeast(1)
     val safeDailyVelocity = if (uiState.metrics.safeToSpend > 0) {
         uiState.metrics.safeToSpend / daysUntilSalary
@@ -226,116 +256,181 @@ fun MonthlySummaryTab(
         }
     }
 
-    val expenseCategories = remember(uiState.categories) {
-        uiState.categories
-            .filter { it.type == TransactionType.EXPENSE && !it.isReimbursableFloat && it.actualAmount > 0.0 }
-            .sortedByDescending { it.actualAmount }
-    }
-    val totalExpenseSpent = remember(expenseCategories) {
-        expenseCategories.sumOf { it.actualAmount }
-    }
-
-    val donutColors = remember {
-        listOf(
-            Primary600,
-            SoftTeal,
-            Error500,
-            Warning500,
-            Primary400
-        )
-    }
-
-    val topDonutSlices = remember(expenseCategories, totalExpenseSpent) {
-        if (totalExpenseSpent <= 0.0 || expenseCategories.isEmpty()) {
-            emptyList()
-        } else {
-            val topFour = expenseCategories.take(4)
-            val othersAmount = expenseCategories.drop(4).sumOf { it.actualAmount }
-
-            val slices = topFour.mapIndexed { index, cat ->
-                val pct = ((cat.actualAmount / totalExpenseSpent) * 100).toInt()
-                DonutSliceData(
-                    name = cat.category,
-                    percentage = pct,
-                    color = donutColors[index % donutColors.size]
-                )
-            }.toMutableList()
-
-            if (othersAmount > 0.0) {
-                val otherPct = ((othersAmount / totalExpenseSpent) * 100).toInt()
-                slices.add(
-                    DonutSliceData(
-                        name = "Others",
-                        percentage = otherPct,
-                        color = donutColors.last()
-                    )
-                )
-            }
-            slices
-        }
-    }
+    val displayName = userProfile.displayName.trim().ifBlank { "User" }
+    val displayInflow = if (uiState.metrics.plannedIncome > 0.0) uiState.metrics.plannedIncome else uiState.metrics.personalIncome
+    val displayExpenses = uiState.metrics.lifestyleExpenses
+    val displayAssets = if (uiState.metrics.plannedAssets > 0.0) uiState.metrics.plannedAssets else uiState.metrics.actualAssets
 
     val headingTextColor = if (isMidnightTheme) Color.White else TextDark
     val subtitleTextColor = if (isMidnightTheme) Neutral400 else TextMuted
+    val cardSurfaceColor = if (isMidnightTheme) Color(0xFF1A1F2B) else CardWhite
+    val cardBorderColor = if (isMidnightTheme) Color.White.copy(alpha = 0.12f) else BorderLight.copy(alpha = 0.85f)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
     ) {
-        // 1. 2-LINE GREETING HEADER
-        item(key = "greeting_header") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 2.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "$timeGreeting,",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = subtitleTextColor
-                    )
-                    Spacer(modifier = Modifier.height(1.dp))
-                    Text(
-                        text = "${userProfile.displayName.ifBlank { "User" }} 👋",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                        color = headingTextColor,
-                        letterSpacing = (-0.4).sp
-                    )
+        // 1. GREETING HEADER + OVERLAPPING AVATAR + 3-PILLAR METRIC CARDS
+        item(key = "hero_greeting_and_pillars") {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "$timeGreeting,",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = subtitleTextColor
+                        )
+                        Spacer(modifier = Modifier.height(1.dp))
+                        Text(
+                            text = "Hello, $displayName 👋",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Black,
+                            color = headingTextColor,
+                            letterSpacing = (-0.5).sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = when {
+                                isPastMonth -> "Monthly ledger closed and reconciled."
+                                isHealthy -> "Your runway is safe for the month."
+                                else -> "Runway needs attention before payday."
+                            },
+                            fontSize = 11.5.sp,
+                            color = subtitleTextColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isHealthy) Success100 else Error100,
+                        border = BorderStroke(0.8.dp, if (isHealthy) Success500.copy(alpha = 0.35f) else Error500.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isHealthy) Success700 else Error700)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isHealthy) "Safe Runway" else "Attention",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isHealthy) Success700 else Error700
+                            )
+                        }
+                    }
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (isHealthy) Success100 else Error100,
-                    border = BorderStroke(0.8.dp, if (isHealthy) Success500.copy(alpha = 0.35f) else Error500.copy(alpha = 0.35f))
-                ) {
+                // 3-Card Row with overlapping profile avatar on top-right
+                Box(modifier = Modifier.fillMaxWidth()) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(if (isHealthy) Success700 else Error700)
+                        PillarStatCard(
+                            icon = Icons.Default.SouthWest,
+                            iconBg = Color(0xFFEDE9FE),
+                            iconTint = Color(0xFF7C3AED),
+                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayInflow)}",
+                            label = "Inflow",
+                            surfaceColor = cardSurfaceColor,
+                            borderColor = cardBorderColor,
+                            valueColor = headingTextColor,
+                            labelColor = subtitleTextColor,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigateToLedgerWithFilter(TransactionType.INCOME) }
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isHealthy) "Safe Runway" else "Attention",
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isHealthy) Success700 else Error700
+
+                        PillarStatCard(
+                            icon = Icons.Default.NorthEast,
+                            iconBg = Color(0xFFE0F2FE),
+                            iconTint = Primary600,
+                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayExpenses)}",
+                            label = "Expenses",
+                            surfaceColor = cardSurfaceColor,
+                            borderColor = cardBorderColor,
+                            valueColor = headingTextColor,
+                            labelColor = subtitleTextColor,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigateToLedgerWithFilter(TransactionType.EXPENSE) }
                         )
+
+                        PillarStatCard(
+                            icon = Icons.Default.LocalFireDepartment,
+                            iconBg = Color(0xFFFFEDD5),
+                            iconTint = Color(0xFFEA580C),
+                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayAssets)}",
+                            label = "SIP Assets",
+                            surfaceColor = cardSurfaceColor,
+                            borderColor = cardBorderColor,
+                            valueColor = headingTextColor,
+                            labelColor = subtitleTextColor,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigateToLedgerWithFilter(TransactionType.ASSET) }
+                        )
+                    }
+
+                    // Circular Profile Avatar overlapping top-right of the 3rd card
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(end = 4.dp)
+                            .zIndex(2f)
+                            .size(54.dp)
+                            .shadow(6.dp, CircleShape)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF7C3AED), Primary600, SoftTeal)
+                                )
+                            )
+                            .border(2.5.dp, if (isMidnightTheme) Neutral900 else Color.White, CircleShape)
+                            .clickable(onClick = onOpenDrawer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (profileBitmap != null) {
+                            Image(
+                                bitmap = profileBitmap!!,
+                                contentDescription = "Profile",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Text(
+                                text = displayName.take(1).uppercase(),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // 2. SAMSUNG NOW BAR DECK
+        item { Spacer(modifier = Modifier.height(12.dp)) }
+
+        // 2. SAMSUNG NOW BAR DECK (Dynamic contextual alerts)
         if (nowBarAlerts.isNotEmpty()) {
             item(key = "now_bar_capsule") {
                 VaultNowBar(
@@ -345,349 +440,241 @@ fun MonthlySummaryTab(
             }
         }
 
-        // 3. FINTECH HERO CARD (Royal Cobalt Blue 600 -> 900)
+        // 3. VIBRANT GRADIENT SAFE-TO-SPEND HERO CARD
         item(key = "fintech_hero_card") {
+            val safeFraction = (uiState.metrics.safeToSpendPercentage / 100f).coerceIn(0f, 1f)
+            val nextPaydayOrd = formatOrdinalDay(uiState.metrics.nextPaydayDay)
+
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(22.dp)),
+                    .shadow(6.dp, RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(22.dp))
+                    .clickable(onClick = onOpenStsInfo),
                 shape = RoundedCornerShape(22.dp),
-                color = Primary800,
-                border = BorderStroke(1.dp, Primary500.copy(alpha = 0.45f))
+                color = Primary700
             ) {
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(
+                                    Color(0xFF7B4DFF),
                                     Primary600,
-                                    Primary800,
-                                    Primary900
+                                    SoftTeal
                                 )
                             )
                         )
-                        .padding(horizontal = 18.dp, vertical = 15.dp)
+                        .padding(horizontal = 18.dp, vertical = 16.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable(onClick = onOpenStsInfo)
-                        ) {
-                            Text(
-                                text = "SAFE TO SPEND",
-                                color = Primary200,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 0.6.sp
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.HelpOutline,
-                                contentDescription = "Explain Safe to Spend",
-                                tint = Primary200.copy(alpha = 0.85f),
-                                modifier = Modifier.size(13.dp)
-                            )
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Color.White.copy(alpha = 0.16f),
-                                modifier = Modifier.padding(end = 8.dp)
-                            ) {
-                                Text(
-                                    text = "${uiState.metrics.safeToSpendPercentage}% Cap",
-                                    color = Color.White,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
-                                )
-                            }
-
-                            Box(modifier = Modifier.size(24.dp, 16.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(16.dp)
-                                        .clip(CircleShape)
-                                        .background(Error500.copy(alpha = 0.88f))
-                                        .align(Alignment.CenterStart)
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .size(16.dp)
-                                        .clip(CircleShape)
-                                        .background(Warning500.copy(alpha = 0.88f))
-                                        .align(Alignment.CenterEnd)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    if (isDiscreetMode) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color.White.copy(alpha = 0.12f),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "  ● ● ● ● ●  ",
-                                fontSize = 20.sp,
-                                color = Color.White,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    } else {
-                        Text(
-                            text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White,
-                            letterSpacing = (-0.7).sp
-                        )
-                    }
-
-                    val nextPaydayOrd = formatOrdinalDay(uiState.metrics.nextPaydayDay)
-                    Text(
-                        text = when {
-                            isPastMonth -> "Month closed • Final safe ledger balance"
-                            uiState.metrics.isSalaryDelayed -> "Salary expected ($nextPaydayOrd) • 1-day safety runway reserved"
-                            isCurrentMonth && isHealthy -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", safeDailyVelocity)}/day safe pace • $daysUntilSalary days until payday ($nextPaydayOrd)"
-                            isCurrentMonth -> "Runway deficit: Spending exceeds safe buffer before next payday"
-                            else -> "Projected runway reserved for $daysUntilSalary days"
-                        },
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (uiState.metrics.isSalaryDelayed) Warning100 else Primary100
-                    )
-
-                    Spacer(modifier = Modifier.height(13.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val displayInflow = if (uiState.metrics.plannedIncome > 0) uiState.metrics.plannedIncome else uiState.metrics.personalIncome
-                        val displayAssets = if (uiState.metrics.plannedAssets > 0) uiState.metrics.plannedAssets else uiState.metrics.actualAssets
-
-                        FrostedCardPill(
-                            title = "Inflow",
-                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayInflow)}",
-                            tintColor = Success100,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigateToLedgerWithFilter(TransactionType.INCOME) }
-                        )
-                        FrostedCardPill(
-                            title = "Fixed Bills",
-                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", uiState.metrics.fixedCommitmentsTotal)}",
-                            tintColor = Error100,
-                            modifier = Modifier.weight(1f),
-                            onClick = onNavigateToCommitments
-                        )
-                        FrostedCardPill(
-                            title = "SIP Assets",
-                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayAssets)}",
-                            tintColor = Primary200,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigateToLedgerWithFilter(TransactionType.ASSET) }
-                        )
-                    }
-                }
-            }
-        }
-
-        item { Spacer(modifier = Modifier.height(14.dp)) }
-
-        // 4. QUICK ACTION STRIP
-        item(key = "quick_action_strip") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                QuickActionButton(
-                    icon = Icons.Default.Add,
-                    label = "Add Entry",
-                    containerColor = Primary50,
-                    contentColor = Primary600,
-                    labelColor = if (isMidnightTheme) Neutral200 else TextDark,
-                    onClick = onOpenAddSheet
-                )
-                QuickActionButton(
-                    icon = Icons.Default.SyncAlt,
-                    label = "Transfer",
-                    containerColor = Success100,
-                    contentColor = Success700,
-                    labelColor = if (isMidnightTheme) Neutral200 else TextDark,
-                    onClick = onOpenTransferSheet
-                )
-                QuickActionButton(
-                    icon = Icons.Default.Autorenew,
-                    label = "AutoPay",
-                    containerColor = Error100,
-                    contentColor = Error700,
-                    labelColor = if (isMidnightTheme) Neutral200 else TextDark,
-                    onClick = onNavigateToCommitments
-                )
-                QuickActionButton(
-                    icon = Icons.Default.MoreHoriz,
-                    label = "More",
-                    containerColor = Neutral100,
-                    contentColor = Neutral600,
-                    labelColor = if (isMidnightTheme) Neutral200 else TextDark,
-                    onClick = onOpenDrawer
-                )
-            }
-        }
-
-        item { Spacer(modifier = Modifier.height(16.dp)) }
-
-        // 5. SPENDING OVERVIEW (Donut Chart - Floating White Card)
-        item(key = "spending_overview_donut") {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Spending Overview",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Black,
-                    color = headingTextColor
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(1.5.dp, RoundedCornerShape(20.dp)),
-                    shape = RoundedCornerShape(20.dp),
-                    color = CardWhite,
-                    border = BorderStroke(0.8.dp, BorderLight.copy(alpha = 0.7f))
-                ) {
-                    if (totalExpenseSpent <= 0.0 || topDonutSlices.isEmpty()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = Success500,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Zero expenses logged this month yet.",
-                                fontSize = 12.5.sp,
-                                color = TextMuted,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Box(
-                                modifier = Modifier.size(118.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Canvas(modifier = Modifier.size(110.dp)) {
-                                    val strokePx = 16.dp.toPx()
-                                    var currentAngle = -90f
-
-                                    topDonutSlices.forEach { slice ->
-                                        val sweep = (slice.percentage / 100f) * 360f
-                                        if (sweep > 0f) {
-                                            drawArc(
-                                                color = slice.color,
-                                                startAngle = currentAngle,
-                                                sweepAngle = (sweep - 3f).coerceAtLeast(1f),
-                                                useCenter = false,
-                                                style = Stroke(width = strokePx, cap = StrokeCap.Round)
-                                            )
-                                            currentAngle += sweep
-                                        }
-                                    }
-                                }
-
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", totalExpenseSpent)}",
+                                        text = "SAFE TO SPEND",
+                                        color = Color.White.copy(alpha = 0.88f),
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Black,
-                                        fontSize = 14.5.sp,
-                                        color = TextDark
+                                        letterSpacing = 0.7.sp
                                     )
-                                    Text(
-                                        text = "This Month",
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = TextMuted
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.HelpOutline,
+                                        contentDescription = "Explain Safe to Spend",
+                                        tint = Color.White.copy(alpha = 0.85f),
+                                        modifier = Modifier.size(13.dp)
                                     )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.width(14.dp))
-
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                topDonutSlices.forEach { slice ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color.White.copy(alpha = 0.18f),
+                                        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.28f))
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(7.dp)
-                                                    .clip(CircleShape)
-                                                    .background(slice.color)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = slice.name,
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = TextDark,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
                                         Text(
-                                            text = "${slice.percentage}%",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = TextMuted
+                                            text = "${uiState.metrics.safeToSpendPercentage}% Cap",
+                                            color = Color.White,
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                         )
                                     }
                                 }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                if (isDiscreetMode) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color.White.copy(alpha = 0.15f),
+                                        modifier = Modifier.padding(vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = "  ● ● ● ● ●  ",
+                                            fontSize = 20.sp,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = "${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", uiState.metrics.safeToSpend)}",
+                                        fontSize = 28.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.White,
+                                        letterSpacing = (-0.7).sp
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(3.dp))
+
+                                Text(
+                                    text = when {
+                                        isPastMonth -> "Month closed • Final safe ledger balance"
+                                        uiState.metrics.isSalaryDelayed -> "Salary expected ($nextPaydayOrd) • 1-day safety runway reserved"
+                                        isCurrentMonth && isHealthy -> "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", safeDailyVelocity)}/day safe pace • $daysUntilSalary days until payday ($nextPaydayOrd)"
+                                        isCurrentMonth -> "Runway deficit: Spending exceeds safe buffer"
+                                        else -> "Projected runway reserved for $daysUntilSalary days"
+                                    },
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (uiState.metrics.isSalaryDelayed) Warning100 else Color.White.copy(alpha = 0.9f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.20f))
+                                    .border(0.8.dp, Color.White.copy(alpha = 0.32f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = "Inspect Safe to Spend",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isHealthy) "Safe Runway Active" else "Buffer Depleted",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                            Text(
+                                text = "Safe Limit",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(7.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.24f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(safeFraction.coerceAtLeast(if (isHealthy) 0.04f else 0f))
+                                    .fillMaxHeight()
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                            )
                         }
                     }
                 }
             }
         }
 
+        item { Spacer(modifier = Modifier.height(10.dp)) }
+
+        // 4. SLIM UPCOMING AUTOPAY STRIP (Tappable -> AutoPay Tab)
+        item(key = "upcoming_autopay_strip") {
+            val hasPending = pendingAutoPayBills.isNotEmpty()
+            val billWord = if (pendingAutoPayBills.size == 1) "bill" else "bills"
+            val nextPaydayOrd = formatOrdinalDay(uiState.metrics.nextPaydayDay)
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(1.5.dp, RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable(onClick = onNavigateToCommitments),
+                shape = RoundedCornerShape(14.dp),
+                color = cardSurfaceColor,
+                border = BorderStroke(0.8.dp, cardBorderColor)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 13.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = if (hasPending) Icons.Default.Bolt else Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = if (hasPending) Warning500 else Success500,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (hasPending) {
+                                val amtLabel = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", pendingAutoPayTotal)}"
+                                "Upcoming AutoPay • $amtLabel due (${pendingAutoPayBills.size} $billWord before $nextPaydayOrd)"
+                            } else {
+                                "All AutoPay commitments settled for this month"
+                            },
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = headingTextColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Open AutoPay",
+                        tint = subtitleTextColor,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
+        }
+
         item { Spacer(modifier = Modifier.height(16.dp)) }
 
-        // 6. CATEGORY MATRIX HEADER & 5-WAY SWITCHER (All | Expenses | Income | Assets | Corporate)
+        // 5. CATEGORY MATRIX HEADER & 5-WAY SWITCHER (All | Expenses | Income | Assets | Corporate)
         item(key = "matrix_header_and_switcher") {
             val plannedExp = uiState.metrics.plannedExpenses
             val actualExp = uiState.metrics.actualExpenses
@@ -785,7 +772,7 @@ fun MonthlySummaryTab(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // 7. CATEGORY MATRIX ROWS (Floating White Card)
+        // 6. CATEGORY MATRIX ROWS (Floating White Card - Untouched)
         if (activeMatrix.isEmpty()) {
             item {
                 Surface(
@@ -840,86 +827,65 @@ fun MonthlySummaryTab(
     }
 }
 
-private data class DonutSliceData(
-    val name: String,
-    val percentage: Int,
-    val color: Color
-)
-
 @Composable
-private fun QuickActionButton(
+private fun PillarStatCard(
     icon: ImageVector,
-    label: String,
-    containerColor: Color,
-    contentColor: Color,
-    labelColor: Color = TextDark,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onClick
-        )
-    ) {
-        Surface(
-            modifier = Modifier.size(54.dp),
-            shape = RoundedCornerShape(18.dp),
-            color = containerColor,
-            border = BorderStroke(0.6.dp, contentColor.copy(alpha = 0.2f))
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = contentColor,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(5.dp))
-        Text(
-            text = label,
-            fontSize = 11.5.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = labelColor
-        )
-    }
-}
-
-@Composable
-private fun FrostedCardPill(
-    title: String,
+    iconBg: Color,
+    iconTint: Color,
     amount: String,
-    tintColor: Color,
+    label: String,
+    surfaceColor: Color,
+    borderColor: Color,
+    valueColor: Color,
+    labelColor: Color,
     modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null
+    onClick: () -> Unit
 ) {
     Surface(
         modifier = modifier
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(10.dp),
-        color = Color.White.copy(alpha = 0.12f),
-        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.18f))
+            .shadow(2.dp, RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = surfaceColor,
+        border = BorderStroke(0.8.dp, borderColor)
     ) {
-        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(4.dp)
-                        .clip(CircleShape)
-                        .background(tintColor)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(iconBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = iconTint,
+                    modifier = Modifier.size(16.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = title, fontSize = 8.5.sp, color = Primary200, fontWeight = FontWeight.SemiBold)
             }
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = amount,
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Black,
+                color = valueColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(1.dp))
+            Text(
+                text = label,
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = labelColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
