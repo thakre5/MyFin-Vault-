@@ -19,6 +19,8 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.NorthEast
+import androidx.compose.material.icons.filled.SouthWest
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -74,6 +76,15 @@ fun AddTransactionBottomSheet(
 
     var selectedType by remember(txKey) {
         mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE)
+    }
+
+    var isCorporateInflow by remember(txKey) {
+        mutableStateOf(
+            editingTransaction?.let { tx ->
+                tx.type == TransactionType.CORPORATE &&
+                        tx.category.trim().equals("Reimbursements & Claims", ignoreCase = true)
+            } ?: false
+        )
     }
 
     var title by remember(txKey) {
@@ -174,11 +185,27 @@ fun AddTransactionBottomSheet(
         }
     }
 
-    // Historical Preservation: Keep historical category even if retired outside grace period
-    val availableCategoryEntities = remember(masterCategories, selectedType, editingTransaction) {
-        val cats = masterCategories.filter { it.type == selectedType }.toMutableList()
+    // Historical Preservation + Corporate Direction Filtering
+    val availableCategoryEntities = remember(masterCategories, selectedType, isCorporateInflow, editingTransaction) {
+        val baseCats = masterCategories.filter { it.type == selectedType }
+        val cats = if (selectedType == TransactionType.CORPORATE) {
+            val filtered = baseCats.filter { cat ->
+                val isClaimCat = cat.name.equals("Reimbursements & Claims", ignoreCase = true)
+                if (isCorporateInflow) isClaimCat else !isClaimCat
+            }.toMutableList()
+            if (filtered.isEmpty()) {
+                val fallbackName = if (isCorporateInflow) "Reimbursements & Claims" else "Work & Professional"
+                filtered.add(CategoryEntity(name = fallbackName, type = TransactionType.CORPORATE))
+            }
+            filtered
+        } else {
+            baseCats.toMutableList()
+        }
+
         if (editingTransaction != null && editingTransaction.type == selectedType && editingTransaction.category.isNotBlank()) {
-            if (cats.none { it.name.equals(editingTransaction.category, ignoreCase = true) }) {
+            val matchesDirection = selectedType != TransactionType.CORPORATE ||
+                    (editingTransaction.category.equals("Reimbursements & Claims", ignoreCase = true) == isCorporateInflow)
+            if (matchesDirection && cats.none { it.name.equals(editingTransaction.category, ignoreCase = true) }) {
                 cats.add(0, CategoryEntity(name = editingTransaction.category, type = selectedType, isLegacy = true))
             }
         }
@@ -193,7 +220,7 @@ fun AddTransactionBottomSheet(
         mutableStateOf(initialMatch ?: availableCategoryEntities.firstOrNull()?.name ?: "General")
     }
 
-    LaunchedEffect(selectedType, availableCategoryEntities) {
+    LaunchedEffect(selectedType, isCorporateInflow, availableCategoryEntities) {
         if (selectedType != TransactionType.TRANSFER && availableCategoryEntities.isNotEmpty()) {
             val matchesExisting = availableCategoryEntities.any {
                 it.name.equals(selectedCategory, ignoreCase = true)
@@ -354,7 +381,17 @@ fun AddTransactionBottomSheet(
                             .background(if (isSelected) CardWhite else Color.Transparent)
                             .clickable {
                                 selectedType = type
-                                if (type != TransactionType.TRANSFER) {
+                                if (type == TransactionType.CORPORATE) {
+                                    val targetCat = if (isCorporateInflow) "Reimbursements & Claims" else "Work & Professional"
+                                    val match = masterCategories.firstOrNull {
+                                        it.type == TransactionType.CORPORATE &&
+                                                (if (isCorporateInflow) it.name.equals("Reimbursements & Claims", ignoreCase = true)
+                                                else !it.name.equals("Reimbursements & Claims", ignoreCase = true))
+                                    }?.name ?: targetCat
+                                    selectedCategory = match
+                                    val subs = masterSubcategories.filter { it.parentCategory.equals(match, ignoreCase = true) && it.type == type }
+                                    selectedSubcategory = subs.firstOrNull()?.name ?: "General"
+                                } else if (type != TransactionType.TRANSFER) {
                                     val cats = masterCategories.filter { it.type == type }
                                     selectedCategory = cats.firstOrNull()?.name ?: "General"
                                     val subs = masterSubcategories.filter { it.parentCategory.equals(selectedCategory, ignoreCase = true) && it.type == type }
@@ -381,6 +418,126 @@ fun AddTransactionBottomSheet(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+                }
+            }
+
+            // Explicit 2-Way Direction Toggle for Corporate Entries
+            AnimatedVisibility(visible = selectedType == TransactionType.CORPORATE) {
+                Column(modifier = Modifier.padding(top = 12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { isCorporateInflow = false },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (!isCorporateInflow) Warning100 else CanvasLight,
+                            border = BorderStroke(
+                                width = if (!isCorporateInflow) 1.2.dp else 0.8.dp,
+                                color = if (!isCorporateInflow) Warning500 else BorderLight
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clip(CircleShape)
+                                        .background(if (!isCorporateInflow) Warning500 else BorderLight.copy(alpha = 0.7f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.NorthEast,
+                                        contentDescription = null,
+                                        tint = if (!isCorporateInflow) Color.White else TextMuted,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "Paid for Work",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (!isCorporateInflow) Warning700 else TextDark,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "Company owes you",
+                                        fontSize = 9.5.sp,
+                                        color = if (!isCorporateInflow) Warning700.copy(alpha = 0.85f) else TextMuted,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { isCorporateInflow = true },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isCorporateInflow) Success100 else CanvasLight,
+                            border = BorderStroke(
+                                width = if (isCorporateInflow) 1.2.dp else 0.8.dp,
+                                color = if (isCorporateInflow) Success500 else BorderLight
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isCorporateInflow) Success500 else BorderLight.copy(alpha = 0.7f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SouthWest,
+                                        contentDescription = null,
+                                        tint = if (isCorporateInflow) Color.White else TextMuted,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "From Company",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCorporateInflow) Success700 else TextDark,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "Claim or advance",
+                                        fontSize = 9.5.sp,
+                                        color = if (isCorporateInflow) Success700.copy(alpha = 0.85f) else TextMuted,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = if (isCorporateInflow) {
+                            "Credits your bank vault • Excluded from personal income"
+                        } else {
+                            "Deducts from your bank vault • Excluded from personal expenses"
+                        },
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isCorporateInflow) Success700 else Warning700
+                    )
                 }
             }
 
@@ -412,8 +569,12 @@ fun AddTransactionBottomSheet(
                 label = { Text(if (selectedType == TransactionType.TRANSFER) "Transfer Note (Optional)" else "Note / Merchant (Optional)") },
                 placeholder = {
                     Text(
-                        if (selectedType == TransactionType.TRANSFER) "e.g., Emergency Reserve"
-                        else selectedSubcategory.ifBlank { "e.g., Flight Ticket, Courier" }
+                        when {
+                            selectedType == TransactionType.TRANSFER -> "e.g., Emergency Reserve"
+                            selectedType == TransactionType.CORPORATE && isCorporateInflow -> "e.g., Nov Travel Claim, Site Advance"
+                            selectedType == TransactionType.CORPORATE -> "e.g., Flight Ticket, Site Hotel, Courier"
+                            else -> selectedSubcategory.ifBlank { "e.g., Groceries, Fuel, Coffee" }
+                        }
                     )
                 },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
@@ -452,6 +613,9 @@ fun AddTransactionBottomSheet(
                                     .clip(RoundedCornerShape(10.dp))
                                     .clickable {
                                         title = suggestion.title
+                                        if (selectedType == TransactionType.CORPORATE) {
+                                            isCorporateInflow = suggestion.category.equals("Reimbursements & Claims", ignoreCase = true)
+                                        }
                                         selectedCategory = suggestion.category
                                         selectedSubcategory = suggestion.subcategory
                                         if (accountList.any { it.equals(suggestion.accountName, ignoreCase = true) }) {
@@ -747,7 +911,13 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (selectedType == TransactionType.TRANSFER) "Source Vault (From)" else "Vault Account",
+                text = when {
+                    selectedType == TransactionType.TRANSFER -> "Source Vault (From)"
+                    selectedType == TransactionType.INCOME -> "Credit Vault (Received Into)"
+                    selectedType == TransactionType.CORPORATE && isCorporateInflow -> "Credit Vault (Received Into)"
+                    selectedType == TransactionType.CORPORATE -> "Paid From Vault"
+                    else -> "Vault Account"
+                },
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextMuted
