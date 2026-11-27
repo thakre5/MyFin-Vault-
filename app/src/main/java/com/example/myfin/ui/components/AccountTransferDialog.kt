@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -147,13 +148,13 @@ fun AccountTransferDialog(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = CardWhite,
-        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+        containerColor = Color(0xFFF2F5FF),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = {
             Surface(
                 modifier = Modifier
-                    .padding(vertical = 10.dp)
-                    .width(40.dp)
+                    .padding(top = 8.dp, bottom = 4.dp)
+                    .width(38.dp)
                     .height(4.dp),
                 shape = CircleShape,
                 color = Neutral300
@@ -163,10 +164,16 @@ fun AccountTransferDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFFF2F5FF), Color(0xFFF8FAFC), CardWhite)
+                    )
+                )
                 .navigationBarsPadding()
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 22.dp, vertical = 6.dp)
+                .padding(horizontal = 16.dp)
+                .padding(top = 2.dp, bottom = 14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -177,12 +184,12 @@ fun AccountTransferDialog(
                     Text(
                         text = "Internal Vault Transfer",
                         fontWeight = FontWeight.Black,
-                        fontSize = 18.sp,
+                        fontSize = 17.sp,
                         color = TextDark
                     )
                     Text(
                         text = "Reallocate cashflow with zero-leakage tracking",
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
                         color = TextMuted
                     )
                 }
@@ -190,16 +197,16 @@ fun AccountTransferDialog(
                 IconButton(
                     onClick = onDismiss,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(28.dp)
                         .clip(CircleShape)
-                        .background(CanvasLight)
+                        .background(CardWhite.copy(alpha = 0.85f))
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(15.dp))
                 }
             }
 
             if (!hasMultipleAccounts) {
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = Warning100,
@@ -207,14 +214,14 @@ fun AccountTransferDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Warning700, modifier = Modifier.size(15.dp))
+                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Warning700, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "At least 2 active accounts are required to execute an internal transfer.",
-                            fontSize = 11.sp,
+                            text = "At least 2 active accounts are required for an internal transfer.",
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Warning700
                         )
@@ -222,11 +229,11 @@ fun AccountTransferDialog(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Source Account Selector
             Text("Source Vault (From)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(5.dp))
             LazyRow(
                 state = fromListState,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -235,6 +242,7 @@ fun AccountTransferDialog(
                     val isSel = fromAccount.equals(acc, ignoreCase = true)
                     Surface(
                         modifier = Modifier
+                            .height(32.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .clickable {
                                 fromAccount = acc
@@ -244,25 +252,29 @@ fun AccountTransferDialog(
                                 }
                             },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isSel) Primary50 else CanvasLight,
+                        color = if (isSel) Primary50 else CardWhite,
                         border = BorderStroke(0.8.dp, if (isSel) Primary600 else BorderLight)
                     ) {
-                        Text(
-                            text = acc,
-                            fontSize = 11.5.sp,
-                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSel) Primary700 else TextDark,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                        )
+                        Box(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = acc,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel) Primary700 else TextDark
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Destination Account Selector
             Text("Destination Vault (To)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(5.dp))
             LazyRow(
                 state = toListState,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -271,6 +283,7 @@ fun AccountTransferDialog(
                     val isSel = toAccount.equals(acc, ignoreCase = true)
                     Surface(
                         modifier = Modifier
+                            .height(32.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .clickable {
                                 toAccount = acc
@@ -280,34 +293,38 @@ fun AccountTransferDialog(
                                 selectedSubtype = resolveSubtypeForAccount(acc)
                             },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isSel) Primary50 else CanvasLight,
+                        color = if (isSel) Primary50 else CardWhite,
                         border = BorderStroke(0.8.dp, if (isSel) Primary600 else BorderLight)
                     ) {
-                        Text(
-                            text = acc,
-                            fontSize = 11.5.sp,
-                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSel) Primary700 else TextDark,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                        )
+                        Box(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = acc,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel) Primary700 else TextDark
+                            )
+                        }
                     }
                 }
             }
 
             if (isSelfTransfer && hasMultipleAccounts) {
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(5.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Error500, modifier = Modifier.size(13.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Source and destination vaults must be distinct.", fontSize = 10.5.sp, color = Error700, fontWeight = FontWeight.SemiBold)
+                    Text("Source and destination vaults must be distinct.", fontSize = 10.sp, color = Error700, fontWeight = FontWeight.SemiBold)
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Strategic Subtype Classification Selector
-            Text("Transfer Classification Subtype", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-            Spacer(modifier = Modifier.height(4.dp))
+            Text("Transfer Classification", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+            Spacer(modifier = Modifier.height(5.dp))
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -322,101 +339,120 @@ fun AccountTransferDialog(
                     val isSel = selectedSubtype == subtype
                     Surface(
                         modifier = Modifier
+                            .height(32.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .clickable { selectedSubtype = subtype },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isSel) Primary50 else CanvasLight,
+                        color = if (isSel) Primary50 else CardWhite,
                         border = BorderStroke(0.8.dp, if (isSel) Primary600 else BorderLight)
                     ) {
-                        Text(
-                            text = label,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSel) Primary700 else TextDark,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Transaction Date Selector
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Transfer Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FilterChip(
-                        selected = isToday,
-                        onClick = {
-                            selectedDateMillis = System.currentTimeMillis()
-                            if (isRecurringSweep && dueDayText.isBlank()) {
-                                dueDayText = Calendar.getInstance().get(Calendar.DAY_OF_MONTH).toString()
-                            }
-                        },
-                        label = { Text("Today", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Primary50,
-                            selectedLabelColor = Primary700
-                        )
-                    )
-
-                    FilterChip(
-                        selected = isYesterday,
-                        onClick = {
-                            val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
-                            selectedDateMillis = cal.timeInMillis
-                            if (isRecurringSweep && dueDayText.isBlank()) {
-                                dueDayText = cal.get(Calendar.DAY_OF_MONTH).toString()
-                            }
-                        },
-                        label = { Text("Yesterday", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Primary50,
-                            selectedLabelColor = Primary700
-                        )
-                    )
-
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                            .clickable { showDatePickerDialog = true },
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (!isToday && !isYesterday) Primary50 else CanvasLight,
-                        border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) Primary600 else BorderLight)
-                    ) {
-                        Row(
+                        Box(
                             modifier = Modifier.padding(horizontal = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (!isToday && !isYesterday) formattedDateLabel else "Other Date",
-                                fontSize = 11.5.sp,
-                                fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
-                                color = if (!isToday && !isYesterday) Primary700 else TextDark
-                            )
-                            Icon(
-                                imageVector = Icons.Default.CalendarToday,
-                                contentDescription = "Pick Date",
-                                tint = if (!isToday && !isYesterday) Primary600 else TextMuted,
-                                modifier = Modifier.size(14.dp)
+                                text = label,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel) Primary700 else TextDark,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Compact Transfer Date Selector
+            Text("Transfer Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+            Spacer(modifier = Modifier.height(5.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            selectedDateMillis = System.currentTimeMillis()
+                            if (isRecurringSweep && dueDayText.isBlank()) {
+                                dueDayText = Calendar.getInstance().get(Calendar.DAY_OF_MONTH).toString()
+                            }
+                        },
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isToday) Primary50 else CardWhite,
+                    border = BorderStroke(0.8.dp, if (isToday) Primary600 else BorderLight)
+                ) {
+                    Box(modifier = Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "Today",
+                            fontSize = 11.sp,
+                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isToday) Primary700 else TextDark
+                        )
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                            selectedDateMillis = cal.timeInMillis
+                            if (isRecurringSweep && dueDayText.isBlank()) {
+                                dueDayText = cal.get(Calendar.DAY_OF_MONTH).toString()
+                            }
+                        },
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isYesterday) Primary50 else CardWhite,
+                    border = BorderStroke(0.8.dp, if (isYesterday) Primary600 else BorderLight)
+                ) {
+                    Box(modifier = Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "Yesterday",
+                            fontSize = 11.sp,
+                            fontWeight = if (isYesterday) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isYesterday) Primary700 else TextDark
+                        )
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showDatePickerDialog = true },
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (!isToday && !isYesterday) Primary50 else CardWhite,
+                    border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) Primary600 else BorderLight)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (!isToday && !isYesterday) formattedDateLabel else "Other Date",
+                            fontSize = 11.sp,
+                            fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
+                            color = if (!isToday && !isYesterday) Primary700 else TextDark
+                        )
+                        Icon(
+                            imageVector = Icons.Default.CalendarToday,
+                            contentDescription = "Pick Date",
+                            tint = if (!isToday && !isYesterday) Primary600 else TextMuted,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Amount Input
             OutlinedTextField(
@@ -432,12 +468,14 @@ fun AccountTransferDialog(
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = CardWhite,
+                    unfocusedContainerColor = CardWhite,
                     focusedBorderColor = Primary600,
                     unfocusedBorderColor = BorderLight
                 )
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Purpose Note Input
             OutlinedTextField(
@@ -450,20 +488,22 @@ fun AccountTransferDialog(
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = CardWhite,
+                    unfocusedContainerColor = CardWhite,
                     focusedBorderColor = Primary600,
                     unfocusedBorderColor = BorderLight
                 )
             )
 
             // REPEAT AS MONTHLY SWEEP TOGGLE
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                color = CanvasLight,
-                border = BorderStroke(0.6.dp, BorderLight)
+                color = CardWhite,
+                border = BorderStroke(0.7.dp, BorderLight)
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -472,13 +512,13 @@ fun AccountTransferDialog(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Set as Recurring Monthly Sweep",
-                                fontSize = 12.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextDark
                             )
                             Text(
-                                text = "Saves this route ($fromAccount \u2794 $toAccount) as an AutoPay commitment",
-                                fontSize = 10.5.sp,
+                                text = "Saves $fromAccount \u2794 $toAccount as AutoPay",
+                                fontSize = 10.sp,
                                 color = TextMuted
                             )
                         }
@@ -501,7 +541,7 @@ fun AccountTransferDialog(
                     }
 
                     if (isRecurringSweep) {
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -509,7 +549,7 @@ fun AccountTransferDialog(
                         ) {
                             Text(
                                 text = "Monthly Sweep Day (1-31):",
-                                fontSize = 11.5.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = TextDark
                             )
@@ -521,15 +561,13 @@ fun AccountTransferDialog(
                                         dueDayText = ""
                                     } else if (digits.length <= 2) {
                                         val num = digits.toIntOrNull() ?: 0
-                                        if (num in 1..31) {
-                                            dueDayText = digits
-                                        }
+                                        if (num in 1..31) dueDayText = digits
                                     }
                                 },
                                 placeholder = { Text("Day", fontSize = 11.sp) },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.width(75.dp),
+                                modifier = Modifier.width(72.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = Primary600,
@@ -541,7 +579,7 @@ fun AccountTransferDialog(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -551,11 +589,11 @@ fun AccountTransferDialog(
                     onClick = onDismiss,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .height(44.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextDark)
                 ) {
-                    Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                    Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
 
                 Button(
@@ -599,19 +637,18 @@ fun AccountTransferDialog(
                     enabled = isTransferValid,
                     modifier = Modifier
                         .weight(1.3f)
-                        .height(48.dp),
+                        .height(44.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                 ) {
                     Text(
                         text = if (isRecurringSweep) "Transfer & Save AutoPay" else "Execute Transfer",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
+                        fontSize = 13.sp,
                         color = Color.White
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(10.dp))
         }
     }
 
