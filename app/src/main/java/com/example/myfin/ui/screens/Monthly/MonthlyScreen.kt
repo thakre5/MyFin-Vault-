@@ -531,6 +531,9 @@ fun MonthlyScreen(
                         Toast.makeText(context, "Transferred ${userProfile.currencySymbol}${String.format(Locale.US, "%,.2f", amount)} to $to", Toast.LENGTH_SHORT).show()
                     }
                     showTransferSheet = false
+                    if (pagerState.currentPage != 1) {
+                        coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                    }
                 }
             )
         }
@@ -640,6 +643,9 @@ fun MonthlyScreen(
 
                     showAddSheet = false
                     editingTx = null
+                    if (pagerState.currentPage != 1) {
+                        coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                    }
                 }
             )
         }
