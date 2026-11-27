@@ -35,7 +35,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import com.example.myfin.data.TransactionType
 import com.example.myfin.data.UserProfile
 import com.example.myfin.ui.BudgetViewModel
@@ -282,7 +281,7 @@ fun MonthlySummaryTab(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp)
     ) {
-        // 1. GREETING HEADER + OVERLAPPING AVATAR + 3-PILLAR METRIC CARDS
+        // 1. GREETING HEADER WITH ALIGNED AVATAR + 3-PILLAR METRIC CARDS
         item(key = "hero_greeting_and_pillars") {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
@@ -290,7 +289,7 @@ fun MonthlySummaryTab(
                         .fillMaxWidth()
                         .padding(top = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -309,107 +308,46 @@ fun MonthlySummaryTab(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = when {
-                                isPastMonth -> "Monthly ledger closed and reconciled."
-                                isHealthy -> "Your runway is safe for the month."
-                                else -> "Runway needs attention before payday."
-                            },
-                            fontSize = 11.5.sp,
-                            color = subtitleTextColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isHealthy) Success100 else Error100,
-                        border = BorderStroke(0.8.dp, if (isHealthy) Success500.copy(alpha = 0.35f) else Error500.copy(alpha = 0.35f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isHealthy) Success100 else Error100,
+                            border = BorderStroke(
+                                0.8.dp,
+                                if (isHealthy) Success500.copy(alpha = 0.35f) else Error500.copy(alpha = 0.35f)
+                            )
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isHealthy) Success700 else Error700)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (isHealthy) "Safe Runway" else "Attention",
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isHealthy) Success700 else Error700
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isHealthy) Success700 else Error700)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = when {
+                                        isPastMonth -> "Month Closed"
+                                        isHealthy -> "Safe Runway"
+                                        else -> "Attention Needed"
+                                    },
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isHealthy) Success700 else Error700
+                                )
+                            }
                         }
                     }
-                }
 
-                // 3-Card Row with overlapping profile avatar on top-right
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 30.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        PillarStatCard(
-                            icon = Icons.Default.SouthWest,
-                            iconBg = Color(0xFFEDE9FE),
-                            iconTint = Color(0xFF7C3AED),
-                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayInflow)}",
-                            label = "Inflow",
-                            surfaceColor = cardSurfaceColor,
-                            borderColor = cardBorderColor,
-                            valueColor = headingTextColor,
-                            labelColor = subtitleTextColor,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigateToLedgerWithFilter(TransactionType.INCOME) }
-                        )
+                    Spacer(modifier = Modifier.width(12.dp))
 
-                        PillarStatCard(
-                            icon = Icons.Default.NorthEast,
-                            iconBg = Color(0xFFE0F2FE),
-                            iconTint = Primary600,
-                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayExpenses)}",
-                            label = "Expenses",
-                            surfaceColor = cardSurfaceColor,
-                            borderColor = cardBorderColor,
-                            valueColor = headingTextColor,
-                            labelColor = subtitleTextColor,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigateToLedgerWithFilter(TransactionType.EXPENSE) }
-                        )
-
-                        PillarStatCard(
-                            icon = Icons.Default.LocalFireDepartment,
-                            iconBg = Color(0xFFFFEDD5),
-                            iconTint = Color(0xFFEA580C),
-                            amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayAssets)}",
-                            label = "SIP Assets",
-                            surfaceColor = cardSurfaceColor,
-                            borderColor = cardBorderColor,
-                            valueColor = headingTextColor,
-                            labelColor = subtitleTextColor,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigateToLedgerWithFilter(TransactionType.ASSET) }
-                        )
-                    }
-
-                    // Circular Profile Avatar overlapping top-right of the 3rd card
                     Box(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(end = 4.dp)
-                            .zIndex(2f)
-                            .size(68.dp)
-                            .shadow(6.dp, CircleShape)
+                            .size(58.dp)
+                            .shadow(5.dp, CircleShape)
                             .clip(CircleShape)
                             .background(
                                 Brush.linearGradient(
@@ -430,12 +368,62 @@ fun MonthlySummaryTab(
                         } else {
                             Text(
                                 text = displayName.take(1).uppercase(),
-                                fontSize = 24.sp,
+                                fontSize = 22.sp,
                                 fontWeight = FontWeight.Black,
                                 color = Color.White
                             )
                         }
                     }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // 3-Pillar Metric Cards (Unobstructed)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    PillarStatCard(
+                        icon = Icons.Default.SouthWest,
+                        iconBg = Color(0xFFEDE9FE),
+                        iconTint = Color(0xFF7C3AED),
+                        amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayInflow)}",
+                        label = "Inflow",
+                        surfaceColor = cardSurfaceColor,
+                        borderColor = cardBorderColor,
+                        valueColor = headingTextColor,
+                        labelColor = subtitleTextColor,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onNavigateToLedgerWithFilter(TransactionType.INCOME) }
+                    )
+
+                    PillarStatCard(
+                        icon = Icons.Default.NorthEast,
+                        iconBg = Color(0xFFE0F2FE),
+                        iconTint = Primary600,
+                        amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayExpenses)}",
+                        label = "Expenses",
+                        surfaceColor = cardSurfaceColor,
+                        borderColor = cardBorderColor,
+                        valueColor = headingTextColor,
+                        labelColor = subtitleTextColor,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onNavigateToLedgerWithFilter(TransactionType.EXPENSE) }
+                    )
+
+                    PillarStatCard(
+                        icon = Icons.Default.LocalFireDepartment,
+                        iconBg = Color(0xFFFFEDD5),
+                        iconTint = Color(0xFFEA580C),
+                        amount = if (isDiscreetMode) "••••" else "${userProfile.currencySymbol}${String.format(Locale.US, "%,.0f", displayAssets)}",
+                        label = "SIP Assets",
+                        surfaceColor = cardSurfaceColor,
+                        borderColor = cardBorderColor,
+                        valueColor = headingTextColor,
+                        labelColor = subtitleTextColor,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onNavigateToLedgerWithFilter(TransactionType.ASSET) }
+                    )
                 }
             }
         }
