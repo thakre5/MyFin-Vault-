@@ -27,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -180,7 +181,6 @@ fun AddEditFixedBillDialog(
         }
     }
 
-    // Preserve historical bill's category + Corporate direction filtering
     val filteredCategoryEntities = remember(masterCategories, selectedType, isCorporateInflow, initialBill) {
         val baseCats = masterCategories.filter { it.type == selectedType }
         val cats = if (selectedType == TransactionType.CORPORATE) {
@@ -265,23 +265,18 @@ fun AddEditFixedBillDialog(
         }
     }
 
-    // Auto-scroll LazyRows so the active Category & Subcategory are immediately visible in the viewport
     val categoryListState = rememberLazyListState()
     val subcategoryListState = rememberLazyListState()
     val accountListState = rememberLazyListState()
 
     LaunchedEffect(selectedCategory, filteredCategoryEntities) {
         val idx = filteredCategoryEntities.indexOfFirst { it.name.equals(selectedCategory, ignoreCase = true) }
-        if (idx >= 0) {
-            categoryListState.animateScrollToItem(idx)
-        }
+        if (idx >= 0) categoryListState.animateScrollToItem(idx)
     }
 
     LaunchedEffect(selectedSubcategory, availableSubcategoryEntities) {
         val idx = availableSubcategoryEntities.indexOfFirst { it.name.equals(selectedSubcategory, ignoreCase = true) }
-        if (idx >= 0) {
-            subcategoryListState.animateScrollToItem(idx)
-        }
+        if (idx >= 0) subcategoryListState.animateScrollToItem(idx)
     }
 
     val isSelectedCategoryLegacy = remember(filteredCategoryEntities, selectedCategory) {
@@ -297,9 +292,7 @@ fun AddEditFixedBillDialog(
 
     LaunchedEffect(selectedAccount, accountList) {
         val idx = accountList.indexOfFirst { it.equals(selectedAccount, ignoreCase = true) }
-        if (idx >= 0) {
-            accountListState.animateScrollToItem(idx)
-        }
+        if (idx >= 0) accountListState.animateScrollToItem(idx)
     }
 
     var showNewCategoryDialog by remember { mutableStateOf(false) }
@@ -315,26 +308,32 @@ fun AddEditFixedBillDialog(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = CardWhite,
+        containerColor = Color(0xFFF2F5FF),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = {
             Surface(
                 modifier = Modifier
-                    .padding(vertical = 10.dp)
-                    .width(40.dp)
+                    .padding(top = 8.dp, bottom = 4.dp)
+                    .width(38.dp)
                     .height(4.dp),
                 shape = CircleShape,
-                color = BorderLight
+                color = Neutral300
             ) {}
         }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFFF2F5FF), Color(0xFFF8FAFC), CardWhite)
+                    )
+                )
                 .navigationBarsPadding()
                 .imePadding()
-                .padding(horizontal = 20.dp, vertical = 6.dp)
                 .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(top = 2.dp, bottom = 14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -344,28 +343,28 @@ fun AddEditFixedBillDialog(
                 Text(
                     text = if (initialBill == null) "Add AutoPay Commitment" else "Edit AutoPay Template",
                     fontWeight = FontWeight.Black,
-                    fontSize = 18.sp,
+                    fontSize = 17.sp,
                     color = TextDark
                 )
                 IconButton(
                     onClick = onDismiss,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(28.dp)
                         .clip(CircleShape)
-                        .background(CanvasLight)
+                        .background(CardWhite.copy(alpha = 0.85f))
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(15.dp))
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // 5-Way Segment Switcher
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(BorderLight.copy(alpha = 0.5f))
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(Color.White.copy(alpha = 0.75f))
                     .padding(3.dp)
             ) {
                 listOf(
@@ -379,8 +378,8 @@ fun AddEditFixedBillDialog(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(if (isSelected) CardWhite else Color.Transparent)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) Primary50 else Color.Transparent)
                             .clickable { selectedType = type }
                             .padding(vertical = 7.dp),
                         contentAlignment = Alignment.Center
@@ -407,117 +406,117 @@ fun AddEditFixedBillDialog(
 
             // Explicit 2-Way Direction Toggle for Corporate AutoPay Commitments
             AnimatedVisibility(visible = selectedType == TransactionType.CORPORATE) {
-                Column(modifier = Modifier.padding(top = 12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { isCorporateInflow = false },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (!isCorporateInflow) Warning100 else CardWhite,
+                        border = BorderStroke(
+                            width = if (!isCorporateInflow) 1.2.dp else 0.8.dp,
+                            color = if (!isCorporateInflow) Warning500 else BorderLight
+                        )
                     ) {
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { isCorporateInflow = false },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (!isCorporateInflow) Warning100 else CanvasLight,
-                            border = BorderStroke(
-                                width = if (!isCorporateInflow) 1.2.dp else 0.8.dp,
-                                color = if (!isCorporateInflow) Warning500 else BorderLight
-                            )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(if (!isCorporateInflow) Warning500 else BorderLight.copy(alpha = 0.7f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(if (!isCorporateInflow) Warning500 else BorderLight.copy(alpha = 0.7f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.NorthEast,
-                                        contentDescription = null,
-                                        tint = if (!isCorporateInflow) Color.White else TextMuted,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = "Paid for Work",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (!isCorporateInflow) Warning700 else TextDark,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = "Company owes you",
-                                        fontSize = 9.5.sp,
-                                        color = if (!isCorporateInflow) Warning700.copy(alpha = 0.85f) else TextMuted,
-                                        maxLines = 1
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.NorthEast,
+                                    contentDescription = null,
+                                    tint = if (!isCorporateInflow) Color.White else TextMuted,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(7.dp))
+                            Column {
+                                Text(
+                                    text = "Paid for Work",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (!isCorporateInflow) Warning700 else TextDark,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = "Company owes you",
+                                    fontSize = 9.sp,
+                                    color = if (!isCorporateInflow) Warning700.copy(alpha = 0.85f) else TextMuted,
+                                    maxLines = 1
+                                )
                             }
                         }
+                    }
 
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { isCorporateInflow = true },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isCorporateInflow) Success100 else CanvasLight,
-                            border = BorderStroke(
-                                width = if (isCorporateInflow) 1.2.dp else 0.8.dp,
-                                color = if (isCorporateInflow) Success500 else BorderLight
-                            )
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { isCorporateInflow = true },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isCorporateInflow) Success100 else CardWhite,
+                        border = BorderStroke(
+                            width = if (isCorporateInflow) 1.2.dp else 0.8.dp,
+                            color = if (isCorporateInflow) Success500 else BorderLight
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isCorporateInflow) Success500 else BorderLight.copy(alpha = 0.7f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isCorporateInflow) Success500 else BorderLight.copy(alpha = 0.7f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.SouthWest,
-                                        contentDescription = null,
-                                        tint = if (isCorporateInflow) Color.White else TextMuted,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = "From Company",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isCorporateInflow) Success700 else TextDark,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = "Claim or advance",
-                                        fontSize = 9.5.sp,
-                                        color = if (isCorporateInflow) Success700.copy(alpha = 0.85f) else TextMuted,
-                                        maxLines = 1
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.SouthWest,
+                                    contentDescription = null,
+                                    tint = if (isCorporateInflow) Color.White else TextMuted,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(7.dp))
+                            Column {
+                                Text(
+                                    text = "From Company",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isCorporateInflow) Success700 else TextDark,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = "Claim or advance",
+                                    fontSize = 9.sp,
+                                    color = if (isCorporateInflow) Success700.copy(alpha = 0.85f) else TextMuted,
+                                    maxLines = 1
+                                )
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedTextField(
                     value = amountText,
@@ -529,9 +528,11 @@ fun AddEditFixedBillDialog(
                     label = { Text("Amount ($currencySymbol)", fontSize = 12.sp) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
-                    modifier = Modifier.weight(1.2f),
+                    modifier = Modifier.weight(1.25f),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = CardWhite,
+                        unfocusedContainerColor = CardWhite,
                         focusedBorderColor = AccentPurple,
                         unfocusedBorderColor = BorderLight
                     )
@@ -545,25 +546,25 @@ fun AddEditFixedBillDialog(
                             dueDayText = ""
                         } else if (digits.length <= 2) {
                             val num = digits.toIntOrNull() ?: 0
-                            if (num in 1..31) {
-                                dueDayText = digits
-                            }
+                            if (num in 1..31) dueDayText = digits
                         }
                     },
-                    label = { Text("Due Day (1-31)", fontSize = 12.sp) },
-                    placeholder = { Text("Opt", fontSize = 12.sp) },
+                    label = { Text("Due Day", fontSize = 12.sp) },
+                    placeholder = { Text("1-31", fontSize = 12.sp) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(0.95f),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = CardWhite,
+                        unfocusedContainerColor = CardWhite,
                         focusedBorderColor = AccentPurple,
                         unfocusedBorderColor = BorderLight
                     )
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedTextField(
                 value = noteText,
@@ -574,25 +575,21 @@ fun AddEditFixedBillDialog(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = CardWhite,
+                    unfocusedContainerColor = CardWhite,
                     focusedBorderColor = AccentPurple,
                     unfocusedBorderColor = BorderLight
                 )
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             if (selectedType == TransactionType.TRANSFER) {
-                Text(
-                    text = "Transfer Classification Subtype",
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextMuted
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
+                Text("Transfer Classification", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                Spacer(modifier = Modifier.height(5.dp))
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     val subtypes = listOf(
                         TransferSubtype.BILL_FUNDING to "Bill Funding",
@@ -601,28 +598,11 @@ fun AddEditFixedBillDialog(
                         TransferSubtype.CASH_WITHDRAWAL to "Cash ATM"
                     )
                     items(subtypes) { (subtype, label) ->
-                        val isSelected = selectedTransferSubtype == subtype
-                        Surface(
-                            modifier = Modifier
-                                .height(38.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { selectedTransferSubtype = subtype },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) AccentPurple.copy(alpha = 0.12f) else CanvasLight,
-                            border = BorderStroke(0.8.dp, if (isSelected) AccentPurple else BorderLight)
-                        ) {
-                            Box(
-                                modifier = Modifier.padding(horizontal = 14.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) AccentPurple else TextDark
-                                )
-                            }
-                        }
+                        FixedBillPillChip(
+                            label = label,
+                            selected = selectedTransferSubtype == subtype,
+                            onClick = { selectedTransferSubtype = subtype }
+                        )
                     }
                 }
             } else {
@@ -631,16 +611,20 @@ fun AddEditFixedBillDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Category", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                    TextButton(
-                        onClick = { showNewCategoryDialog = true },
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    Text("Category", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { showNewCategoryDialog = true }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = AccentPurple)
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(13.dp), tint = AccentPurple)
                         Spacer(modifier = Modifier.width(2.dp))
-                        Text("New", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                        Text("New", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
                     }
                 }
+                Spacer(modifier = Modifier.height(5.dp))
 
                 LazyRow(
                     state = categoryListState,
@@ -651,41 +635,12 @@ fun AddEditFixedBillDialog(
                         key = { "${it.name}_${it.isLegacy}" }
                     ) { catEntity ->
                         val isSelected = selectedCategory.equals(catEntity.name, ignoreCase = true)
-                        FilterChip(
+                        FixedBillPillChip(
+                            label = catEntity.name,
                             selected = isSelected,
-                            onClick = { selectedCategory = catEntity.name },
-                            label = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(catEntity.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                                    if (catEntity.isLegacy) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "Legacy",
-                                            fontSize = 8.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Warning700,
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(3.dp))
-                                                .background(Warning100)
-                                                .padding(horizontal = 3.dp, vertical = 0.5.dp)
-                                        )
-                                    } else if (catEntity.isNew) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size(5.dp)
-                                                .clip(CircleShape)
-                                                .background(Success500)
-                                        )
-                                    }
-                                }
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = if (catEntity.isLegacy) Warning100 else AccentPurpleLight,
-                                selectedLabelColor = if (catEntity.isLegacy) Warning700 else AccentPurple
-                            ),
-                            border = if (catEntity.isLegacy) BorderStroke(0.8.dp, Warning500) else null
+                            isLegacy = catEntity.isLegacy,
+                            isNew = catEntity.isNew,
+                            onClick = { selectedCategory = catEntity.name }
                         )
                     }
                 }
@@ -700,21 +655,21 @@ fun AddEditFixedBillDialog(
                         border = BorderStroke(0.6.dp, Warning500.copy(alpha = 0.6f))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Info, contentDescription = null, tint = Warning700, modifier = Modifier.size(13.dp))
+                            Icon(Icons.Default.Info, contentDescription = null, tint = Warning700, modifier = Modifier.size(12.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "'$selectedCategory' is a legacy category and will be retired next month.",
-                                fontSize = 10.5.sp,
+                                fontSize = 10.sp,
                                 color = Warning700
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -722,19 +677,23 @@ fun AddEditFixedBillDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Subcategory", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Text("Subcategory", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("(Primary Identification)", fontSize = 10.sp, color = TextMuted)
+                        Text("(Primary ID)", fontSize = 9.5.sp, color = TextMuted)
                     }
-                    TextButton(
-                        onClick = { showNewSubcategoryDialog = true },
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { showNewSubcategoryDialog = true }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = AccentPurple)
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(13.dp), tint = AccentPurple)
                         Spacer(modifier = Modifier.width(2.dp))
-                        Text("New", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                        Text("New", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
                     }
                 }
+                Spacer(modifier = Modifier.height(5.dp))
 
                 LazyRow(
                     state = subcategoryListState,
@@ -742,41 +701,12 @@ fun AddEditFixedBillDialog(
                 ) {
                     items(availableSubcategoryEntities, key = { "${it.name}_${it.isLegacy}" }) { subEntity ->
                         val isSelected = selectedSubcategory.equals(subEntity.name, ignoreCase = true)
-                        FilterChip(
+                        FixedBillPillChip(
+                            label = subEntity.name,
                             selected = isSelected,
-                            onClick = { selectedSubcategory = subEntity.name },
-                            label = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(subEntity.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                                    if (subEntity.isLegacy) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "Legacy",
-                                            fontSize = 8.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Warning700,
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(3.dp))
-                                                .background(Warning100)
-                                                .padding(horizontal = 3.dp, vertical = 0.5.dp)
-                                        )
-                                    } else if (subEntity.isNew) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size(5.dp)
-                                                .clip(CircleShape)
-                                                .background(Success500)
-                                        )
-                                    }
-                                }
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = if (subEntity.isLegacy) Warning100 else AccentPurpleLight,
-                                selectedLabelColor = if (subEntity.isLegacy) Warning700 else AccentPurple
-                            ),
-                            border = if (subEntity.isLegacy) BorderStroke(0.8.dp, Warning500) else null
+                            isLegacy = subEntity.isLegacy,
+                            isNew = subEntity.isNew,
+                            onClick = { selectedSubcategory = subEntity.name }
                         )
                     }
                 }
@@ -791,74 +721,67 @@ fun AddEditFixedBillDialog(
                     selectedType == TransactionType.CORPORATE && isCorporateInflow -> "Credit Vault (To)"
                     else -> "Deduction Vault"
                 },
-                fontSize = 12.sp,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextDark
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(5.dp))
             LazyRow(
                 state = accountListState,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(accountList) { acc ->
                     val isSelected = selectedAccount.equals(acc, ignoreCase = true)
-                    FilterChip(
+                    FixedBillPillChip(
+                        label = acc,
                         selected = isSelected,
                         onClick = {
                             selectedAccount = acc
                             if (selectedToAccount.equals(acc, ignoreCase = true)) {
                                 selectedToAccount = accountList.firstOrNull { !it.equals(acc, ignoreCase = true) }.orEmpty()
                             }
-                        },
-                        label = { Text(acc, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentPurpleLight,
-                            selectedLabelColor = AccentPurple
-                        )
+                        }
                     )
                 }
             }
 
             if (selectedType == TransactionType.TRANSFER) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Destination Vault (To)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("Destination Vault (To)", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Spacer(modifier = Modifier.height(5.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(accountList.filter { !it.equals(selectedAccount, ignoreCase = true) }) { acc ->
                         val isSelected = selectedToAccount.equals(acc, ignoreCase = true)
-                        FilterChip(
+                        FixedBillPillChip(
+                            label = acc,
                             selected = isSelected,
-                            onClick = { selectedToAccount = acc },
-                            label = { Text(acc, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                            shape = RoundedCornerShape(8.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = SoftTeal.copy(alpha = 0.15f),
-                                selectedLabelColor = SoftTeal
-                            )
+                            selectedBg = SoftTealLight,
+                            selectedText = SoftTeal,
+                            selectedBorder = SoftTeal,
+                            onClick = { selectedToAccount = acc }
                         )
                     }
                 }
 
                 if (isSelfTransfer) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(5.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.WarningAmber, contentDescription = null, tint = SoftRed, modifier = Modifier.size(13.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Source and destination vaults must be distinct.", fontSize = 10.5.sp, color = SoftRed, fontWeight = FontWeight.SemiBold)
+                        Text("Source and destination vaults must be distinct.", fontSize = 10.sp, color = SoftRed, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                color = CanvasLight,
-                border = BorderStroke(0.6.dp, BorderLight)
+                color = CardWhite,
+                border = BorderStroke(0.7.dp, BorderLight)
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -867,13 +790,13 @@ fun AddEditFixedBillDialog(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Mark as Paid for this cycle",
-                                fontSize = 12.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextDark
                             )
                             Text(
                                 text = if (isPaidState) "Will record a completed transaction" else "Will stay scheduled as pending",
-                                fontSize = 10.5.sp,
+                                fontSize = 10.sp,
                                 color = TextMuted
                             )
                         }
@@ -891,55 +814,39 @@ fun AddEditFixedBillDialog(
                     }
 
                     if (isPaidState) {
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         HorizontalDivider(color = BorderLight.copy(alpha = 0.5f), thickness = 0.6.dp)
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        Text(
-                            text = "Payment Date",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextMuted
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("Payment Date", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                        Spacer(modifier = Modifier.height(5.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            FilterChip(
+                            FixedBillPillChip(
+                                label = "Today",
                                 selected = isToday,
-                                onClick = { selectedDateMillis = System.currentTimeMillis() },
-                                label = { Text("Today", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = AccentPurpleLight,
-                                    selectedLabelColor = AccentPurple
-                                )
+                                onClick = { selectedDateMillis = System.currentTimeMillis() }
                             )
-
-                            FilterChip(
+                            FixedBillPillChip(
+                                label = "Yesterday",
                                 selected = isYesterday,
                                 onClick = {
                                     val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
                                     selectedDateMillis = cal.timeInMillis
-                                },
-                                label = { Text("Yesterday", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = AccentPurpleLight,
-                                    selectedLabelColor = AccentPurple
-                                )
+                                }
                             )
-
                             Surface(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(34.dp)
+                                    .height(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
                                     .clickable { showDatePickerDialog = true },
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (!isToday && !isYesterday) AccentPurpleLight else CardWhite,
+                                color = if (!isToday && !isYesterday) AccentPurpleLight else CanvasLight,
                                 border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) AccentPurple else BorderLight)
                             ) {
                                 Row(
@@ -949,7 +856,7 @@ fun AddEditFixedBillDialog(
                                 ) {
                                     Text(
                                         text = if (!isToday && !isYesterday) formattedDateLabel else "Other Date",
-                                        fontSize = 11.5.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
                                         color = if (!isToday && !isYesterday) AccentPurple else TextDark
                                     )
@@ -957,7 +864,7 @@ fun AddEditFixedBillDialog(
                                         imageVector = Icons.Default.CalendarToday,
                                         contentDescription = "Pick Date",
                                         tint = if (!isToday && !isYesterday) AccentPurple else TextMuted,
-                                        modifier = Modifier.size(14.dp)
+                                        modifier = Modifier.size(13.dp)
                                     )
                                 }
                             }
@@ -966,7 +873,7 @@ fun AddEditFixedBillDialog(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -974,7 +881,7 @@ fun AddEditFixedBillDialog(
             ) {
                 OutlinedButton(
                     onClick = onDismiss,
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier.weight(1f).height(44.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextDark)
                 ) {
@@ -1025,7 +932,7 @@ fun AddEditFixedBillDialog(
                         )
                         onDismiss()
                     },
-                    modifier = Modifier.weight(1.3f).height(48.dp),
+                    modifier = Modifier.weight(1.3f).height(44.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
@@ -1036,8 +943,6 @@ fun AddEditFixedBillDialog(
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
         }
     }
 
@@ -1149,6 +1054,78 @@ fun AddEditFixedBillDialog(
             }
         ) {
             DatePicker(state = datePickerState)
+        }
+    }
+}
+
+@Composable
+private fun FixedBillPillChip(
+    label: String,
+    selected: Boolean,
+    isLegacy: Boolean = false,
+    isNew: Boolean = false,
+    selectedBg: Color = AccentPurpleLight,
+    selectedText: Color = AccentPurple,
+    selectedBorder: Color = AccentPurple,
+    onClick: () -> Unit
+) {
+    val bgColor = when {
+        selected && isLegacy -> Warning100
+        selected -> selectedBg
+        else -> CardWhite
+    }
+    val txtColor = when {
+        selected && isLegacy -> Warning700
+        selected -> selectedText
+        else -> TextDark
+    }
+    val borderColor = when {
+        isLegacy -> Warning500
+        selected -> selectedBorder
+        else -> BorderLight
+    }
+
+    Surface(
+        modifier = Modifier
+            .height(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = bgColor,
+        border = BorderStroke(0.8.dp, borderColor)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = txtColor,
+                maxLines = 1
+            )
+            if (isLegacy) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Legacy",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Warning700,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Warning100)
+                        .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                )
+            } else if (isNew) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .clip(CircleShape)
+                        .background(Success500)
+                )
+            }
         }
     }
 }
