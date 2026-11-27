@@ -349,78 +349,92 @@ fun AddTransactionBottomSheet(
                     fontSize = 17.sp,
                     color = TextDark
                 )
-                IconButton(
-                    onClick = onDismiss,
+                Surface(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(30.dp)
                         .clip(CircleShape)
-                        .background(CardWhite.copy(alpha = 0.85f))
+                        .clickable(onClick = onDismiss),
+                    shape = CircleShape,
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight)
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(15.dp))
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = TextDark,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
             // 5-Way Segment Switcher
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(Color.White.copy(alpha = 0.75f))
-                    .padding(3.dp)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = Neutral100,
+                border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.85f))
             ) {
-                listOf(
-                    TransactionType.EXPENSE to "Expense",
-                    TransactionType.INCOME to "Income",
-                    TransactionType.ASSET to "Asset",
-                    TransactionType.CORPORATE to "Corporate",
-                    TransactionType.TRANSFER to "Transfer"
-                ).forEach { (type, label) ->
-                    val isSelected = selectedType == type
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) Primary50 else Color.Transparent)
-                            .clickable {
-                                selectedType = type
-                                if (type == TransactionType.CORPORATE) {
-                                    val targetCat = if (isCorporateInflow) "Reimbursements & Claims" else "Work & Professional"
-                                    val match = masterCategories.firstOrNull {
-                                        it.type == TransactionType.CORPORATE &&
-                                                (if (isCorporateInflow) it.name.equals("Reimbursements & Claims", ignoreCase = true)
-                                                else !it.name.equals("Reimbursements & Claims", ignoreCase = true))
-                                    }?.name ?: targetCat
-                                    selectedCategory = match
-                                    val subs = masterSubcategories.filter { it.parentCategory.equals(match, ignoreCase = true) && it.type == type }
-                                    selectedSubcategory = subs.firstOrNull()?.name ?: "General"
-                                } else if (type != TransactionType.TRANSFER) {
-                                    val cats = masterCategories.filter { it.type == type }
-                                    selectedCategory = cats.firstOrNull()?.name ?: "General"
-                                    val subs = masterSubcategories.filter { it.parentCategory.equals(selectedCategory, ignoreCase = true) && it.type == type }
-                                    selectedSubcategory = subs.firstOrNull()?.name ?: "General"
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(3.dp)
+                ) {
+                    listOf(
+                        TransactionType.EXPENSE to "Expense",
+                        TransactionType.INCOME to "Income",
+                        TransactionType.ASSET to "Asset",
+                        TransactionType.CORPORATE to "Corporate",
+                        TransactionType.TRANSFER to "Transfer"
+                    ).forEach { (type, label) ->
+                        val isSelected = selectedType == type
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(if (isSelected) CardWhite else Color.Transparent)
+                                .clickable {
+                                    selectedType = type
+                                    if (type == TransactionType.CORPORATE) {
+                                        val targetCat = if (isCorporateInflow) "Reimbursements & Claims" else "Work & Professional"
+                                        val match = masterCategories.firstOrNull {
+                                            it.type == TransactionType.CORPORATE &&
+                                                    (if (isCorporateInflow) it.name.equals("Reimbursements & Claims", ignoreCase = true)
+                                                    else !it.name.equals("Reimbursements & Claims", ignoreCase = true))
+                                        }?.name ?: targetCat
+                                        selectedCategory = match
+                                        val subs = masterSubcategories.filter { it.parentCategory.equals(match, ignoreCase = true) && it.type == type }
+                                        selectedSubcategory = subs.firstOrNull()?.name ?: "General"
+                                    } else if (type != TransactionType.TRANSFER) {
+                                        val cats = masterCategories.filter { it.type == type }
+                                        selectedCategory = cats.firstOrNull()?.name ?: "General"
+                                        val subs = masterSubcategories.filter { it.parentCategory.equals(selectedCategory, ignoreCase = true) && it.type == type }
+                                        selectedSubcategory = subs.firstOrNull()?.name ?: "General"
+                                    }
                                 }
-                            }
-                            .padding(vertical = 7.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = label,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 10.5.sp,
-                            color = if (isSelected) {
-                                when (type) {
-                                    TransactionType.EXPENSE -> Error500
-                                    TransactionType.INCOME -> Success500
-                                    TransactionType.ASSET -> SoftTeal
-                                    TransactionType.CORPORATE -> Warning700
-                                    TransactionType.TRANSFER -> Primary600
-                                }
-                            } else TextMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 10.5.sp,
+                                color = if (isSelected) {
+                                    when (type) {
+                                        TransactionType.EXPENSE -> Error500
+                                        TransactionType.INCOME -> Success500
+                                        TransactionType.ASSET -> SoftTeal
+                                        TransactionType.CORPORATE -> Warning700
+                                        TransactionType.TRANSFER -> Primary600
+                                    }
+                                } else TextMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
