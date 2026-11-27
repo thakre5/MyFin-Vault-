@@ -346,60 +346,74 @@ fun AddEditFixedBillDialog(
                     fontSize = 17.sp,
                     color = TextDark
                 )
-                IconButton(
-                    onClick = onDismiss,
+                Surface(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(30.dp)
                         .clip(CircleShape)
-                        .background(CardWhite.copy(alpha = 0.85f))
+                        .clickable(onClick = onDismiss),
+                    shape = CircleShape,
+                    color = CardWhite,
+                    border = BorderStroke(0.8.dp, BorderLight)
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextDark, modifier = Modifier.size(15.dp))
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = TextDark,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
             // 5-Way Segment Switcher
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(Color.White.copy(alpha = 0.75f))
-                    .padding(3.dp)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = Neutral100,
+                border = BorderStroke(0.6.dp, BorderLight.copy(alpha = 0.85f))
             ) {
-                listOf(
-                    TransactionType.EXPENSE to "Expense",
-                    TransactionType.INCOME to "Income",
-                    TransactionType.ASSET to "Asset",
-                    TransactionType.CORPORATE to "Corporate",
-                    TransactionType.TRANSFER to "Transfer"
-                ).forEach { (type, label) ->
-                    val isSelected = selectedType == type
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) Primary50 else Color.Transparent)
-                            .clickable { selectedType = type }
-                            .padding(vertical = 7.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = label,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 10.5.sp,
-                            color = if (isSelected) {
-                                when (type) {
-                                    TransactionType.EXPENSE -> SoftRed
-                                    TransactionType.INCOME -> SoftGreen
-                                    TransactionType.ASSET -> SoftTeal
-                                    TransactionType.CORPORATE -> Warning700
-                                    TransactionType.TRANSFER -> AccentPurple
-                                }
-                            } else TextMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(3.dp)
+                ) {
+                    listOf(
+                        TransactionType.EXPENSE to "Expense",
+                        TransactionType.INCOME to "Income",
+                        TransactionType.ASSET to "Asset",
+                        TransactionType.CORPORATE to "Corporate",
+                        TransactionType.TRANSFER to "Transfer"
+                    ).forEach { (type, label) ->
+                        val isSelected = selectedType == type
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(if (isSelected) CardWhite else Color.Transparent)
+                                .clickable { selectedType = type }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 10.5.sp,
+                                color = if (isSelected) {
+                                    when (type) {
+                                        TransactionType.EXPENSE -> Error500
+                                        TransactionType.INCOME -> Success500
+                                        TransactionType.ASSET -> SoftTeal
+                                        TransactionType.CORPORATE -> Warning700
+                                        TransactionType.TRANSFER -> Primary600
+                                    }
+                                } else TextMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -533,7 +547,7 @@ fun AddEditFixedBillDialog(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = CardWhite,
                         unfocusedContainerColor = CardWhite,
-                        focusedBorderColor = AccentPurple,
+                        focusedBorderColor = Primary600,
                         unfocusedBorderColor = BorderLight
                     )
                 )
@@ -558,7 +572,7 @@ fun AddEditFixedBillDialog(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = CardWhite,
                         unfocusedContainerColor = CardWhite,
-                        focusedBorderColor = AccentPurple,
+                        focusedBorderColor = Primary600,
                         unfocusedBorderColor = BorderLight
                     )
                 )
@@ -577,7 +591,7 @@ fun AddEditFixedBillDialog(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = CardWhite,
                     unfocusedContainerColor = CardWhite,
-                    focusedBorderColor = AccentPurple,
+                    focusedBorderColor = Primary600,
                     unfocusedBorderColor = BorderLight
                 )
             )
@@ -619,9 +633,9 @@ fun AddEditFixedBillDialog(
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(13.dp), tint = AccentPurple)
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(13.dp), tint = Primary600)
                         Spacer(modifier = Modifier.width(2.dp))
-                        Text("New", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                        Text("New", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Primary600)
                     }
                 }
                 Spacer(modifier = Modifier.height(5.dp))
@@ -688,9 +702,9 @@ fun AddEditFixedBillDialog(
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(13.dp), tint = AccentPurple)
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(13.dp), tint = Primary600)
                         Spacer(modifier = Modifier.width(2.dp))
-                        Text("New", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AccentPurple)
+                        Text("New", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Primary600)
                     }
                 }
                 Spacer(modifier = Modifier.height(5.dp))
@@ -766,9 +780,9 @@ fun AddEditFixedBillDialog(
                 if (isSelfTransfer) {
                     Spacer(modifier = Modifier.height(5.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = SoftRed, modifier = Modifier.size(13.dp))
+                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Error500, modifier = Modifier.size(13.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Source and destination vaults must be distinct.", fontSize = 10.sp, color = SoftRed, fontWeight = FontWeight.SemiBold)
+                        Text("Source and destination vaults must be distinct.", fontSize = 10.sp, color = Error700, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -806,7 +820,7 @@ fun AddEditFixedBillDialog(
                             onCheckedChange = { isPaidState = it },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
-                                checkedTrackColor = AccentPurple,
+                                checkedTrackColor = Primary600,
                                 uncheckedThumbColor = TextMuted,
                                 uncheckedTrackColor = BorderLight
                             )
@@ -846,8 +860,8 @@ fun AddEditFixedBillDialog(
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { showDatePickerDialog = true },
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (!isToday && !isYesterday) AccentPurpleLight else CanvasLight,
-                                border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) AccentPurple else BorderLight)
+                                color = if (!isToday && !isYesterday) Primary50 else CanvasLight,
+                                border = BorderStroke(0.8.dp, if (!isToday && !isYesterday) Primary600 else BorderLight)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp),
@@ -858,12 +872,12 @@ fun AddEditFixedBillDialog(
                                         text = if (!isToday && !isYesterday) formattedDateLabel else "Other Date",
                                         fontSize = 11.sp,
                                         fontWeight = if (!isToday && !isYesterday) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (!isToday && !isYesterday) AccentPurple else TextDark
+                                        color = if (!isToday && !isYesterday) Primary700 else TextDark
                                     )
                                     Icon(
                                         imageVector = Icons.Default.CalendarToday,
                                         contentDescription = "Pick Date",
-                                        tint = if (!isToday && !isYesterday) AccentPurple else TextMuted,
+                                        tint = if (!isToday && !isYesterday) Primary600 else TextMuted,
                                         modifier = Modifier.size(13.dp)
                                     )
                                 }
@@ -934,12 +948,13 @@ fun AddEditFixedBillDialog(
                     },
                     modifier = Modifier.weight(1.3f).height(44.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary600)
                 ) {
                     Text(
                         text = if (initialBill == null) "Save AutoPay" else "Update AutoPay",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        color = Color.White
                     )
                 }
             }
@@ -970,7 +985,7 @@ fun AddEditFixedBillDialog(
                         showNewCategoryDialog = false
                     }
                 }) {
-                    Text("Add", fontWeight = FontWeight.Bold, color = AccentPurple)
+                    Text("Add", fontWeight = FontWeight.Bold, color = Primary600)
                 }
             },
             dismissButton = {
@@ -1005,7 +1020,7 @@ fun AddEditFixedBillDialog(
                         showNewSubcategoryDialog = false
                     }
                 }) {
-                    Text("Add", fontWeight = FontWeight.Bold, color = AccentPurple)
+                    Text("Add", fontWeight = FontWeight.Bold, color = Primary600)
                 }
             },
             dismissButton = {
@@ -1044,7 +1059,7 @@ fun AddEditFixedBillDialog(
                         showDatePickerDialog = false
                     }
                 ) {
-                    Text("Select", fontWeight = FontWeight.Bold, color = AccentPurple)
+                    Text("Select", fontWeight = FontWeight.Bold, color = Primary600)
                 }
             },
             dismissButton = {
@@ -1064,9 +1079,9 @@ private fun FixedBillPillChip(
     selected: Boolean,
     isLegacy: Boolean = false,
     isNew: Boolean = false,
-    selectedBg: Color = AccentPurpleLight,
-    selectedText: Color = AccentPurple,
-    selectedBorder: Color = AccentPurple,
+    selectedBg: Color = Primary50,
+    selectedText: Color = Primary700,
+    selectedBorder: Color = Primary600,
     onClick: () -> Unit
 ) {
     val bgColor = when {
