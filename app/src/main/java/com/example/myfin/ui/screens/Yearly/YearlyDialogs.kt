@@ -433,31 +433,43 @@ fun CashflowActiveMatrixSheet(
                     ProTipNotice("Quarterly rhythms help catch seasonal spikes (e.g. festivals in Q4 or annual bonuses in Q1).")
                 }
 
-                // 6. CORPORATE FLOAT & CLAIMS MATRIX
+                // 6. CORPORATE WORK & CLAIMS MATRIX
                 CashflowMatrixSheetType.CORPORATE_FLOAT -> {
                     val status = yearlyState.reimbursementStatus
                     val totalReimbursementsReceived = yearlyMonths.sumOf { it.corporateReimbursements }
 
                     SheetHeader(
-                        title = "Corporate Float & Claims Ledger",
-                        subtitle = "Business Travel & Advance Ring-Fence",
-                        badge = if (status.isSettled) "Settled" else "Pending Action",
-                        badgeColor = if (status.isSettled) Success700 else Warning700,
-                        badgeBgColor = if (status.isSettled) Success100 else Warning100
+                        title = "Corporate Work & Claims",
+                        subtitle = "Paid for Work vs. Received from Company",
+                        badge = when {
+                            status.pendingReimbursement > 0.0 -> "Owed to you"
+                            status.excessAdvanceHeld > 0.0 -> "Advance held"
+                            else -> "All Settled"
+                        },
+                        badgeColor = when {
+                            status.pendingReimbursement > 0.0 -> Warning700
+                            status.excessAdvanceHeld > 0.0 -> SoftTeal
+                            else -> Success700
+                        },
+                        badgeBgColor = when {
+                            status.pendingReimbursement > 0.0 -> Warning100
+                            status.excessAdvanceHeld > 0.0 -> SoftTealLight
+                            else -> Success100
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MatrixDataRow("Work Expenses Logged (YTD)", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.totalWorkExpenses)}", "Business outlays paid by you this year", Warning500)
-                        MatrixDataRow("Corporate Advances Held", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.excessAdvanceHeld)}", "Upfront company funds (Ring-fenced)", SoftTeal)
-                        MatrixDataRow("Reimbursements Received (YTD)", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", totalReimbursementsReceived)}", "Settled company refunds this year", Success500)
+                        MatrixDataRow("Paid for Work (-) (YTD)", if (isDiscreetMode) "••••" else "-$currencySymbol${String.format(Locale.US, "%,.0f", status.totalWorkExpenses)}", "Work expenses paid from your vaults this year", Warning500)
+                        MatrixDataRow("From Company (+) (YTD)", if (isDiscreetMode) "••••" else "+$currencySymbol${String.format(Locale.US, "%,.0f", totalReimbursementsReceived)}", "Claims & advances received this year", Success500)
+                        MatrixDataRow("Company Advance Held", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.excessAdvanceHeld)}", "Upfront company funds (ring-fenced)", SoftTeal)
                         HorizontalDivider(color = BorderLight, thickness = 0.8.dp)
-                        MatrixDataRow("All-Time Pending Claim Due", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.pendingReimbursement)}", "Balance owed back to your personal accounts", if (status.pendingReimbursement > 0) Error500 else Success500, isBold = true)
+                        MatrixDataRow("Company Owes You (All-Time)", if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", status.pendingReimbursement)}", "Pending reimbursement owed to your vaults", if (status.pendingReimbursement > 0) Error500 else Success500, isBold = true)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    ProTipNotice("Corporate outlays are completely excluded from personal lifestyle burn to ensure clean accounting.")
+                    ProTipNotice("Work expenses and reimbursements are completely excluded from personal spending to keep your budget accurate.")
                 }
             }
 
@@ -810,11 +822,11 @@ fun InspectedMonthBottomSheet(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.WorkOutline, contentDescription = null, tint = Warning700, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Corporate Float Active", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Warning700)
+                            Text("Corporate Work & Claims", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Warning700)
                         }
                         Text(
-                            text = if (isDiscreetMode) "••••" else "Outlay: ${currencySymbol}${String.format(Locale.US, "%,.0f", mData.workExpenses)} | Claims: ${currencySymbol}${String.format(Locale.US, "%,.0f", mData.corporateReimbursements)}",
-                            fontSize = 11.sp,
+                            text = if (isDiscreetMode) "••••" else "Work: -${currencySymbol}${String.format(Locale.US, "%,.0f", mData.workExpenses)} • Recv: +${currencySymbol}${String.format(Locale.US, "%,.0f", mData.corporateReimbursements)}",
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = Warning700
                         )
