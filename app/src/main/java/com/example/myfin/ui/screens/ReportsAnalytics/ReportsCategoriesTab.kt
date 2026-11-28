@@ -128,21 +128,21 @@ fun ReportsCategoriesTab(
         val advanceStr = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", allTimeAdvanceHeld)}"
 
         val allTimeLine = when {
-            allTimePendingClaim > 0.0 -> "\nAll-Time Pending Claim Due: $pendingStr"
-            allTimeAdvanceHeld > 0.0 -> "\nAll-Time Advance Held: $advanceStr"
-            else -> "\nAll-Time Corporate Float: Settled"
+            allTimePendingClaim > 0.0 -> "\nAll-Time Status: Company owes you $pendingStr"
+            allTimeAdvanceHeld > 0.0 -> "\nAll-Time Status: Company advance held: $advanceStr"
+            else -> "\nAll-Time Status: All settled"
         }
 
         ChartMetricInfo(
-            title = "Corporate Outlays & Claims",
-            subtitle = "Business Travel & Advance Ring-Fence",
-            formula = "All-Time Net Float = Opening Float + Total Outlays - Reimbursements",
-            breakdown = "${selectedTimeRange.label} Outlays: $outStr\n${selectedTimeRange.label} Settled Claims: $reimbStr$allTimeLine",
+            title = "Corporate Work & Claims",
+            subtitle = "Paid for Work vs. Received from Company",
+            formula = "All-Time Net = Opening Balance + Paid for Work - From Company",
+            breakdown = "${selectedTimeRange.label} Paid for Work: -$outStr\n${selectedTimeRange.label} From Company: +$reimbStr$allTimeLine",
             visualElements = listOf(
-                "Claim Due" to "Total balance owed back to your personal vault (including any opening corporate claim).",
-                "Advance Held" to "Company capital held in your accounts, strictly ring-fenced from your living burn."
+                "Owed to you" to "Total balance your company owes back to your personal vault.",
+                "Advance held" to "Company advance held in your accounts, strictly ring-fenced from personal spending."
             ),
-            advice = "Corporate expenses are ring-fenced from personal living burn so business travel never distorts your true living budget."
+            advice = "Work expenses and reimbursements are ring-fenced from personal spending so business travel never distorts your true living budget."
         )
     }
 
@@ -227,7 +227,7 @@ fun ReportsCategoriesTab(
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Corporate Float Active Banner (Synced with All-Time Pending Claim / Advance)
+        // Corporate Work & Claims Banner (Synced with All-Time Pending Claim / Advance)
         val hasCorporateActivity = corporateOutlays > 0.0 ||
             corporateReimbursements > 0.0 ||
             allTimePendingClaim > 0.0 ||
@@ -241,9 +241,14 @@ fun ReportsCategoriesTab(
                 isAdvanceHeld -> allTimeAdvanceHeld
                 else -> abs(corporateOutlays - corporateReimbursements)
             }
+            val displayTitle = when {
+                isClaimDue -> if (isDiscreet) "Company owes you ••••" else "Company owes you $userProfileCurrency${String.format(Locale.US, "%,.0f", allTimePendingClaim)}"
+                isAdvanceHeld -> if (isDiscreet) "Company advance held: ••••" else "Company advance held: $userProfileCurrency${String.format(Locale.US, "%,.0f", allTimeAdvanceHeld)}"
+                else -> "Corporate • All Settled"
+            }
             val displayLabel = when {
-                isClaimDue -> "Claim Due"
-                isAdvanceHeld -> "Advance Held"
+                isClaimDue -> "Owed to you"
+                isAdvanceHeld -> "Advance held"
                 else -> "Settled"
             }
             val displayColor = when {
@@ -287,16 +292,20 @@ fun ReportsCategoriesTab(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Corporate Float Active",
+                                text = displayTitle,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp,
-                                color = TextDark
+                                fontSize = 13.sp,
+                                color = TextDark,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = if (isDiscreet) "••••" else "Outlays: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateOutlays)} | Settled: $userProfileCurrency${String.format(Locale.US, "%,.0f", corporateReimbursements)}",
-                                fontSize = 11.sp,
-                                color = TextMuted
+                                text = if (isDiscreet) "••••" else "Paid for Work: -$userProfileCurrency${String.format(Locale.US, "%,.0f", corporateOutlays)} • From Company: +$userProfileCurrency${String.format(Locale.US, "%,.0f", corporateReimbursements)}",
+                                fontSize = 10.5.sp,
+                                color = TextMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
@@ -304,7 +313,7 @@ fun ReportsCategoriesTab(
 
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = if (isDiscreet) "••••" else "${if (isClaimDue) "+" else ""}$userProfileCurrency${String.format(Locale.US, "%,.0f", displayAmount)}",
+                                text = if (isDiscreet) "••••" else "$userProfileCurrency${String.format(Locale.US, "%,.0f", displayAmount)}",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 14.sp,
                                 color = displayColor
