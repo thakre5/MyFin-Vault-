@@ -151,7 +151,7 @@ fun YearlyCashflowTab(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 5. CORPORATE FLOAT & CLAIMS BANNER (Opens Outlay & Advance Ledger)
+        // 5. CORPORATE WORK & CLAIMS BANNER (Opens Outlay & Advance Ledger)
         if (reimbursementStatus.cumulativeWorkExpenses > 0.0 || reimbursementStatus.excessAdvanceHeld > 0.0 || reimbursementStatus.pendingReimbursement > 0.0) {
             item(key = "reimbursement_banner") {
                 Surface(
@@ -185,17 +185,17 @@ fun YearlyCashflowTab(
                         Spacer(modifier = Modifier.width(12.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Corporate Float & Claims", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
+                            Text("Corporate Work & Claims", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextDark)
                             Spacer(modifier = Modifier.height(1.dp))
                             val advanceFormatted = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", reimbursementStatus.excessAdvanceHeld)}"
                             val pendingFormatted = if (isDiscreetMode) "••••" else "$currencySymbol${String.format(Locale.US, "%,.0f", reimbursementStatus.pendingReimbursement)}"
                             Text(
                                 text = when {
                                     reimbursementStatus.excessAdvanceHeld > 0.0 ->
-                                        "Holding $advanceFormatted upfront company advance (ring-fenced)."
+                                        "Company advance held: $advanceFormatted (ring-fenced)."
                                     reimbursementStatus.pendingReimbursement > 0.0 ->
                                         "Company owes you $pendingFormatted in pending claims."
-                                    else -> "All corporate outlays fully settled."
+                                    else -> "All work expenses & claims settled."
                                 },
                                 fontSize = 10.5.sp,
                                 color = if (reimbursementStatus.isSettled) Success700 else Warning700,
@@ -220,8 +220,8 @@ fun YearlyCashflowTab(
                             )
                             Text(
                                 text = when {
-                                    reimbursementStatus.excessAdvanceHeld > 0.0 -> "Advance Held"
-                                    reimbursementStatus.pendingReimbursement > 0.0 -> "Claim Due"
+                                    reimbursementStatus.excessAdvanceHeld > 0.0 -> "Advance held"
+                                    reimbursementStatus.pendingReimbursement > 0.0 -> "Owed to you"
                                     else -> "Settled"
                                 },
                                 fontSize = 9.sp,
