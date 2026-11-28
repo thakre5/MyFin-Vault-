@@ -363,7 +363,6 @@ private fun FilteredMountainCanvas(
         }
 
         when (activeFilter) {
-            // STACKED COMPOSITION (SoftTeal at top, Primary500 in middle, Neutral600 at bottom)
             OutflowLayerFilter.ALL -> {
                 val ptsAssets = yearlyMonths.mapIndexed { idx, m ->
                     val x = idx * stepX
@@ -399,7 +398,6 @@ private fun FilteredMountainCanvas(
                 )
             }
 
-            // ISOLATED FIXED BILLS
             OutflowLayerFilter.FIXED -> {
                 val ptsFixed = yearlyMonths.mapIndexed { idx, m ->
                     val x = idx * stepX
@@ -413,7 +411,6 @@ private fun FilteredMountainCanvas(
                 )
             }
 
-            // ISOLATED LIFESTYLE BURN
             OutflowLayerFilter.LIFESTYLE -> {
                 val ptsLifestyle = yearlyMonths.mapIndexed { idx, m ->
                     val x = idx * stepX
@@ -427,7 +424,6 @@ private fun FilteredMountainCanvas(
                 )
             }
 
-            // ISOLATED ASSETS SIP STREAM
             OutflowLayerFilter.ASSETS -> {
                 val ptsIsolatedAssets = yearlyMonths.mapIndexed { idx, m ->
                     val x = idx * stepX
@@ -490,7 +486,6 @@ private fun MonthlySpotlightComparisonCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             if (activeCount < 2 || leanest?.monthIndex == peak?.monthIndex) {
-                // Single Active Month Pacing View
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -524,12 +519,10 @@ private fun MonthlySpotlightComparisonCard(
                     }
                 }
             } else {
-                // Multi-Month Comparative View
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Leanest Month
                     Surface(
                         modifier = Modifier
                             .weight(1f)
@@ -570,7 +563,6 @@ private fun MonthlySpotlightComparisonCard(
                         }
                     }
 
-                    // Peak Month
                     Surface(
                         modifier = Modifier
                             .weight(1f)
@@ -617,7 +609,7 @@ private fun MonthlySpotlightComparisonCard(
 }
 
 // =========================================================
-// 3. CONNECTED MILESTONE TIMELINE ROW (WITH CORPORATE FLOAT)
+// 3. CONNECTED MILESTONE TIMELINE ROW (WITH WORK / CLAIMS)
 // =========================================================
 
 @Composable
@@ -734,7 +726,7 @@ private fun TimelineMonthRow(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Row 2: Burn Figure, Benchmark Indicator & Corporate Float
+                // Row 2: Burn Figure, Benchmark Indicator & Corporate Tag
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -754,18 +746,33 @@ private fun TimelineMonthRow(
                                 color = TextMuted
                             )
                             if (data.workExpenses > 0.0) {
-                                Spacer(modifier = Modifier.width(4.dp))
-                                val floatLabel = if (isDiscreet) {
-                                    "+••• float"
+                                Spacer(modifier = Modifier.width(5.dp))
+                                val workLabel = if (isDiscreet) {
+                                    "• Work: -•••"
                                 } else if (data.workExpenses >= 1000.0) {
-                                    "+${(data.workExpenses / 1000).toInt()}k float"
+                                    "• Work: -$currencySymbol${(data.workExpenses / 1000).toInt()}k"
                                 } else {
-                                    "+${data.workExpenses.toInt()} float"
+                                    "• Work: -$currencySymbol${data.workExpenses.toInt()}"
                                 }
                                 Text(
-                                    text = floatLabel,
+                                    text = workLabel,
                                     fontSize = 8.5.sp,
                                     color = Warning700,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else if (data.corporateReimbursements > 0.0) {
+                                Spacer(modifier = Modifier.width(5.dp))
+                                val claimLabel = if (isDiscreet) {
+                                    "• Claim: +•••"
+                                } else if (data.corporateReimbursements >= 1000.0) {
+                                    "• Claim: +$currencySymbol${(data.corporateReimbursements / 1000).toInt()}k"
+                                } else {
+                                    "• Claim: +$currencySymbol${data.corporateReimbursements.toInt()}"
+                                }
+                                Text(
+                                    text = claimLabel,
+                                    fontSize = 8.5.sp,
+                                    color = Success700,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
